@@ -1,0 +1,21 @@
+# Root ignores. ios/.gitignore (Capacitor's own: App/build, Pods, App/App/public, DerivedData, xcuserdata, …) still applies.
+
+# dependencies
+node_modules/
+
+# build output — regenerate with `npm run build` (www/, the Capacitor webDir) and `npm run build:artifact` (dist/)
+www/
+dist/
+
+# test harness output (screenshots, logs); store-shots.mjs without --dest writes to store/screenshots/test/
+harness/out/
+store/screenshots/test/
+
+# reviewer / agent scratch
+.review/
+
+# OS / editor noise
+.DS_Store
+*.log
+.vscode/
+.idea/

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1024">
+<title>Ледяной Улей — иконка</title>
+<!--
+  App icon source for «Ледяной Улей». Three concepts, picked with ?c=hex|beam|lasers (default: hex = the shipped icon).
+  Re-render everything: node resources/src/render.mjs   (writes resources/icon.png, resources/splash.png,
+  resources/src/icon-<concept>.png and resources/src/icon-contact.png).
+  One 1024x1024 SVG; no text, no rounded corners (iOS applies its own mask), opaque background.
+-->
+<style>
+  :root { color-scheme: dark; --bg: #05070a; }
+  html, body { margin: 0; height: 100%; background: var(--bg); }
+  svg { display: block; }
+</style>
+<script src="bug.js"></script>
+<script src="icon-concepts.js"></script>
+</head>
+<body>
+<svg id="icon" xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"></svg>
+<script>
+  const c = new URLSearchParams(location.search).get('c') || 'hex';
+  document.getElementById('icon').innerHTML = (ICON[c] || ICON.hex)();
+  document.documentElement.dataset.ready = '1';
+</script>
+</body>
+</html>

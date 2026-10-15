@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=2732">
+<title>Ледяной Улей — заставка</title>
+<!--
+  Launch splash source for «Ледяной Улей»: 2732x2732, game background #05070a, hive emblem + wordmark centred.
+  iOS shows it with scaleAspectFill (Capacitor LaunchScreen.storyboard), so an iPhone only sees the central
+  ~1257 px square-ish band (portrait: full height x ~1257-1536 px width; landscape: full width x ~1260 px height).
+  All content is kept inside the central 1000x1000 px; window.__contentBox() reports the real bounds.
+  Re-render: node resources/src/render.mjs  (Oswald is loaded from node_modules/@fontsource/oswald via the
+  render script's local server, so open it through that server rather than file:// if you preview it).
+  ?c=hex|beam|lasers picks the emblem (default hex = the shipped icon).
+-->
+<style>
+  @font-face { font-family: "Oswald"; font-style: normal; font-weight: 700; font-display: block;
+    src: url("../../node_modules/@fontsource/oswald/files/oswald-cyrillic-700-normal.woff2") format("woff2");
+    unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+  @font-face { font-family: "Oswald"; font-style: normal; font-weight: 700; font-display: block;
+    src: url("../../node_modules/@fontsource/oswald/files/oswald-latin-700-normal.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+  :root {
+    color-scheme: dark;
+    --bg: #05070a;
+    --bg-2: #0a0f15;
+    --ink: #dbe6ee;
+    --teal: #3fe3d2;
+    --amber: #ffb420;
+    --amber-glow: rgba(255, 180, 32, 0.35);
+    --ice-glow: rgba(76, 201, 255, 0.25);
+    --font-display: "Oswald", "Russo One", "Arial Narrow", "Roboto Condensed", "Helvetica Neue", Arial, sans-serif;
+  }
+  html, body { margin: 0; width: 2732px; height: 2732px; overflow: hidden; background: var(--bg); }
+  #stage {
+    position: absolute; inset: 0;
+    /* the faintest cold haze behind the emblem; the outer frame stays exactly --bg */
+    background: radial-gradient(closest-side circle at 50% 50%, #0b161b 0%, #080d12 45%, var(--bg) 100%) center / 1400px 1400px no-repeat, var(--bg);
+  }
+  #group { position: absolute; left: 50%; top: 50%; display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -50%); }
+  #emblem { display: block; width: 640px; height: 640px; overflow: visible; }
+  .word {
+    margin-top: 22px;
+    font: 700 124px/1 var(--font-display); letter-spacing: .05em; text-transform: uppercase;
+    white-space: nowrap; color: var(--ink); text-shadow: 0 0 40px var(--ice-glow);
+    display: flex; gap: 0 .26em;
+  }
+  .word .acc { color: transparent; -webkit-text-stroke: 4px var(--amber); text-shadow: 0 0 30px var(--amber-glow); }
+  .haz { margin-top: 34px; width: 300px; height: 14px; background: repeating-linear-gradient(90deg, var(--amber) 0 20px, transparent 20px 40px); transform: skewX(-40deg); opacity: .9; }
+</style>
+<script src="bug.js"></script>
+<script src="icon-concepts.js"></script>
+</head>
+<body>
+<div id="stage">
+  <div id="group">
+    <svg id="emblem" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"></svg>
+    <div class="word"><span>Ледяной</span><span class="acc">Улей</span></div>
+    <div class="haz"></div>
+  </div>
+</div>
+<script>
+(async function () {
+  const c = new URLSearchParams(location.search).get('c') || 'hex';
+  const svg = document.getElementById('emblem');
+  svg.innerHTML = c === 'hex' ? ICON.hex({ bare: true }) : (ICON[c] || ICON.hex)();
+  if (c !== 'hex') svg.style.clipPath = 'inset(0 round 140px)';
+  await document.fonts.ready;
+  // The emblem's 1024 box has empty margin at the bottom; nudge the group so the VISIBLE content is centred.
+  const box = () => {
+    // tight bounds of the drawn emblem geometry (outer hex + shards + legs), ignoring blur halos
+    const g = svg.getBBox();
+    const k = svg.getBoundingClientRect().width / 1024, sr = svg.getBoundingClientRect();
+    const e = { left: sr.left + g.x * k, top: sr.top + g.y * k, right: sr.left + (g.x + g.width) * k, bottom: sr.top + (g.y + g.height) * k };
+    const w = document.querySelector('.word').getBoundingClientRect();
+    const h = document.querySelector('.haz').getBoundingClientRect();
+    return { left: Math.min(e.left, w.left, h.left), top: e.top, right: Math.max(e.right, w.right, h.right), bottom: h.bottom };
+  };
+  const b0 = box();
+  const dy = 1366 - (b0.top + b0.bottom) / 2;
+  const grp = document.getElementById('group');
+  grp.style.transform = `translate(-50%, calc(-50% + ${dy.toFixed(1)}px))`;
+  window.__contentBox = () => { const b = box(); return { left: Math.round(b.left), top: Math.round(b.top), right: Math.round(b.right), bottom: Math.round(b.bottom), width: Math.round(b.right - b.left), height: Math.round(b.bottom - b.top) }; };
+  document.documentElement.dataset.ready = '1';
+})();
+</script>
+</body>
+</html>
