@@ -1,0 +1,643 @@
+{
+  "version": 1,
+  "generator": "ios-native/tools/render-sprites.mjs (renders game/js/01…09 with three.js r170 in headless Chromium)",
+  "projection": {
+    "type": "orthographic 3/4 view, same yaw/pitch as the web camera (CAM_YAW 45°, CAM_PITCH 57°), no perspective",
+    "yawDegrees": 45,
+    "pitchDegrees": 57,
+    "pointsPerMetre": 24,
+    "pixelsPerMetre3x": 72,
+    "pixelsPerMetre2x": 48,
+    "worldAxes": "world x, z on the deck (sim coordinates of the web game), y up. The camera sits at +x,+z looking toward -x,-z.",
+    "screenFromWorld": "u = (x - z) * 0.707107 * ppm ;  v = (y * 0.544639 - (x + z) * 0.707107 * 0.838671) * ppm   (u right, v up; ppm = 24 for SpriteKit points)",
+    "screenFromWorldConstants": {
+      "cosYaw": 0.707107,
+      "sinPitch": 0.838671,
+      "cosPitch": 0.544639
+    },
+    "depth": "nearness = (x + z) * 0.385118 + y * 0.838671  (larger = closer to the camera = draw later / higher zPosition)",
+    "cellDiamondPoints": [
+      33.9411,
+      28.4654
+    ],
+    "heightStepPoints": 13.0713,
+    "directions": "dir = Int((hd / (2π) * 16).rounded()) & 15 with hd = atan2(dx, dz) in WORLD space (the web game's heading / aim angle). dir 0 faces world +z (screen down-left), 4 faces +x (down-right), 8 faces -z (up-right), 12 faces -x (up-left); screen-up (the web FWD vector) is hd = 225° (dir 10)",
+    "groundPlaneTextures": "flat textures (decals, telegraph rings, lanes, glow pools, pad marks) are top-down: put the SKSpriteNode (zRotation = world rotation) inside a container node with yScale = 0.838671 (= sin pitch) and zRotation = 0; world rotation r about +y maps to zRotation = r. Size in points = metres * 24. Exact for an orthographic camera (x,z -> rotate 45°, squash y).",
+    "recommendedCameraScale": "the web game shows ~23 m across a portrait iPhone (≈17–18 pt/m): SKCameraNode.setScale(1.35) (≈18 pt/m) matches it; 1.0 is a closer view at native sprite resolution"
+  },
+  "lighting": {
+    "rig": "sprites are pre-lit with a bright \"full light\" rig: the game's moon direction (-25, 60, 35), cool sky dome, warm fill from the viewer (flashlights). ACES filmic, sRGB.",
+    "inGameDarkness": "multiply by a light map: about [0.27, 0.31, 0.42] in the dark (moon + sky only), 1.0 inside flashlight cones / lamp pools, >1 not possible with multiply — add light pools additively instead",
+    "glowLayers": "BugsGlow / MarinesGlow hold the emissive parts only (pink / acid / ember speckles, visors, lamps) with a soft halo, premultiplied: draw ABOVE the darkness with blendMode .add at the same position, anchor and scale (they are @2x-only images with the same point size as the lit frame)",
+    "bugBrightness": "bug frames use instance brightness 1.15; the web game varies it per bug 0.55…1.3 → multiply color by 0.48…1.13 (colorBlendFactor 1, SKColor(white:))"
+  },
+  "atlasNotes": "Sprite atlases live in Assets.xcassets/*.spriteatlas (Xcode packs them into pages per scale and trims transparent borders itself; SKTexture.size() keeps the untrimmed frame size, so the anchors below stay valid). Load with SKTextureAtlas(named: \"Bugs\").textureNamed(\"runner_walk_03_5\"). Frame names are unique across atlases. Lit frames have @2x + @3x, glow frames @2x only.",
+  "sets": {
+    "boomer_climb": {
+      "atlas": "Bugs",
+      "glowAtlas": "BugsGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "bug",
+      "pattern": "boomer_climb_{dir:02}_{frame}",
+      "directions": 16,
+      "frames": 4,
+      "loop": true,
+      "fps": 8.9,
+      "worldScale": 1.15,
+      "note": "S_CLIMB below the deck edge (y < -0.85): body pitched 1.4 rad nose-up against the platform wall",
+      "sizePoints": [
+        52,
+        48
+      ],
+      "pixelSize3x": [
+        156,
+        144
+      ],
+      "anchor": [
+        0.5,
+        0.54167
+      ],
+      "anchorPixel3x": [
+        78,
+        66
+      ],
+      "screenSizeMetres": [
+        2.167,
+        2
+      ]
+    },
+    "boomer_crest": {
+      "atlas": "Bugs",
+      "glowAtlas": "BugsGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "bug",
+      "pattern": "boomer_crest_{dir:02}_{frame}",
+      "directions": 16,
+      "frames": 2,
+      "loop": true,
+      "fps": 4.5,
+      "worldScale": 1.15,
+      "note": "S_CLIMB while cresting the railing (-0.85 < y < 0): pitch 0.7 rad; switch to walk at y >= -0.1",
+      "sizePoints": [
+        48,
+        45
+      ],
+      "pixelSize3x": [
+        144,
+        135
+      ],
+      "anchor": [
+        0.5,
+        0.42222
+      ],
+      "anchorPixel3x": [
+        72,
+        78
+      ],
+      "screenSizeMetres": [
+        2,
+        1.875
+      ]
+    },
+    "boomer_shadow": {
+      "atlas": "Bugs",
+      "kind": "shadow",
+      "pattern": "boomer_shadow_{dir:02}",
+      "directions": 16,
+      "frames": 1,
+      "worldScale": 1.15,
+      "note": "dark contact smudge (opaque near-black in the game; crowds merge into a black flood). Draw under all bugs, alpha ~0.9; hide while climbing",
+      "sizePoints": [
+        44,
+        38
+      ],
+      "pixelSize3x": [
+        132,
+        114
+      ],
+      "anchor": [
+        0.5,
+        0.5
+      ],
+      "anchorPixel3x": [
+        66,
+        57
+      ],
+      "screenSizeMetres": [
+        1.833,
+        1.583
+      ]
+    },
+    "boomer_swell": {
+      "atlas": "Bugs",
+      "glowAtlas": "BugsGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "bug",
+      "pattern": "boomer_swell_{dir:02}_{frame}",
+      "directions": 16,
+      "frames": 3,
+      "loop": false,
+      "durationSeconds": 0.8,
+      "worldScale": 1.15,
+      "note": "S_SWELL 0.8 s: frames = 1/3, 2/3, 3/3 of the +45 % swell. Blink white faster and faster (colorBlendFactor, white): 0.9*(0.5+0.5*sin(t*(18+30*p)))",
+      "sizePoints": [
+        50,
+        54
+      ],
+      "pixelSize3x": [
+        150,
+        162
+      ],
+      "anchor": [
+        0.5,
+        0.38889
+      ],
+      "anchorPixel3x": [
+        75,
+        99
+      ],
+      "screenSizeMetres": [
+        2.083,
+        2.25
+      ]
+    },
+    "boomer_walk": {
+      "atlas": "Bugs",
+      "glowAtlas": "BugsGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "bug",
+      "pattern": "boomer_walk_{dir:02}_{frame}",
+      "directions": 16,
+      "frames": 8,
+      "loop": true,
+      "framesPerMetre": 8.857,
+      "fpsAtBaseSpeed": 31.9,
+      "worldScale": 1.15,
+      "sizePoints": [
+        40,
+        41
+      ],
+      "pixelSize3x": [
+        120,
+        123
+      ],
+      "anchor": [
+        0.5,
+        0.41463
+      ],
+      "anchorPixel3x": [
+        60,
+        72
+      ],
+      "screenSizeMetres": [
+        1.667,
+        1.708
+      ]
+    },
+    "brute_charge": {
+      "atlas": "Bugs",
+      "glowAtlas": "BugsGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "bug",
+      "pattern": "brute_charge_{dir:02}_{frame}",
+      "directions": 16,
+      "frames": 4,
+      "loop": true,
+      "fps": 16,
+      "worldScale": 2,
+      "note": "S_CHARGE (12.5 m/s along the lane): head lowered, body flattened 7 %. Wind-up (S_WIND, 0.8 s): walk frame 0 with yScale *= 1 + sin(t*30)*0.05",
+      "sizePoints": [
+        76,
+        74
+      ],
+      "pixelSize3x": [
+        228,
+        222
+      ],
+      "anchor": [
+        0.5,
+        0.39189
+      ],
+      "anchorPixel3x": [
+        114,
+        135
+      ],
+      "screenSizeMetres": [
+        3.167,
+        3.083
+      ]
+    },
+    "brute_climb": {
+      "atlas": "Bugs",
+      "glowAtlas": "BugsGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "bug",
+      "pattern": "brute_climb_{dir:02}_{frame}",
+      "directions": 16,
+      "frames": 4,
+      "loop": true,
+      "fps": 8.9,
+      "worldScale": 2,
+      "note": "S_CLIMB below the deck edge (y < -0.85): body pitched 1.4 rad nose-up against the platform wall",
+      "sizePoints": [
+        90,
+        85
+      ],
+      "pixelSize3x": [
+        270,
+        255
+      ],
+      "anchor": [
+        0.5,
+        0.48235
+      ],
+      "anchorPixel3x": [
+        135,
+        132
+      ],
+      "screenSizeMetres": [
+        3.75,
+        3.542
+      ]
+    },
+    "brute_crest": {
+      "atlas": "Bugs",
+      "glowAtlas": "BugsGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "bug",
+      "pattern": "brute_crest_{dir:02}_{frame}",
+      "directions": 16,
+      "frames": 2,
+      "loop": true,
+      "fps": 4.5,
+      "worldScale": 2,
+      "note": "S_CLIMB while cresting the railing (-0.85 < y < 0): pitch 0.7 rad; switch to walk at y >= -0.1",
+      "sizePoints": [
+        94,
+        86
+      ],
+      "pixelSize3x": [
+        282,
+        258
+      ],
+      "anchor": [
+        0.5,
+        0.47674
+      ],
+      "anchorPixel3x": [
+        141,
+        135
+      ],
+      "screenSizeMetres": [
+        3.917,
+        3.583
+      ]
+    },
+    "brute_shadow": {
+      "atlas": "Bugs",
+      "kind": "shadow",
+      "pattern": "brute_shadow_{dir:02}",
+      "directions": 16,
+      "frames": 1,
+      "worldScale": 2,
+      "note": "dark contact smudge (opaque near-black in the game; crowds merge into a black flood). Draw under all bugs, alpha ~0.9; hide while climbing",
+      "sizePoints": [
+        72,
+        62
+      ],
+      "pixelSize3x": [
+        216,
+        186
+      ],
+      "anchor": [
+        0.5,
+        0.5
+      ],
+      "anchorPixel3x": [
+        108,
+        93
+      ],
+      "screenSizeMetres": [
+        3,
+        2.583
+      ]
+    },
+    "brute_walk": {
+      "atlas": "Bugs",
+      "glowAtlas": "BugsGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "bug",
+      "pattern": "brute_walk_{dir:02}_{frame}",
+      "directions": 16,
+      "frames": 8,
+      "loop": true,
+      "framesPerMetre": 5.093,
+      "fpsAtBaseSpeed": 13.2,
+      "worldScale": 2,
+      "sizePoints": [
+        80,
+        76
+      ],
+      "pixelSize3x": [
+        240,
+        228
+      ],
+      "anchor": [
+        0.5,
+        0.38158
+      ],
+      "anchorPixel3x": [
+        120,
+        141
+      ],
+      "screenSizeMetres": [
+        3.333,
+        3.167
+      ]
+    },
+    "runner_climb": {
+      "atlas": "Bugs",
+      "glowAtlas": "BugsGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "bug",
+      "pattern": "runner_climb_{dir:02}_{frame}",
+      "directions": 16,
+      "frames": 4,
+      "loop": true,
+      "fps": 8.9,
+      "worldScale": 0.8,
+      "note": "S_CLIMB below the deck edge (y < -0.85): body pitched 1.4 rad nose-up against the platform wall",
+      "sizePoints": [
+        34,
+        37
+      ],
+      "pixelSize3x": [
+        102,
+        111
+      ],
+      "anchor": [
+        0.5,
+        0.48649
+      ],
+      "anchorPixel3x": [
+        51,
+        57
+      ],
+      "screenSizeMetres": [
+        1.417,
+        1.542
+      ]
+    },
+    "runner_crest": {
+      "atlas": "Bugs",
+      "glowAtlas": "BugsGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "bug",
+      "pattern": "runner_crest_{dir:02}_{frame}",
+      "directions": 16,
+      "frames": 2,
+      "loop": true,
+      "fps": 4.5,
+      "worldScale": 0.8,
+      "note": "S_CLIMB while cresting the railing (-0.85 < y < 0): pitch 0.7 rad; switch to walk at y >= -0.1",
+      "sizePoints": [
+        34,
+        34
+      ],
+      "pixelSize3x": [
+        102,
+        102
+      ],
+      "anchor": [
+        0.5,
+        0.5
+      ],
+      "anchorPixel3x": [
+        51,
+        51
+      ],
+      "screenSizeMetres": [
+        1.417,
+        1.417
+      ]
+    },
+    "runner_shadow": {
+      "atlas": "Bugs",
+      "kind": "shadow",
+      "pattern": "runner_shadow_{dir:02}",
+      "directions": 16,
+      "frames": 1,
+      "worldScale": 0.8,
+      "note": "dark contact smudge (opaque near-black in the game; crowds merge into a black flood). Draw under all bugs, alpha ~0.9; hide while climbing",
+      "sizePoints": [
+        32,
+        28
+      ],
+      "pixelSize3x": [
+        96,
+        84
+      ],
+      "anchor": [
+        0.5,
+        0.5
+      ],
+      "anchorPixel3x": [
+        48,
+        42
+      ],
+      "screenSizeMetres": [
+        1.333,
+        1.167
+      ]
+    },
+    "runner_walk": {
+      "atlas": "Bugs",
+      "glowAtlas": "BugsGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "bug",
+      "pattern": "runner_walk_{dir:02}_{frame}",
+      "directions": 16,
+      "frames": 8,
+      "loop": true,
+      "framesPerMetre": 12.732,
+      "fpsAtBaseSpeed": 57.3,
+      "worldScale": 0.8,
+      "sizePoints": [
+        38,
+        34
+      ],
+      "pixelSize3x": [
+        114,
+        102
+      ],
+      "anchor": [
+        0.5,
+        0.47059
+      ],
+      "anchorPixel3x": [
+        57,
+        54
+      ],
+      "screenSizeMetres": [
+        1.583,
+        1.417
+      ]
+    },
+    "spitter_climb": {
+      "atlas": "Bugs",
+      "glowAtlas": "BugsGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "bug",
+      "pattern": "spitter_climb_{dir:02}_{frame}",
+      "directions": 16,
+      "frames": 4,
+      "loop": true,
+      "fps": 8.9,
+      "worldScale": 1.02,
+      "note": "S_CLIMB below the deck edge (y < -0.85): body pitched 1.4 rad nose-up against the platform wall",
+      "sizePoints": [
+        52,
+        46
+      ],
+      "pixelSize3x": [
+        156,
+        138
+      ],
+      "anchor": [
+        0.5,
+        0.52174
+      ],
+      "anchorPixel3x": [
+        78,
+        66
+      ],
+      "screenSizeMetres": [
+        2.167,
+        1.917
+      ]
+    },
+    "spitter_crest": {
+      "atlas": "Bugs",
+      "glowAtlas": "BugsGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "bug",
+      "pattern": "spitter_crest_{dir:02}_{frame}",
+      "directions": 16,
+      "frames": 2,
+      "loop": true,
+      "fps": 4.5,
+      "worldScale": 1.02,
+      "note": "S_CLIMB while cresting the railing (-0.85 < y < 0): pitch 0.7 rad; switch to walk at y >= -0.1",
+      "sizePoints": [
+        50,
+        46
+      ],
+      "pixelSize3x": [
+        150,
+        138
+      ],
+      "anchor": [
+        0.5,
+        0.43478
+      ],
+      "anchorPixel3x": [
+        75,
+        78
+      ],
+      "screenSizeMetres": [
+        2.083,
+        1.917
+      ]
+    },
+    "spitter_shadow": {
+      "atlas": "Bugs",
+      "kind": "shadow",
+      "pattern": "spitter_shadow_{dir:02}",
+      "directions": 16,
+      "frames": 1,
+      "worldScale": 1.02,
+      "note": "dark contact smudge (opaque near-black in the game; crowds merge into a black flood). Draw under all bugs, alpha ~0.9; hide while climbing",
+      "sizePoints": [
+        42,
+        36
+      ],
+      "pixelSize3x": [
+        126,
+        108
+      ],
+      "anchor": [
+        0.5,
+        0.5
+      ],
+      "anchorPixel3x": [
+        63,
+        54
+      ],
+      "screenSizeMetres": [
+        1.75,
+        1.5
+      ]
+    },
+    "spitter_walk": {
+      "atlas": "Bugs",
+      "glowAtlas": "BugsGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "bug",
+      "pattern": "spitter_walk_{dir:02}_{frame}",
+      "directions": 16,
+      "frames": 8,
+      "loop": true,
+      "framesPerMetre": 9.986,
+      "fpsAtBaseSpeed": 30,
+      "worldScale": 1.02,
+      "sizePoints": [
+        44,
+        43
+      ],
+      "pixelSize3x": [
+        132,
+        129
+      ],
+      "anchor": [
+        0.5,
+        0.44186
+      ],
+      "anchorPixel3x": [
+        66,
+        72
+      ],
+      "screenSizeMetres": [
+        1.833,
+        1.792
+      ]
+    }
+  }
+}
