@@ -152,7 +152,7 @@ jobs:
     name: sim-smoke
     needs: build
     runs-on: ${{ vars.NATIVE_MACOS_RUNNER || 'macos-26' }}
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
         with:
@@ -172,7 +172,7 @@ jobs:
           xcrun simctl boot "$udid" || true
           xcrun simctl bootstatus "$udid" -b
           xcrun simctl list devices booted
-      - name: Install and launch (-demo smoke)
+      - name: Install and run demos (combat / beacon / title / landscape)
         env:
           UDID: ${{ steps.sim.outputs.udid }}
         run: |
@@ -186,24 +186,44 @@ jobs:
           xcrun simctl spawn "$UDID" log stream --style compact \
             --predicate 'process == "IceHive"' > results/app.log 2>&1 &
           echo $! > logstream.pid
-          sleep 2
-          xcrun simctl launch --terminate-running-process \
-            --stdout="$PWD/results/app-stdout.log" --stderr="$PWD/results/app-stderr.log" \
-            "$UDID" "$BUNDLE_ID" -demo smoke -seconds 20 -debugHUD
-          sleep 6
-          xcrun simctl io "$UDID" screenshot results/sim-1.png
-          sleep 6
-          xcrun simctl io "$UDID" screenshot results/sim-2.png
-          sleep 10
-          xcrun simctl io "$UDID" screenshot results/sim-3.png
+          sleep 3
+          : > results/alive.txt
+          # run_demo <label> <seconds> "<launch args>" <screenshot times (s)...>
+          run_demo() {
+            local label=$1 secs=$2 args=$3; shift 3
+            # shellcheck disable=SC2086
+            xcrun simctl launch --terminate-running-process \
+              --stdout="$PWD/results/app-$label.log" --stderr="$PWD/results/app-$label-stderr.log" \
+              "$UDID" "$BUNDLE_ID" $args -seconds "$secs" -debugHUD
+            local t=0
+            for s in "$@"; do
+              sleep $((s - t)); t=$s
+              xcrun simctl io "$UDID" screenshot "results/$label-${s}s.png"
+            done
+            if xcrun simctl spawn "$UDID" launchctl list | grep -q 'UIKitApplication:com.hjj96.icehive'; then
+              echo "$label alive" >> results/alive.txt
+            else
+              echo "$label DEAD" >> results/alive.txt
+            fi
+          }
+          run_demo combat 40 "-demo combat" 10 18 28 38
+          run_demo beacon 26 "-demo beacon" 14 24
+          run_demo title 14 "-demo title" 12
+          run_demo landscape 16 "-demo combat -orient landscape" 14
           xcrun simctl spawn "$UDID" launchctl list | grep -i icehive | tee results/launchctl.txt || true
+          cp results/app-combat.log results/app-stdout.log
+          cp results/app-combat-stderr.log results/app-stderr.log
+          grep -h 'demo done' results/app-*.log > results/fps.txt || true
+          cat results/alive.txt results/fps.txt
       - name: Verify app is alive and rendered
         run: |
-          echo "--- stdout ---"; cat results/app-stdout.log || true
-          echo "--- stderr ---"; tail -n 50 results/app-stderr.log || true
-          grep -q 'UIKitApplication:com.hjj96.icehive' results/launchctl.txt || { echo "::error::app is not running (crashed?)"; exit 1; }
+          echo "--- combat stdout ---"; cat results/app-combat.log || true
+          echo "--- combat stderr ---"; tail -n 50 results/app-combat-stderr.log || true
+          for f in results/app-beacon.log results/app-title.log results/app-landscape.log; do echo "--- $f ---"; tail -n 25 "$f" || true; done
+          if grep -q DEAD results/alive.txt; then echo "::error::app died during a demo: $(grep DEAD results/alive.txt | tr '\n' ' ')"; exit 1; fi
           grep -q 'scene ready' results/app-stdout.log || { echo "::error::no 'scene ready' line in app stdout"; exit 1; }
           grep -q 'hb t=' results/app-stdout.log || { echo "::error::no heartbeat lines in app stdout"; exit 1; }
+          grep -q 'mode=playing' results/app-stdout.log || { echo "::error::combat demo never reached the mission"; exit 1; }
       - name: Collect crash logs and stop
         if: always()
         env:
