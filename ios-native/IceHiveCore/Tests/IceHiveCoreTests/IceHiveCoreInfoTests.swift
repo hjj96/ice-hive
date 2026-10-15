@@ -3,6 +3,6 @@ import XCTest
 
 final class IceHiveCoreInfoTests: XCTestCase {
     func testVersionIsSet() {
-        XCTAssertEqual(IceHiveCoreInfo.version, "0.0.1")
+        XCTAssertEqual(IceHiveCoreInfo.version, "2.0.0")
     }
 }
