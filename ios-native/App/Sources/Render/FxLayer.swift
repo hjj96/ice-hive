@@ -252,6 +252,29 @@ final class FxLayer {
         for _ in 0..<18 { pa.emit(m.x + rr(-0.5, 0.5), rr(0.2, 1.4), m.z + rr(-0.5, 0.5), 0, rr(1, 2.5), 0, rr(0.5, 0.9), 0.25, 0.05, 0.3, 1, 0.5, 1, -0.5, 1, 0) }
     }
 
+    /// Every effect once at (x, z) — run behind the loading cover so SpriteKit builds its pipelines, uploads and
+    /// first-use textures (multiply decals, additive particles, corpses, ring shaders) before anyone sees a frame.
+    func warmUp(_ x: Float, _ z: Float) {
+        for t in BugType.allCases {
+            bugDeath(t, x + 1, z + 1, false, t.spec.scale, 0)
+            bugDeath(t, x - 1, z + 1, true, t.spec.scale, 0)
+        }
+        for kind in [ExplosionKind.frag, .mini, .boomer, .frost, .pulse] { explosion(x, z - 1, 2.5, kind) }
+        acid(x + 1, z - 1)
+        bulletHit(x, z, 1, 0, true)
+        napalmBurst(x - 2, z, 3)
+        nova(x, z + 2, 3)
+        turretDrop(x + 2, z)
+        for k in 0..<4 { ground.splash(x + Float(k), z, 3, 0.3, 0.2, 0.1, 0.5) }
+        for ind in ground.beaconInd { ind.show(x: x, y: level.groundY(x, z), z: z, progress: 0.5, r: 1, g: 0.6, b: 0.2, alpha: 1) }
+        ground.liftInd.show(x: x, y: level.groundY(x, z), z: z, progress: 0.5, r: 0.25, g: 1, b: 0.85, alpha: 1)
+        for ind in ground.reviveInd { ind.show(x: x, y: level.groundY(x, z), z: z, progress: 0.5, r: 1, g: 0.5, b: 0.4, alpha: 1) }
+        flashLight(x, 1.5, z, 0xff7a30, 200, 0.3)
+        warmRings = 8
+    }
+    /// Frames the warm-up keeps every ring indicator on screen (their own updates wait).
+    private var warmRings = 0
+
     // ================================================================ per frame
     /// Call before the marine layer draws its team rings; `endFrame()` after `update`.
     func beginFrame() {
@@ -475,7 +498,7 @@ final class FxLayer {
             } else {
                 beamNode.isHidden = true
             }
-            if k < ground.beaconInd.count {
+            if k < ground.beaconInd.count && warmRings == 0 {
                 ground.beaconInd[k].show(x: b.x, y: gy + 0.04, z: b.z, progress: b.progress, r: col.0, g: col.1, b: col.2, alpha: b.state == 2 ? 0.5 : 1)
             }
             if b.state == 1 {
@@ -484,6 +507,10 @@ final class FxLayer {
         }
         // lift indicator
         let st = game.stage
+        if warmRings > 0 {
+            warmRings -= 1
+            return
+        }
         if st == .toLift || st == .hold || st == .extract {
             let L = lv.lift
             let prog: Float = st == .hold ? 1 - game.liftT / game.liftDur : (st == .extract ? 1 : 0)

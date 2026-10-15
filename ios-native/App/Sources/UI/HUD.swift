@@ -269,21 +269,18 @@ final class HUD {
         let sl = max(16, insets.left), sr = max(16, insets.right), st = insets.top, sb = insets.bottom
         let top = 10 + st
 
-        // stats panel (top-left)
-        let statsW: CGFloat = landscape ? 124 : 130, statsH: CGFloat = landscape ? 40 : 44
-        statsPanel.removeFromParent()
-        statsPanel = Shapes.panel(width: statsW, height: statsH)
-        statsPanel.position = hp(sl, top)
-        statsPanel.zPosition = -1
-        root.addChild(statsPanel)
+        // stats panel (top-left); the time column moves right when the kill count gets wide (web: flex row)
+        let statsH: CGFloat = landscape ? 40 : 44
+        statsTop = top
+        statsLeft = sl
+        statsKillsW = -1
+        fitStats()
+        let statsW: CGFloat = landscape ? 124 : 130
         tealEdge.size = CGSize(width: 3, height: statsH)
         tealEdge.anchorPoint = CGPoint(x: 0, y: 1)
         tealEdge.position = hp(sl, top)
         killsCap.node.position = hp(sl + 13, top + 12)
         killsVal.node.position = hp(sl + 13, top + (landscape ? 29 : 31))
-        timeCap.node.position = hp(sl + 64, top + 12)
-        timeVal.node.position = hp(sl + 64, top + (landscape ? 29 : 31))
-        comboVal.node.position = hp(sl + statsW + 10, top + statsH / 2)
 
         // pause button (top-right)
         pausePanel.removeFromParent()
@@ -387,6 +384,27 @@ final class HUD {
         plates.topLimit = hp(0, objBottom + 4).y
     }
 
+    private var statsTop: CGFloat = 0, statsLeft: CGFloat = 0, statsKillsW: CGFloat = -1
+
+    /// Stats panel width / time column from the current kill-count width (re-built only when the column moves).
+    private func fitStats() {
+        let landscape = size.width > size.height
+        let kw = max(38, (killsVal.width / 10).rounded(.up) * 10)
+        if kw == statsKillsW { return }
+        statsKillsW = kw
+        let statsH: CGFloat = landscape ? 40 : 44
+        let timeX = 13 + kw + 13
+        let statsW = max(landscape ? 124 : 130, timeX + max(48, timeVal.width) + 14)
+        statsPanel.removeFromParent()
+        statsPanel = Shapes.panel(width: statsW, height: statsH)
+        statsPanel.position = hp(statsLeft, statsTop)
+        statsPanel.zPosition = -1
+        root.addChild(statsPanel)
+        timeCap.node.position = hp(statsLeft + timeX, statsTop + 12)
+        timeVal.node.position = hp(statsLeft + timeX, statsTop + (landscape ? 29 : 31))
+        comboVal.node.position = hp(statsLeft + statsW + 10, statsTop + statsH / 2)
+    }
+
     // ---------------------------------------------------------------- events
     func toast(_ text: String, kind: ToastKind) {
         let maxW = min(320, size.width * 0.6)
@@ -416,6 +434,29 @@ final class HUD {
         bannerT = 0
     }
 
+    /// Loading-cover warm-up: every overlay, a banner, a toast and both cooldown pies on screen for a few frames
+    /// (first use of each would otherwise build its pipeline / textures mid-game), then back to normal.
+    func warmUp(_ on: Bool) {
+        if on {
+            screenFlash(0.6); damageFlash(0.8); hordeFlash()
+            showBanner(title: "ОРДА!", subtitle: "РОЙ ПРОРЫВАЕТСЯ ИЗ БЕЗДНЫ", teal: false)
+            toast("Связь установлена", kind: .info)
+            toast("Плевун: плюётся кислотой", kind: .warn)
+            abilityButton.update(ready: false, fraction: 0.5)
+            dashButton.update(ready: false, fraction: 0.5)
+            marker.isHidden = false
+            damage.alpha = 0.5; flash.alpha = 0.3; horde.alpha = 0.5; banner.alpha = 1
+        } else {
+            damageA = 0; flashA = 0; hordeA = 0
+            damage.alpha = 0; flash.alpha = 0; horde.alpha = 0
+            bannerT = 99; banner.alpha = 0
+            for t in toasts { t.node.removeFromParent() }
+            toasts.removeAll()
+            abilityButton.update(ready: true, fraction: 0)
+            dashButton.update(ready: true, fraction: 0)
+        }
+    }
+
     func damageFlash(_ a: Float) { damageA = min(1, damageA + a) }
     func screenFlash(_ a: Float) { flashA = max(flashA, a) }
     func hordeFlash() { hordeA = 1 }
@@ -432,6 +473,7 @@ final class HUD {
             textT = 0.1
             killsVal.set("\(game.kills)")
             hpVal.set("\(Int(max(0, P.hp).rounded()))")
+            fitStats()
         }
         timeVal.set(formatTime(game.time))
         let combo = game.comboShown

@@ -57,6 +57,7 @@ final class GameScene: SKScene {
     /// compiles happen behind it), then faded out: the moment it is gone is "scene ready".
     private let cover = SKSpriteNode(color: Tone.hex(0x05070a), size: CGSize(width: 4000, height: 4000))
     private var coverFrames = 0
+    private var hudWasVisible = false
     private var readyTime: Double = -1
     private var loadStep = 0
     private var bootTime: Double = 0
@@ -462,22 +463,48 @@ final class GameScene: SKScene {
                 if hitStopCd <= 0 { hitStopT = max(hitStopT, d); hitStopK = min(hitStopK, k); hitStopCd = d + 0.8 }
             case .screenFlash(let a):
                 if inMission { hud.screenFlash(a) }
+                noteFirst("screenFlash")
             case .damageFlash(let a):
                 if inMission { hud.damageFlash(a) }
             case .hordeFlash:
                 if inMission { hud.hordeFlash() }
             case .toast(let text, let kind):
                 if inMission { hud.toast(text, kind: kind) }
+                noteFirst("toast")
             case .banner(let title, let sub, let teal):
                 if inMission { hud.showBanner(title: title, subtitle: sub, teal: teal) }
+                noteFirst("banner")
             case .haptic(let k):
                 if inMission { haptics.play(k) }
             case .victory, .defeat:
                 AppLog.info("phase \(g.phase) at t=\(formatTime(g.time)) kills=\(g.kills)")
+            case .explosion(let kind, _, _):
+                noteFirst("explosion.\(kind)")
+            case .ability(_, let kind, _, _):
+                noteFirst("ability.\(kind)")
+            case .telegraph(_, let shape, _, _):
+                noteFirst("telegraph.\(shape)")
+            case .acidLaunched:
+                noteFirst("acid")
+            case .levelUp:
+                noteFirst("levelUp")
+            case .hordeStarted:
+                noteFirst("horde")
+            case .downed:
+                noteFirst("downed")
             default:
                 break
             }
         }
+    }
+
+    /// Diagnostics: the first time an event kind shows up (mid-game hitches are usually first uses).
+    private var firsts = Set<String>()
+    private func noteFirst(_ k: String) {
+        if firsts.contains(k) { return }
+        firsts.insert(k)
+        let td = readyTime > 0 ? lastTime - readyTime : -1
+        AppLog.info("first " + k + String(format: " td=%.2f", td))
     }
 
     /// Keep the cover up for a few frames after loading, then fade it out; its disappearance is "scene ready".
@@ -485,6 +512,18 @@ final class GameScene: SKScene {
         guard cover.parent != nil else { return }
         coverFrames += 1
         let hold = 20
+        // warm-up behind the cover: every effect, ring shader and HUD overlay once, then a few clean frames
+        if coverFrames == 2, let r = renderer {
+            hudWasVisible = hud.visible
+            hud.visible = true
+            hud.warmUp(true)
+            r.fx.warmUp(cameraCtl.tx, cameraCtl.tz)
+        }
+        if coverFrames == hold - 5, let r = renderer {
+            r.fx.reset()
+            hud.warmUp(false)
+            hud.visible = hudWasVisible
+        }
         if coverFrames == hold {
             loadingLabel?.node.removeFromParent()
             loadingSub?.node.removeFromParent()
@@ -525,7 +564,8 @@ final class GameScene: SKScene {
                 AppLog.info(String(format: "hb t=%.1f fps=%.1f ", t, fps) + "mode=\(mode.rawValue) demo=\(demo?.name ?? "-")")
             }
             if let r = renderer, readyTime > 0 {
-                AppLog.info("hb ms " + sceneTimer.summary + " | " + r.timer.summary + " | sfx \(audio?.played ?? 0)")
+                AppLog.info("hb ms " + sceneTimer.summary + " | " + r.timer.summary + " | sfx \(audio?.played ?? 0)"
+                            + " | max " + sceneTimer.takeMax() + " / " + r.timer.takeMax())
             }
             if let s = options.seconds, !reportedDone, td >= s {
                 reportedDone = true

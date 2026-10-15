@@ -82,7 +82,7 @@ final class LightingLayer {
     let node: SKSpriteNode
     private let uSize = SKUniform(name: "u_size", vectorFloat2: SIMD2<Float>(1, 1))
     private let uPpm = SKUniform(name: "u_ppm", float: 18)
-    private let uGain = SKUniform(name: "u_gain", vectorFloat4: SIMD4<Float>(1, 0, 0, 0))
+    private let uGain = SKUniform(name: "u_gain", vectorFloat4: SIMD4<Float>(0.8, 0, 0, 0))
     private let uAmbient = SKUniform(name: "u_ambient", vectorFloat4: SIMD4<Float>(0.27, 0.32, 0.43, 1))
     private let uFl: [SKUniform]
     private let uFli = SKUniform(name: "u_fli", vectorFloat4: SIMD4<Float>(0, 0, 0, 0))
@@ -99,7 +99,7 @@ final class LightingLayer {
     /// landing-pad start): unlit slab ≈ 0.27 / 0.33 / 0.42 of the pre-lit sprite, the marines themselves stay dark
     /// (their own flashlights point away), the cone floor saturates within ~6 m and fades out by ~15 m.
     var ambient = SIMD4<Float>(0.27, 0.32, 0.43, 1) { didSet { uAmbient.vectorFloat4Value = ambient } }
-    var gain: Float = 1.0 { didSet { uGain.vectorFloat4Value = SIMD4<Float>(gain, halo, 0, 0) } }
+    var gain: Float = 0.8 { didSet { uGain.vectorFloat4Value = SIMD4<Float>(gain, halo, 0, 0) } }
     var halo: Float = 0.004 { didSet { uGain.vectorFloat4Value = SIMD4<Float>(gain, halo, 0, 0) } }
 
     /// `level` gives the floor-height mask: the shader marches each pixel's view ray through it to tell the

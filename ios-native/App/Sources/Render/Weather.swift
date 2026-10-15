@@ -56,11 +56,11 @@ final class WeatherLayer {
             if p.x < minX || p.x > maxX || p.y < minY || p.y > maxY { continue }
             guard let n = snowPool.next() else { break }
             if n.texture !== flakeTex { n.texture = flakeTex }
-            // 1…3.5 screen points like the web gl_PointSize (clamped 1…7 device pixels)
-            let s = CGFloat(1.2 + f.seed * 2.3) * cameraScale
+            // web gl_PointSize is in device pixels, clamped 1…7: 0.4…2.3 points on a 3x screen
+            let s = CGFloat(0.5 + f.seed * 1.8) * cameraScale
             n.size = CGSize(width: s, height: s)
             n.position = p
-            n.alpha = CGFloat(0.35 + f.seed * 0.45)
+            n.alpha = CGFloat(0.25 + f.seed * 0.4)
         }
         snowPool.end()
         mistPool.begin()

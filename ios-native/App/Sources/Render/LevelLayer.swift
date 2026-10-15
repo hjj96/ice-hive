@@ -5,7 +5,7 @@ import IceHiveCore
 //  LEVEL LAYER — the station assembled from the 1 m tile kit
 //  (manifest.level rules; reference: tools/lib/level.mjs assembly()
 //  and the web builders buildRailings / buildSupports / buildProps).
-//  Static nodes are grouped into 8 × 8 m chunks that are hidden when
+//  Static nodes are grouped into 4 × 4 m chunks that are hidden when
 //  off screen; the lift pieces sit in their own node so they can rise.
 // ================================================================
 final class LevelLayer {
@@ -73,9 +73,9 @@ final class LevelLayer {
     private static func two(_ k: Int) -> String { k < 10 ? "0\(k)" : "\(k)" }
 
     private func chunk(for x: Float, _ z: Float) -> Chunk {
-        let ci = max(0, min(15, Int((x + 64) / 8)))
-        let cj = max(0, min(15, Int((z + 64) / 8)))
-        let key = cj * 16 + ci
+        let ci = max(0, min(31, Int((x + 64) / 4)))
+        let cj = max(0, min(31, Int((z + 64) / 4)))
+        let key = cj * 32 + ci
         if let c = chunks[key] { return c }
         let c = Chunk()
         chunks[key] = c
@@ -137,6 +137,8 @@ final class LevelLayer {
             g.position = p
             g.blendMode = .add
             g.zPosition = band == .background ? node.zPosition + 0.5 : ZBand.glow
+            // deck studs: small dim amber points in the web game, not white lamps
+            if name.hasPrefix("stud_") { g.alpha = 0.35 }
             target.addChild(g)
             nodeCount += 1
         }

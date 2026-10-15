@@ -32,6 +32,20 @@ const OUT = path.join(IOS, 'App', 'Resources', 'Sheets');
 const dry = process.argv.includes('--dry');
 const PAGE = 4096;   // max sheet side (every iOS 16 GPU supports 16384)
 
+// BugsGlow frames carry the web bug material's faint violet rim term (alpha ≲ 0.2). In WebGL only the nearest bug's
+// rim shows; drawn additively per sprite, hundreds of overlapping rims sum into a purple haze over the swarm. A knee
+// on alpha drops the rim and keeps the glands / speckles (alpha 50 → 0, 205 → 255).
+function kneeRim(img) {
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const a = Math.max(0, Math.min(255, Math.round((d[i + 3] - 50) * 255 / 155)));
+    d[i + 3] = a;
+    if (a === 0) { d[i] = d[i + 1] = d[i + 2] = 0; }
+  }
+  return img;
+}
+const ADJUST = { BugsGlow: kneeRim };
+
 const isLevelObject = (n) => /^(crate_|pillar$|beacon_base$|lamp_|rail_|lift_center$|lift_rail_)/.test(n);
 const GROUPS = [
   { name: 'bugs', parts: [['Bugs'], ['Corpses']] },
@@ -52,7 +66,8 @@ function loadFrames(atlas, filter) {
     const contents = JSON.parse(fs.readFileSync(path.join(dir, d, 'Contents.json'), 'utf8'));
     const img = contents.images.find((i) => i.scale === '2x' && i.filename);
     if (!img) throw new Error(`${atlas}/${name}: no @2x image`);
-    out.push({ name, atlas, png: decodePNG(fs.readFileSync(path.join(dir, d, img.filename))) });
+    const png = decodePNG(fs.readFileSync(path.join(dir, d, img.filename)));
+    out.push({ name, atlas, png: ADJUST[atlas] ? ADJUST[atlas](png) : png });
   }
   return out;
 }

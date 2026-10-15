@@ -49,14 +49,15 @@ final class MenuButton {
 }
 
 /// Wrapped paragraph label.
-private func paragraph(_ text: String, font: String, size: CGFloat, color: SKColor, width: CGFloat) -> SKLabelNode {
+private func paragraph(_ text: String, font: String, size: CGFloat, color: SKColor, width: CGFloat,
+                       align: NSTextAlignment = .center) -> SKLabelNode {
     let l = SKLabelNode()
     l.numberOfLines = 0
     l.preferredMaxLayoutWidth = width
-    l.horizontalAlignmentMode = .center
+    l.horizontalAlignmentMode = align == .left ? .left : .center
     l.verticalAlignmentMode = .top
     let style = NSMutableParagraphStyle()
-    style.alignment = .center
+    style.alignment = align
     style.lineSpacing = 2
     l.attributedText = NSAttributedString(string: text, attributes: [.font: Fonts.font(font, size), .foregroundColor: color, .paragraphStyle: style])
     return l
@@ -119,7 +120,7 @@ final class TitleScreen {
         content.addChild(t2.node)
         y -= ts * 0.55 + 6
         let premise = paragraph("Станция замолчала шесть часов назад. Под решётками шевелится рой. Запустите три маяка, вызовите грузовой лифт и продержитесь до эвакуации.",
-                                font: Fonts.regular, size: landscape ? 13 : 14, color: UIPalette.inkDim, width: cw)
+                                font: Fonts.regular, size: landscape ? 13 : 14, color: UIPalette.inkDim, width: cw, align: .left)
         premise.horizontalAlignmentMode = .left
         premise.position = CGPoint(x: left, y: y)
         content.addChild(premise)
