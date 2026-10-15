@@ -235,6 +235,9 @@ jobs:
             done
             sleep 1
           }
+          # first launch after install: the simulator's Metal shader cache is cold (pipeline compiles show up as
+          # 100-500 ms hitches in the first ~20 s); measured separately, the other runs start with a warm cache
+          run_demo firstlaunch 20 "-demo combat -seed 7"
           run_demo combat 25 "-demo combat -seed 7" 0 6 12
           run_demo beacon 15 "-demo beacon" 0
           run_demo title 6 "-demo title" 0
@@ -247,10 +250,10 @@ jobs:
           xcrun simctl spawn "$UDID" launchctl list | grep -i icehive | tee results/launchctl.txt || true
           cp results/app-combat.log results/app-stdout.log
           cp results/app-combat-stderr.log results/app-stderr.log
-          for f in results/app-combat.log results/app-beacon.log results/app-title.log results/app-calm.log results/app-landscape.log results/app-nolight.log results/app-probe.log; do
+          for f in results/app-firstlaunch.log results/app-combat.log results/app-beacon.log results/app-title.log results/app-calm.log results/app-landscape.log results/app-nolight.log results/app-probe.log; do
             { echo "== $f"; grep -h -E 'loading took|sheets decoded|demo done' "$f" || true; } >> results/fps.txt
           done
-          grep -H 'hitch' results/app-combat.log results/app-beacon.log results/app-title.log results/app-calm.log results/app-landscape.log results/app-nolight.log results/app-probe.log > results/hitches.txt || true
+          grep -H 'hitch' results/app-firstlaunch.log results/app-combat.log results/app-beacon.log results/app-title.log results/app-calm.log results/app-landscape.log results/app-nolight.log results/app-probe.log > results/hitches.txt || true
           grep -H 'probe ' results/app-probe.log >> results/hitches.txt || true
           cat results/alive.txt results/loading.txt results/fps.txt results/shots.txt results/hitches.txt
       - name: Verify app is alive and rendered
