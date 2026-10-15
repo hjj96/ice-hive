@@ -25,6 +25,19 @@ final class GameTests: XCTestCase {
         XCTAssertNotEqual(fingerprint(a), fingerprint(c))
     }
 
+    func testEventsDoNotAffectTheSimulation() {
+        let a = Game(seed: 4321, playerClass: .gunner, config: autopilotConfig())
+        let b = Game(seed: 4321, playerClass: .gunner, config: autopilotConfig())
+        var n = 0
+        for _ in 0..<(60 * 20) {
+            a.tick(); b.tick()
+            a.drainEvents { _ in n += 1 }     // b never drains
+            _ = a.laserLength(a.player); _ = a.bugCountNear(a.player.position); _ = a.objectiveText; _ = a.contextHint
+        }
+        XCTAssertGreaterThan(n, 100)
+        XCTAssertEqual(fingerprint(a), fingerprint(b))
+    }
+
     func testSquadSetup() {
         let g = Game(seed: 1, playerClass: .cryo)
         XCTAssertEqual(g.marines.count, 4)
