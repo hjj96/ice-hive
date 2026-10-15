@@ -194,8 +194,10 @@ jobs:
           echo $! > logstream.pid
           sleep 3
           : > results/alive.txt
-          # run_demo <label> <seconds> "<launch args>" <screenshot times (s)...>
-          # Times count from the app's "scene ready" line (end of loading); -seconds too.
+          # run_demo <label> <seconds> "<launch args>" <screenshot offsets (s)...>
+          # The app measures fps for <seconds> after its "scene ready" line (end of loading) and logs "demo done";
+          # screenshots come only after that — `simctl io screenshot` takes 5–30 s on these runners and stalls the
+          # simulator's GPU while it runs, so it must not overlap the measurement. Offsets count from "demo done".
           run_demo() {
             local label=$1 secs=$2 args=$3; shift 3
             # shellcheck disable=SC2086
@@ -208,18 +210,17 @@ jobs:
               if [ $w -ge 90 ]; then echo "$label: no 'scene ready' after 90 s"; break; fi
             done
             echo "$label ready ${w}s after launch" >> results/loading.txt
-            local t=0
-            for s in "$@"; do
-              sleep $((s - t)); t=$s
-              echo "$label ${s}s start $(python3 -c 'import time; print(f"{time.time():.3f}")')" >> results/shots.txt
-              xcrun simctl io "$UDID" screenshot "results/$label-${s}s.png"
-              echo "$label ${s}s end   $(python3 -c 'import time; print(f"{time.time():.3f}")')" >> results/shots.txt
-            done
-            # let the app reach -seconds and log its fps summary before it is stopped
             w=0
             until grep -q 'demo done' "results/app-$label.log" 2>/dev/null; do
               sleep 1; w=$((w + 1))
-              if [ $w -ge 20 ]; then echo "$label: no 'demo done' line"; break; fi
+              if [ $w -ge $((secs + 30)) ]; then echo "$label: no 'demo done' line"; break; fi
+            done
+            local t=0
+            for s in "$@"; do
+              sleep $((s - t)); t=$s
+              echo "$label +${s}s start $(python3 -c 'import time; print(f"{time.time():.3f}")')" >> results/shots.txt
+              xcrun simctl io "$UDID" screenshot "results/$label-${s}s.png"
+              echo "$label +${s}s end   $(python3 -c 'import time; print(f"{time.time():.3f}")')" >> results/shots.txt
             done
             if xcrun simctl spawn "$UDID" launchctl list | grep -q 'UIKitApplication:com.hjj96.icehive'; then
               echo "$label alive" >> results/alive.txt
@@ -234,20 +235,20 @@ jobs:
             done
             sleep 1
           }
-          run_demo combat 30 "-demo combat -seed 7" 4 12 20 29
-          run_demo beacon 16 "-demo beacon" 6 15
-          run_demo title 8 "-demo title" 6
-          run_demo calm 6 "-demo calm" 5
-          run_demo landscape 10 "-demo combat -orient landscape" 9
+          run_demo combat 25 "-demo combat -seed 7" 0 6 12
+          run_demo beacon 15 "-demo beacon" 0
+          run_demo title 6 "-demo title" 0
+          run_demo calm 5 "-demo calm" 0
+          run_demo landscape 10 "-demo combat -orient landscape" 0
           # same swarm without the darkness pass: separates the lighting shader's GPU cost from the rest
-          run_demo nolight 20 "-demo combat -nolight -seed 7" 19
+          run_demo nolight 15 "-demo combat -nolight -seed 7" 0
           xcrun simctl spawn "$UDID" launchctl list | grep -i icehive | tee results/launchctl.txt || true
           cp results/app-combat.log results/app-stdout.log
           cp results/app-combat-stderr.log results/app-stderr.log
           for f in results/app-combat.log results/app-beacon.log results/app-title.log results/app-calm.log results/app-landscape.log results/app-nolight.log; do
             { echo "== $f"; grep -h -E 'loading took|sheets decoded|demo done' "$f" || true; } >> results/fps.txt
           done
-          grep -H 'hitch' results/app-*.log > results/hitches.txt || true
+          grep -H 'hitch' results/app-combat.log results/app-beacon.log results/app-title.log results/app-calm.log results/app-landscape.log results/app-nolight.log > results/hitches.txt || true
           cat results/alive.txt results/loading.txt results/fps.txt results/shots.txt results/hitches.txt
       - name: Verify app is alive and rendered
         run: |

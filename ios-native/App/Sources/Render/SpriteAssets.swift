@@ -99,6 +99,7 @@ final class SpriteSheets {
     private let placeholder: Sprite
 
     init() {
+        let t0 = ProcessInfo.processInfo.systemUptime
         let empty = SKTexture()
         placeholder = Sprite(tex: empty, rx: 0, ry: 0, rw: 1, rh: 1, sheet: -1)
         guard let url = Bundle.main.url(forResource: "sheets", withExtension: "json"),
@@ -110,6 +111,7 @@ final class SpriteSheets {
             AppLog.error("sheets.json missing or unreadable")
             return
         }
+        let tJson = ProcessInfo.processInfo.systemUptime
         for sh in sheets {
             let file = (sh["file"] as? String) ?? "missing.png"
             let base = file.hasSuffix(".png") ? String(file.dropLast(4)) : file
@@ -126,11 +128,15 @@ final class SpriteSheets {
             pageNames.append((sh["name"] as? String) ?? base)
             sizes.append(CGSize(width: SpriteSheets.number(sh["w"]), height: SpriteSheets.number(sh["h"])))
         }
+        let tPages = ProcessInfo.processInfo.systemUptime
         raw.reserveCapacity(frames.count)
         for (name, v) in frames {
             guard let arr = v as? [Any], arr.count >= 9 else { continue }
             raw[name] = arr.map { Int(SpriteSheets.number($0)) }
         }
+        let t1 = ProcessInfo.processInfo.systemUptime
+        AppLog.info(String(format: "sheets.json %.0f ms, page textures %.0f ms, frame index %.0f ms",
+                           (tJson - t0) * 1000, (tPages - tJson) * 1000, (t1 - tPages) * 1000))
     }
 
     private var sizes: [CGSize] = []

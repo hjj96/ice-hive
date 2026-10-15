@@ -55,9 +55,11 @@ open IceHive.xcodeproj
 
 `.github/workflows/native-ios.yml` запускается на push в ветки `native*` (macOS-раннер GitHub): `swift test` для ядра,
 сборка под симулятор, затем на симуляторе по очереди `-demo combat`, `beacon`, `title`, `calm`, `combat` в альбомной ориентации
-и `combat -nolight` (без слоя темноты — для сравнения стоимости шейдера) со скриншотами. Время скриншотов отсчитывается от строки `scene ready` (конец загрузки). Результаты коммитятся в ветку
-`ci-results` в папку `<ветка>/<короткий sha>/` (`status.json`, `build.log`, `core-tests.log`, `bundle.txt`,
-`combat-4s.png` … `landscape-9s.png`, `app-<демо>.log`, `fps.txt`, `loading.txt`, `alive.txt`, `app.log`).
+и `combat -nolight` (без слоя темноты — для сравнения стоимости шейдера) со скриншотами. Приложение меряет fps `-seconds` секунд после строки `scene ready` (конец загрузки) и пишет
+`demo done …`; скриншоты снимаются только после этого (`simctl io screenshot` на раннерах GitHub идёт 5–30 с и тормозит
+GPU симулятора), имя `combat-6s.png` — через 6 с после `demo done`. Результаты коммитятся в ветку `ci-results` в папку
+`<ветка>/<короткий sha>/` (`status.json`, `build.log`, `core-tests.log`, `bundle.txt`, `combat-0s.png` … `nolight-0s.png`,
+`app-<демо>.log`, `fps.txt`, `loading.txt`, `hitches.txt` (кадры дольше 100 мс), `shots.txt`, `alive.txt`, `app.log`).
 Сборка в CI — конфигурация Debug, но с оптимизацией Swift (`SWIFT_OPTIMIZATION_LEVEL=-O`) и только arm64: так fps на
 симуляторе ближе к реальному. Строки `hb` в `app-<демо>.log` — fps, время симуляции/отрисовки, жуки, частицы, память;
 `hb ms` — разбивка кадра по разделам (мс).
