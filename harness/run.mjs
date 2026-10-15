@@ -167,7 +167,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let shotN = 0;
 const shot = async (name) => {
   const p = `${OUT}-${String(++shotN).padStart(2, '0')}-${name}.png`;
-  await page.screenshot({ path: p });
+  // SwiftShader renders the capture frame on the CPU: on a loaded machine one frame can take longer than
+  // Playwright's 30 s default, which is not a game failure
+  await page.screenshot({ path: p, timeout: 120000 });
   log('[shot]', path.relative(ROOT, p));
   return p;
 };

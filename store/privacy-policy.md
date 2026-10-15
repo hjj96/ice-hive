@@ -2,7 +2,7 @@
 
 Дата вступления в силу: [ДАТА ПУБЛИКАЦИИ]
 Разработчик: [ИМЯ РАЗРАБОТЧИКА]
-Контакт: [КОНТАКТНЫЙ E-MAIL]
+Контакт: zviaginzevandrew@gmail.com
 
 ## Коротко
 
@@ -45,13 +45,13 @@
 
 ## Контакты
 
-Вопросы о конфиденциальности: [КОНТАКТНЫЙ E-MAIL]
+Вопросы о конфиденциальности: zviaginzevandrew@gmail.com
 
 ---
 
 # Privacy Policy — Ice Hive («Ледяной Улей»)
 
-Effective date: [DATE OF PUBLICATION]. Developer: [DEVELOPER NAME]. Contact: [КОНТАКТНЫЙ E-MAIL]
+Effective date: [DATE OF PUBLICATION]. Developer: [DEVELOPER NAME]. Contact: zviaginzevandrew@gmail.com
 
 **Ice Hive does not collect, store on servers or share any personal data.** The game has no accounts, no analytics, no advertising and no tracking, and it does not connect to the internet.
 
@@ -61,4 +61,4 @@ Effective date: [DATE OF PUBLICATION]. Developer: [DEVELOPER NAME]. Contact: [К
 - **Apple:** if you opted in to share analytics with app developers in iOS settings, Apple may provide anonymised statistics under Apple's own privacy policy.
 - **Children:** no data is collected from anyone, including children.
 - **Changes:** updates will be posted on this page with a new effective date.
-- **Contact:** [КОНТАКТНЫЙ E-MAIL]
+- **Contact:** zviaginzevandrew@gmail.com

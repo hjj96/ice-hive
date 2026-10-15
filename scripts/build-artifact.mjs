@@ -1,7 +1,7 @@
 // Build the single-file claude.ai Artifact (the live web version of the game).
 //   node scripts/build-artifact.mjs [--out dist/artifact.html]
 // Output = game/head.html + <script type="module"> + game/js/*.js (in order) + </script>,
-// byte-identical to the original scratchpad build.sh. The artifact contract from SPEC.md "Hard rules" (no
+// the same layout the original scratchpad build.sh produced. The artifact contract from SPEC.md "Hard rules" (no
 // <!doctype>/<html>/<head>/<body>; <title>, the claude viewport meta, then <style>; Google Fonts + the exact jsdelivr
 // import map only; no alert/confirm/prompt/print, no download links) is checked before writing.
 import fs from 'node:fs';

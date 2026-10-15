@@ -22,11 +22,19 @@ export default async (page, h) => {
   // let the renderer draw a few real frames of the staged state (SwiftShader: ~0.5 s per frame at 3x)
   const frames = (n) => page.evaluate((n) => new Promise((r) => { let k = 0; const f = () => (++k >= n ? r() : requestAnimationFrame(f)); requestAnimationFrame(f); }), n);
   const save = async (name, expect) => {
-    // a level-up that pops up while the frames render would cover the moment: clear it and render again
-    for (let k = 0; expect && k < 3 && (await S()).screen !== expect; k++) await settle(4);
-    if (expect && (await S()).screen !== expect) fail(name + ': screen is ' + (await S()).screen + ', expected ' + expect);
     const p = path.join(dest, name + '.png');
-    await page.screenshot({ path: p, timeout: 120000 });   // SwiftShader at 3x: one frame can take seconds on a busy machine
+    for (let attempt = 1; ; attempt++) {
+      // a level-up that pops up while the frames render would cover the moment: clear it and render again
+      for (let k = 0; expect && k < 3 && (await S()).screen !== expect; k++) await settle(4);
+      if (expect && (await S()).screen !== expect) fail(name + ': screen is ' + (await S()).screen + ', expected ' + expect);
+      await page.screenshot({ path: p, timeout: 120000 });   // SwiftShader at 3x: one frame can take seconds on a busy machine
+      // the capture itself renders for seconds: a level-up that came due meanwhile is in the picture (half-faded
+      // cards over the fight), so check again afterwards and retake
+      const now = (await S()).screen;
+      if (!expect || now === expect) break;
+      if (attempt >= 4) { fail(name + ': the screen kept changing to ' + now + ' during the capture'); break; }
+      log('[store-shot]', name + ': screen changed to', now, 'during the capture, retaking');
+    }
     await dbg('timeScale', 1);
     const b = fs.readFileSync(p);
     const w = b.readUInt32BE(16), hh = b.readUInt32BE(20);
