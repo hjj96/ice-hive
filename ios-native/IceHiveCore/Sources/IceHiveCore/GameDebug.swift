@@ -45,6 +45,9 @@ public struct DebugState: CustomStringConvertible {
 }
 
 extension Game {
+    /// Snapshot of the run (same as `debugState`).
+    public var state: DebugState { debugState }
+
     public var debugState: DebugState {
         let P = marines[0]
         return DebugState(phase: phase, time: time, stage: stage, objective: objectiveText, bugsAlive: bugs.aliveCount, kills: kills,

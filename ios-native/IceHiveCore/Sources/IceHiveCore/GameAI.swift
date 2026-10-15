@@ -8,6 +8,7 @@ import Foundation
 /// Formation slots behind the player (side, back) per squad index.
 let FORM: [(Float, Float)] = [(0, 0), (-2.4, -1.5), (2.4, -1.5), (0, -2.9)]
 
+// Loops over query results are `while` loops: `for … in 0..<n` is slow in unoptimised (Debug) builds.
 extension Game {
 
     // ---------- input API ----------
@@ -45,12 +46,12 @@ extension Game {
     func isVisible(_ x: Float, _ z: Float) -> Bool {
         guard let q = viewQuad, q.count >= 3 else { return true }
         var sign: Float = 0
-        for k in 0..<q.count {
+        do { var k = 0; while k < q.count { defer { k += 1 }
             let a = q[k], b = q[(k + 1) % q.count]
             let cr = (b.x - a.x) * (z - a.y) - (b.y - a.y) * (x - a.x)
             if cr == 0 { continue }
             if sign == 0 { sign = cr > 0 ? 1 : -1 } else if (cr > 0 ? 1 : -1) != sign { return false }
-        }
+        } }
         return true
     }
 
@@ -62,7 +63,7 @@ extension Game {
         let cnt = hash.queryCircle(S, m.x + dx * 8, m.z + dz * 8, 9)
         var best = -1
         var bs: Float = -1e9
-        for q in 0..<cnt {
+        do { var q = 0; while q < cnt { defer { q += 1 }
             let b = hash.qb[q]
             if S.st[b] == S_CLIMB && S.y[b] < -0.6 { continue }
             let vx = S.x[b] - m.x, vz = S.z[b] - m.z, d = hypotf2(vx, vz)
@@ -77,8 +78,16 @@ extension Game {
             if S.type[b] == T_BOOM { s += 0.6 }
             if S.type[b] == T_BRUTE { s += 0.4 }
             if s > bs { bs = s; best = b }
-        }
+        } }
         return best
+    }
+
+    /// The player's aim angle pulled toward the aim-assist target (strength 0...1), as the web game does for touch.
+    public func assistedAim(_ angle: Float, strength: Float) -> Float {
+        let P = marines[0]
+        let b = aimAssistTarget(from: P, dir: Vec2(sinf2(angle), cosf2(angle)))
+        if b < 0 { return angle }
+        return angle + angDiff(angle, atan2f2(bugs.x[b] - P.x, bugs.z[b] - P.z)) * clampf(strength, 0, 1)
     }
 
     /// Player commands from the stored input (called from the fixed-step tick).
@@ -120,7 +129,7 @@ extension Game {
         var best = -1
         var bs: Float = 1e9
         let P = marines[0]
-        for q in 0..<cnt {
+        do { var q = 0; while q < cnt { defer { q += 1 }
             let b = hash.qb[q]
             if S.st[b] == S_CLIMB && S.y[b] < -0.8 { continue }
             let dx = S.x[b] - m.x, dz = S.z[b] - m.z, d = (dx * dx + dz * dz).squareRoot()
@@ -136,7 +145,7 @@ extension Game {
             }
             if m.cls == .cryo && S.frz[b] > 0 { s += 4 }
             if s < bs { bs = s; best = b }
-        }
+        } }
         return best
     }
 
@@ -233,7 +242,7 @@ extension Game {
         if m.ai.dodge <= 0 {
             m.ai.dodge = 0.1
             let cnt = hash.queryCircle(S, m.x, m.z, 13)
-            for q in 0..<cnt {
+            do { var q = 0; while q < cnt { defer { q += 1 }
                 let b = hash.qb[q]
                 if S.type[b] != T_BRUTE || (S.st[b] != S_WIND && S.st[b] != S_CHARGE) { continue }
                 let rx = m.x - S.x[b], rz = m.z - S.z[b], along = rx * S.ax[b] + rz * S.az[b]
@@ -243,16 +252,16 @@ extension Game {
                     m.ai.sideX = S.az[b] * s; m.ai.sideZ = -S.ax[b] * s; m.ai.sideT = 0.5
                     if S.st[b] == S_CHARGE && along < 6 { tryDash(m, m.ai.sideX, m.ai.sideZ) }
                 }
-            }
+            } }
         }
         // sidestep acid globs that are about to land on us
         let GL = globs
-        for k in 0..<GL.count {
+        do { var k = 0; while k < GL.count { defer { k += 1 }
             let left = GL.dur[k] - GL.t[k]
             if left > 0.75 { continue }
             let dx = m.x - GL.x1[k], dz = m.z - GL.z1[k], d = hypotf2(dx, dz)
             if d < 1.9 { m.ai.sideX = d > 0.05 ? dx / d : 1; m.ai.sideZ = d > 0.05 ? dz / d : 0; m.ai.sideT = 0.35 }
-        }
+        } }
         if m.ai.sideT > 0 { m.ai.sideT -= dt; mx = m.ai.sideX; mz = m.ai.sideZ }
         // stuck detection: wants to move but barely moves -> rely on the flow field for a while
         if abs(mx) + abs(mz) > 0.5 && hypotf2(m.x - m.ai.lx, m.z - m.ai.lz) < 1.2 * dt { m.ai.stuck = min(2, m.ai.stuck + dt * 2) }

@@ -241,9 +241,8 @@ public final class Level {
             var add: [(Int, Int)] = []
             for c in G..<(G * (G - 1)) {
                 if hset[c] != 0 { continue }
-                for nb in [c - 1, c + 1, c - G, c + G] where hset[nb] != 0 {
-                    add.append((c, nb)); break
-                }
+                let nb = hset[c - 1] != 0 ? c - 1 : hset[c + 1] != 0 ? c + 1 : hset[c - G] != 0 ? c - G : hset[c + G] != 0 ? c + G : -1
+                if nb >= 0 { add.append((c, nb)) }
             }
             for (c, nb) in add {
                 hgt[c] = hgt[nb] + hgz[nb] * (Level.cellZ(c) - Level.cellZ(nb)); hgz[c] = hgz[nb]; hset[c] = 1

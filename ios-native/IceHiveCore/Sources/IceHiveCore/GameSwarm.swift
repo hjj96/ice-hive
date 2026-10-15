@@ -4,6 +4,7 @@ import Foundation
 //  SWARM LOGIC — spawning, damage, explosions, acid globs and the
 //  per-tick bug update (port of 05-sim.js)
 // ================================================================
+// Loops over query results are `while` loops: `for … in 0..<n` is slow in unoptimised (Debug) builds.
 extension Game {
 
     // ---------- spawning ----------
@@ -91,19 +92,19 @@ extension Game {
         let n = booms.count
         if n == 0 { return }
         let S = bugs
-        for k in 0..<n {
+        do { var k = 0; while k < n { defer { k += 1 }
             let e = booms[k]
             let cnt = hash.queryCircle(S, e.x, e.z, e.r)
             let knock: Float = e.kind == .frost ? 2 : (e.kind == .pulse ? 5 : 11)
             let falloff = difficulty.pulseFalloff
-            for q in 0..<cnt {
+            do { var q = 0; while q < cnt { defer { q += 1 }
                 let b = hash.qb[q]
                 let dx = S.x[b] - e.x, dz = S.z[b] - e.z, d = (dx * dx + dz * dz).squareRoot() + 1e-4
                 let f: Float = e.kind == .pulse ? 1 - falloff * minf(1, d / e.r) : 1 - 0.55 * minf(1, d / e.r)
                 if e.kind == .frost { S.chill[b] = minf(1, S.chill[b] + 0.45) }
                 if S.type[b] != T_BRUTE { S.vx[b] += dx / d * knock * f; S.vz[b] += dz / d * knock * f }
                 hitBug(b, e.dmg * f, e.src)
-            }
+            } }
             if e.kind == .boomer {
                 for m in marines {
                     let dx = m.x - e.x, dz = m.z - e.z, d = hypotf2(dx, dz)
@@ -113,7 +114,7 @@ extension Game {
                 }
             }
             if !simOnly { explosionFx(e.x, e.z, e.r, e.kind) }
-        }
+        } }
         booms.removeFirst(n)
     }
 
@@ -173,12 +174,12 @@ extension Game {
     func simBugs(_ dt: Float) {
         let S = bugs, H = hash, L = level
         var anyUp = false
-        for k in 0..<4 {
+        do { var k = 0; while k < 4 { defer { k += 1 }
             let m = marines[k]
             mX[k] = m.x; mZ[k] = m.z; mUp[k] = m.downed ? 0 : 1
             if !m.downed { anyUp = true }
             crowd[k] = 0
-        }
+        } }
         let n = S.count
         let X = S.x, Z = S.z, VX = S.vx, VZ = S.vz, Y = S.y, R = S.r, SPD = S.spd, SC = S.sc
         let T = S.t, CD = S.cd, CHILL = S.chill, FRZ = S.frz, BURN = S.burn, PH = S.ph, HD = S.hd, FL = S.fl
@@ -190,6 +191,7 @@ extension Game {
         let MX = mX, MZ = mZ, MUP = mUp, CROWD = crowd
         let G = GRID
         let GH = GRID_HALF
+        let GF = Float(GRID)
         var ta0 = 0, ta1 = 0, ta2 = 0, ta3 = 0
         var ci = 0
         while ci < n {
@@ -200,6 +202,11 @@ extension Game {
         }
         typeAlive[0] = ta0; typeAlive[1] = ta1; typeAlive[2] = ta2; typeAlive[3] = ta3
         let spreadRate = 1.4 * pyroSpread()
+        // burn damage multiplier of each possible igniter (index src + 1, 0 = no marine)
+        let BURNMUL = burnMulScratch
+        BURNMUL[0] = 1
+        do { var k = 0; while k < 4 { BURNMUL[k + 1] = marines[k].mods.burn; k += 1 } }
+        let quiet = simOnly
         let liftFall = stage == .extract && extractT > 0.4
         let dmgMulL = dmgMul
 
@@ -215,7 +222,7 @@ extension Game {
             if BURN[i] > 0 {
                 BURN[i] -= dt
                 let src = Int(BSRC[i])
-                if hitBug(i, burnDps * pyroBurnMul(src) * dt, src, true) { continue }
+                if hitBug(i, burnDps * BURNMUL[(src >= 0 && src < 4) ? src + 1 : 0] * dt, src, true) { continue }
                 if rng.next() < spreadRate * dt {
                     let c = i < hashN ? hCell[i] : Level.cellClamp(X[i], Z[i])
                     let e = hStart[c + 1]
@@ -234,6 +241,9 @@ extension Game {
             if CHILL[i] > 0 { CHILL[i] = maxf(0, CHILL[i] - dt * 0.4) }
             let x = X[i], z = Z[i]
             let st = ST[i]
+            let fx0 = x + GH, fz0 = z + GH
+            // cell of the bug (-1 outside the grid), inlined: this loop runs for every bug every tick
+            let c0 = (fx0 >= 0 && fx0 < GF && fz0 >= 0 && fz0 < GF) ? Int(fz0) &* G &+ Int(fx0) : -1
             if liftFall && liftCell[Level.cellClamp(x, z)] != 0 {
                 Y[i] -= dt * (4 + (-Y[i]) * 3); PH[i] += dt * 20
                 if Y[i] < -12 { DEAD[i] = 1; S.deadPending += 1 }
@@ -263,7 +273,6 @@ extension Game {
             let dist = bd.squareRoot() + 1e-4
             let tx = (MX[best] - x) / dist, tz = (MZ[best] - z) / dist
             var ddx: Float, ddz: Float
-            let c0 = L.cellOf(x, z)
             if dist < 5.5 || c0 < 0 || (flowX[c0] == 0 && flowZ[c0] == 0) { ddx = tx; ddz = tz }
             else { ddx = flowX[c0]; ddz = flowZ[c0] }
             var speed = SPD[i] * (1 - 0.6 * CHILL[i]) * (BURN[i] > 0 ? 1.15 : 1)
@@ -277,7 +286,7 @@ extension Game {
                         let ax = MX[best] + m.vx * 0.8 + (rng.next() - 0.5) * 1.2
                         let az = MZ[best] + m.vz * 0.8 + (rng.next() - 0.5) * 1.2
                         ST[i] = S_WIND; T[i] = 0.5; AX[i] = ax; AZ[i] = az
-                        if !simOnly {
+                        if !quiet {
                             teleRing(ax, az, 1.5, 0.75, 1.0, 0.15, 1.45, cause: .acidTarget)
                             teleFill(ax, az, 1.5, 0.5, 0.85, 0.08, 1.45, cause: .acidTarget)
                         }
@@ -292,7 +301,7 @@ extension Game {
                 if st == S_MOVE {
                     if dist < 9.5 && dist > 2.4 && CD[i] <= 0 && anyUp {
                         ST[i] = S_WIND; T[i] = 0.8; AX[i] = tx; AZ[i] = tz; HIT[i] = 0
-                        if !simOnly { teleLane(x, z, tx, tz, 12, 2.3, 0.8, 0.9); sound(.roar, x, z) }
+                        if !quiet { teleLane(x, z, tx, tz, 12, 2.3, 0.8, 0.9); sound(.roar, x, z) }
                     }
                 } else if st == S_WIND {
                     speed = 0; ddx = AX[i]; ddz = AZ[i]
@@ -301,7 +310,7 @@ extension Game {
                 } else if st == S_CHARGE {
                     ddx = AX[i]; ddz = AZ[i]; speed = 12.5; acc = 30
                     T[i] -= dt
-                    for k in 0..<4 {
+                    do { var k = 0; while k < 4 { defer { k += 1 }
                         if MUP[k] == 0 || (HIT[i] & UInt8(1 << k)) != 0 { continue }
                         let dx = MX[k] - x, dz = MZ[k] - z
                         let rr = R[i] + 0.6
@@ -309,13 +318,13 @@ extension Game {
                             HIT[i] |= UInt8(1 << k)
                             hurtMarine(marines[k], 16 * dmgMulL, AX[i] * 13, AZ[i] * 13)
                         }
-                    }
+                    } }
                     if T[i] <= 0 { ST[i] = S_MOVE; CD[i] = 5 + rng.next() * 3 }
                 }
             } else if ty == T_BOOM {
                 if st == S_MOVE && dist < 2.4 && anyUp {
                     ST[i] = S_SWELL; T[i] = 0.8
-                    if !simOnly { teleRing(x, z, 3.1, 1.0, 0.45, 0.1, 0.8, cause: .boomerSwell); sound(.swell, x, z) }
+                    if !quiet { teleRing(x, z, 3.1, 1.0, 0.45, 0.1, 0.8, cause: .boomerSwell); sound(.swell, x, z) }
                 } else if st == S_SWELL {
                     speed *= 0.35; T[i] -= dt
                     if T[i] <= 0 { killBug(i, -1); continue }
@@ -373,9 +382,9 @@ extension Game {
             let pl = hypotf2(px, pz)
             if pl > 0.14 { px *= 0.14 / pl; pz *= 0.14 / pl }
             var nx = x + vx * dt + px * 0.65, nz = z + vz * dt + pz * 0.65
-            if c0 >= 0 && walk[c0] == 1 && !L.walkable(nx, nz) {
-                if L.walkable(nx, z) { nz = z; vz *= 0.3 }
-                else if L.walkable(x, nz) { nx = x; vx *= 0.3 }
+            if c0 >= 0 && walk[c0] == 1 && !walkAt(walk, nx, nz) {
+                if walkAt(walk, nx, z) { nz = z; vz *= 0.3 }
+                else if walkAt(walk, x, nz) { nx = x; vx *= 0.3 }
                 else {
                     nx = x; nz = z; vx *= -0.2; vz *= -0.2
                     if st == S_CHARGE { ST[i] = S_MOVE; CD[i] = 4 }
@@ -404,6 +413,13 @@ extension Game {
             if hasWant { HD[i] += angDiff(HD[i], want) * minf(1, 10 * dt) }
             PH[i] += sp2.squareRoot() * dt * 8 / SC[i]
         }
+    }
+
+    /// Floor cell at (x, z) is walkable (inline helper of the swarm loop).
+    @inline(__always) func walkAt(_ walk: UnsafeMutablePointer<UInt8>, _ x: Float, _ z: Float) -> Bool {
+        let fx = x + GRID_HALF, fz = z + GRID_HALF
+        if !(fx >= 0 && fx < Float(GRID) && fz >= 0 && fz < Float(GRID)) { return false }
+        return walk[Int(fz) &* GRID &+ Int(fx)] == 1
     }
 
     func pyroSpread() -> Float { pyroIdx >= 0 ? marines[pyroIdx].mods.burn : 1 }

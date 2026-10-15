@@ -4,6 +4,7 @@ import Foundation
 //  MARINES — movement, damage, revive, weapons, projectiles, abilities
 //  (port of 06-marines.js)
 // ================================================================
+// Loops over query results are `while` loops: `for … in 0..<n` is slow in unoptimised (Debug) builds.
 extension Game {
 
     // ---------- per-tick marine update ----------
@@ -261,7 +262,7 @@ extension Game {
         let S = bugs
         let cnt = hash.queryCircle(S, ox + m.ax * range * 0.5, oz + m.az * range * 0.5, range * 0.58)
         var hitAny = false
-        for q in 0..<cnt {
+        do { var q = 0; while q < cnt { defer { q += 1 }
             let b = hash.qb[q]
             let dx = S.x[b] - ox, dz = S.z[b] - oz, d = (dx * dx + dz * dz).squareRoot() + 1e-4
             if d > range + S.r[b] { continue }
@@ -270,7 +271,7 @@ extension Game {
             S.burn[b] = C.burn; S.bsrc[b] = Int8(truncatingIfNeeded: m.index)
             S.vx[b] += m.ax * 3 * dt; S.vz[b] += m.az * 3 * dt
             hitBug(b, C.dps * md.dmg * md.rof * dt * (1 - 0.35 * d / range), m.index, true)
-        }
+        } }
         if m.isPlayer && hitAny { hits += 1.0 / 6.0 }
     }
 
@@ -280,7 +281,7 @@ extension Game {
         let S = bugs
         let cnt = hash.queryCircle(S, ox + m.ax * len * 0.5, oz + m.az * len * 0.5, len * 0.56)
         var hitAny = false
-        for q in 0..<cnt {
+        do { var q = 0; while q < cnt { defer { q += 1 }
             let b = hash.qb[q]
             let dx = S.x[b] - ox, dz = S.z[b] - oz, t = dx * m.ax + dz * m.az
             if t < -0.3 || t > len { continue }
@@ -295,7 +296,7 @@ extension Game {
                 }
             }
             hitBug(b, C.dps * md.dmg * md.rof * dt, m.index, true)
-        }
+        } }
         m.beamLen = len
         if m.isPlayer && hitAny { hits += 1.0 / 6.0 }
     }
@@ -328,11 +329,11 @@ extension Game {
             let r = 5 * md.arad
             napalms[k].active = true; napalms[k].x = m.x; napalms[k].z = m.z; napalms[k].r = r; napalms[k].t = 5; napalms[k].own = m.index
             let cnt = hash.queryCircle(S, m.x, m.z, r)
-            for q in 0..<cnt {
+            do { var q = 0; while q < cnt { defer { q += 1 }
                 let b = hash.qb[q]
                 S.burn[b] = 5; S.bsrc[b] = Int8(truncatingIfNeeded: m.index)
                 hitBug(b, 30 * md.dmg, m.index)
-            }
+            } }
             if !simOnly {
                 emit(.ability(marine: m.index, kind: .napalm, pos: Vec2(m.x, m.z), radius: r))
                 teleRing(m.x, m.z, r, 1.0, 0.32, 0.06, 5, r1: r, pulse: false, cause: .napalm)
@@ -342,11 +343,11 @@ extension Game {
         case .cryo:
             let r = 7 * md.arad
             let cnt = hash.queryCircle(S, m.x, m.z, r)
-            for q in 0..<cnt {
+            do { var q = 0; while q < cnt { defer { q += 1 }
                 let b = hash.qb[q]
                 S.frz[b] = S.type[b] == T_BRUTE ? 1.6 : 3.2; S.chill[b] = 1; S.vx[b] = 0; S.vz[b] = 0
                 hitBug(b, 30 * md.dmg, m.index)
-            }
+            } }
             if !simOnly {
                 emit(.ability(marine: m.index, kind: .nova, pos: Vec2(m.x, m.z), radius: r))
                 teleRing(m.x, m.z, 0.5, 0.3, 0.6, 0.8, 0.55, r1: r, pulse: false, cause: .nova)
@@ -382,10 +383,10 @@ extension Game {
             let g = grenades[k]
             queueBoom(g.tx, g.tz, g.r, g.dmg, g.own, g.big ? .frag : .mini)
             if g.cluster > 0 {
-                for _ in 0..<g.cluster {
+                do { var cl = 0; while cl < g.cluster { defer { cl += 1 }
                     let a = rng.next() * TAU, d = 2 + rng.next() * 2.5
                     throwGrenade(g.tx, g.tz, g.tx + cosf2(a) * d, g.tz + sinf2(a) * d, g.own, 2.6, g.dmg * 0.4, 0, false)
-                }
+                } }
             }
         }
         for k in 0..<napalms.count where napalms[k].active {
@@ -394,13 +395,13 @@ extension Game {
             let n = napalms[k]
             let cnt = hash.queryCircle(S, n.x, n.z, n.r + 1.4)
             let dmg = 28 * marines[n.own].mods.dmg * dt
-            for q in 0..<cnt {
+            do { var q = 0; while q < cnt { defer { q += 1 }
                 let b = hash.qb[q]
                 let d = hypotf2(S.x[b] - n.x, S.z[b] - n.z)
                 if abs(d - n.r) > 1.3 { continue }
                 S.burn[b] = 3.5; S.bsrc[b] = Int8(truncatingIfNeeded: n.own)
                 hitBug(b, dmg, n.own, true)
-            }
+            } }
         }
         if turret.active {
             turret.t -= dt
@@ -413,12 +414,12 @@ extension Game {
                     turret.think = 0.12; turret.target = -1
                     let cnt = hash.queryCircle(S, turret.x, turret.z, turretRange())
                     var bd: Float = 1e9
-                    for q in 0..<cnt {
+                    do { var q = 0; while q < cnt { defer { q += 1 }
                         let b = hash.qb[q]
                         let ddx = S.x[b] - turret.x, ddz = S.z[b] - turret.z
                         let d = ddx * ddx + ddz * ddz - (S.type[b] == T_BOOM ? 30 : 0)
                         if d < bd { bd = d; turret.target = b }
-                    }
+                    } }
                     if turret.target >= 0 { turret.tuid = S.uid[turret.target] }
                 }
                 let b = turret.target

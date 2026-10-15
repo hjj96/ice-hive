@@ -285,4 +285,26 @@ final class GameTests: XCTestCase {
         XCTAssertEqual(h.aimAssistTarget(from: P, dir: Vec2(0.7071, 0.7071)), -1)
         XCTAssertGreaterThan(h.laserLength(P), 0)
     }
+
+    func testRandomPlayerInputStaysSane() {
+        // a "monkey" player: random sticks and buttons every few ticks, every class
+        for cls in MarineClass.allCases {
+            let g = Game(seed: 31 + UInt32(cls.rawValue), playerClass: cls)
+            var r = SeededRNG(seed: 99)
+            for t in 0..<(60 * 20) {
+                if t % 7 == 0 {
+                    let mv = Vec2(r.range(-1, 1), r.range(-1, 1))
+                    let aim: Float? = r.next() < 0.7 ? r.range(-4, 4) : nil
+                    g.setPlayerInput(move: mv, aim: aim, fire: r.next() < 0.8, ability: r.next() < 0.05, dash: r.next() < 0.05,
+                                     assist: r.next(), abilityTarget: r.next() < 0.5 ? Vec2(r.range(-60, 60), r.range(-60, 60)) : nil)
+                }
+                g.tick()
+                if t % 30 == 0 { g.clearEvents() }
+                if g.phase != .playing { break }
+            }
+            XCTAssertFalse(g.hasNonFinite(), "\(cls)")
+            for m in g.marines where !m.downed { XCTAssertTrue(g.level.solid(m.x, m.z), "\(cls) marine \(m.index) off the deck at \(m.x),\(m.z)") }
+            XCTAssertLessThanOrEqual(g.bugs.aliveCount, g.bugCap)
+        }
+    }
 }

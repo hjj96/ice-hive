@@ -43,19 +43,19 @@ final class SpatialHash {
         while i < n {
             let c = Level.cellClamp(X[i], Z[i])
             hc[i] = c
-            hs[c + 1] += 1
-            i += 1
+            hs[c &+ 1] &+= 1
+            i &+= 1
         }
         var acc = 0
         var c = 0
-        while c <= GG { acc += hs[c]; hs[c] = acc; c += 1 }
+        while c <= GG { acc &+= hs[c]; hs[c] = acc; c &+= 1 }
         cur.update(from: hs, count: GG)
         i = 0
         while i < n {
             let cc = hc[i]
             it[cur[cc]] = i
-            cur[cc] += 1
-            i += 1
+            cur[cc] &+= 1
+            i &+= 1
         }
         hashedCount = n
     }
@@ -188,13 +188,19 @@ public final class FlowField {
     let x: UnsafeMutablePointer<Float>
     let z: UnsafeMutablePointer<Float>
 
+    /// 8-neighbourhood offsets.
+    private let N8X: UnsafeMutablePointer<Int>, N8Z: UnsafeMutablePointer<Int>
+
     init() {
         let n = GRID * GRID
+        N8X = .allocate(capacity: 8); N8Z = .allocate(capacity: 8)
+        let ox = [1, -1, 0, 0, 1, 1, -1, -1], oz = [0, 0, 1, -1, 1, -1, 1, -1]
+        for k in 0..<8 { (N8X + k).initialize(to: ox[k]); (N8Z + k).initialize(to: oz[k]) }
         d = .allocate(capacity: n); d.initialize(repeating: FlowField.unreachable, count: n)
         x = .allocate(capacity: n); x.initialize(repeating: 0, count: n)
         z = .allocate(capacity: n); z.initialize(repeating: 0, count: n)
     }
-    deinit { d.deallocate(); x.deallocate(); z.deallocate() }
+    deinit { d.deallocate(); x.deallocate(); z.deallocate(); N8X.deallocate(); N8Z.deallocate() }
 
     /// Distance (cells) of cell c from the nearest source.
     public func distance(_ c: Int) -> Int { (c >= 0 && c < GRID * GRID) ? d[c] : FlowField.unreachable }
@@ -204,7 +210,7 @@ public final class FlowField {
     /// `queue` is scratch space of G*G Int.
     func compute(level: Level, sources: UnsafeBufferPointer<Float>, queue fq: UnsafeMutablePointer<Int>) {
         let G = GRID, GG = G * G
-        let D = d, FX = x, FZ = z, walk = level.walk
+        let D = d, FX = x, FZ = z, walk = level.walk, N8X = self.N8X, N8Z = self.N8Z
         D.update(repeating: FlowField.unreachable, count: GG)
         FX.update(repeating: 0, count: GG)
         FZ.update(repeating: 0, count: GG)
@@ -224,22 +230,16 @@ public final class FlowField {
             if c < G * (G - 1) && walk[c + G] == 1 && D[c + G] > nd { D[c + G] = nd; fq[qt] = c + G; qt += 1 }
         }
         // direction = weighted sum toward lower-distance neighbours (8-way, no corner cutting)
-        for q in 0..<qt {
+        var q = 0
+        while q < qt {
             let c = fq[q], d0 = D[c], i = c % G, j = c / G
+            q += 1
             if d0 == 0 { continue }
             var vx: Float = 0, vz: Float = 0
-            for n8 in 0..<8 {
-                let dx: Int, dz: Int
-                switch n8 {
-                case 0: dx = 1; dz = 0
-                case 1: dx = -1; dz = 0
-                case 2: dx = 0; dz = 1
-                case 3: dx = 0; dz = -1
-                case 4: dx = 1; dz = 1
-                case 5: dx = 1; dz = -1
-                case 6: dx = -1; dz = 1
-                default: dx = -1; dz = -1
-                }
+            var n8 = 0
+            while n8 < 8 {
+                let dx = N8X[n8], dz = N8Z[n8]
+                n8 += 1
                 let ni = i + dx, nj = j + dz
                 if ni < 0 || nj < 0 || ni >= G || nj >= G { continue }
                 let n = nj * G + ni

@@ -230,6 +230,8 @@ public final class Game {
     let mUp: UnsafeMutablePointer<UInt8>
     /// Bugs pressing on each marine (slows them).
     let crowd: UnsafeMutablePointer<Float>
+    /// Per-tick scratch: burn multiplier per igniter (5 slots).
+    let burnMulScratch: UnsafeMutablePointer<Float>
     /// Live count per bug type (caps on specials).
     var typeAlive: [Int] = [0, 0, 0, 0]
 
@@ -313,6 +315,7 @@ public final class Game {
         mZ = .allocate(capacity: 4); mZ.initialize(repeating: 0, count: 4)
         mUp = .allocate(capacity: 4); mUp.initialize(repeating: 0, count: 4)
         crowd = .allocate(capacity: 4); crowd.initialize(repeating: 0, count: 4)
+        burnMulScratch = .allocate(capacity: 5); burnMulScratch.initialize(repeating: 1, count: 5)
         events.reserveCapacity(1024)
         booms.reserveCapacity(64)
         flowSrc.reserveCapacity(16)
@@ -320,7 +323,7 @@ public final class Game {
     }
 
     deinit {
-        flowQueue.deallocate(); mX.deallocate(); mZ.deallocate(); mUp.deallocate(); crowd.deallocate()
+        flowQueue.deallocate(); mX.deallocate(); mZ.deallocate(); mUp.deallocate(); crowd.deallocate(); burnMulScratch.deallocate()
     }
 
     // ---------- game flow (resetWorld of 12-main.js) ----------
