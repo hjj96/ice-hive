@@ -54,8 +54,8 @@ open IceHive.xcodeproj
 ## CI
 
 `.github/workflows/native-ios.yml` запускается на push в ветки `native*` (macOS-раннер GitHub): `swift test` для ядра,
-сборка под симулятор, затем на симуляторе по очереди `-demo combat`, `beacon`, `title`, `calm` и `combat` в альбомной ориентации
-со скриншотами. Время скриншотов отсчитывается от строки `scene ready` (конец загрузки). Результаты коммитятся в ветку
+сборка под симулятор, затем на симуляторе по очереди `-demo combat`, `beacon`, `title`, `calm`, `combat` в альбомной ориентации
+и `combat -nolight` (без слоя темноты — для сравнения стоимости шейдера) со скриншотами. Время скриншотов отсчитывается от строки `scene ready` (конец загрузки). Результаты коммитятся в ветку
 `ci-results` в папку `<ветка>/<короткий sha>/` (`status.json`, `build.log`, `core-tests.log`, `bundle.txt`,
 `combat-4s.png` … `landscape-9s.png`, `app-<демо>.log`, `fps.txt`, `loading.txt`, `alive.txt`, `app.log`).
 Сборка в CI — конфигурация Debug, но с оптимизацией Swift (`SWIFT_OPTIMIZATION_LEVEL=-O`) и только arm64: так fps на

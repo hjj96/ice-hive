@@ -211,7 +211,9 @@ jobs:
             local t=0
             for s in "$@"; do
               sleep $((s - t)); t=$s
+              echo "$label ${s}s start $(python3 -c 'import time; print(f"{time.time():.3f}")')" >> results/shots.txt
               xcrun simctl io "$UDID" screenshot "results/$label-${s}s.png"
+              echo "$label ${s}s end   $(python3 -c 'import time; print(f"{time.time():.3f}")')" >> results/shots.txt
             done
             # let the app reach -seconds and log its fps summary before it is stopped
             w=0
@@ -245,7 +247,8 @@ jobs:
           for f in results/app-combat.log results/app-beacon.log results/app-title.log results/app-calm.log results/app-landscape.log results/app-nolight.log; do
             { echo "== $f"; grep -h -E 'loading took|sheets decoded|demo done' "$f" || true; } >> results/fps.txt
           done
-          cat results/alive.txt results/loading.txt results/fps.txt
+          grep -H 'hitch' results/app-*.log > results/hitches.txt || true
+          cat results/alive.txt results/loading.txt results/fps.txt results/shots.txt results/hitches.txt
       - name: Verify app is alive and rendered
         run: |
           echo "--- combat stdout ---"; cat results/app-combat.log || true

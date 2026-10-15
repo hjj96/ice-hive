@@ -66,6 +66,7 @@ final class GameScene: SKScene {
     private var lastDebugText: Double = 0
     private var lastFrameTime: Double = 0
     private var worstMs: Double = 0
+    private var hitchLogs = 0
 
     init(size: CGSize, options: LaunchOptions) {
         self.options = options
@@ -378,8 +379,14 @@ final class GameScene: SKScene {
         let dt = Float(min(0.1, max(0, currentTime - lastTime)))
         lastTime = currentTime
         frameCount += 1
-        worstDt = max(worstDt, currentTime - lastFrameTime)
+        let frameDt = currentTime - lastFrameTime
+        worstDt = max(worstDt, frameDt)
         lastFrameTime = currentTime
+        // long frames with a wall-clock stamp (CI correlates them with its screenshot times)
+        if frameDt > 0.1 && readyTime > 0 && hitchLogs < 40 {
+            hitchLogs += 1
+            AppLog.info(String(format: "hitch %.0f ms td=%.2f wall=%.3f", frameDt * 1000, currentTime - readyTime, Date().timeIntervalSince1970))
+        }
         guard let g = game, let r = renderer, mode != .loading else {
             advanceLoading()
             heartbeat(currentTime)
