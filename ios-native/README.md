@@ -56,3 +56,6 @@ open IceHive.xcodeproj
 сборка под симулятор, затем на симуляторе по очереди `-demo combat`, `beacon`, `title`, `calm` и `combat` в альбомной ориентации
 со скриншотами. Результаты коммитятся в ветку `ci-results` в папку `<ветка>/<короткий sha>/` (`status.json`,
 `build.log`, `core-tests.log`, `combat-10s.png` … `landscape-14s.png`, `app-<демо>.log`, `fps.txt`, `alive.txt`, `app.log`).
+Сборка в CI — конфигурация Debug, но с оптимизацией Swift (`SWIFT_OPTIMIZATION_LEVEL=-O`) и только arm64: так fps на
+симуляторе ближе к реальному. Строки `hb` в `app-<демо>.log` — fps, время симуляции/отрисовки, жуки, частицы, память;
+`hb ms` — разбивка кадра по разделам (мс).

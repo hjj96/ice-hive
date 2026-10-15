@@ -310,6 +310,7 @@ final class HUD {
         objPanel.zPosition = -1
         root.addChild(objPanel)
         objCap.node.position = hp(objX + objW / 2, objY + 11)
+        objText.size = W <= 600 ? 14 : 16
         objText.node.position = hp(objX + objW / 2, objY + 27)
         objBar.resize(width: objW - 32)
         objBar.node.position = hp(objX + 16, objY + objH - 5)
@@ -333,7 +334,7 @@ final class HUD {
         toastRoot.position = hp(W - sr, landscape ? top + 52 : objBottom + 8)
 
         // bottom: armour + level
-        let boxW = landscape ? min(260, W * 0.32) : min(340, W * 0.52)
+        let boxW = landscape ? min(260, W * 0.32) : min(300, W * 0.52)
         let bottom = H - (landscape ? 8 : 12) - sb
         let bx = (W - boxW) / 2
         lvl.node.position = hp(bx, bottom - 6)
@@ -344,8 +345,8 @@ final class HUD {
         hpCap.node.position = hp(bx, bottom - 12 - 6 - 9 - 4 - 8)
         hpVal.node.position = hp(bx + boxW, bottom - 12 - 6 - 9 - 4 - 8)
 
-        // hint
-        hint.node.position = landscape ? hp(W / 2 - 45, H - 64 - sb) : hp(W / 2, H - 96 - sb)
+        // hint: portrait phones show it under the objective + squad list (web: top 226 + safe top), landscape low
+        hint.node.position = landscape ? hp(W / 2 - 45, H - 64 - sb) : hp(W / 2, 226 + st + 8)
 
         // touch buttons (#tAbility / #tDash)
         let rIn = insets.right

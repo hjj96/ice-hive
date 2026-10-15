@@ -160,10 +160,19 @@ final class GameScene: SKScene {
                 s.startAfterLoading()
             }
         }
+        // never hang on the loading screen if the preload does not call back
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
+            guard let s = self, !s.started else { return }
+            AppLog.error("texture preload still running after 8 s, starting anyway")
+            s.startAfterLoading()
+        }
     }
 
+    private var started = false
+
     private func startAfterLoading() {
-        guard let r = renderer else { return }
+        guard let r = renderer, !started else { return }
+        started = true
         loadingLabel?.node.removeFromParent()
         loadingSub?.node.removeFromParent()
         r.world.isHidden = false
