@@ -30,8 +30,8 @@ fs.mkdirSync(PREVIEWS, { recursive: true });
 const preview = { group: null, rows: [] };
 function previewBegin(group) { preview.group = group; preview.rows = []; }
 function previewEnd(k = 2) { if (preview.rows.length) savePNG(path.join(PREVIEWS, preview.group + '.png'), composePreview(preview.rows, k)); preview.group = null; preview.rows = []; }
-// the root catalog Contents.json (identical to the one Xcode writes, so branches merge cleanly)
-if (!fs.existsSync(path.join(XC, 'Contents.json'))) { fs.mkdirSync(XC, { recursive: true }); fs.writeFileSync(path.join(XC, 'Contents.json'), json({ info: { author: 'xcode', version: 1 } })); }
+// the root catalog Contents.json, byte-identical to the one Xcode writes (and the skeleton branch commits), so branches merge cleanly
+if (!fs.existsSync(path.join(XC, 'Contents.json'))) { fs.mkdirSync(XC, { recursive: true }); fs.writeFileSync(path.join(XC, 'Contents.json'), '{\n  "info" : {\n    "author" : "xcode",\n    "version" : 1\n  }\n}\n'); }
 
 const TAU = Math.PI * 2, DIRS = 16;
 const BUGS = [
@@ -201,20 +201,34 @@ manifest.projection = {
   cellDiamondPoints: [+(Math.SQRT2 * PT_PER_M).toFixed(4), +(Math.SQRT2 * PT_PER_M * SIN_P).toFixed(4)],
   heightStepPoints: +(COS_P * PT_PER_M).toFixed(4),
   directions: 'dir = Int((hd / (2π) * 16).rounded()) & 15 with hd = atan2(dx, dz) in WORLD space (the web game\'s heading / aim angle). dir 0 faces world +z (screen down-left), 4 faces +x (down-right), 8 faces -z (up-right), 12 faces -x (up-left); screen-up (the web FWD vector) is hd = 225° (dir 10)',
-  groundPlaneTextures: 'flat textures (decals, telegraph rings, lanes, glow pools, pad marks) are top-down: put the SKSpriteNode (zRotation = world rotation) inside a container node with yScale = 0.838671 (= sin pitch) and zRotation = 0; world rotation r about +y maps to zRotation = r. Size in points = metres * 24. Exact for an orthographic camera (x,z -> rotate 45°, squash y).',
+  groundPlaneTextures: 'flat textures (Ground atlas: decals, telegraph rings / fills / lanes, glow pools, floor indicators, pad mark, lasers, cryo beam, tracers; Background/bg_haze) are authored TOP-DOWN: image right = world +x, image up = world -z. Put the SKSpriteNode inside a container node with yScale = 0.838671 (= sin pitch, container zRotation 0) and give the sprite zRotation = r - π/4, where r is the web rotation about +y (three.js rotation.y; e.g. decals: the random rot, charge lanes: atan2(-dx, -dz), beams / lasers / tracers lying along the aim angle a = atan2(ax, az): r = a - π/2). Size in points = metres * 24 (before the squash). Position the container at screenFromWorld(x, y, z). Exact for the orthographic camera.',
   recommendedCameraScale: 'the web game shows ~23 m across a portrait iPhone (≈17–18 pt/m): SKCameraNode.setScale(1.35) (≈18 pt/m) matches it; 1.0 is a closer view at native sprite resolution',
 };
 manifest.lighting = {
   rig: 'sprites are pre-lit with a bright "full light" rig: the game\'s moon direction (-25, 60, 35), cool sky dome, warm fill from the viewer (flashlights). ACES filmic, sRGB.',
   inGameDarkness: `multiply by a light map: about [${AMBIENT.join(', ')}] in the dark (moon + sky only), 1.0 inside flashlight cones / lamp pools, >1 not possible with multiply — add light pools additively instead`,
-  glowLayers: 'BugsGlow / MarinesGlow hold the emissive parts only (pink / acid / ember speckles, visors, lamps) with a soft halo, premultiplied: draw ABOVE the darkness with blendMode .add at the same position, anchor and scale (they are @2x-only images with the same point size as the lit frame)',
+  glowLayers: '*Glow atlases (BugsGlow, MarinesGlow, LevelGlow, BackgroundGlow) hold the emissive parts only (pink / acid / ember speckles, visors, chest lamps, lamp heads, light strips, rim studs) with a soft halo, premultiplied: draw ABOVE the darkness with blendMode .add at the same position, anchor and point size as the lit frame (frame name + "_g"; @2x-only images, so their pixel size is 2/3 of the lit @3x frame)',
   bugBrightness: `bug frames use instance brightness ${BUG_V}; the web game varies it per bug 0.55…1.3 → multiply color by 0.48…1.13 (colorBlendFactor 1, SKColor(white:))`,
 };
-manifest.atlasNotes = 'Sprite atlases live in Assets.xcassets/*.spriteatlas (Xcode packs them into pages per scale and trims transparent borders itself; SKTexture.size() keeps the untrimmed frame size, so the anchors below stay valid). Load with SKTextureAtlas(named: "Bugs").textureNamed("runner_walk_03_5"). Frame names are unique across atlases. Lit frames have @2x + @3x, glow frames @2x only.';
+manifest.atlasNotes = 'Format: .spriteatlas folders inside Assets.xcassets (Xcode 7+ "Sprite Atlas"): each frame is an imageset with @2x + @3x PNGs, so App Store thinning ships only the device scale, actool packs every atlas into texture pages per scale at build time and trims transparent borders (SKTexture.size() keeps the untrimmed frame size, so the anchors stay valid). Loose .atlas folders would ship both scales to every device. Load with SKTextureAtlas(named: "Bugs").textureNamed("runner_walk_03_5") (preload the atlases at launch: SKTextureAtlas.preloadTextureAtlases). Frame names are unique across the whole catalog. Lit frames (Bugs, Corpses, Marines, Props, Level, Background towers) are @2x + @3x; glow layers and the flat textures (Ground, Particles, Background haze / motes) are single @2x images (point size = px / 2 — set their size explicitly from metres). Every set entry below gives the atlas, the frame naming pattern, directions / frames / fps, the anchor (feet / ground point, as SKSpriteNode.anchorPoint, y up) and the frame size.';
+manifest.atlases = {
+  Bugs: 'runner / spitter / brute / boomer: walk, climb, crest, brute charge, boomer swell, contact shadows',
+  BugsGlow: 'additive emissive layer of every Bugs frame (+ "_g")',
+  Corpses: 'bug remains lying on the deck (6 variants per type)',
+  Marines: 'assault / pyro / cryo / gunner: run, strafe, idle, dash, downed (weapon included, class colour on pads / trim / visor)',
+  MarinesGlow: 'additive emissive layer of every Marines frame',
+  Props: 'turret base + 16 head directions, medkit, acid glob, grenade, beacon top',
+  Level: 'the station tile kit (floors, ramps, stairs, skirts, walls, railings, lamps, crates, pillars, vents, supports, lift); see manifest.level',
+  LevelGlow: 'additive emissive layer of the lit Level pieces (lamps, pillar strips, vents, studs, lift lights, crate labels, support marker lights)',
+  Ground: 'top-down flat textures: decals (multiply), telegraphs / indicators / glow pools (add), pad mark, hazard stripe, lasers, cryo beam, tracers',
+  Particles: 'screen-facing particle textures (soft / puff / spark / streak / flash / shards / chunks / snow / mist), baked fire ramps, beacon beam',
+  Background: 'abyss haze, distant towers (1/4 scale), mote field',
+  BackgroundGlow: 'tower beacon lights',
+};
 const sorted = {};
 for (const k of Object.keys(manifest.sets).sort()) sorted[k] = manifest.sets[k];
 manifest.sets = sorted;
-const order = ['version', 'generator', 'projection', 'lighting', 'atlasNotes', 'groundTextures', 'level', 'sets'];
+const order = ['version', 'generator', 'projection', 'lighting', 'colour', 'atlasNotes', 'atlases', 'level', 'sets'];
 const outObj = {};
 for (const k of order) if (manifest[k] !== undefined) outObj[k] = manifest[k];
 for (const k of Object.keys(manifest)) if (!(k in outObj)) outObj[k] = manifest[k];

@@ -135,13 +135,13 @@ export async function renderLevel(ctx) {
     }
     return img;
   };
-  await set({ id: 'support', atlas: 'Level', glowAtlas: 'LevelGlow', post: fade, ...cvBox([-0.6, -40, -0.6], [0.6, 0.1, 0.6]), frames: [piece('support_0', 'support', { light: false, depth: 40 }), piece('support_1', 'support', { light: true, depth: 40 })],
+  await set({ id: 'support', preview: false, atlas: 'Level', glowAtlas: 'LevelGlow', post: fade, ...cvBox([-0.6, -40, -0.6], [0.6, 0.1, 0.6]), frames: [piece('support_0', 'support', { light: false, depth: 40 }), piece('support_1', 'support', { light: true, depth: 40 })],
     meta: L({ kind: 'under', layer: 'under', pattern: 'support_{0|1}', note: 'support column (0.7 m) dropping ~40 m into the abyss and fading out; support_1 carries a red marker light 6 m down. Anchor = column top, 0.5 m below the deck. Web buildSupports: on the rim of every platform rectangle every ~9 m (1 m inside the corners); the lift has 8 of them on a 10.9 m circle.' }) }, 2, { dark: true });
   await set({ id: 'girder', atlas: 'Level', ...cvBox([-0.6, -0.3, -0.6], [0.6, 0.3, 0.6]), frames: [piece('girder_x', 'girder', { axis: 'x' }), piece('girder_z', 'girder', { axis: 'z' })],
     meta: L({ kind: 'under', layer: 'under', pattern: 'girder_{x|z}', note: '1 m segment of the 0.4 m cross bracing hung 6 m under big platforms (web: platforms wider and deeper than 10 m get two braces along x, 1 m inside the N / S rims); anchor = segment centre' }) }, 2, { dark: true });
 
   // ---------------------------------------------------------------- the cargo lift
-  await set({ id: 'lift_deck', atlas: 'Level', glowAtlas: 'LevelGlow', ...cvBox([-10.2, -0.7, -10.2], [10.2, 0.25, 10.2]), frames: [piece('lift_deck', 'liftDeck', {})],
+  await set({ id: 'lift_deck', preview: false, atlas: 'Level', glowAtlas: 'LevelGlow', ...cvBox([-10.2, -0.7, -10.2], [10.2, 0.25, 10.2]), frames: [piece('lift_deck', 'liftDeck', {})],
     meta: L({ kind: 'floor', layer: 'floor', pattern: 'lift_deck', note: 'cargo lift disc (radius 10 m, web LIFT_Y = -6) with its 4 teal pads and rim lights; anchor = disc centre on the deck. The whole lift (deck, centre, rail ring, shaft) rises during the extraction: move all lift pieces + everything standing on it by the rise.' }) }, 1, { dark: true });
   await set({ id: 'lift_center', atlas: 'Level', glowAtlas: 'LevelGlow', ...cvBox([-1.2, -0.05, -1.2], [1.2, 0.6, 1.2]), frames: [piece('lift_center', 'liftCenter', {})],
     meta: L({ kind: 'object', layer: 'object', pattern: 'lift_center', note: 'central hub on the lift (r 1.1 m, blocks the centre cells); anchor = lift centre' }) }, 1, { dark: true });
@@ -152,12 +152,12 @@ export async function renderLevel(ctx) {
       anchors[`lift_rail_${String(s).padStart(2, '0')}`] = [+(Math.cos(a) * r).toFixed(4), 0, +(Math.sin(a) * r).toFixed(4)];
       frames.push(piece(`lift_rail_${String(s).padStart(2, '0')}`, 'liftRail', { s }));
     }
-    await set({ id: 'lift_rail', atlas: 'Level', ...cvBox([-1.8, -0.1, -1.8], [1.8, 1.3, 1.8]), frames,
+    await set({ id: 'lift_rail', preview: false, atlas: 'Level', ...cvBox([-1.8, -0.1, -1.8], [1.8, 1.3, 1.8]), frames,
       meta: L({ kind: 'object', layer: 'object', pattern: 'lift_rail_{00..11}', anchorsFromLiftCentre: anchors, note: 'lift ring railing in 12 arcs of 30° (the opening toward +z, where the stairs arrive, is left out of segments 02 / 03); place each at lift centre + anchorsFromLiftCentre (metres, x / z) and depth-sort it like any object' }) }, 6, { dark: true });
   }
-  await set({ id: 'lift_shaft', atlas: 'Level', glowAtlas: 'LevelGlow', ...cvBox([-11.4, -3.8, -11.4], [11.4, -0.4, 11.4]), frames: [piece('lift_shaft', 'liftShaft', {})],
+  await set({ id: 'lift_shaft', preview: false, atlas: 'Level', glowAtlas: 'LevelGlow', ...cvBox([-11.4, -3.8, -11.4], [11.4, -0.4, 11.4]), frames: [piece('lift_shaft', 'liftShaft', {})],
     meta: L({ kind: 'under', layer: 'under', pattern: 'lift_shaft', note: 'shaft collar under the lift rim (3 m band, r 10.6) with 16 teal lights; anchor = lift centre on the deck. Add support_0 columns at 8 points on a 10.9 m circle (deck - 0.5 m).' }) }, 1, { dark: true });
-  previewEnd(2);
+  previewEnd(3);
 
   manifest.level = levelDoc();
   assembly(images, SHEETS, PREVIEWS);

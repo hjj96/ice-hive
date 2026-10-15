@@ -22,16 +22,131 @@
     ],
     "heightStepPoints": 13.0713,
     "directions": "dir = Int((hd / (2π) * 16).rounded()) & 15 with hd = atan2(dx, dz) in WORLD space (the web game's heading / aim angle). dir 0 faces world +z (screen down-left), 4 faces +x (down-right), 8 faces -z (up-right), 12 faces -x (up-left); screen-up (the web FWD vector) is hd = 225° (dir 10)",
-    "groundPlaneTextures": "flat textures (decals, telegraph rings, lanes, glow pools, pad marks) are top-down: put the SKSpriteNode (zRotation = world rotation) inside a container node with yScale = 0.838671 (= sin pitch) and zRotation = 0; world rotation r about +y maps to zRotation = r. Size in points = metres * 24. Exact for an orthographic camera (x,z -> rotate 45°, squash y).",
+    "groundPlaneTextures": "flat textures (Ground atlas: decals, telegraph rings / fills / lanes, glow pools, floor indicators, pad mark, lasers, cryo beam, tracers; Background/bg_haze) are authored TOP-DOWN: image right = world +x, image up = world -z. Put the SKSpriteNode inside a container node with yScale = 0.838671 (= sin pitch, container zRotation 0) and give the sprite zRotation = r - π/4, where r is the web rotation about +y (three.js rotation.y; e.g. decals: the random rot, charge lanes: atan2(-dx, -dz), beams / lasers / tracers lying along the aim angle a = atan2(ax, az): r = a - π/2). Size in points = metres * 24 (before the squash). Position the container at screenFromWorld(x, y, z). Exact for the orthographic camera.",
     "recommendedCameraScale": "the web game shows ~23 m across a portrait iPhone (≈17–18 pt/m): SKCameraNode.setScale(1.35) (≈18 pt/m) matches it; 1.0 is a closer view at native sprite resolution"
   },
   "lighting": {
     "rig": "sprites are pre-lit with a bright \"full light\" rig: the game's moon direction (-25, 60, 35), cool sky dome, warm fill from the viewer (flashlights). ACES filmic, sRGB.",
     "inGameDarkness": "multiply by a light map: about [0.27, 0.31, 0.42] in the dark (moon + sky only), 1.0 inside flashlight cones / lamp pools, >1 not possible with multiply — add light pools additively instead",
-    "glowLayers": "BugsGlow / MarinesGlow hold the emissive parts only (pink / acid / ember speckles, visors, lamps) with a soft halo, premultiplied: draw ABOVE the darkness with blendMode .add at the same position, anchor and scale (they are @2x-only images with the same point size as the lit frame)",
+    "glowLayers": "*Glow atlases (BugsGlow, MarinesGlow, LevelGlow, BackgroundGlow) hold the emissive parts only (pink / acid / ember speckles, visors, chest lamps, lamp heads, light strips, rim studs) with a soft halo, premultiplied: draw ABOVE the darkness with blendMode .add at the same position, anchor and point size as the lit frame (frame name + \"_g\"; @2x-only images, so their pixel size is 2/3 of the lit @3x frame)",
     "bugBrightness": "bug frames use instance brightness 1.15; the web game varies it per bug 0.55…1.3 → multiply color by 0.48…1.13 (colorBlendFactor 1, SKColor(white:))"
   },
-  "atlasNotes": "Sprite atlases live in Assets.xcassets/*.spriteatlas (Xcode packs them into pages per scale and trims transparent borders itself; SKTexture.size() keeps the untrimmed frame size, so the anchors below stay valid). Load with SKTextureAtlas(named: \"Bugs\").textureNamed(\"runner_walk_03_5\"). Frame names are unique across atlases. Lit frames have @2x + @3x, glow frames @2x only.",
+  "colour": {
+    "note": "web colours are linear HDR values pushed through ACES filmic + sRGB. display(c) below = that conversion (tools/lib/tonemap.mjs); use it for particle / light tints. Hex constants in the web code (0xRRGGBB) are sRGB already: linear = srgbToLinear(hex).",
+    "examples": {
+      "white": {
+        "linear": [
+          1,
+          1,
+          1
+        ],
+        "display": "#e2e2e2"
+      },
+      "spark": {
+        "linear": [
+          1,
+          0.75,
+          0.4
+        ],
+        "display": "#e3d8bf"
+      },
+      "frost": {
+        "linear": [
+          0.45,
+          0.75,
+          1
+        ],
+        "display": "#c6d8e2"
+      },
+      "acid": {
+        "linear": [
+          0.7,
+          1,
+          0.15
+        ],
+        "display": "#d9e299"
+      },
+      "pulse": {
+        "linear": [
+          0.4,
+          1,
+          0.9
+        ],
+        "display": "#c7e2df"
+      },
+      "heal": {
+        "linear": [
+          0.3,
+          1,
+          0.5
+        ],
+        "display": "#bee3c9"
+      },
+      "smoke": {
+        "linear": [
+          0.06,
+          0.055,
+          0.06
+        ],
+        "display": "#3a363a"
+      },
+      "steam": {
+        "linear": [
+          0.8,
+          0.85,
+          0.92
+        ],
+        "display": "#dbdddf"
+      },
+      "laser_assault": {
+        "linear": [
+          1,
+          0.023,
+          0.016
+        ],
+        "display": "#f93627"
+      },
+      "laser_pyro": {
+        "linear": [
+          1,
+          0.361,
+          0.007
+        ],
+        "display": "#ebb537"
+      },
+      "laser_cryo": {
+        "linear": [
+          0.03,
+          0.456,
+          1
+        ],
+        "display": "#65c0e1"
+      },
+      "laser_gunner": {
+        "linear": [
+          0.045,
+          1,
+          0.098
+        ],
+        "display": "#9ce484"
+      }
+    }
+  },
+  "atlasNotes": "Format: .spriteatlas folders inside Assets.xcassets (Xcode 7+ \"Sprite Atlas\"): each frame is an imageset with @2x + @3x PNGs, so App Store thinning ships only the device scale, actool packs every atlas into texture pages per scale at build time and trims transparent borders (SKTexture.size() keeps the untrimmed frame size, so the anchors stay valid). Loose .atlas folders would ship both scales to every device. Load with SKTextureAtlas(named: \"Bugs\").textureNamed(\"runner_walk_03_5\") (preload the atlases at launch: SKTextureAtlas.preloadTextureAtlases). Frame names are unique across the whole catalog. Lit frames (Bugs, Corpses, Marines, Props, Level, Background towers) are @2x + @3x; glow layers and the flat textures (Ground, Particles, Background haze / motes) are single @2x images (point size = px / 2 — set their size explicitly from metres). Every set entry below gives the atlas, the frame naming pattern, directions / frames / fps, the anchor (feet / ground point, as SKSpriteNode.anchorPoint, y up) and the frame size.",
+  "atlases": {
+    "Bugs": "runner / spitter / brute / boomer: walk, climb, crest, brute charge, boomer swell, contact shadows",
+    "BugsGlow": "additive emissive layer of every Bugs frame (+ \"_g\")",
+    "Corpses": "bug remains lying on the deck (6 variants per type)",
+    "Marines": "assault / pyro / cryo / gunner: run, strafe, idle, dash, downed (weapon included, class colour on pads / trim / visor)",
+    "MarinesGlow": "additive emissive layer of every Marines frame",
+    "Props": "turret base + 16 head directions, medkit, acid glob, grenade, beacon top",
+    "Level": "the station tile kit (floors, ramps, stairs, skirts, walls, railings, lamps, crates, pillars, vents, supports, lift); see manifest.level",
+    "LevelGlow": "additive emissive layer of the lit Level pieces (lamps, pillar strips, vents, studs, lift lights, crate labels, support marker lights)",
+    "Ground": "top-down flat textures: decals (multiply), telegraphs / indicators / glow pools (add), pad mark, hazard stripe, lasers, cryo beam, tracers",
+    "Particles": "screen-facing particle textures (soft / puff / spark / streak / flash / shards / chunks / snow / mist), baked fire ramps, beacon beam",
+    "Background": "abyss haze, distant towers (1/4 scale), mote field",
+    "BackgroundGlow": "tower beacon lights"
+  },
   "level": {
     "cell": "1 m grid cell (web walk grid G = 128, world x / z in [-64, 64)); every floor / edge piece covers one cell or one cell edge",
     "layers": [
@@ -2735,7 +2850,7 @@
         "ind_segments",
         "ind_inner"
       ],
-      "note": "white, tint at runtime (SKSpriteNode color + colorBlendFactor 1, blendMode .add). tele_ring: pulsing warning / expanding shock rings and the team rings under marines (diameter = 2r; team ring 1.9 m player / 1.5 m bots, laser colour x0.55 / x0.32). tele_fill: acid landing disc growing 0.12→1 x 2r. tele_lane: brute charge lane (width w across x, length along image-up = charge direction; chevrons point up). glow: soft light pool (floor splashes, lamp / vent / pillar pools: size = diameter, colour x0.3). ind_*: ringIndMat circles (diameter = 2r; beacon r 4.6, lift r 9.7, revive r 1.5): draw ind_segments at 0.35 x colour for the unfilled part, ind_ring at 1.7 x colour masked to the progress pie (starts at image-up = world -z, runs clockwise in the top-down texture), ind_inner at 0.05 x colour pulsing 0.6 + 0.4 sin(3t − 8r).",
+      "note": "white, tint at runtime (SKSpriteNode color + colorBlendFactor 1, blendMode .add). tele_ring: pulsing warning / expanding shock rings and the team rings under marines (diameter = 2r; team ring 1.9 m player / 1.5 m bots, laser colour x0.55 / x0.32). tele_fill: acid landing disc growing 0.12→1 x 2r. tele_lane: brute charge lane (width w across x, length along image-up = charge direction, chevrons point up; zRotation = atan2(-dx, -dz) - π/4, centred half-way along the lane; red (1, .18, .1) pulsing 0.55 + 0.45 sin(18 t) during the 0.8 s wind-up, then 1.3 fading while charging). glow: soft light pool (floor splashes, lamp / vent / pillar pools: size = diameter, colour x0.3). ind_*: ringIndMat circles (diameter = 2r; beacon r 4.6, lift r 9.7, revive r 1.5): draw ind_segments at 0.35 x colour for the unfilled part, ind_ring at 1.7 x colour masked to the progress pie (starts at image-up = world -z, runs clockwise in the top-down texture), ind_inner at 0.05 x colour pulsing 0.6 + 0.4 sin(3t − 8r).",
       "sizes": {
         "tele_ring": "diameter",
         "tele_fill": "diameter",
@@ -3192,107 +3307,6 @@
         0.833,
         2.542
       ]
-    }
-  },
-  "colour": {
-    "note": "web colours are linear HDR values pushed through ACES filmic + sRGB. display(c) below = that conversion (tools/lib/tonemap.mjs); use it for particle / light tints. Hex constants in the web code (0xRRGGBB) are sRGB already: linear = srgbToLinear(hex).",
-    "examples": {
-      "white": {
-        "linear": [
-          1,
-          1,
-          1
-        ],
-        "display": "#e2e2e2"
-      },
-      "spark": {
-        "linear": [
-          1,
-          0.75,
-          0.4
-        ],
-        "display": "#e3d8bf"
-      },
-      "frost": {
-        "linear": [
-          0.45,
-          0.75,
-          1
-        ],
-        "display": "#c6d8e2"
-      },
-      "acid": {
-        "linear": [
-          0.7,
-          1,
-          0.15
-        ],
-        "display": "#d9e299"
-      },
-      "pulse": {
-        "linear": [
-          0.4,
-          1,
-          0.9
-        ],
-        "display": "#c7e2df"
-      },
-      "heal": {
-        "linear": [
-          0.3,
-          1,
-          0.5
-        ],
-        "display": "#bee3c9"
-      },
-      "smoke": {
-        "linear": [
-          0.06,
-          0.055,
-          0.06
-        ],
-        "display": "#3a363a"
-      },
-      "steam": {
-        "linear": [
-          0.8,
-          0.85,
-          0.92
-        ],
-        "display": "#dbdddf"
-      },
-      "laser_assault": {
-        "linear": [
-          1,
-          0.023,
-          0.016
-        ],
-        "display": "#f93627"
-      },
-      "laser_pyro": {
-        "linear": [
-          1,
-          0.361,
-          0.007
-        ],
-        "display": "#ebb537"
-      },
-      "laser_cryo": {
-        "linear": [
-          0.03,
-          0.456,
-          1
-        ],
-        "display": "#65c0e1"
-      },
-      "laser_gunner": {
-        "linear": [
-          0.045,
-          1,
-          0.098
-        ],
-        "display": "#9ce484"
-      }
     }
   }
 }
