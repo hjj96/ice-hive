@@ -35,7 +35,7 @@ final class WorldRenderer {
         fx = FxLayer(assets: assets, level: level, worldRoot: world, groundRoot: groundRoot)
         world.addChild(fx.root)
         motes = MotesLayer(texture: assets.texture("bg_motes"))
-        weather = WeatherLayer(assets: assets, snow: 420, mist: 14)
+        weather = WeatherLayer(assets: assets, snow: 420, mist: 9)
         world.addChild(weather.root)
         let pa = fx.pa
         bugs.onBurning = { [weak pa] x, y, z, s in

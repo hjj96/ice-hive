@@ -111,6 +111,11 @@ final class LevelLayer {
         let full = CGSize(width: info.size.width * scale, height: info.size.height * scale)
         let node = SKSpriteNode(texture: nil)
         node.show(assets.sprite(name), size: full, anchor: info.anchor)
+        if name.hasPrefix("girder_") || name.hasPrefix("pipes_") {
+            // hang below the deck, outside the darkness overlay's station mask: darken them like the unlit deck
+            node.color = LevelLayer.underTint
+            node.colorBlendFactor = 1
+        }
         let p = Iso.point(x, y, z)
         node.position = p
         node.zPosition = zFor(band, x, y, z)
@@ -433,6 +438,7 @@ final class LevelLayer {
 
     // ---------------------------------------------------------------- supports + girders (web buildSupports)
     private var towerRng = SeededRNG(seed: 31)
+    private static let underTint = SKColor(red: 0.32, green: 0.36, blue: 0.46, alpha: 1)
 
     private func buildSupports() {
         var R = SeededRNG(seed: 31)

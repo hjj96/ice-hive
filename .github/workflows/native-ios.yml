@@ -232,15 +232,17 @@ jobs:
             done
             sleep 1
           }
-          run_demo combat 30 "-demo combat" 4 12 20 29
+          run_demo combat 30 "-demo combat -seed 7" 4 12 20 29
           run_demo beacon 16 "-demo beacon" 6 15
           run_demo title 8 "-demo title" 6
           run_demo calm 6 "-demo calm" 5
           run_demo landscape 10 "-demo combat -orient landscape" 9
+          # same swarm without the darkness pass: separates the lighting shader's GPU cost from the rest
+          run_demo nolight 20 "-demo combat -nolight -seed 7" 19
           xcrun simctl spawn "$UDID" launchctl list | grep -i icehive | tee results/launchctl.txt || true
           cp results/app-combat.log results/app-stdout.log
           cp results/app-combat-stderr.log results/app-stderr.log
-          for f in results/app-combat.log results/app-beacon.log results/app-title.log results/app-calm.log results/app-landscape.log; do
+          for f in results/app-combat.log results/app-beacon.log results/app-title.log results/app-calm.log results/app-landscape.log results/app-nolight.log; do
             { echo "== $f"; grep -h -E 'loading took|sheets decoded|demo done' "$f" || true; } >> results/fps.txt
           done
           cat results/alive.txt results/loading.txt results/fps.txt
