@@ -55,6 +55,15 @@ final class RingIndicator {
 //  beacon / lift / revive indicators.
 // ================================================================
 final class GroundFx {
+    /// SpriteKit's .multiply is plain dst · src, so transparent (premultiplied black) texels would stamp black squares:
+    /// output mix(1, colour, alpha) = 1 − a + rgb·a instead (one shared shader keeps the stains batched).
+    static let decalShader = SKShader(source: """
+    void main() {
+        vec4 c = texture2D(u_texture, v_tex_coord);
+        gl_FragColor = vec4(vec3(1.0 - c.a) + c.rgb, 1.0);
+    }
+    """)
+
     private let assets: SpriteAssets
     private let level: Level
     private let groundRoot: SKNode
@@ -81,6 +90,7 @@ final class GroundFx {
         self.worldRoot = worldRoot
         decals = SpriteRing(parent: groundRoot, capacity: decalCap) { n in
             n.blendMode = .multiply
+            n.shader = GroundFx.decalShader
             n.zPosition = ZBand.decal
         }
         corpses = SpriteRing(parent: worldRoot, capacity: corpseCap) { n in

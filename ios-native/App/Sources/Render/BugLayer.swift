@@ -103,8 +103,8 @@ final class BugLayer {
             body.size = size
             body.anchorPoint = set.info.anchor
             body.position = p
-            // nearness quantised to 0.5 m slices: bugs in one slice share a z, so SpriteKit can batch them by atlas page
-            body.zPosition = ZBand.object((Iso.nearness(x, y, z) * 2).rounded(.down) * 0.5)
+            // nearness quantised to 1 m slices: bugs in one slice share a z, so SpriteKit can batch them by atlas page
+            body.zPosition = ZBand.object(Iso.nearness(x, y, z).rounded(.down))
 
             // body colour: per-bug brightness, charred while burning, icy while frozen / chilled
             let v = 0.478 + vr * 0.652

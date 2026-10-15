@@ -213,6 +213,7 @@ jobs:
           run_demo combat 40 "-demo combat" 10 18 28 38
           run_demo beacon 26 "-demo beacon" 14 24
           run_demo title 14 "-demo title" 12
+          run_demo calm 12 "-demo calm" 10
           run_demo landscape 16 "-demo combat -orient landscape" 14
           xcrun simctl spawn "$UDID" launchctl list | grep -i icehive | tee results/launchctl.txt || true
           cp results/app-combat.log results/app-stdout.log
@@ -223,7 +224,7 @@ jobs:
         run: |
           echo "--- combat stdout ---"; cat results/app-combat.log || true
           echo "--- combat stderr ---"; tail -n 50 results/app-combat-stderr.log || true
-          for f in results/app-beacon.log results/app-title.log results/app-landscape.log; do echo "--- $f ---"; tail -n 25 "$f" || true; done
+          for f in results/app-beacon.log results/app-title.log results/app-calm.log results/app-landscape.log; do echo "--- $f ---"; tail -n 25 "$f" || true; done
           if grep -q DEAD results/alive.txt; then echo "::error::app died during a demo: $(grep DEAD results/alive.txt | tr '\n' ' ')"; exit 1; fi
           grep -q 'scene ready' results/app-stdout.log || { echo "::error::no 'scene ready' line in app stdout"; exit 1; }
           grep -q 'hb t=' results/app-stdout.log || { echo "::error::no heartbeat lines in app stdout"; exit 1; }

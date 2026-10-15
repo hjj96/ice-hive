@@ -7,6 +7,8 @@ import IceHiveCore
 //                   ~600 bugs spawned around the squad and topped up
 //    -demo beacon   mission started next to beacon «Альфа» with a crowd
 //    -demo title    the title screen (attract mode behind)
+//    -demo calm     mission start with the director off: no bugs, the squad idles on the
+//                   landing pad (lighting / station look)
 //    -demo smoke    alias of combat (the original CI scenario name)
 // ================================================================
 final class DemoScript {
@@ -21,7 +23,7 @@ final class DemoScript {
         guard let d = options.demo else { return nil }
         switch d {
         case "combat", "smoke", "default": return DemoScript(name: d == "default" ? "combat" : d)
-        case "beacon", "title": return DemoScript(name: d)
+        case "beacon", "title", "calm": return DemoScript(name: d)
         default:
             AppLog.error("unknown demo \(d), using combat")
             return DemoScript(name: "combat")
@@ -36,6 +38,11 @@ final class DemoScript {
         game.autopilot = true
         game.autoPickUpgrades = true
         switch name {
+        case "calm":
+            game.autopilot = false
+            game.directorEnabled = false
+            target = 0
+            AppLog.info("demo calm: director off, squad idle")
         case "beacon":
             if let b = game.beacons.first {
                 game.debugTeleport(b.x + 3, b.z - 3.5)
@@ -52,7 +59,7 @@ final class DemoScript {
 
     /// Per frame while the mission runs: keep the swarm topped up so screenshots stay busy.
     func frame(game: Game, dt: Float) {
-        if !startsMission { return }
+        if !startsMission || target == 0 { return }
         t += dt
         topUpT -= dt
         if topUpT <= 0 {

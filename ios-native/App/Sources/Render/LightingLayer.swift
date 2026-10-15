@@ -58,13 +58,13 @@ final class LightingLayer {
         float gain = u_gain.x;
         float onStation = 0.0;
         float a = wm.x / 0.707107;
-        for (int i = 0; i < 18; i++) {
+        for (int i = 0; i < 20; i++) {
             float y = 1.2 - float(i) * 0.5;
             float b = (y * 0.544639 - wm.y) / 0.593030;
             vec2 tc = (vec2((a + b) * 0.5, (b - a) * 0.5) + 64.0) / 128.0;
             vec4 m = texture2D(u_mask, tc);
             float h = m.r * 16.0 - 8.0 + m.b * u_cam.w;
-            if (m.a > 0.5 && y >= h - 0.6 && y <= h + 1.25) { onStation = 1.0; break; }
+            if (m.a > 0.5 && y >= h - m.g * 8.0 && y <= h + 1.25) { onStation = 1.0; break; }
         }
         if (onStation < 0.5) {
             gl_FragColor = vec4(u_bg.rgb, 1.0);
@@ -118,14 +118,28 @@ final class LightingLayer {
         uGain.vectorFloat4Value = SIMD4<Float>(gain, 0, 0, 0)
     }
 
-    /// RGBA8 128 × 128: r = floor height ((h + 8) / 16), b = lift cell, a = floor.
+    /// RGBA8 128 × 128: r = floor height ((h + 8) / 16), g = how far the structure reaches below the deck there
+    /// (skirt + girder 1.45 m, stair side walls down to the low landing) / 8, b = lift cell, a = floor.
     static func makeMask(_ level: Level) -> SKTexture {
         let G = GRID
         var bytes = [UInt8](repeating: 0, count: G * G * 4)
+        var low = [Float](repeating: 0, count: G * G)
+        for r in level.layout.rects {
+            for j in 0..<G {
+                let z = Float(j) - GRID_HALF + 0.5
+                if !(z > r.z0 && z < r.z1) { continue }
+                for i in 0..<G {
+                    let x = Float(i) - GRID_HALF + 0.5
+                    if x > r.x0 && x < r.x1 { low[j * G + i] = r.height.minHeight }
+                }
+            }
+        }
         for c in 0..<(G * G) where level.walkValue(c) != 0 {
             let h = level.groundY(Level.cellX(c), Level.cellZ(c))
             let v = max(0, min(255, Int(((h + 8) / 16 * 255).rounded())))
             bytes[c * 4] = UInt8(v)
+            let depth: Float = level.isStairCell(c) ? max(1.45, h - low[c] + 0.7) : 1.45
+            bytes[c * 4 + 1] = UInt8(max(0, min(255, Int((depth / 8 * 255).rounded(.up)))))
             bytes[c * 4 + 2] = level.isLiftCell(c) ? 255 : 0
             bytes[c * 4 + 3] = 255
         }

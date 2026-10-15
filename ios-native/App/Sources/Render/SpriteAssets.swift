@@ -68,6 +68,8 @@ final class Atlas {
     private static var missingLogged = 0
     /// SKTextureAtlas.textureNamed costs ~1 ms per call on the simulator: count + time them.
     static var lookups = 0
+    /// `-texlookup atlas` switches back to SKTextureAtlas.textureNamed (comparison runs).
+    static var useNamedLookup = true
     static var lookupSeconds: Double = 0
 
     init(_ name: String) {
@@ -95,7 +97,9 @@ final class Atlas {
             AppLog.error("atlas \(name): missing frame \(frame)")
         }
         let t0 = ProcessInfo.processInfo.systemUptime
-        let t = atlas.textureNamed(frame)
+        // SKTexture(imageNamed:) resolves the frame inside the compiled sprite atlas lazily (~0.01 ms);
+        // SKTextureAtlas.textureNamed costs ~3 ms per call on the simulator.
+        let t = Atlas.useNamedLookup ? SKTexture(imageNamed: frame) : atlas.textureNamed(frame)
         Atlas.lookupSeconds += ProcessInfo.processInfo.systemUptime - t0
         Atlas.lookups += 1
         cache[frame] = t

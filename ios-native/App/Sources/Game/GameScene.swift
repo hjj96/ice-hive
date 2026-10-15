@@ -64,6 +64,7 @@ final class GameScene: SKScene {
         backgroundColor = Tone.hex(0x1a2737)
         anchorPoint = CGPoint(x: 0.5, y: 0.5)
         if let c = options.playerClass, let mc = MarineClass(id: c) { selectedClass = mc }
+        Atlas.useNamedLookup = options.textureLookup != "atlas"
         demo = DemoScript.make(options: options)
     }
 

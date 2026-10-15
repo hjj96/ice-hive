@@ -137,8 +137,10 @@ final class Bar {
 
     func resize(width w: CGFloat) {
         width = w
+        // SKSpriteNode.size is the *scaled* size: reset the scale first or the base width becomes w / xScale
         track.size.width = w
-        fill.size.width = w
+        fill.xScale = 1
+        fill.size = CGSize(width: w, height: fill.size.height)
         topLine?.size.width = w
         let v = value
         value = -1

@@ -24,6 +24,7 @@ open IceHive.xcodeproj
 | `-demo combat` | миссия штурмовиком, отряд неуязвим, автопилот, ~600 жуков вокруг (добавляются по ходу) |
 | `-demo beacon` | миссия, отряд у маяка «Альфа», толпа жуков |
 | `-demo title` | титульный экран (за ним — станция в режиме демонстрации) |
+| `-demo calm` | начало миссии без жуков (режиссёр выключен): освещение и вид станции |
 | `-demo smoke` | то же, что `combat` |
 | `-seconds N` | через N секунд пишет в лог `demo done … avgFps=… minFps=…` |
 | `-debugHUD` | отладочная панель (fps, время симуляции и отрисовки, жуки на экране, частицы, узлы) |
@@ -51,6 +52,6 @@ open IceHive.xcodeproj
 ## CI
 
 `.github/workflows/native-ios.yml` запускается на push в ветки `native*` (macOS-раннер GitHub): `swift test` для ядра,
-сборка под симулятор, затем на симуляторе по очереди `-demo combat`, `beacon`, `title` и `combat` в альбомной ориентации
+сборка под симулятор, затем на симуляторе по очереди `-demo combat`, `beacon`, `title`, `calm` и `combat` в альбомной ориентации
 со скриншотами. Результаты коммитятся в ветку `ci-results` в папку `<ветка>/<короткий sha>/` (`status.json`,
 `build.log`, `core-tests.log`, `combat-10s.png` … `landscape-14s.png`, `app-<демо>.log`, `fps.txt`, `alive.txt`, `app.log`).

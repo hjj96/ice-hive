@@ -3,35 +3,52 @@ import AVFoundation
 import IceHiveCore
 
 // ================================================================
-//  AUDIO — first-playable engine on AVAudioPlayer voices.
+//  AUDIO — AVAudioEngine with a pool of player-node voices (cheap,
+//  in-process scheduling; AVAudioPlayer calls were milliseconds each).
 //  Sounds/sounds-manifest.json gives files, base gain, distance
 //  attenuation and the web SFX_GAP per sound; the beds (wind, swarm
-//  chitter / rumble, flame, cryo, minigun spin) loop with levels
-//  following the web rules. A proper AVAudioEngine mixer with the web
-//  compressor is a later step; `-mute` disables everything.
+//  chitter / rumble, flame, cryo, minigun spin) loop on their own nodes
+//  with levels following the web rules. `-mute` disables everything.
 // ================================================================
 final class AudioEngine {
     private struct Def {
-        let files: [URL]
+        let buffers: [AVAudioPCMBuffer]
         let gain: Float
         let attenuated: Bool
         let minInterval: Double
+        let duration: Double
     }
+    private final class Voice {
+        let node = AVAudioPlayerNode()
+        var busyUntil: Double = 0
+        var volume: Float = -1
+    }
+    private final class Loop {
+        let node = AVAudioPlayerNode()
+        let gain: Float
+        var level: Float = 0
+        var volume: Float = -1
+        var varispeed: AVAudioUnitVarispeed?
+        init(gain: Float) { self.gain = gain }
+    }
+
+    private let engine = AVAudioEngine()
     private var defs: [String: Def] = [:]
-    private var voices: [String: [AVAudioPlayer]] = [:]
+    private var voices: [Voice] = []
+    private var loops: [String: Loop] = [:]
     private var last: [String: Double] = [:]
-    private var loops: [String: AVAudioPlayer] = [:]
-    private var loopGain: [String: Float] = [:]
-    private var loopLevel: [String: Float] = [:]
+    private var variant = 0
     private(set) var enabled: Bool
     var master: Float = 0.8
     private(set) var played = 0
     private(set) var requested = 0
     private var clock: Double = 0
+    private var spinRate: Float = 1
 
     init(enabled: Bool) {
         self.enabled = enabled
         guard enabled else { AppLog.info("audio: muted"); return }
+        let t0 = ProcessInfo.processInfo.systemUptime
         do {
             try AVAudioSession.sharedInstance().setCategory(.ambient, mode: .default, options: [])
             try AVAudioSession.sharedInstance().setActive(true, options: [])
@@ -46,57 +63,73 @@ final class AudioEngine {
             self.enabled = false
             return
         }
+        var format: AVAudioFormat?
         if let sounds = root["sounds"] as? [String: Any] {
             for (name, v) in sounds {
                 guard let s = v as? [String: Any] else { continue }
-                let files = (s["files"] as? [String] ?? []).compactMap { AudioEngine.url($0) }
-                if files.isEmpty { continue }
+                let bufs = (s["files"] as? [String] ?? []).compactMap { AudioEngine.load($0) }
+                if bufs.isEmpty { continue }
+                if format == nil { format = bufs[0].format }
                 let gain = Float((s["baseGain"] as? NSNumber)?.doubleValue ?? 0.5)
                 let att = (s["attenuated"] as? Bool) ?? true
                 let gap = (s["minInterval"] as? NSNumber)?.doubleValue ?? 0.03
-                let def = Def(files: files, gain: gain, attenuated: att, minInterval: gap)
-                defs[name] = def
-                // one ready voice per file up front: the first shot of a sound must not load a WAV mid-frame
-                var list: [AVAudioPlayer] = []
-                for f in files {
-                    if let p = try? AVAudioPlayer(contentsOf: f) { p.prepareToPlay(); list.append(p) }
-                }
-                voices[name] = list
+                let dur = (s["duration"] as? NSNumber)?.doubleValue ?? 0.5
+                defs[name] = Def(buffers: bufs, gain: gain, attenuated: att, minInterval: gap, duration: dur)
             }
         }
+        guard let fmt = format else { self.enabled = false; AppLog.error("audio: no sounds loaded"); return }
+        let mixer = engine.mainMixerNode
+        for _ in 0..<20 {
+            let v = Voice()
+            engine.attach(v.node)
+            engine.connect(v.node, to: mixer, format: fmt)
+            voices.append(v)
+        }
+        var loopBuffers: [String: AVAudioPCMBuffer] = [:]
         if let ls = root["loops"] as? [String: Any] {
             for (name, v) in ls {
-                guard let s = v as? [String: Any], let f = (s["files"] as? [String])?.first, let u = AudioEngine.url(f) else { continue }
-                if let p = try? AVAudioPlayer(contentsOf: u) {
-                    p.numberOfLoops = -1
-                    p.volume = 0
-                    p.enableRate = name == "spin"
-                    p.prepareToPlay()
-                    loops[name] = p
-                    loopGain[name] = Float((s["baseGain"] as? NSNumber)?.doubleValue ?? 0.1)
-                    loopLevel[name] = 0
+                guard let s = v as? [String: Any], let f = (s["files"] as? [String])?.first, let buf = AudioEngine.load(f) else { continue }
+                let l = Loop(gain: Float((s["baseGain"] as? NSNumber)?.doubleValue ?? 0.1))
+                engine.attach(l.node)
+                if name == "spin" {
+                    let vs = AVAudioUnitVarispeed()
+                    engine.attach(vs)
+                    engine.connect(l.node, to: vs, format: buf.format)
+                    engine.connect(vs, to: mixer, format: buf.format)
+                    l.varispeed = vs
+                } else {
+                    engine.connect(l.node, to: mixer, format: buf.format)
                 }
+                l.node.volume = 0
+                loops[name] = l
+                loopBuffers[name] = buf
             }
         }
-        AppLog.info("audio: \(defs.count) sounds, \(loops.count) loops")
+        engine.prepare()
+        do {
+            try engine.start()
+        } catch {
+            AppLog.error("audio engine: \(error.localizedDescription) — sound off")
+            self.enabled = false
+            return
+        }
+        for v in voices { v.node.play() }
+        for (name, l) in loops {
+            if let b = loopBuffers[name] { l.node.scheduleBuffer(b, at: nil, options: .loops, completionHandler: nil) }
+            l.node.play()
+        }
+        AppLog.info("audio: \(defs.count) sounds, \(loops.count) loops, \(voices.count) voices"
+                    + String(format: " (%.0f ms)", (ProcessInfo.processInfo.systemUptime - t0) * 1000))
     }
 
-    private static func url(_ file: String) -> URL? {
+    private static func load(_ file: String) -> AVAudioPCMBuffer? {
         let base = (file as NSString).deletingPathExtension
         let ext = (file as NSString).pathExtension
-        return Bundle.main.url(forResource: base, withExtension: ext.isEmpty ? "wav" : ext)
-    }
-
-    private func voice(_ name: String, _ def: Def) -> AVAudioPlayer? {
-        var list = voices[name] ?? []
-        for p in list where !p.isPlaying { return p }
-        if list.count >= 4 { return list.min { $0.currentTime > $1.currentTime } }
-        let file = def.files[list.count % def.files.count]
-        guard let p = try? AVAudioPlayer(contentsOf: file) else { return nil }
-        p.prepareToPlay()
-        list.append(p)
-        voices[name] = list
-        return p
+        guard let url = Bundle.main.url(forResource: base, withExtension: ext.isEmpty ? "wav" : ext),
+              let f = try? AVAudioFile(forReading: url),
+              let buf = AVAudioPCMBuffer(pcmFormat: f.processingFormat, frameCapacity: AVAudioFrameCount(f.length)) else { return nil }
+        do { try f.read(into: buf) } catch { return nil }
+        return buf
     }
 
     /// Play a one-shot (pos nil = non-positional). Honours the per-sound minimum gap.
@@ -109,11 +142,19 @@ final class AudioEngine {
             let d = ((p.x - listener.x) * (p.x - listener.x) + (p.y - listener.y) * (p.y - listener.y)).squareRoot()
             v = max(0.08, min(1, 1.1 - d / 34))
         }
-        guard let p = voice(id.rawValue, def) else { return }
+        // a free voice, else the one that frees up first
+        var best = voices[0]
+        for vo in voices {
+            if vo.busyUntil <= clock { best = vo; break }
+            if vo.busyUntil < best.busyUntil { best = vo }
+        }
+        variant += 1
+        let buf = def.buffers[variant % def.buffers.count]
+        let vol = def.gain * v * master
+        if abs(vol - best.volume) > 0.005 { best.node.volume = vol; best.volume = vol }
+        best.node.scheduleBuffer(buf, at: nil, options: .interrupts, completionHandler: nil)
+        best.busyUntil = clock + def.duration
         last[id.rawValue] = clock
-        p.currentTime = 0
-        p.volume = def.gain * v * master
-        p.play()
         played += 1
     }
 
@@ -121,38 +162,43 @@ final class AudioEngine {
     func update(dt: Float, game: Game?, bugsNear: Int, listener: Vec2, title: Bool) {
         clock += Double(dt)
         guard enabled else { return }
-        var want: [String: Float] = ["wind": 1, "chitter": 0, "rumble": 0, "flame": 0, "cryo": 0, "spin": 0]
         let swarm = min(1, Float(bugsNear) / 500) * (title ? 0.4 : 1)
-        want["chitter"] = swarm
-        want["rumble"] = swarm
-        var spinRate: Float = 0.2
+        var flame: Float = 0, cryo: Float = 0, spin: Float = 0
+        var rate: Float = 0.2
         if let g = game {
             for m in g.marines where !m.downed {
                 let d = ((m.x - listener.x) * (m.x - listener.x) + (m.z - listener.y) * (m.z - listener.y)).squareRoot()
                 let near = max(0.1, min(1, 1.1 - d / 30)) * (m.isPlayer ? 1 : 0.6)
-                if m.cls == .pyro && m.firing { want["flame"] = max(want["flame"] ?? 0, near) }
-                if m.cls == .cryo && m.firing { want["cryo"] = max(want["cryo"] ?? 0, near) }
+                if m.cls == .pyro && m.firing { flame = max(flame, near) }
+                if m.cls == .cryo && m.firing { cryo = max(cryo, near) }
                 if m.cls == .gunner {
-                    want["spin"] = max(want["spin"] ?? 0, m.spin * m.spin * near)
-                    spinRate = max(spinRate, (70 + 260 * m.spin) / 330)
+                    spin = max(spin, m.spin * m.spin * near)
+                    rate = max(rate, (70 + 260 * m.spin) / 330)
                 }
             }
         }
-        for (name, p) in loops {
-            let target = (want[name] ?? 0)
-            var lvl = loopLevel[name] ?? 0
+        for (name, l) in loops {
+            let target: Float
+            switch name {
+            case "wind": target = 1
+            case "chitter", "rumble": target = swarm
+            case "flame": target = flame
+            case "cryo": target = cryo
+            case "spin": target = spin
+            default: target = 0
+            }
             let k = min(1, dt / (name == "flame" || name == "cryo" ? 0.06 : 0.3))
-            lvl += (target - lvl) * k
-            loopLevel[name] = lvl
-            let vol = lvl * (loopGain[name] ?? 0.1) * master
-            p.volume = vol
-            if name == "spin" { p.rate = max(0.5, min(2, spinRate)) }
-            if vol > 0.001 && !p.isPlaying { p.play() } else if vol <= 0.001 && p.isPlaying { p.pause() }
+            l.level += (target - l.level) * k
+            let vol = l.level * l.gain * master
+            if abs(vol - l.volume) > 0.002 { l.node.volume = vol; l.volume = vol }
+            if let vs = l.varispeed, abs(rate - spinRate) > 0.01 {
+                spinRate = rate
+                vs.rate = max(0.25, min(2, rate))
+            }
         }
     }
 
     func stopAll() {
-        for p in loops.values { p.stop() }
-        for list in voices.values { for p in list { p.stop() } }
+        if enabled { engine.stop() }
     }
 }

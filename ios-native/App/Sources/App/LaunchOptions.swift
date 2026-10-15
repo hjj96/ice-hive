@@ -17,6 +17,8 @@ struct LaunchOptions {
     var mute: Bool = false
     /// Lock the interface orientation (`-orient portrait|landscape`).
     var orientation: String?
+    /// Atlas frame lookup (`-texlookup named|atlas`), for comparison runs.
+    var textureLookup: String?
     /// Arguments that were not recognised (kept for logging).
     var unknown: [String] = []
 
@@ -46,6 +48,7 @@ struct LaunchOptions {
             case "-seed", "--seed": if let v = value(), let n = UInt32(v) { result.seed = n }
             case "-mute", "--mute": result.mute = flag()
             case "-orient", "--orient": result.orientation = value()
+            case "-texlookup", "--texlookup": result.textureLookup = value()
             default: result.unknown.append(arg)
             }
         }
