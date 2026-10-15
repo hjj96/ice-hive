@@ -88,7 +88,7 @@ final class MarineLayer {
             walkPh[k] += sp * dt * 2.6
             if walkPh[k] > 1000 { walkPh[k] -= 2 * Float.pi * 100 }
 
-            var set: DirFrames
+            var set: FrameSet
             var frame = 0
             if m.downed {
                 set = assets.marineDowned[ci]
@@ -107,9 +107,9 @@ final class MarineLayer {
             } else {
                 set = assets.marineIdle[ci]
             }
-            if set.lit.isEmpty || set.lit[dir].isEmpty { continue }
-            frame = max(0, min(set.lit[dir].count - 1, frame))
-            let tex = set.lit[dir][frame]
+            if set.frameCount == 0 { continue }
+            frame = max(0, min(set.frameCount - 1, frame))
+            let tex = set.tex(dir, frame)
             let p = Iso.point(x, y, z)
             if body.texture !== tex { body.texture = tex }
             body.size = set.info.size
@@ -131,8 +131,7 @@ final class MarineLayer {
                 glow.color = SKColor(red: 0.2, green: 0.5, blue: 1, alpha: 1)
                 glow.colorBlendFactor = 1
                 glow.alpha = CGFloat(0.15 + 0.12 * sinf(time * 20))
-            } else if let gs = set.glow, dir < gs.count, frame < gs[dir].count {
-                let gt = gs[dir][frame]
+            } else if let gt = set.glow(dir, frame) {
                 if glow.texture !== gt { glow.texture = gt }
                 glow.colorBlendFactor = 0
                 glow.alpha = 1

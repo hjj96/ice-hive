@@ -32,7 +32,10 @@ final class LevelLayer {
     /// Static lights for the darkness overlay / glow pools: (x, z, diameter m, colour hex).
     private(set) var glowPools: [(Float, Float, Float, UInt32)] = []
 
-    private enum Band { case under, floor, floorDecal, object, background }
+    /// Draw bands. Static pieces get constant z per band wherever the order inside does not matter, so SpriteKit
+    /// can batch them by atlas page: railings on far (N / W) edges are always behind whatever stands on the deck,
+    /// railings on near (S / E) edges always in front of it.
+    private enum Band { case underBack, underMid, underFront, floor, floorDecal, farEdge, object, nearEdge, background }
 
     // per-cell data rebuilt from the layout (FloorRect raster order: later rects win)
     private var kind = [UInt8](repeating: 0, count: GRID * GRID)       // 0 grating, 1 slab
@@ -79,10 +82,14 @@ final class LevelLayer {
     private func zFor(_ band: Band, _ x: Float, _ y: Float, _ z: Float) -> CGFloat {
         switch band {
         case .background: return ZBand.background + 5 + Iso.nearness(x, y, z) * 0.01
-        case .under: return ZBand.under + Iso.nearness(x, y, z)
+        case .underBack: return ZBand.under
+        case .underMid: return ZBand.under + 10
+        case .underFront: return ZBand.under + 20
         case .floor: return ZBand.floor + CGFloat(y) * 10
         case .floorDecal: return ZBand.floorDecal + 10
-        case .object: return ZBand.object(Iso.nearness(x, y, z))
+        case .farEdge: return ZBand.farEdge
+        case .object: return ZBand.object((Iso.nearness(x, y, z) * 2).rounded(.down) * 0.5)
+        case .nearEdge: return ZBand.nearEdge
         }
     }
 
@@ -297,17 +304,17 @@ final class LevelLayer {
                 if S {
                     let hs = h + g * 0.5
                     let name = (k == "s" && abs(g) < 1e-4) ? "side_s_s_000" : "side_s_g_000"
-                    place(name, set: "sides", x, hs, z + 0.5, .under)
+                    place(name, set: "sides", x, hs, z + 0.5, .underFront)
                 }
                 if E {
                     if stairs, rectOf[c] >= 0, case .ramp(let a, let ha, let b, let hb, _) = level.layout.rects[Int(rectOf[c])].height {
                         let asc = hb > ha ? "s" : "n"
                         let kk = hb > ha ? Int((z - a).rounded(.down)) : Int((b - z).rounded(.down))
                         let code = LevelLayer.code(abs(g))
-                        place("wall_e_\(asc)_\(code)_\(LevelLayer.two(kk))", set: "wall_e_\(asc)_\(code)", x + 0.5, h, z, .under)
+                        place("wall_e_\(asc)_\(code)_\(LevelLayer.two(kk))", set: "wall_e_\(asc)_\(code)", x + 0.5, h, z, .underFront)
                     } else {
                         let name = (k == "s" && abs(g) < 1e-4) ? "side_e_s_000" : "side_e_g_\(LevelLayer.code(g))"
-                        place(name, set: "sides", x + 0.5, h, z, .under)
+                        place(name, set: "sides", x + 0.5, h, z, .underFront)
                     }
                 }
                 // railings (outer corners of flat cells use one corner piece)
@@ -318,14 +325,15 @@ final class LevelLayer {
                 let rz = "rail_z_\(LevelLayer.code(g))"
                 if let cn = corner {
                     let cx = x + (cn.hasSuffix("w") ? -0.38 : 0.38), cz = z + (cn.hasPrefix("n") ? -0.38 : 0.38)
-                    place("rail_corner_\(cn)", set: "rail_corner", cx, h, cz, .object)
-                    if N && S { place("rail_x_000", set: "rails", x, h, z + 0.5 - 0.12, .object) }
-                    if W && E { place("rail_z_000", set: "rails", x + 0.5 - 0.12, h, z, .object) }
+                    let band: Band = cn == "nw" ? .farEdge : (cn == "se" ? .nearEdge : .object)
+                    place("rail_corner_\(cn)", set: "rail_corner", cx, h, cz, band)
+                    if N && S { place("rail_x_000", set: "rails", x, h, z + 0.5 - 0.12, .nearEdge) }
+                    if W && E { place("rail_z_000", set: "rails", x + 0.5 - 0.12, h, z, .nearEdge) }
                 } else {
-                    if N { place("rail_x_000", set: "rails", x, h - g * 0.38, z - 0.5 + 0.12, .object) }
-                    if S { place("rail_x_000", set: "rails", x, h + g * 0.38, z + 0.5 - 0.12, .object) }
-                    if W { place(rz, set: "rails", x - 0.5 + 0.12, h, z, .object) }
-                    if E { place(rz, set: "rails", x + 0.5 - 0.12, h, z, .object) }
+                    if N { place("rail_x_000", set: "rails", x, h - g * 0.38, z - 0.5 + 0.12, .farEdge) }
+                    if S { place("rail_x_000", set: "rails", x, h + g * 0.38, z + 0.5 - 0.12, .nearEdge) }
+                    if W { place(rz, set: "rails", x - 0.5 + 0.12, h, z, .farEdge) }
+                    if E { place(rz, set: "rails", x + 0.5 - 0.12, h, z, .nearEdge) }
                 }
                 // hazard stripes inside the railing of hazard platforms (flat)
                 if level.isHazardCell(c) {
@@ -384,6 +392,7 @@ final class LevelLayer {
         var lampN = 0
         for r in runs {
             let len = r.b - r.a
+            let band: Band = r.inward > 0 ? .farEdge : .nearEdge   // n / w runs face away from the camera
             func P(_ t: Float, _ off: Float = 0) -> (Float, Float) {
                 r.horiz ? (r.a + t, r.line + off * r.inward) : (r.line + off * r.inward, r.a + t)
             }
@@ -395,7 +404,7 @@ final class LevelLayer {
             for k in 0...nPosts {
                 let t = Float(k) * len / Float(nPosts)
                 let p = P(t)
-                place("rail_post", set: "rail_post", p.0, H(t), p.1, .object)
+                place("rail_post", set: "rail_post", p.0, H(t), p.1, band)
             }
             if len >= 6 {
                 var t: Float = 3
@@ -404,7 +413,7 @@ final class LevelLayer {
                     let dir = r.horiz ? (r.inward > 0 ? "s" : "n") : (r.inward > 0 ? "e" : "w")
                     let green = lampN % 3 == 2
                     lampN += 1
-                    place("lamp_\(dir)_\(green ? "green" : "teal")", set: "lamps", p.0, y, p.1, .object)
+                    place("lamp_\(dir)_\(green ? "green" : "teal")", set: "lamps", p.0, y, p.1, band)
                     let ix: Float = r.horiz ? 0 : r.inward, iz: Float = r.horiz ? r.inward : 0
                     pool(p.0 + ix * 1.5, p.1 + iz * 1.5, 3.0, green ? 0x3dff9a : 0x29f2da, 0.3)
                     t += 12
@@ -433,14 +442,14 @@ final class LevelLayer {
                 _ = R.next()                      // column height
                 var light = false
                 if R.next() < 0.35 { light = true; _ = R.next() }
-                place(light ? "support_1" : "support_0", set: "support", x, top, z, .under)
+                place(light ? "support_1" : "support_0", set: "support", x, top, z, .underBack)
             }
             if w > 10 && d > 10 {
                 let y = r.height.minHeight - 6
                 var x = r.x0 + 1
                 while x < r.x1 - 1 {
-                    place("girder_x", set: "girder", x + 0.5, y, r.z0 + 1, .under)
-                    place("girder_x", set: "girder", x + 0.5, y, r.z1 - 1, .under)
+                    place("girder_x", set: "girder", x + 0.5, y, r.z0 + 1, .underBack)
+                    place("girder_x", set: "girder", x + 0.5, y, r.z1 - 1, .underBack)
                     x += 1
                 }
             }
@@ -528,7 +537,7 @@ final class LevelLayer {
                 let edgeZ = floorNorth ? pr.z0 - 0.3 : pr.z0 + 0.3
                 var x = min(pr.x0, pr.x1)
                 while x < max(pr.x0, pr.x1) - 0.01 {
-                    place("pipes_\(side)", set: "pipes", x + 0.5, pr.h, edgeZ, .under)
+                    place("pipes_\(side)", set: "pipes", x + 0.5, pr.h, edgeZ, .underMid)
                     x += 1
                 }
             } else {
@@ -537,7 +546,7 @@ final class LevelLayer {
                 let edgeX = floorWest ? pr.x0 - 0.3 : pr.x0 + 0.3
                 var z = min(pr.z0, pr.z1)
                 while z < max(pr.z0, pr.z1) - 0.01 {
-                    place("pipes_\(side)", set: "pipes", edgeX, pr.h, z + 0.5, .under)
+                    place("pipes_\(side)", set: "pipes", edgeX, pr.h, z + 0.5, .underMid)
                     z += 1
                 }
             }
@@ -547,10 +556,10 @@ final class LevelLayer {
     // ---------------------------------------------------------------- the cargo lift
     private func buildLift() {
         let L = level.lift
-        place("lift_shaft", set: "lift_shaft", L.x, L.y, L.z, .under, parent: liftNode)
+        place("lift_shaft", set: "lift_shaft", L.x, L.y, L.z, .underMid, parent: liftNode)
         for k in 0..<8 {
             let a = Float(k) / 8 * 2 * Float.pi
-            place("support_0", set: "support", L.x + cosf(a) * 10.9, L.y - 0.5, L.z + sinf(a) * 10.9, .under, parent: liftNode)
+            place("support_0", set: "support", L.x + cosf(a) * 10.9, L.y - 0.5, L.z + sinf(a) * 10.9, .underBack, parent: liftNode)
         }
         if let deck = place("lift_deck", set: "lift_deck", L.x, L.y, L.z, .floor, parent: liftNode) {
             deck.zPosition = ZBand.floor + CGFloat(L.y) * 10 - 1

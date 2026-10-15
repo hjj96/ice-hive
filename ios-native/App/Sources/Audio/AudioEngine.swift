@@ -54,7 +54,14 @@ final class AudioEngine {
                 let gain = Float((s["baseGain"] as? NSNumber)?.doubleValue ?? 0.5)
                 let att = (s["attenuated"] as? Bool) ?? true
                 let gap = (s["minInterval"] as? NSNumber)?.doubleValue ?? 0.03
-                defs[name] = Def(files: files, gain: gain, attenuated: att, minInterval: gap)
+                let def = Def(files: files, gain: gain, attenuated: att, minInterval: gap)
+                defs[name] = def
+                // one ready voice per file up front: the first shot of a sound must not load a WAV mid-frame
+                var list: [AVAudioPlayer] = []
+                for f in files {
+                    if let p = try? AVAudioPlayer(contentsOf: f) { p.prepareToPlay(); list.append(p) }
+                }
+                voices[name] = list
             }
         }
         if let ls = root["loops"] as? [String: Any] {

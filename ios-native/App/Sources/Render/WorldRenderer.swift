@@ -15,12 +15,15 @@ final class WorldRenderer {
     let bugs: BugLayer
     let marines: MarineLayer
     let fx: FxLayer
-    let lighting = LightingLayer()
+    let lighting: LightingLayer
     let motes: MotesLayer
+    let weather: WeatherLayer
     private var emberRng = SeededRNG(seed: 31337)
+    let timer = FrameTimer(["lvl", "mar", "bug", "fx", "wx", "light"])
 
     init(level: Level, assets: SpriteAssets, bugCapacity: Int) {
         self.assets = assets
+        lighting = LightingLayer(level: level)
         groundRoot.yScale = Iso.groundSquash
         world.addChild(groundRoot)
         levelLayer = LevelLayer(level: level, assets: assets, groundRoot: groundRoot)
@@ -32,6 +35,8 @@ final class WorldRenderer {
         fx = FxLayer(assets: assets, level: level, worldRoot: world, groundRoot: groundRoot)
         world.addChild(fx.root)
         motes = MotesLayer(texture: assets.background.texture("bg_motes"))
+        weather = WeatherLayer(assets: assets, snow: 420, mist: 14)
+        world.addChild(weather.root)
         let pa = fx.pa
         bugs.onBurning = { [weak pa] x, y, z, s in
             guard let pa = pa else { return }
@@ -53,13 +58,20 @@ final class WorldRenderer {
     func update(game: Game, alpha: Float, dt: Float, time: Float, camera: CameraController) {
         let visible = camera.visibleRect
         let rise = game.liftRise
+        timer.begin()
         levelLayer.update(visible: visible, liftRise: rise)
+        timer.mark()
         fx.beginFrame()
         marines.update(game: game, alpha: alpha, dt: dt, time: time, liftRise: rise, ground: fx.ground)
+        timer.mark()
         bugs.update(game: game, alpha: alpha, time: time, dt: dt, visible: visible)
+        timer.mark()
         fx.update(game: game, dt: dt, time: time, visible: visible, liftRise: rise, feet: marines.feet)
         fx.endFrame()
+        timer.mark()
         motes.update(camera: camera, time: time)
+        weather.update(time: time, cx: camera.tx, cy: camera.ty, cz: camera.tz, visible: visible, cameraScale: camera.scale)
+        timer.mark()
 
         // flashlights: the player's beam is the strongest (web spots: 62 player / 42 bots, 12 flickering when downed)
         var fl: [LightingLayer.Flashlight] = []
@@ -74,8 +86,9 @@ final class WorldRenderer {
             }
             fl.append(LightingLayer.Flashlight(x: f.0, y: f.1, z: f.2, ax: m.ax, az: m.az, intensity: i * toShader))
         }
-        lighting.update(viewSize: camera.viewSize, ppm: camera.screenPPM, toScreen: { camera.toScreen($0) },
-                        flashlights: fl, points: fx.lights)
+        lighting.update(viewSize: camera.viewSize, ppm: camera.screenPPM, camera: camera.node.position, scale: camera.scale,
+                        liftRise: rise, toScreen: { camera.toScreen($0) }, flashlights: fl, points: fx.lights)
+        timer.mark()
     }
 
     var dynamicNodeCount: Int { bugs.nodeCount + fx.nodeCount + 16 }

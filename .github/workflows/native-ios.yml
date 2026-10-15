@@ -87,6 +87,8 @@ jobs:
       - name: Generate project
         working-directory: ios-native
         run: xcodegen generate
+      # Debug configuration (DEBUG flag, SpriteKit counters) but optimised Swift and arm64 only:
+      # the simulator smoke test measures fps, and -Onone code is 5–10× slower than what ships.
       - name: xcodebuild (iOS Simulator)
         working-directory: ios-native
         run: |
@@ -101,7 +103,9 @@ jobs:
             -derivedDataPath build/DD \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
+            ARCHS=arm64 \
             ONLY_ACTIVE_ARCH=NO \
+            SWIFT_OPTIMIZATION_LEVEL=-O \
             COMPILER_INDEX_STORE_ENABLE=NO \
             > "$GITHUB_WORKSPACE/xcodebuild.full.log" 2>&1
           rc=$?

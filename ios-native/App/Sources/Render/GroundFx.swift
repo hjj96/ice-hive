@@ -144,10 +144,8 @@ final class GroundFx {
     func addCorpse(type: BugType, x: Float, z: Float, scale: Float) {
         if !walkable2(x, z) { return }
         let t = type.rawValue
-        let frames = assets.corpseFrames[t]
-        if frames.isEmpty { return }
         let n = corpses.next()
-        let tex = frames[Int(rng.next() * Float(frames.count)) % frames.count]
+        let tex = assets.corpse(t, Int(rng.next() * 6))
         if n.texture !== tex { n.texture = tex }
         let info = assets.corpseInfo[t]
         let k = CGFloat(scale / assets.bugBakedScale[t])

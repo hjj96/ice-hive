@@ -52,6 +52,11 @@ final class GameScene: SKScene {
     private var reportedReady = false
     private var reportedDone = false
     private var loadingLabel: Label?
+    private var loadingSub: Label?
+    private var loadStep = 0
+    private let sceneTimer = FrameTimer(["sim", "ev", "cam", "draw", "hud", "au", "warm"])
+    private var lastLookups = 0
+    private var lastLookupSeconds: Double = 0
 
     init(size: CGSize, options: LaunchOptions) {
         self.options = options
@@ -79,16 +84,45 @@ final class GameScene: SKScene {
         sub.node.zPosition = ZBand.hud
         cameraCtl.node.addChild(sub.node)
         loadingLabel = title
+        loadingSub = sub
         Fonts.logAvailability()
-        let t0 = ProcessInfo.processInfo.systemUptime
-        let a = SpriteAssets()
-        assets = a
-        AppLog.info(String(format: "assets indexed in %.0f ms", (ProcessInfo.processInfo.systemUptime - t0) * 1000))
-        a.preload { [weak self] in
-            title.node.removeFromParent()
-            sub.node.removeFromParent()
-            self?.finishLoading()
+        loadStep = 0
+    }
+
+    /// Loading runs over several frames so the loading screen is on screen while atlases index / preload.
+    private func advanceLoading() {
+        switch loadStep {
+        case 0, 1:
+            loadStep += 1          // let the loading screen render first
+        case 2:
+            loadStep = 3
+            let t0 = ProcessInfo.processInfo.systemUptime
+            let a = SpriteAssets()
+            assets = a
+            AppLog.info(String(format: "assets indexed in %.0f ms", (ProcessInfo.processInfo.systemUptime - t0) * 1000))
+            benchmarkLookups(a)
+            a.preload { [weak self] in
+                guard let s = self else { return }
+                s.loadingLabel?.node.removeFromParent()
+                s.loadingSub?.node.removeFromParent()
+                s.finishLoading()
+            }
+        default:
+            assets?.warm(budget: 0.012)
+            if let l = loadingSub { l.node.alpha = 0.5 + 0.5 * CGFloat(sinf(Float(lastTime) * 4)) }
         }
+    }
+
+    /// textureNamed vs SKTexture(imageNamed:) on atlas frames (both are logged; the faster one is a later switch).
+    private func benchmarkLookups(_ a: SpriteAssets) {
+        let names = (0..<8).map { "spitter_walk_0\($0)_3" }
+        let t0 = ProcessInfo.processInfo.systemUptime
+        for n in names { _ = a.bugs.atlas.textureNamed(n) }
+        let t1 = ProcessInfo.processInfo.systemUptime
+        for n in (0..<8).map({ "brute_walk_0\($0)_5" }) { _ = SKTexture(imageNamed: n) }
+        let t2 = ProcessInfo.processInfo.systemUptime
+        AppLog.info(String(format: "lookup bench: atlas.textureNamed %.2f ms/frame, SKTexture(imageNamed:) %.2f ms/frame",
+                           (t1 - t0) * 1000 / 8, (t2 - t1) * 1000 / 8))
     }
 
     private func finishLoading() {
@@ -315,7 +349,12 @@ final class GameScene: SKScene {
         let dt = Float(min(0.1, max(0, currentTime - lastTime)))
         lastTime = currentTime
         frameCount += 1
-        guard let g = game, let r = renderer, mode != .loading else { heartbeat(currentTime); return }
+        guard let g = game, let r = renderer, mode != .loading else {
+            advanceLoading()
+            heartbeat(currentTime)
+            return
+        }
+        sceneTimer.begin()
 
         // hit-stop slows the whole world (simulation + effects) for a few frames
         var ts: Float = 1
@@ -338,8 +377,10 @@ final class GameScene: SKScene {
         }
         let t1 = ProcessInfo.processInfo.systemUptime
         simMs += ((t1 - t0) * 1000 - simMs) * 0.05
+        sceneTimer.mark()
 
         drainEvents(g, r)
+        sceneTimer.mark()
 
         if mode == .playing && g.wantsLevelUp && !g.autoPickUpgrades { openLevelUp() }
         if mode == .playing && g.phase != .playing {
@@ -360,12 +401,19 @@ final class GameScene: SKScene {
         let feet = (P.px + (P.x - P.px) * alpha, g.level.groundY(P.x, P.z), P.pz + (P.z - P.pz) * alpha)
         cameraCtl.update(game: g, feet: feet, dt: max(dt, 0.0001), viewSize: size, title: mode == .title, liftRise: g.liftRise)
         g.setVisibleArea(cameraCtl.visibleGround())
+        sceneTimer.mark()
+        let t1r = ProcessInfo.processInfo.systemUptime
         r.update(game: g, alpha: alpha, dt: vdt, time: renderTime, camera: cameraCtl)
+        sceneTimer.mark()
         if mode != .title { hud.update(game: g, dt: dt, camera: cameraCtl, marines: r.marines, input: input) }
+        sceneTimer.mark()
         let near = g.bugCountNear(Vec2(cameraCtl.tx, cameraCtl.tz))
         audio?.update(dt: dt, game: g, bugsNear: near, listener: listener(), title: mode == .title)
+        sceneTimer.mark()
+        assets?.warm(budget: mode == .title ? 0.006 : 0.003)
+        sceneTimer.mark()
         let t2 = ProcessInfo.processInfo.systemUptime
-        renderMs += ((t2 - t1) * 1000 - renderMs) * 0.05
+        renderMs += ((t2 - t1r) * 1000 - renderMs) * 0.05
         if hud.showDebug {
             hud.setDebug(String(format: "fps %.0f · sim %.1f ms · draw %.1f ms\nbugs %d (на экране %d) · частицы %d\nузлы: уровень %d (+%d) · ",
                                 fps, simMs, renderMs, g.bugsAlive, r.bugs.visibleCount, r.fx.pa.visibleCount + r.fx.pn.visibleCount,
@@ -427,6 +475,12 @@ final class GameScene: SKScene {
                             + "hp=\(Int(g.player.hp)) kills=\(g.kills) demo=\(demo?.name ?? "-")")
             } else {
                 AppLog.info(String(format: "hb t=%.1f fps=%.1f ", t, fps) + "mode=\(mode.rawValue) demo=\(demo?.name ?? "-")")
+            }
+            if let r = renderer, mode != .loading {
+                let n = Atlas.lookups - lastLookups, sec = Atlas.lookupSeconds - lastLookupSeconds
+                lastLookups = Atlas.lookups; lastLookupSeconds = Atlas.lookupSeconds
+                AppLog.info("hb ms " + sceneTimer.summary + " | " + r.timer.summary
+                            + " | lookups \(n) (" + String(format: "%.0f ms", sec * 1000) + ") sfx \(audio?.played ?? 0)")
             }
             if let s = options.seconds, !reportedDone, t >= s {
                 reportedDone = true

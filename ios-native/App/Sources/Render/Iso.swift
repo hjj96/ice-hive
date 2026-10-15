@@ -84,9 +84,13 @@ enum ZBand {
     static let decal: CGFloat = -6900
     static let corpse: CGFloat = -6800
     static let shadow: CGFloat = -6700
-    /// Objects: + nearness · objectScale (railings, props, bugs, marines).
+    /// Railings / posts / lamps on far (N / W) platform edges: behind everything standing on the deck.
+    static let farEdge: CGFloat = -400
+    /// Objects: + nearness · objectScale (props, bugs, marines), nearness within ±60.
     static let objects: CGFloat = 0
     static let objectScale: CGFloat = 4
+    /// Railings / posts / lamps on near (S / E) edges: in front of everything on the deck.
+    static let nearEdge: CGFloat = 400
     /// Full-screen darkness / flashlight overlay (camera child).
     static let darkness: CGFloat = 1000
     /// Additive floor light: glow pools, team rings, telegraphs, indicators.

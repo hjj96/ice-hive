@@ -264,7 +264,7 @@ final class HUD {
         let top = 10 + st
 
         // stats panel (top-left)
-        let statsW: CGFloat = landscape ? 140 : 150, statsH: CGFloat = landscape ? 40 : 45
+        let statsW: CGFloat = landscape ? 124 : 130, statsH: CGFloat = landscape ? 40 : 44
         statsPanel.removeFromParent()
         statsPanel = Shapes.panel(width: statsW, height: statsH)
         statsPanel.position = hp(sl, top)
@@ -273,10 +273,10 @@ final class HUD {
         tealEdge.size = CGSize(width: 3, height: statsH)
         tealEdge.anchorPoint = CGPoint(x: 0, y: 1)
         tealEdge.position = hp(sl, top)
-        killsCap.node.position = hp(sl + 14, top + 12)
-        killsVal.node.position = hp(sl + 14, top + (landscape ? 29 : 32))
-        timeCap.node.position = hp(sl + 76, top + 12)
-        timeVal.node.position = hp(sl + 76, top + (landscape ? 29 : 32))
+        killsCap.node.position = hp(sl + 13, top + 12)
+        killsVal.node.position = hp(sl + 13, top + (landscape ? 29 : 31))
+        timeCap.node.position = hp(sl + 64, top + 12)
+        timeVal.node.position = hp(sl + 64, top + (landscape ? 29 : 31))
         comboVal.node.position = hp(sl + statsW + 10, top + statsH / 2)
 
         // pause button (top-right)

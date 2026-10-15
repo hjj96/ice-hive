@@ -19,6 +19,12 @@ final class BugLayer {
     /// Ember emitter for burning bugs (world x, height, z, scale).
     var onBurning: ((Float, Float, Float, Float) -> Void)?
     private var emberRng = SeededRNG(seed: 77)
+    /// Brightness spread of healthy bugs, quantised (no colour allocation per bug per frame).
+    private let palette: [SKColor] = (0..<32).map { k in
+        let vr = Float(k) / 31
+        let v = 0.478 + vr * 0.652
+        return SKColor(red: CGFloat(min(1, v)), green: CGFloat(min(1, v * (0.92 + vr * 0.1))), blue: CGFloat(min(1, v)), alpha: 1)
+    }
 
     init(assets: SpriteAssets, capacity: Int) {
         self.assets = assets
@@ -85,11 +91,11 @@ final class BugLayer {
             } else {
                 frame = Iso.phaseFrame(phs[i], 8)
             }
-            if set.lit.isEmpty || set.lit[dir].isEmpty { continue }
-            frame = max(0, min(set.lit[dir].count - 1, frame))
+            if set.frameCount == 0 { continue }
+            frame = max(0, min(set.frameCount - 1, frame))
             guard let body = bodies.next() else { break }
             shown += 1
-            let tex = set.lit[dir][frame]
+            let tex = set.tex(dir, frame)
             let k = CGFloat(scs[i] / assets.bugBakedScale[t])
             let size = CGSize(width: set.info.size.width * k, height: set.info.size.height * k * hScale)
 
@@ -97,7 +103,8 @@ final class BugLayer {
             body.size = size
             body.anchorPoint = set.info.anchor
             body.position = p
-            body.zPosition = ZBand.object(Iso.nearness(x, y, z))
+            // nearness quantised to 0.5 m slices: bugs in one slice share a z, so SpriteKit can batch them by atlas page
+            body.zPosition = ZBand.object((Iso.nearness(x, y, z) * 2).rounded(.down) * 0.5)
 
             // body colour: per-bug brightness, charred while burning, icy while frozen / chilled
             let v = 0.478 + vr * 0.652
@@ -113,7 +120,11 @@ final class BugLayer {
             if frost > 0 {
                 r *= 1 - 0.5 * frost; g *= 1 - 0.25 * frost
             }
-            body.color = SKColor(red: CGFloat(min(1, r)), green: CGFloat(min(1, g)), blue: CGFloat(min(1, b)), alpha: 1)
+            if burnK == 0 && frost <= 0 {
+                body.color = palette[max(0, min(31, Int(vr * 31 + 0.5)))]
+            } else {
+                body.color = SKColor(red: CGFloat(min(1, r)), green: CGFloat(min(1, g)), blue: CGFloat(min(1, b)), alpha: 1)
+            }
 
             // glow layer / hit flash / frost sheen
             var flash = max(0, fls[i])
@@ -134,8 +145,7 @@ final class BugLayer {
                     glow.color = SKColor(red: 0.25, green: 0.5, blue: 0.85, alpha: 1)
                     glow.colorBlendFactor = 1
                     glow.alpha = CGFloat(frost * 0.45)
-                } else if let gset = set.glow, dir < gset.count, frame < gset[dir].count {
-                    let gt = gset[dir][frame]
+                } else if let gt = set.glow(dir, frame) {
                     if glow.texture !== gt { glow.texture = gt }
                     if burnK > 0 {
                         glow.color = SKColor(red: 1, green: 0.42, blue: 0.08, alpha: 1)
@@ -153,8 +163,8 @@ final class BugLayer {
             // contact shadow on the floor (not while climbing the wall)
             if !climbing, let sh = shadows.next() {
                 let ss = assets.bugShadow[t]
-                if !ss.lit.isEmpty {
-                    let stex = ss.lit[dir][0]
+                if ss.frameCount > 0 {
+                    let stex = ss.tex(dir, 0)
                     if sh.texture !== stex { sh.texture = stex }
                     sh.size = CGSize(width: ss.info.size.width * k, height: ss.info.size.height * k)
                     sh.anchorPoint = ss.info.anchor
