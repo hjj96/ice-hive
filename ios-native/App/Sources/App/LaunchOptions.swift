@@ -17,6 +17,8 @@ struct LaunchOptions {
     var mute: Bool = false
     /// Lock the interface orientation (`-orient portrait|landscape`).
     var orientation: String?
+    /// Hide the darkness / flashlight overlay (`-nolight`), to measure its GPU cost.
+    var noLighting: Bool = false
     /// Atlas frame lookup (`-texlookup named|atlas`), for comparison runs.
     var textureLookup: String?
     /// Arguments that were not recognised (kept for logging).
@@ -49,6 +51,7 @@ struct LaunchOptions {
             case "-mute", "--mute": result.mute = flag()
             case "-orient", "--orient": result.orientation = value()
             case "-texlookup", "--texlookup": result.textureLookup = value()
+            case "-nolight", "--nolight": result.noLighting = flag()
             default: result.unknown.append(arg)
             }
         }
@@ -64,6 +67,8 @@ struct LaunchOptions {
         if let s = seed { parts.append("seed=\(s)") }
         if mute { parts.append("mute") }
         if let o = orientation { parts.append("orient=\(o)") }
+        if noLighting { parts.append("nolight") }
+        if let t = textureLookup { parts.append("texlookup=\(t)") }
         return parts.joined(separator: " ")
     }
 }

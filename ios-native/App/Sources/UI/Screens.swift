@@ -6,7 +6,7 @@ import IceHiveCore
 final class MenuButton {
     enum Style { case go, normal, ghost, danger }
     let node = SKNode()
-    private var panel = SKShapeNode()
+    private var panel = SKSpriteNode(texture: nil)
     let label: Label
     private(set) var rect = CGRect.zero   // HUD coordinates
     let style: Style
@@ -69,7 +69,7 @@ final class TitleScreen {
     let root = SKNode()
     private let shade = SKSpriteNode(color: UIPalette.rgba(5, 7, 10, 0.5), size: CGSize(width: 10, height: 10))
     private var content = SKNode()
-    private var cards: [(MarineClass, CGRect, SKShapeNode)] = []
+    private var cards: [(MarineClass, CGRect, SKSpriteNode)] = []
     private let go = MenuButton("В бой", style: .go)
     private(set) var selected: MarineClass = .assault
 
@@ -141,8 +141,8 @@ final class TitleScreen {
             let x = left + CGFloat(col) * (cardW + gap)
             let top = y - CGFloat(row) * (cardH + gap)
             let sel = c == cls
-            let panel = Shapes.panel(width: cardW, height: cardH, fill: sel ? UIPalette.rgba(20, 30, 40, 0.96) : UIPalette.panel, stroke: sel ? UIPalette.amber : UIPalette.line)
-            panel.lineWidth = sel ? 2 : 1
+            let panel = Shapes.panel(width: cardW, height: cardH, fill: sel ? UIPalette.rgba(20, 30, 40, 0.96) : UIPalette.panel,
+                                     stroke: sel ? UIPalette.amber : UIPalette.line, lineWidth: sel ? 2 : 1)
             panel.position = CGPoint(x: x, y: top)
             content.addChild(panel)
             let chip = SKSpriteNode(color: UIPalette.classColors[k], size: CGSize(width: 4, height: cardH - 16))

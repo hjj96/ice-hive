@@ -88,6 +88,9 @@ final class Atlas {
 
     var count: Int { names.count }
 
+    /// Every texture resolved so far (preload list).
+    var cachedTextures: [SKTexture] { Array(cache.values) }
+
     func has(_ frame: String) -> Bool { names.contains(frame) }
 
     func texture(_ frame: String) -> SKTexture {
@@ -239,6 +242,23 @@ final class SpriteAssets {
         return corpseFrames[t][v % 6]
     }
 
+    /// Resolve every bug / marine / corpse frame (cheap with named lookups) so they can be preloaded.
+    func resolveAll() {
+        while let s = warmQueue.first {
+            if !s.warm(64) { warmQueue.removeFirst() }
+        }
+        _ = corpse(0, 0)
+    }
+
+    /// All textures resolved in any atlas (for SKTexture.preload behind the loading screen).
+    func allTextures() -> [SKTexture] {
+        var out: [SKTexture] = []
+        for a in [bugs, bugsGlow, corpses, marines, marinesGlow, props, level, levelGlow, ground, particles, background, backgroundGlow] {
+            out.append(contentsOf: a.cachedTextures)
+        }
+        return out
+    }
+
     /// Resolve frame textures for about `budget` seconds; returns true while work remains.
     @discardableResult
     func warm(budget: Double) -> Bool {
@@ -250,16 +270,4 @@ final class SpriteAssets {
         return !warmQueue.isEmpty
     }
 
-    /// Load every atlas page up front (no hitch the first time a frame shows up).
-    func preload(_ done: @escaping () -> Void) {
-        let all: [SKTextureAtlas] = [bugs.atlas, bugsGlow.atlas, corpses.atlas, marines.atlas, marinesGlow.atlas, props.atlas,
-                                     level.atlas, levelGlow.atlas, ground.atlas, particles.atlas, background.atlas, backgroundGlow.atlas]
-        let t0 = Date()
-        SKTextureAtlas.preloadTextureAtlases(all) {
-            DispatchQueue.main.async {
-                AppLog.info(String(format: "atlases preloaded in %.2fs", Date().timeIntervalSince(t0)))
-                done()
-            }
-        }
-    }
 }

@@ -102,14 +102,8 @@ final class GameScene: SKScene {
             assets = a
             AppLog.info(String(format: "assets indexed in %.0f ms", (ProcessInfo.processInfo.systemUptime - t0) * 1000))
             benchmarkLookups(a)
-            a.preload { [weak self] in
-                guard let s = self else { return }
-                s.loadingLabel?.node.removeFromParent()
-                s.loadingSub?.node.removeFromParent()
-                s.finishLoading()
-            }
+            finishLoading()
         default:
-            assets?.warm(budget: 0.012)
             if let l = loadingSub { l.node.alpha = 0.5 + 0.5 * CGFloat(sinf(Float(lastTime) * 4)) }
         }
     }
@@ -126,6 +120,8 @@ final class GameScene: SKScene {
                            (t1 - t0) * 1000 / 8, (t2 - t1) * 1000 / 8))
     }
 
+    /// Build the world (hidden), then decode every atlas page in the background (SKTexture.preload) before the
+    /// first frame shows it — otherwise each page is decoded synchronously the first time a frame of it is drawn.
     private func finishLoading() {
         guard let a = assets else { return }
         let t0 = ProcessInfo.processInfo.systemUptime
@@ -133,12 +129,16 @@ final class GameScene: SKScene {
         level = lv
         let r = WorldRenderer(level: lv, assets: a, bugCapacity: QualityTier.med.bugCap)
         renderer = r
+        r.world.isHidden = true
         addChild(r.world)
         r.attach(to: cameraCtl)
+        r.lighting.node.isHidden = true
         cameraCtl.node.addChild(hud.root)
         cameraCtl.node.addChild(titleScreen.root)
         cameraCtl.node.addChild(levelUpScreen.root)
         cameraCtl.node.addChild(menu.root)
+        hud.visible = false
+        titleScreen.root.isHidden = true
         hud.showDebug = options.debugHUD
         input.hitAbility = { [weak self] p in
             guard let s = self else { return false }
@@ -149,7 +149,25 @@ final class GameScene: SKScene {
             return s.hud.dashButton.contains(hudPoint: s.hud.hp(p.x, p.y))
         }
         audio = AudioEngine(enabled: !options.mute)
-        AppLog.info(String(format: "world built in %.0f ms", (ProcessInfo.processInfo.systemUptime - t0) * 1000))
+        a.resolveAll()
+        let textures = a.allTextures()
+        AppLog.info(String(format: "world built in %.0f ms; preloading %d textures", (ProcessInfo.processInfo.systemUptime - t0) * 1000, textures.count))
+        let t1 = ProcessInfo.processInfo.systemUptime
+        SKTexture.preload(textures) {
+            DispatchQueue.main.async { [weak self] in
+                guard let s = self else { return }
+                AppLog.info(String(format: "textures preloaded in %.0f ms", (ProcessInfo.processInfo.systemUptime - t1) * 1000) + " mem=\(Memory.footprintMB())MB")
+                s.startAfterLoading()
+            }
+        }
+    }
+
+    private func startAfterLoading() {
+        guard let r = renderer else { return }
+        loadingLabel?.node.removeFromParent()
+        loadingSub?.node.removeFromParent()
+        r.world.isHidden = false
+        r.lighting.node.isHidden = options.noLighting
         relayout()
         if let d = demo, d.startsMission {
             startMission(selectedClass)
@@ -473,7 +491,7 @@ final class GameScene: SKScene {
                 AppLog.info(String(format: "hb t=%.1f fps=%.1f sim=%.2fms draw=%.2fms ", t, fps, simMs, renderMs)
                             + "mode=\(mode.rawValue) bugs=\(g.bugsAlive) vis=\(r.bugs.visibleCount) parts=\(r.fx.pa.visibleCount + r.fx.pn.visibleCount) "
                             + "chunks=\(r.levelLayer.visibleChunks) nodes=\(r.levelLayer.nodeCount + r.dynamicNodeCount) stage=\(g.stage.rawValue) "
-                            + "hp=\(Int(g.player.hp)) kills=\(g.kills) demo=\(demo?.name ?? "-")")
+                            + "hp=\(Int(g.player.hp)) kills=\(g.kills) mem=\(Memory.footprintMB())MB demo=\(demo?.name ?? "-")")
             } else {
                 AppLog.info(String(format: "hb t=%.1f fps=%.1f ", t, fps) + "mode=\(mode.rawValue) demo=\(demo?.name ?? "-")")
             }

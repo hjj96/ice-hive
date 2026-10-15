@@ -5,7 +5,8 @@ import IceHiveCore
 /// Round touch button (ability / dash) with a cooldown sweep.
 final class RoundButton {
     let node = SKNode()
-    private let disc: SKShapeNode
+    private let discIdle: SKSpriteNode
+    private let discReady: SKSpriteNode
     private let cooldown = SKShapeNode()
     let label: Label
     private(set) var radius: CGFloat
@@ -14,15 +15,14 @@ final class RoundButton {
 
     init(radius: CGFloat, text: String) {
         self.radius = radius
-        disc = SKShapeNode(circleOfRadius: radius)
-        disc.fillColor = UIPalette.panel
-        disc.strokeColor = UIPalette.lineStrong
-        disc.lineWidth = 2
+        discIdle = Shapes.circle(radius: radius, fill: UIPalette.panel, stroke: UIPalette.lineStrong, lineWidth: 2)
+        discReady = Shapes.circle(radius: radius, fill: UIPalette.panel, stroke: UIPalette.amber, lineWidth: 3)
         cooldown.fillColor = UIPalette.rgba(0, 0, 0, 0.6)
         cooldown.strokeColor = .clear
         cooldown.lineWidth = 0
         label = Label(text, font: Fonts.semibold, size: 12, color: UIPalette.ink, kern: 0.5)
-        node.addChild(disc)
+        node.addChild(discIdle)
+        node.addChild(discReady)
         node.addChild(cooldown)
         node.addChild(label.node)
         label.node.zPosition = 1
@@ -31,14 +31,15 @@ final class RoundButton {
     func update(ready: Bool, fraction: CGFloat) {
         if lastReady != ready {
             lastReady = ready
-            disc.strokeColor = ready ? UIPalette.amber : UIPalette.lineStrong
-            disc.glowWidth = ready ? 3 : 0
+            discReady.isHidden = !ready
+            discIdle.isHidden = ready
             label.color = ready ? UIPalette.white : UIPalette.inkDim
         }
         let f = ready ? 0 : max(0, min(1, fraction))
         if abs(f - lastFraction) > 0.01 || (f == 0 && lastFraction != 0) {
             lastFraction = f
             cooldown.path = Shapes.pie(radius: radius - 1, fraction: f)
+            cooldown.isHidden = f <= 0
         }
     }
 
@@ -52,20 +53,15 @@ final class RoundButton {
 /// Floating virtual stick: ghost circle at rest, follows the thumb when active.
 final class StickView {
     let node = SKNode()
-    private let ring: SKShapeNode
-    private let knob: SKShapeNode
+    private let ring: SKSpriteNode
+    private let knob: SKSpriteNode
     private let caption: Label
     static let radius: CGFloat = 56
 
     init(fire: Bool, caption text: String) {
-        ring = SKShapeNode(circleOfRadius: 62)
-        ring.strokeColor = fire ? UIPalette.fireRing : UIPalette.stickRing
-        ring.fillColor = UIPalette.stickFill
-        ring.lineWidth = 2
-        knob = SKShapeNode(circleOfRadius: 27)
-        knob.strokeColor = fire ? UIPalette.fireKnobRing : UIPalette.knobRing
-        knob.fillColor = fire ? UIPalette.fireKnobFill : UIPalette.knobFill
-        knob.lineWidth = 2
+        ring = Shapes.circle(radius: 62, fill: UIPalette.stickFill, stroke: fire ? UIPalette.fireRing : UIPalette.stickRing, lineWidth: 2)
+        knob = Shapes.circle(radius: 27, fill: fire ? UIPalette.fireKnobFill : UIPalette.knobFill,
+                             stroke: fire ? UIPalette.fireKnobRing : UIPalette.knobRing, lineWidth: 2)
         caption = Label(text, font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 1.9)
         caption.node.position = CGPoint(x: 0, y: -62 - 14)
         node.addChild(ring)
@@ -98,18 +94,18 @@ final class HUD {
     private var insets = UIEdgeInsets.zero
 
     // top row
-    private var statsPanel = SKShapeNode()
+    private var statsPanel = SKSpriteNode(texture: nil)
     private let killsCap = Label("УБИТО", font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 1.4, align: .left)
     private let timeCap = Label("ВРЕМЯ", font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 1.4, align: .left)
     private let killsVal = Label("0", font: Fonts.monoBold, size: 17, color: UIPalette.ink, align: .left)
     private let timeVal = Label("0:00", font: Fonts.monoBold, size: 17, color: UIPalette.ink, align: .left)
     private let comboVal = Label("", font: Fonts.monoBold, size: 16, color: UIPalette.amber, align: .left)
     private var tealEdge = SKSpriteNode(color: UIPalette.teal, size: CGSize(width: 3, height: 44))
-    private var pausePanel = SKShapeNode()
+    private var pausePanel = SKSpriteNode(texture: nil)
     private let pauseBars = SKNode()
     private var pauseRect = CGRect.zero
     // objective
-    private var objPanel = SKShapeNode()
+    private var objPanel = SKSpriteNode(texture: nil)
     private let objCap = Label("ЗАДАЧА", font: Fonts.medium, size: 12, color: UIPalette.amber, kern: 2.4)
     private let objText = Label("—", font: Fonts.semibold, size: 16, color: UIPalette.ink, kern: 0.6)
     private let objBar = Bar(width: 200, height: 4, fill: UIPalette.teal, track: UIPalette.tealTrack)
@@ -117,7 +113,7 @@ final class HUD {
     // squad
     private final class SquadRow {
         let node = SKNode()
-        var panel = SKShapeNode()
+        var panel = SKSpriteNode(texture: nil)
         let chip = SKSpriteNode(color: .white, size: CGSize(width: 3, height: 14))
         let name: Label
         let bar = Bar(width: 40, height: 4, fill: UIPalette.hp, track: UIPalette.hpBg, topLine: UIPalette.teal)
@@ -129,14 +125,22 @@ final class HUD {
     // toasts / hint / banner
     private final class Toast {
         let node = SKNode()
-        let label: Label
-        var panel: SKShapeNode
+        let label = SKLabelNode()
+        var panel: SKSpriteNode
         var t: Float = 0
         var life: Float
-        init(text: String, kind: ToastKind) {
-            label = Label(text.uppercased(), font: Fonts.medium, size: 12, color: UIPalette.ink, kern: 1.0, align: .right)
+        var height: CGFloat = 26
+        init(text: String, kind: ToastKind, maxWidth: CGFloat) {
+            let style = NSMutableParagraphStyle()
+            style.alignment = .right
+            label.numberOfLines = 0
+            label.preferredMaxLayoutWidth = maxWidth
+            label.horizontalAlignmentMode = .right
+            label.verticalAlignmentMode = .top
+            label.attributedText = NSAttributedString(string: text.uppercased(), attributes: [
+                .font: Fonts.font(Fonts.medium, 12), .foregroundColor: UIPalette.ink, .kern: CGFloat(1.0), .paragraphStyle: style])
             life = kind == .warn ? 4.5 : 3.2
-            panel = SKShapeNode()
+            panel = SKSpriteNode(texture: nil)
         }
     }
     private var toasts: [Toast] = []
@@ -382,16 +386,19 @@ final class HUD {
 
     // ---------------------------------------------------------------- events
     func toast(_ text: String, kind: ToastKind) {
-        let t = Toast(text: text, kind: kind)
-        let w = min(max(80, t.label.width + 22), min(320, size.width * 0.6))
-        t.panel = Shapes.panel(width: w, height: 26, cut: 0)
+        let maxW = min(320, size.width * 0.6)
+        let t = Toast(text: text, kind: kind, maxWidth: maxW - 22)
+        let tf = t.label.frame
+        let w = min(maxW, max(80, tf.width + 22))
+        t.height = max(26, tf.height + 12)
+        t.panel = Shapes.panel(width: w, height: t.height, cut: 0)
         t.panel.position = CGPoint(x: -w, y: 0)
         t.node.addChild(t.panel)
-        let edge = SKSpriteNode(color: kind == .warn ? UIPalette.red : (kind == .gold ? UIPalette.amber : UIPalette.teal), size: CGSize(width: 3, height: 26))
+        let edge = SKSpriteNode(color: kind == .warn ? UIPalette.red : (kind == .gold ? UIPalette.amber : UIPalette.teal), size: CGSize(width: 3, height: t.height))
         edge.anchorPoint = CGPoint(x: 1, y: 1)
         t.node.addChild(edge)
-        t.label.node.position = CGPoint(x: -10, y: -13)
-        t.node.addChild(t.label.node)
+        t.label.position = CGPoint(x: -10, y: -6)
+        t.node.addChild(t.label)
         t.node.alpha = 0
         toastRoot.addChild(t.node)
         toasts.append(t)
@@ -469,7 +476,7 @@ final class HUD {
             let u = t.t / t.life
             t.node.alpha = CGFloat(u < 0.08 ? u / 0.08 : (u > 0.85 ? (1 - u) / 0.15 : 1))
             t.node.position = CGPoint(x: u < 0.08 ? CGFloat((1 - u / 0.08) * 20) : 0, y: y)
-            y -= 30
+            y -= t.height + 4
             k += 1
         }
         // banner (2.4 s)

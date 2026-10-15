@@ -162,13 +162,83 @@ enum Shapes {
         return p
     }
 
-    static func panel(width w: CGFloat, height h: CGFloat, cut: CGFloat = 7, fill: SKColor = UIPalette.panel, stroke: SKColor? = nil) -> SKShapeNode {
-        let s = SKShapeNode(path: cutPanel(width: w, height: h, cut: cut))
-        s.fillColor = fill
-        s.strokeColor = stroke ?? .clear
-        s.lineWidth = stroke == nil ? 0 : 1
-        s.isAntialiased = true
-        return s
+    private static var panelCache: [String: SKTexture] = [:]
+
+    private static func key(_ c: SKColor?) -> String {
+        guard let c = c else { return "-" }
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        _ = c.getRed(&r, green: &g, blue: &b, alpha: &a)
+        return String(format: "%.3f,%.3f,%.3f,%.3f", r, g, b, a)
+    }
+
+    /// Cut-corner panel as a textured sprite (anchor top-left, like the CSS box): one draw, cached per look.
+    static func panel(width w0: CGFloat, height h0: CGFloat, cut c: CGFloat = 7, fill: SKColor = UIPalette.panel,
+                      stroke: SKColor? = nil, lineWidth lw: CGFloat = 1) -> SKSpriteNode {
+        let w = max(2, w0.rounded()), h = max(2, h0.rounded())
+        let k = "\(Int(w))x\(Int(h))c\(Int(c))f" + key(fill) + "s" + key(stroke) + "l\(Int(lw * 10))"
+        let tex: SKTexture
+        if let t = panelCache[k] {
+            tex = t
+        } else {
+            let renderer = UIGraphicsImageRenderer(size: CGSize(width: w, height: h))
+            let image = renderer.image { ctx in
+                let cg = ctx.cgContext
+                func outline(_ i: CGFloat) -> CGPath {
+                    let p = CGMutablePath()
+                    p.move(to: CGPoint(x: i, y: i))
+                    p.addLine(to: CGPoint(x: w - c - i * 0.4, y: i))
+                    p.addLine(to: CGPoint(x: w - i, y: c + i * 0.4))
+                    p.addLine(to: CGPoint(x: w - i, y: h - i))
+                    p.addLine(to: CGPoint(x: c + i * 0.4, y: h - i))
+                    p.addLine(to: CGPoint(x: i, y: h - c - i * 0.4))
+                    p.closeSubpath()
+                    return p
+                }
+                cg.addPath(outline(0))
+                cg.setFillColor(fill.cgColor)
+                cg.fillPath()
+                if let s = stroke {
+                    cg.addPath(outline(lw / 2))
+                    cg.setStrokeColor(s.cgColor)
+                    cg.setLineWidth(lw)
+                    cg.strokePath()
+                }
+            }
+            tex = SKTexture(image: image)
+            panelCache[k] = tex
+        }
+        let n = SKSpriteNode(texture: tex)
+        n.size = CGSize(width: w, height: h)
+        n.anchorPoint = CGPoint(x: 0, y: 1)
+        return n
+    }
+
+    /// Filled + stroked circle as a cached texture (diameter 2r + stroke).
+    static func circle(radius r: CGFloat, fill: SKColor, stroke: SKColor?, lineWidth lw: CGFloat = 2) -> SKSpriteNode {
+        let side = (r * 2 + lw).rounded(.up)
+        let k = "circle\(Int(r * 10))f" + key(fill) + "s" + key(stroke) + "l\(Int(lw * 10))"
+        let tex: SKTexture
+        if let t = panelCache[k] {
+            tex = t
+        } else {
+            let renderer = UIGraphicsImageRenderer(size: CGSize(width: side, height: side))
+            let image = renderer.image { ctx in
+                let cg = ctx.cgContext
+                let rect = CGRect(x: lw / 2, y: lw / 2, width: side - lw, height: side - lw)
+                cg.setFillColor(fill.cgColor)
+                cg.fillEllipse(in: rect)
+                if let s = stroke {
+                    cg.setStrokeColor(s.cgColor)
+                    cg.setLineWidth(lw)
+                    cg.strokeEllipse(in: rect)
+                }
+            }
+            tex = SKTexture(image: image)
+            panelCache[k] = tex
+        }
+        let n = SKSpriteNode(texture: tex)
+        n.size = CGSize(width: side, height: side)
+        return n
     }
 
     /// Pie (cooldown sweep) from 12 o'clock clockwise, fraction 0…1.

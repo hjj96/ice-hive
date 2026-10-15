@@ -209,6 +209,13 @@ jobs:
             else
               echo "$label DEAD" >> results/alive.txt
             fi
+            # --terminate-running-process does not stop the previous instance reliably: stop it explicitly
+            xcrun simctl terminate "$UDID" "$BUNDLE_ID" || true
+            for _ in 1 2 3 4 5 6 7 8 9 10; do
+              xcrun simctl spawn "$UDID" launchctl list | grep -q 'UIKitApplication:com.hjj96.icehive' || break
+              sleep 1
+            done
+            sleep 1
           }
           run_demo combat 40 "-demo combat" 10 18 28 38
           run_demo beacon 26 "-demo beacon" 14 24
