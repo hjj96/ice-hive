@@ -173,3 +173,24 @@ export function savePNG(file, img) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, encodePNG(img.w, img.h, img.data));
 }
+
+// small preview (committed under tools/previews/): one row per set, frame 0 of every `step`-th direction (or the
+// first `max` frames), over the fog colour, downscaled from @3x by `k`
+export function previewRows(sheet, { step = 2, max = 8 } = {}) {
+  const hasDir = sheet.some(s => s.dir !== undefined);
+  const pick = hasDir ? sheet.filter(s => s.dir % step === 0 && !s.frame) : sheet;
+  return pick.slice(0, max).map(s => s.lit3);
+}
+export function composePreview(rows, k = 2, gap = 6, bg = FOG) {
+  const W = Math.max(...rows.map(r => r.reduce((a, im) => a + im.w + gap, gap)));
+  const H = rows.reduce((a, r) => a + Math.max(...r.map(im => im.h)) + gap, gap);
+  const out = make(W, H, [...bg, 255]);
+  let y = gap;
+  for (const r of rows) {
+    let x = gap;
+    const rh = Math.max(...r.map(im => im.h));
+    for (const im of r) { draw(out, im, x, y + rh - im.h); x += im.w + gap; }
+    y += rh + gap;
+  }
+  return downscale(out, k);
+}

@@ -150,9 +150,12 @@ const SPR = {};
       m.legL.rotation.x = 0.2; m.legR.rotation.x = -0.1;
     } else {
       m.g.rotation.x = pose.anim === 'dash' ? 0.35 : 0;
-      const w1 = pose.anim === 'run' ? 1 : pose.anim === 'dash' ? 0.6 : 0;
+      const w1 = pose.anim === 'run' || pose.anim === 'strafe' ? 1 : pose.anim === 'dash' ? 0.6 : 0;
       const sw = Math.sin(pose.ph || 0) * 0.75 * w1;
-      m.legL.rotation.x = sw; m.legR.rotation.x = -sw;
+      // renderMarines(): legs swing along the movement direction relative to the aim (rel = cos(move - aim))
+      const rel = pose.rel ?? 1;
+      m.legL.rotation.x = sw * rel; m.legR.rotation.x = -sw * rel;
+      m.legL.rotation.z = sw * 0.4 * (1 - Math.abs(rel)); m.legR.rotation.z = -m.legL.rotation.z;
       m.body.position.y = Math.abs(Math.sin(pose.ph || 0)) * 0.05 * w1;
     }
     return shoot(m.outer, w, h, ppm, [0, 0, 0], ax, ay);

@@ -33,6 +33,198 @@
   },
   "atlasNotes": "Sprite atlases live in Assets.xcassets/*.spriteatlas (Xcode packs them into pages per scale and trims transparent borders itself; SKTexture.size() keeps the untrimmed frame size, so the anchors below stay valid). Load with SKTextureAtlas(named: \"Bugs\").textureNamed(\"runner_walk_03_5\"). Frame names are unique across atlases. Lit frames have @2x + @3x, glow frames @2x only.",
   "sets": {
+    "assault_dash": {
+      "atlas": "Marines",
+      "glowAtlas": "MarinesGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "marine",
+      "pattern": "assault_dash_{dir:02}",
+      "directions": 16,
+      "frames": 1,
+      "note": "dash (0.22 s): body leans 0.35 rad forward; like the web game it keeps facing the AIM heading (dir = aim), legs half-swung",
+      "sizePoints": [
+        68,
+        62
+      ],
+      "pixelSize3x": [
+        204,
+        186
+      ],
+      "anchor": [
+        0.5,
+        0.29032
+      ],
+      "anchorPixel3x": [
+        102,
+        132
+      ],
+      "screenSizeMetres": [
+        2.833,
+        2.583
+      ]
+    },
+    "assault_downed": {
+      "atlas": "Marines",
+      "glowAtlas": "MarinesGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "marine",
+      "pattern": "assault_downed_{dir:02}",
+      "directions": 16,
+      "frames": 1,
+      "note": "lying on the back (rotation.x = -1.35, raised 0.28 m)",
+      "sizePoints": [
+        100,
+        89
+      ],
+      "pixelSize3x": [
+        300,
+        267
+      ],
+      "anchor": [
+        0.5,
+        0.41573
+      ],
+      "anchorPixel3x": [
+        150,
+        156
+      ],
+      "screenSizeMetres": [
+        4.167,
+        3.708
+      ]
+    },
+    "assault_idle": {
+      "atlas": "Marines",
+      "glowAtlas": "MarinesGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "marine",
+      "pattern": "assault_idle_{dir:02}",
+      "directions": 16,
+      "frames": 1,
+      "sizePoints": [
+        50,
+        47
+      ],
+      "pixelSize3x": [
+        150,
+        141
+      ],
+      "anchor": [
+        0.5,
+        0.19149
+      ],
+      "anchorPixel3x": [
+        75,
+        114
+      ],
+      "screenSizeMetres": [
+        2.083,
+        1.958
+      ]
+    },
+    "assault_run": {
+      "atlas": "Marines",
+      "glowAtlas": "MarinesGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "marine",
+      "pattern": "assault_run_{dir:02}_{frame}",
+      "directions": 16,
+      "frames": 8,
+      "loop": true,
+      "framesPerMetre": 3.31,
+      "fpsAtBaseSpeed": 17.5,
+      "note": "direction = AIM heading (the web marine always faces its aim); legs swing along it",
+      "sizePoints": [
+        50,
+        51
+      ],
+      "pixelSize3x": [
+        150,
+        153
+      ],
+      "anchor": [
+        0.5,
+        0.2549
+      ],
+      "anchorPixel3x": [
+        75,
+        114
+      ],
+      "screenSizeMetres": [
+        2.083,
+        2.125
+      ]
+    },
+    "assault_strafe": {
+      "atlas": "Marines",
+      "glowAtlas": "MarinesGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "marine",
+      "pattern": "assault_strafe_{dir:02}_{frame}",
+      "directions": 16,
+      "frames": 4,
+      "loop": true,
+      "framesPerMetre": 1.655,
+      "note": "moving sideways to the aim (|cos(move - aim)| < 0.5): legs swing sideways. Running backwards = run frames played in reverse",
+      "sizePoints": [
+        50,
+        50
+      ],
+      "pixelSize3x": [
+        150,
+        150
+      ],
+      "anchor": [
+        0.5,
+        0.24
+      ],
+      "anchorPixel3x": [
+        75,
+        114
+      ],
+      "screenSizeMetres": [
+        2.083,
+        2.083
+      ]
+    },
+    "beacon_top": {
+      "atlas": "Props",
+      "kind": "prop",
+      "pattern": "beacon_top_{frame}",
+      "frames": 4,
+      "loop": true,
+      "note": "white octahedron spinning 1.2 rad/s (4 rad/s while charging); tint with the beacon state colour x1.6; centre anchor, hover 2.9 m above the beacon base",
+      "sizePoints": [
+        22,
+        20
+      ],
+      "pixelSize3x": [
+        66,
+        60
+      ],
+      "anchor": [
+        0.5,
+        0.5
+      ],
+      "anchorPixel3x": [
+        33,
+        30
+      ],
+      "screenSizeMetres": [
+        0.917,
+        0.833
+      ]
+    },
     "boomer_climb": {
       "atlas": "Bugs",
       "glowAtlas": "BugsGlow",
@@ -253,15 +445,15 @@
       "note": "S_CLIMB below the deck edge (y < -0.85): body pitched 1.4 rad nose-up against the platform wall",
       "sizePoints": [
         90,
-        85
+        93
       ],
       "pixelSize3x": [
         270,
-        255
+        279
       ],
       "anchor": [
         0.5,
-        0.48235
+        0.52688
       ],
       "anchorPixel3x": [
         135,
@@ -269,7 +461,7 @@
       ],
       "screenSizeMetres": [
         3.75,
-        3.542
+        3.875
       ]
     },
     "brute_crest": {
@@ -288,15 +480,15 @@
       "note": "S_CLIMB while cresting the railing (-0.85 < y < 0): pitch 0.7 rad; switch to walk at y >= -0.1",
       "sizePoints": [
         94,
-        86
+        88
       ],
       "pixelSize3x": [
         282,
-        258
+        264
       ],
       "anchor": [
         0.5,
-        0.47674
+        0.48864
       ],
       "anchorPixel3x": [
         141,
@@ -304,7 +496,7 @@
       ],
       "screenSizeMetres": [
         3.917,
-        3.583
+        3.667
       ]
     },
     "brute_shadow": {
@@ -369,6 +561,687 @@
       "screenSizeMetres": [
         3.333,
         3.167
+      ]
+    },
+    "corpse_boomer": {
+      "atlas": "Corpses",
+      "kind": "corpse",
+      "pattern": "boomer_corpse_{variant}",
+      "variants": 6,
+      "worldScale": 1.15,
+      "note": "lies on the deck; the web game draws runner remains for runner/spitter and none for boomers (scorch decal instead)",
+      "sizePoints": [
+        35,
+        30
+      ],
+      "pixelSize3x": [
+        105,
+        90
+      ],
+      "anchor": [
+        0.51429,
+        0.36667
+      ],
+      "anchorPixel3x": [
+        54,
+        57
+      ],
+      "screenSizeMetres": [
+        1.458,
+        1.25
+      ]
+    },
+    "corpse_brute": {
+      "atlas": "Corpses",
+      "kind": "corpse",
+      "pattern": "brute_corpse_{variant}",
+      "variants": 6,
+      "worldScale": 2,
+      "note": "lies on the deck; the web game draws runner remains for runner/spitter and none for boomers (scorch decal instead)",
+      "sizePoints": [
+        79,
+        65
+      ],
+      "pixelSize3x": [
+        237,
+        195
+      ],
+      "anchor": [
+        0.50633,
+        0.41538
+      ],
+      "anchorPixel3x": [
+        120,
+        114
+      ],
+      "screenSizeMetres": [
+        3.292,
+        2.708
+      ]
+    },
+    "corpse_runner": {
+      "atlas": "Corpses",
+      "kind": "corpse",
+      "pattern": "runner_corpse_{variant}",
+      "variants": 6,
+      "worldScale": 0.8,
+      "note": "lies on the deck; the web game draws runner remains for runner/spitter and none for boomers (scorch decal instead)",
+      "sizePoints": [
+        32,
+        27
+      ],
+      "pixelSize3x": [
+        96,
+        81
+      ],
+      "anchor": [
+        0.5,
+        0.44444
+      ],
+      "anchorPixel3x": [
+        48,
+        45
+      ],
+      "screenSizeMetres": [
+        1.333,
+        1.125
+      ]
+    },
+    "corpse_spitter": {
+      "atlas": "Corpses",
+      "kind": "corpse",
+      "pattern": "spitter_corpse_{variant}",
+      "variants": 6,
+      "worldScale": 1.02,
+      "note": "lies on the deck; the web game draws runner remains for runner/spitter and none for boomers (scorch decal instead)",
+      "sizePoints": [
+        36,
+        31
+      ],
+      "pixelSize3x": [
+        108,
+        93
+      ],
+      "anchor": [
+        0.5,
+        0.3871
+      ],
+      "anchorPixel3x": [
+        54,
+        57
+      ],
+      "screenSizeMetres": [
+        1.5,
+        1.292
+      ]
+    },
+    "cryo_dash": {
+      "atlas": "Marines",
+      "glowAtlas": "MarinesGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "marine",
+      "pattern": "cryo_dash_{dir:02}",
+      "directions": 16,
+      "frames": 1,
+      "note": "dash (0.22 s): body leans 0.35 rad forward; like the web game it keeps facing the AIM heading (dir = aim), legs half-swung",
+      "sizePoints": [
+        66,
+        61
+      ],
+      "pixelSize3x": [
+        198,
+        183
+      ],
+      "anchor": [
+        0.5,
+        0.27869
+      ],
+      "anchorPixel3x": [
+        99,
+        132
+      ],
+      "screenSizeMetres": [
+        2.75,
+        2.542
+      ]
+    },
+    "cryo_downed": {
+      "atlas": "Marines",
+      "glowAtlas": "MarinesGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "marine",
+      "pattern": "cryo_downed_{dir:02}",
+      "directions": 16,
+      "frames": 1,
+      "note": "lying on the back (rotation.x = -1.35, raised 0.28 m)",
+      "sizePoints": [
+        100,
+        87
+      ],
+      "pixelSize3x": [
+        300,
+        261
+      ],
+      "anchor": [
+        0.5,
+        0.4023
+      ],
+      "anchorPixel3x": [
+        150,
+        156
+      ],
+      "screenSizeMetres": [
+        4.167,
+        3.625
+      ]
+    },
+    "cryo_idle": {
+      "atlas": "Marines",
+      "glowAtlas": "MarinesGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "marine",
+      "pattern": "cryo_idle_{dir:02}",
+      "directions": 16,
+      "frames": 1,
+      "sizePoints": [
+        50,
+        47
+      ],
+      "pixelSize3x": [
+        150,
+        141
+      ],
+      "anchor": [
+        0.5,
+        0.19149
+      ],
+      "anchorPixel3x": [
+        75,
+        114
+      ],
+      "screenSizeMetres": [
+        2.083,
+        1.958
+      ]
+    },
+    "cryo_run": {
+      "atlas": "Marines",
+      "glowAtlas": "MarinesGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "marine",
+      "pattern": "cryo_run_{dir:02}_{frame}",
+      "directions": 16,
+      "frames": 8,
+      "loop": true,
+      "framesPerMetre": 3.31,
+      "fpsAtBaseSpeed": 17.5,
+      "note": "direction = AIM heading (the web marine always faces its aim); legs swing along it",
+      "sizePoints": [
+        50,
+        51
+      ],
+      "pixelSize3x": [
+        150,
+        153
+      ],
+      "anchor": [
+        0.5,
+        0.2549
+      ],
+      "anchorPixel3x": [
+        75,
+        114
+      ],
+      "screenSizeMetres": [
+        2.083,
+        2.125
+      ]
+    },
+    "cryo_strafe": {
+      "atlas": "Marines",
+      "glowAtlas": "MarinesGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "marine",
+      "pattern": "cryo_strafe_{dir:02}_{frame}",
+      "directions": 16,
+      "frames": 4,
+      "loop": true,
+      "framesPerMetre": 1.655,
+      "note": "moving sideways to the aim (|cos(move - aim)| < 0.5): legs swing sideways. Running backwards = run frames played in reverse",
+      "sizePoints": [
+        50,
+        50
+      ],
+      "pixelSize3x": [
+        150,
+        150
+      ],
+      "anchor": [
+        0.5,
+        0.24
+      ],
+      "anchorPixel3x": [
+        75,
+        114
+      ],
+      "screenSizeMetres": [
+        2.083,
+        2.083
+      ]
+    },
+    "glob": {
+      "atlas": "Props",
+      "kind": "prop",
+      "pattern": "glob",
+      "note": "acid glob (unlit, centre anchor): place at the arc height",
+      "sizePoints": [
+        14,
+        12
+      ],
+      "pixelSize3x": [
+        42,
+        36
+      ],
+      "anchor": [
+        0.5,
+        0.5
+      ],
+      "anchorPixel3x": [
+        21,
+        18
+      ],
+      "screenSizeMetres": [
+        0.583,
+        0.5
+      ]
+    },
+    "grenade": {
+      "atlas": "Props",
+      "kind": "prop",
+      "pattern": "grenade",
+      "note": "unlit, centre anchor",
+      "sizePoints": [
+        10,
+        10
+      ],
+      "pixelSize3x": [
+        30,
+        30
+      ],
+      "anchor": [
+        0.5,
+        0.5
+      ],
+      "anchorPixel3x": [
+        15,
+        15
+      ],
+      "screenSizeMetres": [
+        0.417,
+        0.417
+      ]
+    },
+    "gunner_dash": {
+      "atlas": "Marines",
+      "glowAtlas": "MarinesGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "marine",
+      "pattern": "gunner_dash_{dir:02}",
+      "directions": 16,
+      "frames": 1,
+      "note": "dash (0.22 s): body leans 0.35 rad forward; like the web game it keeps facing the AIM heading (dir = aim), legs half-swung",
+      "sizePoints": [
+        74,
+        64
+      ],
+      "pixelSize3x": [
+        222,
+        192
+      ],
+      "anchor": [
+        0.5,
+        0.3125
+      ],
+      "anchorPixel3x": [
+        111,
+        132
+      ],
+      "screenSizeMetres": [
+        3.083,
+        2.667
+      ]
+    },
+    "gunner_downed": {
+      "atlas": "Marines",
+      "glowAtlas": "MarinesGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "marine",
+      "pattern": "gunner_downed_{dir:02}",
+      "directions": 16,
+      "frames": 1,
+      "note": "lying on the back (rotation.x = -1.35, raised 0.28 m)",
+      "sizePoints": [
+        100,
+        87
+      ],
+      "pixelSize3x": [
+        300,
+        261
+      ],
+      "anchor": [
+        0.5,
+        0.4023
+      ],
+      "anchorPixel3x": [
+        150,
+        156
+      ],
+      "screenSizeMetres": [
+        4.167,
+        3.625
+      ]
+    },
+    "gunner_idle": {
+      "atlas": "Marines",
+      "glowAtlas": "MarinesGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "marine",
+      "pattern": "gunner_idle_{dir:02}",
+      "directions": 16,
+      "frames": 1,
+      "sizePoints": [
+        56,
+        50
+      ],
+      "pixelSize3x": [
+        168,
+        150
+      ],
+      "anchor": [
+        0.5,
+        0.18
+      ],
+      "anchorPixel3x": [
+        84,
+        123
+      ],
+      "screenSizeMetres": [
+        2.333,
+        2.083
+      ]
+    },
+    "gunner_run": {
+      "atlas": "Marines",
+      "glowAtlas": "MarinesGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "marine",
+      "pattern": "gunner_run_{dir:02}_{frame}",
+      "directions": 16,
+      "frames": 8,
+      "loop": true,
+      "framesPerMetre": 3.31,
+      "fpsAtBaseSpeed": 17.5,
+      "note": "direction = AIM heading (the web marine always faces its aim); legs swing along it",
+      "sizePoints": [
+        56,
+        54
+      ],
+      "pixelSize3x": [
+        168,
+        162
+      ],
+      "anchor": [
+        0.5,
+        0.24074
+      ],
+      "anchorPixel3x": [
+        84,
+        123
+      ],
+      "screenSizeMetres": [
+        2.333,
+        2.25
+      ]
+    },
+    "gunner_strafe": {
+      "atlas": "Marines",
+      "glowAtlas": "MarinesGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "marine",
+      "pattern": "gunner_strafe_{dir:02}_{frame}",
+      "directions": 16,
+      "frames": 4,
+      "loop": true,
+      "framesPerMetre": 1.655,
+      "note": "moving sideways to the aim (|cos(move - aim)| < 0.5): legs swing sideways. Running backwards = run frames played in reverse",
+      "sizePoints": [
+        56,
+        53
+      ],
+      "pixelSize3x": [
+        168,
+        159
+      ],
+      "anchor": [
+        0.5,
+        0.22642
+      ],
+      "anchorPixel3x": [
+        84,
+        123
+      ],
+      "screenSizeMetres": [
+        2.333,
+        2.208
+      ]
+    },
+    "medkit": {
+      "atlas": "Props",
+      "kind": "prop",
+      "pattern": "medkit",
+      "sizePoints": [
+        20,
+        21
+      ],
+      "pixelSize3x": [
+        60,
+        63
+      ],
+      "anchor": [
+        0.5,
+        0.38095
+      ],
+      "anchorPixel3x": [
+        30,
+        39
+      ],
+      "screenSizeMetres": [
+        0.833,
+        0.875
+      ]
+    },
+    "pyro_dash": {
+      "atlas": "Marines",
+      "glowAtlas": "MarinesGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "marine",
+      "pattern": "pyro_dash_{dir:02}",
+      "directions": 16,
+      "frames": 1,
+      "note": "dash (0.22 s): body leans 0.35 rad forward; like the web game it keeps facing the AIM heading (dir = aim), legs half-swung",
+      "sizePoints": [
+        72,
+        64
+      ],
+      "pixelSize3x": [
+        216,
+        192
+      ],
+      "anchor": [
+        0.5,
+        0.3125
+      ],
+      "anchorPixel3x": [
+        108,
+        132
+      ],
+      "screenSizeMetres": [
+        3,
+        2.667
+      ]
+    },
+    "pyro_downed": {
+      "atlas": "Marines",
+      "glowAtlas": "MarinesGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "marine",
+      "pattern": "pyro_downed_{dir:02}",
+      "directions": 16,
+      "frames": 1,
+      "note": "lying on the back (rotation.x = -1.35, raised 0.28 m)",
+      "sizePoints": [
+        100,
+        87
+      ],
+      "pixelSize3x": [
+        300,
+        261
+      ],
+      "anchor": [
+        0.5,
+        0.4023
+      ],
+      "anchorPixel3x": [
+        150,
+        156
+      ],
+      "screenSizeMetres": [
+        4.167,
+        3.625
+      ]
+    },
+    "pyro_idle": {
+      "atlas": "Marines",
+      "glowAtlas": "MarinesGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "marine",
+      "pattern": "pyro_idle_{dir:02}",
+      "directions": 16,
+      "frames": 1,
+      "sizePoints": [
+        56,
+        50
+      ],
+      "pixelSize3x": [
+        168,
+        150
+      ],
+      "anchor": [
+        0.5,
+        0.18
+      ],
+      "anchorPixel3x": [
+        84,
+        123
+      ],
+      "screenSizeMetres": [
+        2.333,
+        2.083
+      ]
+    },
+    "pyro_run": {
+      "atlas": "Marines",
+      "glowAtlas": "MarinesGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "marine",
+      "pattern": "pyro_run_{dir:02}_{frame}",
+      "directions": 16,
+      "frames": 8,
+      "loop": true,
+      "framesPerMetre": 3.31,
+      "fpsAtBaseSpeed": 17.5,
+      "note": "direction = AIM heading (the web marine always faces its aim); legs swing along it",
+      "sizePoints": [
+        56,
+        54
+      ],
+      "pixelSize3x": [
+        168,
+        162
+      ],
+      "anchor": [
+        0.5,
+        0.24074
+      ],
+      "anchorPixel3x": [
+        84,
+        123
+      ],
+      "screenSizeMetres": [
+        2.333,
+        2.25
+      ]
+    },
+    "pyro_strafe": {
+      "atlas": "Marines",
+      "glowAtlas": "MarinesGlow",
+      "glowSuffix": "_g",
+      "glowBlend": "add",
+      "glowScale": "2x only",
+      "kind": "marine",
+      "pattern": "pyro_strafe_{dir:02}_{frame}",
+      "directions": 16,
+      "frames": 4,
+      "loop": true,
+      "framesPerMetre": 1.655,
+      "note": "moving sideways to the aim (|cos(move - aim)| < 0.5): legs swing sideways. Running backwards = run frames played in reverse",
+      "sizePoints": [
+        56,
+        53
+      ],
+      "pixelSize3x": [
+        168,
+        159
+      ],
+      "anchor": [
+        0.5,
+        0.22642
+      ],
+      "anchorPixel3x": [
+        84,
+        123
+      ],
+      "screenSizeMetres": [
+        2.333,
+        2.208
       ]
     },
     "runner_climb": {
@@ -521,15 +1394,15 @@
       "note": "S_CLIMB below the deck edge (y < -0.85): body pitched 1.4 rad nose-up against the platform wall",
       "sizePoints": [
         52,
-        46
+        48
       ],
       "pixelSize3x": [
         156,
-        138
+        144
       ],
       "anchor": [
         0.5,
-        0.52174
+        0.54167
       ],
       "anchorPixel3x": [
         78,
@@ -537,7 +1410,7 @@
       ],
       "screenSizeMetres": [
         2.167,
-        1.917
+        2
       ]
     },
     "spitter_crest": {
@@ -637,6 +1510,59 @@
       "screenSizeMetres": [
         1.833,
         1.792
+      ]
+    },
+    "turret_base": {
+      "atlas": "Props",
+      "kind": "prop",
+      "pattern": "turret_base",
+      "note": "auto-turret tripod; draw turret_head_{dir} on top at the same anchor",
+      "sizePoints": [
+        23,
+        25
+      ],
+      "pixelSize3x": [
+        69,
+        75
+      ],
+      "anchor": [
+        0.56522,
+        0.36
+      ],
+      "anchorPixel3x": [
+        39,
+        48
+      ],
+      "screenSizeMetres": [
+        0.958,
+        1.042
+      ]
+    },
+    "turret_head": {
+      "atlas": "Props",
+      "kind": "prop",
+      "pattern": "turret_head_{dir:02}",
+      "directions": 16,
+      "note": "anchor = turret base point (the head pivot sits 0.95 m up)",
+      "sizePoints": [
+        42,
+        36
+      ],
+      "pixelSize3x": [
+        126,
+        108
+      ],
+      "anchor": [
+        0.5,
+        0.16667
+      ],
+      "anchorPixel3x": [
+        63,
+        90
+      ],
+      "screenSizeMetres": [
+        1.75,
+        1.5
       ]
     }
   }

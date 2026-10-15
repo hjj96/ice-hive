@@ -13,7 +13,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { openGamePage, TOOLS, RES, OUT } from './lib/gamepage.mjs';
-import { Catalog, runSet, contactSheet, savePNG, json, MPPM, SIN_P, COS_P, PT_PER_M, AMBIENT } from './lib/pipeline.mjs';
+import { Catalog, runSet, contactSheet, savePNG, json, MPPM, SIN_P, COS_P, PT_PER_M, AMBIENT, previewRows, composePreview } from './lib/pipeline.mjs';
 import { renderFx } from './lib/fx.mjs';
 import { renderLevel } from './lib/level.mjs';
 import { renderBackground } from './lib/background.mjs';
@@ -24,7 +24,12 @@ const want = (s) => !onlyArg || onlyArg.includes(s);
 const XC = path.join(RES, 'Assets.xcassets');
 const MANIFEST = path.join(RES, 'sprites-manifest.json');
 const SHEETS = path.join(OUT, 'sheets');
+const PREVIEWS = path.join(TOOLS, 'previews');   // committed: one small PNG per group
 fs.mkdirSync(SHEETS, { recursive: true });
+fs.mkdirSync(PREVIEWS, { recursive: true });
+const preview = { group: null, rows: [] };
+function previewBegin(group) { preview.group = group; preview.rows = []; }
+function previewEnd(k = 2) { if (preview.rows.length) savePNG(path.join(PREVIEWS, preview.group + '.png'), composePreview(preview.rows, k)); preview.group = null; preview.rows = []; }
 // the root catalog Contents.json (identical to the one Xcode writes, so branches merge cleanly)
 if (!fs.existsSync(path.join(XC, 'Contents.json'))) { fs.mkdirSync(XC, { recursive: true }); fs.writeFileSync(path.join(XC, 'Contents.json'), json({ info: { author: 'xcode', version: 1 } })); }
 
@@ -58,6 +63,7 @@ async function set(def, cols, sheetOpts = {}) {
   const { entry, sheet } = await runSet(page, cat, def);
   manifest.sets[def.id] = entry;
   savePNG(path.join(SHEETS, def.id + '.png'), contactSheet(sheet, cols, sheetOpts));
+  if (preview.group && def.preview !== false) preview.rows.push(previewRows(sheet, def.previewOpts));
   return entry;
 }
 function dirFrames(prefix, frames, poseFn, fn, extraArgs) {
@@ -71,6 +77,7 @@ function dropSets(prefixes) { for (const k of Object.keys(manifest.sets)) if (pr
 
 // ------------------------------------------------------------------ bugs
 if (want('bugs')) {
+  previewBegin('bugs');
   dropSets(BUGS.map(b => b.id + '_').filter(p => !p.endsWith('corpse_')));
   for (const b of BUGS) {
     const fpm = +(64 / (TAU * b.scale)).toFixed(3);   // gait: phase += speed * dt * 8 / scale, 8 frames per 2π
@@ -82,14 +89,14 @@ if (want('bugs')) {
       meta: { kind: 'bug', pattern: `${b.id}_walk_{dir:02}_{frame}`, directions: DIRS, frames: 8, loop: true, framesPerMetre: fpm, fpsAtBaseSpeed: +(fpm * b.speed).toFixed(1), worldScale: b.scale },
     }, 8);
     // climbing the platform side (nose up 1.4 rad) and cresting the railing (0.7 rad); phase += dt * 14
-    const climbC = cv(b.R, b.Hm * 1.5);
+    const climbC = cv(b.R, b.Hm * 1.5, b.Hm * 0.6);
     await set({
-      id: `${b.id}_climb`, atlas: 'Bugs', glowAtlas: 'BugsGlow', ...climbC,
+      id: `${b.id}_climb`, preview: false, atlas: 'Bugs', glowAtlas: 'BugsGlow', ...climbC,
       frames: dirFrames(`${b.id}_climb`, 4, (hd, f) => ({ hd, ph: f * TAU / 4, s: b.scale, v: BUG_V, pitch: 1.4 }), 'bug', body),
       meta: { kind: 'bug', pattern: `${b.id}_climb_{dir:02}_{frame}`, directions: DIRS, frames: 4, loop: true, fps: +(14 / TAU * 4).toFixed(1), worldScale: b.scale, note: 'S_CLIMB below the deck edge (y < -0.85): body pitched 1.4 rad nose-up against the platform wall' },
     }, 4);
     await set({
-      id: `${b.id}_crest`, atlas: 'Bugs', glowAtlas: 'BugsGlow', ...climbC,
+      id: `${b.id}_crest`, preview: false, atlas: 'Bugs', glowAtlas: 'BugsGlow', ...climbC,
       frames: dirFrames(`${b.id}_crest`, 2, (hd, f) => ({ hd, ph: f * Math.PI, s: b.scale, v: BUG_V, pitch: 0.7 }), 'bug', body),
       meta: { kind: 'bug', pattern: `${b.id}_crest_{dir:02}_{frame}`, directions: DIRS, frames: 2, loop: true, fps: +(14 / TAU * 2).toFixed(1), worldScale: b.scale, note: 'S_CLIMB while cresting the railing (-0.85 < y < 0): pitch 0.7 rad; switch to walk at y >= -0.1' },
     }, 2);
@@ -113,10 +120,12 @@ if (want('bugs')) {
       meta: { kind: 'shadow', pattern: `${b.id}_shadow_{dir:02}`, directions: DIRS, frames: 1, worldScale: b.scale, note: 'dark contact smudge (opaque near-black in the game; crowds merge into a black flood). Draw under all bugs, alpha ~0.9; hide while climbing' },
     }, 8, { dark: false });
   }
+  previewEnd(3);
 }
 
 // ------------------------------------------------------------------ corpses
 if (want('corpses')) {
+  previewBegin('corpses');
   dropSets(['corpse_']);
   for (const b of BUGS) {
     const v = 1.9, tint = b.t === 1 ? [v * 0.85, v * 0.95, v * 0.58] : [v, v * 0.72, v * 0.58];
@@ -128,10 +137,12 @@ if (want('corpses')) {
       meta: { kind: 'corpse', pattern: `${b.id}_corpse_{variant}`, variants: 6, worldScale: b.scale, note: 'lies on the deck; the web game draws runner remains for runner/spitter and none for boomers (scorch decal instead)' },
     }, 6, { dark: true });
   }
+  previewEnd(2);
 }
 
 // ------------------------------------------------------------------ marines
 if (want('marines')) {
+  previewBegin('marines');
   dropSets(CLASSES.map(c => c + '_'));
   for (const cls of CLASSES) {
     const C = cv(1.15, 2.25);
@@ -139,17 +150,21 @@ if (want('marines')) {
     const fpm = +(2.6 * 8 / TAU).toFixed(3);   // walkPh += speed * dt * 2.6
     await set({ id: `${cls}_run`, atlas: 'Marines', glowAtlas: 'MarinesGlow', ...C, frames: mk('run', 8, (f) => f * TAU / 8),
       meta: { kind: 'marine', pattern: `${cls}_run_{dir:02}_{frame}`, directions: DIRS, frames: 8, loop: true, framesPerMetre: fpm, fpsAtBaseSpeed: +(fpm * 5.3).toFixed(1), note: 'direction = AIM heading (the web marine always faces its aim); legs swing along it' } }, 8);
-    await set({ id: `${cls}_idle`, atlas: 'Marines', glowAtlas: 'MarinesGlow', ...C, frames: mk('idle', 1, () => 0),
+    await set({ id: `${cls}_strafe`, preview: false, atlas: 'Marines', glowAtlas: 'MarinesGlow', ...C, frames: dirFrames(`${cls}_strafe`, 4, (hd, f) => ({ hd, anim: 'strafe', rel: 0, ph: f * TAU / 4 }), 'marine', (pose) => [cls, pose]),
+      meta: { kind: 'marine', pattern: `${cls}_strafe_{dir:02}_{frame}`, directions: DIRS, frames: 4, loop: true, framesPerMetre: +(fpm / 2).toFixed(3), note: 'moving sideways to the aim (|cos(move - aim)| < 0.5): legs swing sideways. Running backwards = run frames played in reverse' } }, 4);
+    await set({ id: `${cls}_idle`, preview: false, atlas: 'Marines', glowAtlas: 'MarinesGlow', ...C, frames: mk('idle', 1, () => 0),
       meta: { kind: 'marine', pattern: `${cls}_idle_{dir:02}`, directions: DIRS, frames: 1 } }, 8);
-    await set({ id: `${cls}_dash`, atlas: 'Marines', glowAtlas: 'MarinesGlow', ...C, frames: mk('dash', 1, () => Math.PI / 2),
-      meta: { kind: 'marine', pattern: `${cls}_dash_{dir:02}`, directions: DIRS, frames: 1, note: 'dash (0.22 s): leaning 0.35 rad forward; use the dash direction' } }, 8);
-    await set({ id: `${cls}_downed`, atlas: 'Marines', glowAtlas: 'MarinesGlow', ...cv(1.5, 1.2), frames: mk('downed', 1, () => 0),
+    await set({ id: `${cls}_dash`, preview: false, atlas: 'Marines', glowAtlas: 'MarinesGlow', ...cv(1.6, 2.3), frames: mk('dash', 1, () => Math.PI / 2),
+      meta: { kind: 'marine', pattern: `${cls}_dash_{dir:02}`, directions: DIRS, frames: 1, note: 'dash (0.22 s): body leans 0.35 rad forward; like the web game it keeps facing the AIM heading (dir = aim), legs half-swung' } }, 8);
+    await set({ id: `${cls}_downed`, atlas: 'Marines', glowAtlas: 'MarinesGlow', ...cv(2.4, 1.0), frames: mk('downed', 1, () => 0),
       meta: { kind: 'marine', pattern: `${cls}_downed_{dir:02}`, directions: DIRS, frames: 1, note: 'lying on the back (rotation.x = -1.35, raised 0.28 m)' } }, 8);
   }
+  previewEnd(2);
 }
 
 // ------------------------------------------------------------------ small props
 if (want('props')) {
+  previewBegin('props');
   dropSets(['turret_', 'medkit', 'glob', 'grenade', 'beacon_top']);
   const one = (id, name, rot, C, meta) => set({ id, atlas: 'Props', ...C, frames: [{ name, fn: 'prop', args: [name, rot] }], meta }, 1);
   await one('turret_base', 'turret_base', 0, cv(0.6, 1.0), { kind: 'prop', pattern: 'turret_base', note: 'auto-turret tripod; draw turret_head_{dir} on top at the same anchor' });
@@ -160,6 +175,7 @@ if (want('props')) {
   await one('grenade', 'grenade', 0, cv(0.3, 0.4, 0.2), { kind: 'prop', pattern: 'grenade', note: 'unlit, centre anchor' });
   await set({ id: 'beacon_top', atlas: 'Props', ...cv(0.6, 0.6, 0.6), frames: [0, 1, 2, 3].map(k => ({ name: `beacon_top_${k}`, fn: 'prop', args: ['beacon_top', k * Math.PI / 8] })),
     meta: { kind: 'prop', pattern: 'beacon_top_{frame}', frames: 4, loop: true, note: 'white octahedron spinning 1.2 rad/s (4 rad/s while charging); tint with the beacon state colour x1.6; centre anchor, hover 2.9 m above the beacon base' } }, 4);
+  previewEnd(2);
 }
 
 if (want('fx')) await renderFx(page, cat, manifest, SHEETS);
