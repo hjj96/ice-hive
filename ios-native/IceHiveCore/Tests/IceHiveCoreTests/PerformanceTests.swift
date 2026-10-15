@@ -30,8 +30,9 @@ final class PerformanceTests: XCTestCase {
         XCTAssertEqual(g.phase, .playing)
     }
 
-    func testMissionThroughput() {
-        // a full autopilot mission's simulation time, for the log
+    func testMissionThroughput() throws {
+        // a full autopilot mission's simulation time, for the log (the mission tests already cover debug builds)
+        if !PerformanceTests.optimized { throw XCTSkip("release builds only (swift test -c release)") }
         var cfg = GameConfig()
         cfg.autopilot = true; cfg.autoPickUpgrades = true
         let g = Game(seed: 5, playerClass: .assault, config: cfg)

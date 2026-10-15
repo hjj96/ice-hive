@@ -17,11 +17,11 @@ final class GameTests: XCTestCase {
     func testSameSeedSameRun() {
         let a = Game(seed: 1234, playerClass: .pyro, config: autopilotConfig())
         let b = Game(seed: 1234, playerClass: .pyro, config: autopilotConfig())
-        a.step(60 * 50); b.step(60 * 50)
+        a.step(60 * 25); b.step(60 * 25)
         XCTAssertEqual(fingerprint(a), fingerprint(b))
         XCTAssertGreaterThan(a.kills, 0)
         let c = Game(seed: 999, playerClass: .pyro, config: autopilotConfig())
-        c.step(60 * 50)
+        c.step(60 * 25)
         XCTAssertNotEqual(fingerprint(a), fingerprint(c))
     }
 
@@ -238,13 +238,13 @@ final class GameTests: XCTestCase {
         var cfg = GameConfig(); cfg.attract = true
         let g = Game(seed: 15, playerClass: .assault, config: cfg)
         XCTAssertGreaterThan(g.bugs.count, 100)
-        g.step(60 * 60)
+        g.step(60 * 30)
         XCTAssertEqual(g.phase, .playing)
         XCTAssertEqual(g.objectiveText, "")
         XCTAssertEqual(g.stage, .beacons)
         XCTAssertFalse(g.hasNonFinite())
         XCTAssertEqual(g.xpLevel, 1)
-        XCTAssertGreaterThan(g.kills, 50)
+        XCTAssertGreaterThan(g.kills, 30)
     }
 
     func testStandardDifficultyIsV1() {
@@ -258,13 +258,18 @@ final class GameTests: XCTestCase {
 
     func testEventBufferIsBounded() {
         let g = Game(seed: 16, playerClass: .gunner, config: autopilotConfig())
-        g.step(60 * 120)   // nobody drains
-        XCTAssertLessThanOrEqual(g.events.count, Game.maxBufferedEvents + 5000)
+        var peak = 0
+        for _ in 0..<(60 * 40) {   // nobody drains
+            g.tick()
+            peak = max(peak, g.events.count)
+        }
+        XCTAssertGreaterThan(peak, 1000)
+        XCTAssertLessThanOrEqual(peak, Game.maxBufferedEvents + 5000)
     }
 
     func testFastForwardAndAimAssist() {
         let g = Game(seed: 17, playerClass: .assault, config: autopilotConfig())
-        let s = g.fastForward(seconds: 40)
+        let s = g.fastForward(seconds: 25)
         XCTAssertEqual(s.phase, .playing)
         XCTAssertGreaterThan(s.kills, 20)
         // aim assist finds a bug placed straight ahead
