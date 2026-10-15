@@ -1,0 +1,59 @@
+{
+  "note": "register the .ttf files under UIAppFonts in Info.plist (paths relative to the bundle, e.g. \"Fonts/Oswald-Medium.ttf\" when the folder is a folder reference, or just the file names when the files are copied flat) and create them with UIFont(name: postScriptName, size:) / SKLabelNode(fontNamed: postScriptName). The web UI (game/head.html): Oswald = --font-display for every label, nameplate, button, toast and banner (500 small letter-spaced labels and nameplates, 600 objective text / buttons / the player’s own nameplate, 700 the big banner); JetBrains Mono = --font-mono for the numbers (kill counter, timer, combo, armour value, level, distance marker: 700, tabular). Licence: SIL OFL 1.1 (OFL-*.txt, keep them in the bundle / acknowledgements).",
+  "fonts": [
+    {
+      "file": "Oswald-Regular.ttf",
+      "family": "Oswald",
+      "weight": 400,
+      "postScriptName": "Oswald-Regular",
+      "fullName": "Oswald Regular",
+      "cyrillic": true,
+      "bytes": 87248
+    },
+    {
+      "file": "Oswald-Medium.ttf",
+      "family": "Oswald",
+      "weight": 500,
+      "postScriptName": "Oswald-Medium",
+      "fullName": "Oswald Medium",
+      "cyrillic": true,
+      "bytes": 87592
+    },
+    {
+      "file": "Oswald-SemiBold.ttf",
+      "family": "Oswald",
+      "weight": 600,
+      "postScriptName": "Oswald-SemiBold",
+      "fullName": "Oswald SemiBold",
+      "cyrillic": true,
+      "bytes": 87604
+    },
+    {
+      "file": "Oswald-Bold.ttf",
+      "family": "Oswald",
+      "weight": 700,
+      "postScriptName": "Oswald-Bold",
+      "fullName": "Oswald Bold",
+      "cyrillic": true,
+      "bytes": 87600
+    },
+    {
+      "file": "JetBrainsMono-Medium.ttf",
+      "family": "JetBrains Mono",
+      "weight": 500,
+      "postScriptName": "JetBrainsMono-Medium",
+      "fullName": "JetBrains Mono Medium",
+      "cyrillic": true,
+      "bytes": 114920
+    },
+    {
+      "file": "JetBrainsMono-Bold.ttf",
+      "family": "JetBrains Mono",
+      "weight": 700,
+      "postScriptName": "JetBrainsMono-Bold",
+      "fullName": "JetBrains Mono Bold",
+      "cyrillic": true,
+      "bytes": 114828
+    }
+  ]
+}
