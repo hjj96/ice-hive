@@ -548,6 +548,9 @@ final class HUD {
         damage.alpha = CGFloat(min(1, damageA * 0.8 + low))
         flash.alpha = CGFloat(flashA * 0.45)
         horde.alpha = CGFloat(hordeA * (0.6 + 0.4 * sinf(game.time * 18)))
+        // full-screen quads: skip the fill entirely while invisible
+        for n in [damage, flash, horde] { n.isHidden = n.alpha < 0.004 }
+        banner.isHidden = banner.alpha < 0.004
 
         plates.update(game: game, camera: camera, marines: marines, size: size)
         updateMarker(game: game, camera: camera)

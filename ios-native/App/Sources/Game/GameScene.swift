@@ -145,7 +145,12 @@ final class GameScene: SKScene {
             guard let s = self else { return false }
             return s.hud.dashButton.contains(hudPoint: s.hud.hp(p.x, p.y))
         }
-        audio = AudioEngine(enabled: !options.mute)
+        // sounds decode on a background queue (≈ 1.5 s) while the sheets decode; the scene plays nothing until then
+        let mute = options.mute
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let engine = AudioEngine(enabled: !mute)
+            DispatchQueue.main.async { self?.audio = engine }
+        }
         let pages = a.sheets.pages
         AppLog.info(String(format: "world built in %.0f ms; preloading %d sheets", (ProcessInfo.processInfo.systemUptime - t0) * 1000, pages.count))
         let t1 = ProcessInfo.processInfo.systemUptime

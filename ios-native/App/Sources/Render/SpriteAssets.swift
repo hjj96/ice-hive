@@ -210,8 +210,8 @@ final class FrameSet {
 //  SPRITE ASSETS — the sheets + the frame tables the layers index
 // ================================================================
 final class SpriteAssets {
-    let manifest = SpriteManifest()
-    let sheets = SpriteSheets()
+    let manifest: SpriteManifest
+    let sheets: SpriteSheets
 
     // bugs, index = BugType.rawValue
     private(set) var bugWalk: [FrameSet] = []
@@ -233,7 +233,11 @@ final class SpriteAssets {
     private(set) var marineDowned: [FrameSet] = []
 
     init() {
+        let t0 = ProcessInfo.processInfo.systemUptime
+        manifest = SpriteManifest()
+        sheets = SpriteSheets()
         let S = sheets
+        let tSheets = ProcessInfo.processInfo.systemUptime
         bruteCharge = FrameSet(S, "brute_charge", frames: 4, glow: true, info: manifest.info("brute_charge"))
         boomerSwell = FrameSet(S, "boomer_swell", frames: 3, glow: true, info: manifest.info("boomer_swell"))
         for t in BugType.allCases {
@@ -253,7 +257,9 @@ final class SpriteAssets {
             marineDash.append(FrameSet(S, "\(id)_dash", frames: 1, glow: true, info: manifest.info("\(id)_dash")))
             marineDowned.append(FrameSet(S, "\(id)_downed", frames: 1, glow: true, info: manifest.info("\(id)_downed")))
         }
-        AppLog.info("sheets: \(sheets.pages.count) pages (\(sheets.pageNames.joined(separator: ","))), \(sheets.frameCount) frames")
+        let t1 = ProcessInfo.processInfo.systemUptime
+        AppLog.info("sheets: \(sheets.pages.count) pages (\(sheets.pageNames.joined(separator: ","))), \(sheets.frameCount) frames"
+                    + String(format: "; index %.0f ms, frame tables %.0f ms", (tSheets - t0) * 1000, (t1 - tSheets) * 1000))
     }
 
     /// Corpse frame of a bug type (6 variants).

@@ -213,6 +213,12 @@ jobs:
               sleep $((s - t)); t=$s
               xcrun simctl io "$UDID" screenshot "results/$label-${s}s.png"
             done
+            # let the app reach -seconds and log its fps summary before it is stopped
+            w=0
+            until grep -q 'demo done' "results/app-$label.log" 2>/dev/null; do
+              sleep 1; w=$((w + 1))
+              if [ $w -ge 20 ]; then echo "$label: no 'demo done' line"; break; fi
+            done
             if xcrun simctl spawn "$UDID" launchctl list | grep -q 'UIKitApplication:com.hjj96.icehive'; then
               echo "$label alive" >> results/alive.txt
             else
