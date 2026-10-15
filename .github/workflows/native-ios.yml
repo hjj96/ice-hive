@@ -1,0 +1,305 @@
+name: native-ios
+
+# Native Swift + SpriteKit build of «Ледяной Улей» (ios-native/).
+# Results of every run are committed to branch `ci-results` under <branch>/<short-sha>/:
+#   status.json, core-tests.log, build.log, xcodebuild-tail.log, sim-*.png, app.log, app-stdout.log
+on:
+  push:
+    branches: ['native*']
+    paths:
+      - 'ios-native/**'
+      - '.github/workflows/native-ios.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: native-ios-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+env:
+  HOMEBREW_NO_AUTO_UPDATE: '1'
+  HOMEBREW_NO_INSTALL_CLEANUP: '1'
+  BUNDLE_ID: com.hjj96.icehive
+
+jobs:
+  core-tests:
+    name: core-tests
+    runs-on: ${{ vars.NATIVE_MACOS_RUNNER || 'macos-26' }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: ios-native/ci/select_xcode.sh
+      - name: Cache SwiftPM build
+        uses: actions/cache@v4
+        with:
+          path: ios-native/IceHiveCore/.build
+          key: spm-core-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('ios-native/IceHiveCore/Package.swift', 'ios-native/IceHiveCore/Package.resolved') }}-${{ hashFiles('ios-native/IceHiveCore/**/*.swift') }}
+          restore-keys: |
+            spm-core-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('ios-native/IceHiveCore/Package.swift', 'ios-native/IceHiveCore/Package.resolved') }}-
+      - name: swift test
+        working-directory: ios-native/IceHiveCore
+        run: |
+          set -o pipefail
+          mkdir -p "$GITHUB_WORKSPACE/results"
+          swift --version 2>&1 | tee "$GITHUB_WORKSPACE/results/core-tests.full.log"
+          swift test 2>&1 | tee -a "$GITHUB_WORKSPACE/results/core-tests.full.log"
+      - name: Collect log
+        if: always()
+        run: |
+          mkdir -p results
+          if [ -f results/core-tests.full.log ]; then
+            { grep -E 'error:' results/core-tests.full.log | head -100 || true; echo '--- tail ---'; tail -n 300 results/core-tests.full.log; } > results/core-tests.log
+            rm results/core-tests.full.log
+          else
+            echo "swift test did not run" > results/core-tests.log
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: results-core-tests
+          path: results/
+          retention-days: 7
+
+  build:
+    name: build
+    runs-on: ${{ vars.NATIVE_MACOS_RUNNER || 'macos-26' }}
+    timeout-minutes: 45
+    outputs:
+      xcode: ${{ steps.env.outputs.xcode }}
+      runner: ${{ steps.env.outputs.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: ios-native/ci/select_xcode.sh
+      - name: Environment
+        id: env
+        run: |
+          xcode="$(xcodebuild -version | tr '\n' ' ' | sed 's/ *$//')"
+          echo "xcode=$xcode" >> "$GITHUB_OUTPUT"
+          echo "runner=${ImageOS:-unknown} ${ImageVersion:-} $(uname -m) macOS $(sw_vers -productVersion)" >> "$GITHUB_OUTPUT"
+          xcrun simctl list runtimes
+          xcrun simctl list devices available | grep -E 'iPhone|-- iOS' || true
+      - name: Install XcodeGen
+        run: brew install xcodegen && xcodegen --version
+      - name: Generate project
+        working-directory: ios-native
+        run: xcodegen generate
+      - name: xcodebuild (iOS Simulator)
+        working-directory: ios-native
+        run: |
+          set +e
+          mkdir -p "$GITHUB_WORKSPACE/results"
+          xcodebuild build \
+            -project IceHive.xcodeproj \
+            -scheme IceHive \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/DD \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            ONLY_ACTIVE_ARCH=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            > "$GITHUB_WORKSPACE/xcodebuild.full.log" 2>&1
+          rc=$?
+          grep -E '(error|warning):|\*\* BUILD' "$GITHUB_WORKSPACE/xcodebuild.full.log" | awk '!seen[$0]++' | head -300
+          echo "--- tail ---"; tail -n 40 "$GITHUB_WORKSPACE/xcodebuild.full.log"
+          echo "xcodebuild exit code: $rc"
+          exit $rc
+      - name: Extract build log
+        if: always()
+        run: |
+          mkdir -p results
+          log=xcodebuild.full.log
+          if [ -f "$log" ]; then
+            {
+              echo "== errors (first 200) =="
+              grep -E '(^|[^a-zA-Z])error:' "$log" | awk '!seen[$0]++' | head -200 || true
+              echo
+              echo "== warnings (first 100, deduplicated) =="
+              grep -E 'warning:' "$log" | awk '!seen[$0]++' | head -100 || true
+              echo
+              echo "== result =="
+              grep -E '\*\* BUILD (SUCCEEDED|FAILED)' "$log" || echo "no BUILD SUCCEEDED/FAILED marker"
+            } > results/build.log
+            tail -n 150 "$log" > results/xcodebuild-tail.log
+          else
+            echo "xcodebuild did not run" > results/build.log
+          fi
+      - name: Package .app
+        run: |
+          app=ios-native/build/DD/Build/Products/Debug-iphonesimulator/IceHive.app
+          test -d "$app"
+          /usr/libexec/PlistBuddy -c 'Print' "$app/Info.plist" | head -80
+          tar -czf IceHive-app.tgz -C "$(dirname "$app")" IceHive.app
+          ls -la IceHive-app.tgz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app
+          path: IceHive-app.tgz
+          retention-days: 3
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: results-build
+          path: results/
+          retention-days: 7
+
+  sim-smoke:
+    name: sim-smoke
+    needs: build
+    runs-on: ${{ vars.NATIVE_MACOS_RUNNER || 'macos-26' }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: ios-native/ci
+      - name: Select Xcode
+        run: ios-native/ci/select_xcode.sh
+      - uses: actions/download-artifact@v4
+        with:
+          name: app
+      - name: Boot simulator
+        id: sim
+        run: |
+          python3 ios-native/ci/pick_simulator.py > sim.txt
+          cat sim.txt
+          udid=$(sed -n 1p sim.txt)
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$udid" || true
+          xcrun simctl bootstatus "$udid" -b
+          xcrun simctl list devices booted
+      - name: Install and launch (-demo smoke)
+        env:
+          UDID: ${{ steps.sim.outputs.udid }}
+        run: |
+          set -x
+          mkdir -p results
+          tar -xzf IceHive-app.tgz
+          xcrun simctl install "$UDID" IceHive.app
+          # Unified log of the app process (os_log / Logger output).
+          xcrun simctl spawn "$UDID" log stream --style compact --level debug \
+            --predicate 'process == "IceHive"' > results/app.log 2>&1 &
+          echo $! > logstream.pid
+          sleep 2
+          xcrun simctl launch --terminate-running-process \
+            --stdout="$PWD/results/app-stdout.log" --stderr="$PWD/results/app-stderr.log" \
+            "$UDID" "$BUNDLE_ID" -demo smoke -seconds 20 -debugHUD
+          sleep 6
+          xcrun simctl io "$UDID" screenshot results/sim-1.png
+          sleep 6
+          xcrun simctl io "$UDID" screenshot results/sim-2.png
+          sleep 10
+          xcrun simctl io "$UDID" screenshot results/sim-3.png
+          xcrun simctl spawn "$UDID" launchctl list | grep -i icehive | tee results/launchctl.txt || true
+      - name: Verify app is alive and rendered
+        run: |
+          echo "--- stdout ---"; cat results/app-stdout.log || true
+          echo "--- stderr ---"; tail -n 50 results/app-stderr.log || true
+          grep -q 'UIKitApplication:com.hjj96.icehive' results/launchctl.txt || { echo "::error::app is not running (crashed?)"; exit 1; }
+          grep -q 'scene ready' results/app-stdout.log || { echo "::error::no 'scene ready' line in app stdout"; exit 1; }
+          grep -q 'hb t=' results/app-stdout.log || { echo "::error::no heartbeat lines in app stdout"; exit 1; }
+      - name: Collect crash logs and stop
+        if: always()
+        env:
+          UDID: ${{ steps.sim.outputs.udid }}
+        run: |
+          mkdir -p results
+          if [ -f logstream.pid ]; then kill "$(cat logstream.pid)" 2>/dev/null || true; fi
+          xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
+          ls ~/Library/Logs/DiagnosticReports/ 2>/dev/null | grep -i icehive | head -3 | while read -r f; do
+            cp ~/Library/Logs/DiagnosticReports/"$f" results/ || true
+          done
+          # keep app.log reasonably small
+          if [ -f results/app.log ]; then tail -n 2000 results/app.log > results/app.log.tmp && mv results/app.log.tmp results/app.log; fi
+          ls -la results
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: results-sim-smoke
+          path: results/
+          retention-days: 7
+
+  report:
+    name: report
+    needs: [core-tests, build, sim-smoke]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: results-*
+          merge-multiple: true
+          path: results
+        continue-on-error: true
+      - name: Write status.json
+        env:
+          R_CORE: ${{ needs.core-tests.result }}
+          R_BUILD: ${{ needs.build.result }}
+          R_SMOKE: ${{ needs.sim-smoke.result }}
+          XCODE: ${{ needs.build.outputs.xcode }}
+          RUNNER_DESC: ${{ needs.build.outputs.runner }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          mkdir -p results
+          python3 - <<'PY'
+          import json, os
+          sha = os.environ["GITHUB_SHA"]
+          status = {
+              "sha": sha,
+              "branch": os.environ["GITHUB_REF_NAME"],
+              "jobs": {
+                  "core-tests": os.environ.get("R_CORE") or "skipped",
+                  "build": os.environ.get("R_BUILD") or "skipped",
+                  "sim-smoke": os.environ.get("R_SMOKE") or "skipped",
+              },
+              "xcode": os.environ.get("XCODE", ""),
+              "runner": os.environ.get("RUNNER_DESC", ""),
+              "run_url": os.environ.get("RUN_URL", ""),
+              "run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT", ""),
+          }
+          with open("results/status.json", "w") as f:
+              json.dump(status, f, indent=2, ensure_ascii=False)
+              f.write("\n")
+          print(json.dumps(status, indent=2, ensure_ascii=False))
+          PY
+          ls -la results
+      - name: Commit to ci-results
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          short="${GITHUB_SHA::7}"
+          dest="${GITHUB_REF_NAME}/${short}"
+          src="$PWD/results"
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          attempt() {
+            rm -rf ci && git init -q ci && cd ci
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git remote add origin "$remote"
+            if git fetch -q --depth=1 origin ci-results 2>/dev/null; then
+              git checkout -q -b ci-results FETCH_HEAD
+            else
+              git checkout -q --orphan ci-results
+              printf '# ci-results\n\nCI output of .github/workflows/native-ios.yml, one folder per <branch>/<short-sha>/.\n' > README.md
+              git add README.md
+            fi
+            rm -rf "$dest" && mkdir -p "$dest"
+            cp -R "$src"/. "$dest"/
+            git add -A "$dest"
+            git commit -q -m "ci: ${GITHUB_REF_NAME}@${short} core=${{ needs.core-tests.result }} build=${{ needs.build.result }} smoke=${{ needs.sim-smoke.result }}" || true
+            git push -q origin HEAD:ci-results
+            local rc=$?
+            cd ..
+            return $rc
+          }
+          for i in 1 2 3 4 5 6; do
+            if ( attempt ); then echo "pushed results to ci-results:${dest}"; exit 0; fi
+            echo "push failed (attempt $i), retrying"; sleep $((i * 3))
+          done
+          echo "::error::could not push results"; exit 1

@@ -1,0 +1,24 @@
+import UIKit
+
+final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
+    var window: UIWindow?
+
+    func scene(_ scene: UIScene,
+               willConnectTo session: UISceneSession,
+               options connectionOptions: UIScene.ConnectionOptions) {
+        guard let windowScene = scene as? UIWindowScene else { return }
+        let window = UIWindow(windowScene: windowScene)
+        window.backgroundColor = Palette.backgroundUI
+        window.rootViewController = GameViewController(options: LaunchOptions.current)
+        window.makeKeyAndVisible()
+        self.window = window
+    }
+
+    func sceneDidBecomeActive(_ scene: UIScene) {
+        AppLog.info("scene active")
+    }
+
+    func sceneWillResignActive(_ scene: UIScene) {
+        AppLog.info("scene resign active")
+    }
+}

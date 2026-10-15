@@ -1,0 +1,64 @@
+# XcodeGen spec for the native (Swift + SpriteKit) «Ледяной Улей» v2.0.
+# Generate the project:  brew install xcodegen && xcodegen generate
+name: IceHive
+
+options:
+  bundleIdPrefix: com.hjj96
+  developmentLanguage: ru
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "2.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    DEVELOPMENT_TEAM: ""
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    DEAD_CODE_STRIPPING: YES
+
+packages:
+  IceHiveCore:
+    path: IceHiveCore
+
+targets:
+  IceHive:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: App/Sources
+      - path: App/Resources
+        excludes:
+          - Info.plist
+      - path: App/Resources/Info.plist
+        buildPhase: none
+    dependencies:
+      - package: IceHiveCore
+        product: IceHiveCore
+      - sdk: SpriteKit.framework
+    settings:
+      base:
+        PRODUCT_NAME: IceHive
+        PRODUCT_BUNDLE_IDENTIFIER: com.hjj96.icehive
+        INFOPLIST_FILE: App/Resources/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: "1"
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+        SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_PREVIEWS: NO
+        LOCALIZATION_PREFERS_STRING_CATALOGS: NO
+    scheme:
+      gatherCoverageData: false
+      commandLineArguments:
+        "-debugHUD": false
+        "-demo smoke": false
+      testTargets:
+        - package: IceHiveCore/IceHiveCoreTests
