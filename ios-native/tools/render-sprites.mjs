@@ -56,7 +56,7 @@ const cat = new Catalog(XC);
 const manifest = fs.existsSync(MANIFEST) ? JSON.parse(fs.readFileSync(MANIFEST, 'utf8')) : {};
 manifest.sets = manifest.sets || {};
 const t0 = Date.now();
-const { browser, page } = await openGamePage([path.join(TOOLS, 'lib', 'inpage-sprites.js'), path.join(TOOLS, 'lib', 'inpage-level.js')]);
+const { browser, page } = await openGamePage(['inpage-sprites.js', 'inpage-fx.js', 'inpage-level.js'].map(f => path.join(TOOLS, 'lib', f)));
 console.log(`game modules loaded (${Date.now() - t0} ms)`);
 
 async function set(def, cols, sheetOpts = {}) {
@@ -178,9 +178,10 @@ if (want('props')) {
   previewEnd(2);
 }
 
-if (want('fx')) await renderFx(page, cat, manifest, SHEETS);
-if (want('level')) await renderLevel(page, cat, manifest, SHEETS);
-if (want('bg')) await renderBackground(page, cat, manifest, SHEETS);
+const ctx = { page, cat, manifest, SHEETS, PREVIEWS, set, cv, dd, DIRS, previewBegin, previewEnd };
+if (want('fx')) await renderFx(ctx);
+if (want('level')) await renderLevel(ctx);
+if (want('bg')) await renderBackground(ctx);
 
 await browser.close();
 

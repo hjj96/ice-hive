@@ -197,6 +197,28 @@
         2.083
       ]
     },
+    "beacon_beam": {
+      "group": "fx",
+      "atlas": "Particles",
+      "kind": "billboard",
+      "blend": "add",
+      "frames": [
+        "beacon_beam"
+      ],
+      "pixelSize": [
+        32,
+        512
+      ],
+      "worldSize": [
+        0.7,
+        60
+      ],
+      "anchor": [
+        0.5,
+        0
+      ],
+      "note": "vertical beam standing on the beacon (bottom = deck): screen height = 60 m * 0.544639 * 24 pt; tint with the beacon state colour * intensity (charging 0.25 + 0.2 sin(10t), done 0.6)"
+    },
     "beacon_top": {
       "atlas": "Props",
       "kind": "prop",
@@ -675,6 +697,29 @@
         1.292
       ]
     },
+    "cryo_beam": {
+      "group": "fx",
+      "atlas": "Ground",
+      "kind": "groundTexture",
+      "blend": "add",
+      "frames": [
+        "cryo_beam_0",
+        "cryo_beam_1",
+        "cryo_beam_2",
+        "cryo_beam_3",
+        "cryo_beam_4",
+        "cryo_beam_5",
+        "cryo_beam_6",
+        "cryo_beam_7"
+      ],
+      "pixelSize": [
+        512,
+        168
+      ],
+      "loop": true,
+      "fps": 25.6,
+      "note": "the cryo beam (beamMat, colours baked): texture x = along the beam 0…beamLen (scale xScale to the current length), texture y = across ±1.3 m (the beam widens 0.7 → 2.6 m, so keep the y size at 2.6 m). Starts at the muzzle; the web beam drops from muzzle height 1.2 m to 0.5 m along its length. Flicker alpha 0.85 + 0.15 sin(40 t)."
+    },
     "cryo_dash": {
       "atlas": "Marines",
       "glowAtlas": "MarinesGlow",
@@ -839,6 +884,142 @@
         2.083
       ]
     },
+    "decals_mask": {
+      "group": "fx",
+      "atlas": "Ground",
+      "kind": "groundTexture",
+      "blend": "multiply",
+      "frames": [
+        "decal_splat_0",
+        "decal_splat_1",
+        "decal_splat_2",
+        "decal_streak_0",
+        "decal_streak_1",
+        "decal_streak_2",
+        "decal_scorch_0",
+        "decal_scorch_1",
+        "decal_remains_0"
+      ],
+      "pixelSize": [
+        256,
+        256
+      ],
+      "worldSize": "decal size s (metres) = the full texture width; the web game: ichor s = bugScale * 1.0…1.5, frost s = bugScale * 0.8, acid 1.6…2.1, blast scorch r * 1.1 (mini r * 0.8), boomer scorch 2.6, napalm scorch r * 1.8",
+      "note": "texDecals cells as white/grey masks (splat, streak toward +x, scorch, colourful corpse remains). The web game multiplies the floor by mix(1, texture * tint, alpha). Tint at runtime only approximately (SpriteKit colorBlendFactor); exact pre-tinted versions are in decals_tinted. Random rotation r about +y."
+    },
+    "decals_tinted": {
+      "group": "fx",
+      "atlas": "Ground",
+      "kind": "groundTexture",
+      "blend": "multiply",
+      "frames": [
+        "decal_ichor_runner_splat_0",
+        "decal_ichor_runner_splat_1",
+        "decal_ichor_runner_streak_0",
+        "decal_ichor_runner_streak_1",
+        "decal_ichor_spitter_splat_0",
+        "decal_ichor_spitter_splat_1",
+        "decal_ichor_spitter_streak_0",
+        "decal_ichor_spitter_streak_1",
+        "decal_ichor_brute_splat_0",
+        "decal_ichor_brute_splat_1",
+        "decal_ichor_brute_streak_0",
+        "decal_ichor_brute_streak_1",
+        "decal_ichor_boomer_splat_0",
+        "decal_ichor_boomer_splat_1",
+        "decal_ichor_boomer_streak_0",
+        "decal_ichor_boomer_streak_1",
+        "decal_acid_0",
+        "decal_acid_1",
+        "decal_frost_0",
+        "decal_frost_1",
+        "decal_burn_0",
+        "decal_burn_1"
+      ],
+      "pixelSize": [
+        256,
+        256
+      ],
+      "pattern": "decal_ichor_{runner|spitter|brute|boomer}_{splat|streak}_{0|1} · decal_acid_{v} · decal_frost_{v} · decal_burn_{v} (scorch)",
+      "note": "exact web stain colours baked in: SKSpriteNode(blendMode: .multiply), no colour tint; zRotation = r - π/4 inside the ground container. Ichor uses splat or streak 50/50 (fxBugDeath); frozen kills leave decal_frost; acid globs decal_acid; blasts / boomers / napalm decal_burn. The web game keeps a ring buffer of Q.decals stains (500 / 1000 / 1500).",
+      "tints": {
+        "ichor": {
+          "runner": [
+            0.62,
+            0.1,
+            0.22
+          ],
+          "spitter": [
+            0.5,
+            0.58,
+            0.1
+          ],
+          "brute": [
+            0.58,
+            0.12,
+            0.15
+          ],
+          "boomer": [
+            0.62,
+            0.24,
+            0.08
+          ]
+        },
+        "acid": [
+          0.42,
+          0.6,
+          0.06
+        ],
+        "frost": [
+          0.72,
+          0.84,
+          0.98
+        ],
+        "burn": [
+          0.1,
+          0.08,
+          0.07
+        ]
+      }
+    },
+    "fire": {
+      "group": "fx",
+      "atlas": "Particles",
+      "kind": "particle",
+      "frames": [
+        "fire_pyro_0",
+        "fire_pyro_1",
+        "fire_pyro_2",
+        "fire_pyro_3",
+        "fire_pyro_4",
+        "fire_pyro_5",
+        "fire_pyro_6",
+        "fire_pyro_7",
+        "fire_blast_0",
+        "fire_blast_1",
+        "fire_blast_2",
+        "fire_blast_3",
+        "fire_blast_4",
+        "fire_blast_5",
+        "fire_blast_6",
+        "fire_blast_7",
+        "fireball_0",
+        "fireball_1",
+        "fireball_2",
+        "fireball_3",
+        "fireball_4",
+        "fireball_5",
+        "fireball_6",
+        "fireball_7"
+      ],
+      "frames_per_life": 8,
+      "blend": {
+        "fire_pyro": "add",
+        "fire_blast": "add",
+        "fireball": "alpha"
+      },
+      "note": "kind-1 fire particles with the colour + alpha ramp baked: play frames 0…7 evenly over the particle life (no tint). fire_pyro: flamethrower (start (1, .78, .4), a .5, size 0.3 → 1.4…2.1 m, life 0.42…0.58 s, speed 11…15 m/s); fire_blast: explosion / napalm cores (start (1, .55, .2), a .45); fireball: the alpha-blended billowing fireball body (start (1, .42, .12), a .85, size 1.0…1.6 → 2.2…3.4 m)."
+    },
     "glob": {
       "atlas": "Props",
       "kind": "prop",
@@ -890,6 +1071,17 @@
         0.417,
         0.417
       ]
+    },
+    "ground_marks": {
+      "group": "fx",
+      "atlas": "Ground",
+      "kind": "groundTexture",
+      "blend": "alpha",
+      "frames": [
+        "pad_mark",
+        "hazard_stripe"
+      ],
+      "note": "pad_mark: landing pad marking, 11 x 11 m centred on the start point; hazard_stripe: amber/black stripes (the web game maps 1.6 m per texture width along the edge, 0.42 m across)"
     },
     "gunner_dash": {
       "atlas": "Marines",
@@ -1055,6 +1247,28 @@
         2.208
       ]
     },
+    "lasers": {
+      "group": "fx",
+      "atlas": "Ground",
+      "kind": "groundTexture",
+      "blend": "add",
+      "frames": [
+        "laser_assault",
+        "laser_pyro",
+        "laser_cryo",
+        "laser_gunner",
+        "laser_turret"
+      ],
+      "pixelSize": [
+        64,
+        48
+      ],
+      "worldSize": [
+        0.625,
+        0.44
+      ],
+      "note": "laser sights (setRibbon x2: glow 0.44 m wide at colour x0.5 + core 0.11 m at colour x3), colours baked, rendered through the web laserMat. Uniform along x: stretch xScale to the sight length (the web dash texture samples .r of a white canvas, so the shipped web lasers are solid too). Fade the far end to 15 % when nothing is hit (an alpha gradient or a second, fading sprite), 1.6x brighter while firing. laser_turret: 0.06 m wide green turret sight (pixelSize 64 x 8)."
+    },
     "medkit": {
       "atlas": "Props",
       "kind": "prop",
@@ -1079,6 +1293,48 @@
         0.833,
         0.875
       ]
+    },
+    "particles": {
+      "group": "fx",
+      "atlas": "Particles",
+      "kind": "particle",
+      "frames": [
+        "p_soft_0",
+        "p_soft_1",
+        "p_soft_2",
+        "p_soft_3",
+        "p_puff_0",
+        "p_puff_1",
+        "p_puff_2",
+        "p_puff_3",
+        "p_dot",
+        "p_spark",
+        "p_snow",
+        "p_streak",
+        "p_flash_0",
+        "p_flash_1",
+        "p_shard_0",
+        "p_shard_1",
+        "p_shard_2",
+        "p_chunk_0",
+        "p_chunk_1",
+        "p_chunk_2",
+        "p_mist_0",
+        "p_mist_1"
+      ],
+      "blend": {
+        "p_soft": "add",
+        "p_dot": "add",
+        "p_spark": "add",
+        "p_streak": "add",
+        "p_flash": "add",
+        "p_shard": "add",
+        "p_puff": "alpha",
+        "p_chunk": "alpha",
+        "p_snow": "alpha",
+        "p_mist": "alpha"
+      },
+      "note": "white, tinted at runtime. p_soft_* = the additive PA sprite (fire, sparks, frost, glows; noise-ragged edge, a²), p_puff_* = the alpha PN sprite (smoke, steam, ichor droplets, debris). Sprite size = the emit() size in metres (diameter) * 24 pt, interpolated s0 → s1 over the life. Colour = the emit() colour converted with manifest.colour (ACES + sRGB); alpha ramps: kind 0 a*(1-t), kind 1 fire (see fire frames), kind 2 smoke a*min(1, 6t)*(1-t), kind 3 spark a*(1-t)^2. p_streak: velocity-aligned spark (head +x). p_flash: muzzle flash. p_shard: frost shatter splinters. p_chunk: chitin chips. p_snow: snowflake (0.025…0.065 m). p_mist: drifting mist banks (6…12 m, colour (0.62,0.72,0.84), alpha ≈ 0.1)."
     },
     "pyro_dash": {
       "atlas": "Marines",
@@ -1512,6 +1768,45 @@
         1.792
       ]
     },
+    "telegraphs": {
+      "group": "fx",
+      "atlas": "Ground",
+      "kind": "groundTexture",
+      "blend": "add",
+      "frames": [
+        "tele_ring",
+        "tele_fill",
+        "tele_lane",
+        "glow",
+        "ind_ring",
+        "ind_segments",
+        "ind_inner"
+      ],
+      "note": "white, tint at runtime (SKSpriteNode color + colorBlendFactor 1, blendMode .add). tele_ring: pulsing warning / expanding shock rings and the team rings under marines (diameter = 2r; team ring 1.9 m player / 1.5 m bots, laser colour x0.55 / x0.32). tele_fill: acid landing disc growing 0.12→1 x 2r. tele_lane: brute charge lane (width w across x, length along image-up = charge direction; chevrons point up). glow: soft light pool (floor splashes, lamp / vent / pillar pools: size = diameter, colour x0.3). ind_*: ringIndMat circles (diameter = 2r; beacon r 4.6, lift r 9.7, revive r 1.5): draw ind_segments at 0.35 x colour for the unfilled part, ind_ring at 1.7 x colour masked to the progress pie (starts at image-up = world -z, runs clockwise in the top-down texture), ind_inner at 0.05 x colour pulsing 0.6 + 0.4 sin(3t − 8r).",
+      "sizes": {
+        "tele_ring": "diameter",
+        "tele_fill": "diameter",
+        "tele_lane": "w x len",
+        "glow": "diameter",
+        "ind_ring": "diameter (ring band at r 0.84…0.98 of the half size)"
+      }
+    },
+    "tracers": {
+      "group": "fx",
+      "atlas": "Ground",
+      "kind": "groundTexture",
+      "blend": "add",
+      "frames": [
+        "tracer_assault",
+        "tracer_gunner",
+        "tracer_turret"
+      ],
+      "pixelSize": [
+        128,
+        8
+      ],
+      "note": "projectile tracers (head at +x, fading to the tail): length min(2.4, speed * 0.028) m, width 0.15 m (assault) / 0.1 m (gunner, turret), 1.2 m above the deck"
+    },
     "turret_base": {
       "atlas": "Props",
       "kind": "prop",
@@ -1564,6 +1859,107 @@
         1.75,
         1.5
       ]
+    }
+  },
+  "colour": {
+    "note": "web colours are linear HDR values pushed through ACES filmic + sRGB. display(c) below = that conversion (tools/lib/tonemap.mjs); use it for particle / light tints. Hex constants in the web code (0xRRGGBB) are sRGB already: linear = srgbToLinear(hex).",
+    "examples": {
+      "white": {
+        "linear": [
+          1,
+          1,
+          1
+        ],
+        "display": "#e2e2e2"
+      },
+      "spark": {
+        "linear": [
+          1,
+          0.75,
+          0.4
+        ],
+        "display": "#e3d8bf"
+      },
+      "frost": {
+        "linear": [
+          0.45,
+          0.75,
+          1
+        ],
+        "display": "#c6d8e2"
+      },
+      "acid": {
+        "linear": [
+          0.7,
+          1,
+          0.15
+        ],
+        "display": "#d9e299"
+      },
+      "pulse": {
+        "linear": [
+          0.4,
+          1,
+          0.9
+        ],
+        "display": "#c7e2df"
+      },
+      "heal": {
+        "linear": [
+          0.3,
+          1,
+          0.5
+        ],
+        "display": "#bee3c9"
+      },
+      "smoke": {
+        "linear": [
+          0.06,
+          0.055,
+          0.06
+        ],
+        "display": "#3a363a"
+      },
+      "steam": {
+        "linear": [
+          0.8,
+          0.85,
+          0.92
+        ],
+        "display": "#dbdddf"
+      },
+      "laser_assault": {
+        "linear": [
+          1,
+          0.023,
+          0.016
+        ],
+        "display": "#f93627"
+      },
+      "laser_pyro": {
+        "linear": [
+          1,
+          0.361,
+          0.007
+        ],
+        "display": "#ebb537"
+      },
+      "laser_cryo": {
+        "linear": [
+          0.03,
+          0.456,
+          1
+        ],
+        "display": "#65c0e1"
+      },
+      "laser_gunner": {
+        "linear": [
+          0.045,
+          1,
+          0.098
+        ],
+        "display": "#9ce484"
+      }
     }
   }
 }

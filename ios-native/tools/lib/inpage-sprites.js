@@ -53,6 +53,21 @@ const SPR = {};
     return b64(buf);
   }
   SPR.shoot = shoot;
+  // top-down orthographic shot of the world rectangle [x0, x1] x [z0, z1] (ground-plane textures: image up = -z)
+  const camTop = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 400);
+  function shootTop(obj, w, h, x0, x1, z0, z1, y = 50) {
+    if (canvas.width !== w || canvas.height !== h) R2.setSize(w, h, false);
+    camTop.left = x0; camTop.right = x1; camTop.top = -z0; camTop.bottom = -z1; camTop.updateProjectionMatrix();
+    camTop.position.set(0, y, 0); camTop.up.set(0, 0, -1); camTop.lookAt(0, 0, 0); camTop.updateMatrixWorld();
+    S2.add(obj);
+    R2.render(S2, camTop);
+    S2.remove(obj);
+    const buf = new Uint8Array(w * h * 4);
+    gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+    return b64(buf);
+  }
+  SPR.shootTop = shootTop;
+  SPR.b64 = b64;
   SPR.lightsOn = lightsOn;
   SPR.RIG = RIG;
 
