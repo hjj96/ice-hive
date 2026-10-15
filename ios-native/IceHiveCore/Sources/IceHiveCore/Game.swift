@@ -210,7 +210,7 @@ public final class Game {
     let squadFlow = FlowField()   // toward the player (bots regrouping)
     let objFlow = FlowField()     // toward the current objective (autopilot)
     let reviveFlow = FlowField()  // toward downed marines (rescuers)
-    let flowQueue: UnsafeMutablePointer<Int32>
+    let flowQueue: UnsafeMutablePointer<Int>
     var flowSrc: [Float] = []
     var flowTimer: Float = 0
     var objFlowKey: (Int, Int) = (Int.min, Int.min)
@@ -232,7 +232,6 @@ public final class Game {
     let crowd: UnsafeMutablePointer<Float>
     /// Live count per bug type (caps on specials).
     var typeAlive: [Int] = [0, 0, 0, 0]
-    let bugMass: UnsafeMutablePointer<Float>
 
     // ---------- run state (GS) ----------
     public internal(set) var phase: GamePhase = .playing
@@ -314,8 +313,6 @@ public final class Game {
         mZ = .allocate(capacity: 4); mZ.initialize(repeating: 0, count: 4)
         mUp = .allocate(capacity: 4); mUp.initialize(repeating: 0, count: 4)
         crowd = .allocate(capacity: 4); crowd.initialize(repeating: 0, count: 4)
-        bugMass = .allocate(capacity: 4)
-        for k in 0..<4 { (bugMass + k).initialize(to: BUG_SPECS[k].mass) }
         events.reserveCapacity(1024)
         booms.reserveCapacity(64)
         flowSrc.reserveCapacity(16)
@@ -323,7 +320,7 @@ public final class Game {
     }
 
     deinit {
-        flowQueue.deallocate(); mX.deallocate(); mZ.deallocate(); mUp.deallocate(); crowd.deallocate(); bugMass.deallocate()
+        flowQueue.deallocate(); mX.deallocate(); mZ.deallocate(); mUp.deallocate(); crowd.deallocate()
     }
 
     // ---------- game flow (resetWorld of 12-main.js) ----------
@@ -383,6 +380,7 @@ public final class Game {
         simTime += dt
         tickCount += 1
         bugs.compact()
+        bugs.storePrevious()
         hash.rebuild(bugs)
         flowTimer -= dt
         if flowTimer <= 0 { flowTimer = 0.25; updateFlows() }

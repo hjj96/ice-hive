@@ -22,7 +22,7 @@ extension Game {
             emit(.bugSeen(type: BugType(rawValue: Int(type)) ?? .runner))
         }
         let k = 0.88 + rng.next() * 0.24
-        S.type[i] = type; S.dead[i] = 0; S.hit[i] = 0; S.bsrc[i] = -1; S.uid[i] = S.uidSeq; S.uidSeq &+= 1
+        S.type[i] = type; S.ms[i] = T.mass; S.dead[i] = 0; S.hit[i] = 0; S.bsrc[i] = -1; S.uid[i] = S.uidSeq; S.uidSeq &+= 1
         S.r[i] = T.radius * k; S.sc[i] = T.scale * k; S.spd[i] = T.speed * (0.85 + rng.next() * 0.3)
         let hpv = T.hp * hpMul * (type == T_BRUTE ? 1 : k)
         S.hp[i] = hpv; S.hpMax[i] = hpv
@@ -40,6 +40,7 @@ extension Game {
         } else {
             S.st[i] = S_MOVE; S.t[i] = 0; S.x[i] = x; S.z[i] = z; S.y[i] = 0; S.hd[i] = rng.next() * TAU; S.ax[i] = 0; S.az[i] = 0
         }
+        S.px[i] = S.x[i]; S.pz[i] = S.z[i]
         return i
     }
 
@@ -96,10 +97,10 @@ extension Game {
             let knock: Float = e.kind == .frost ? 2 : (e.kind == .pulse ? 5 : 11)
             let falloff = difficulty.pulseFalloff
             for q in 0..<cnt {
-                let b = Int(hash.qb[q])
+                let b = hash.qb[q]
                 let dx = S.x[b] - e.x, dz = S.z[b] - e.z, d = (dx * dx + dz * dz).squareRoot() + 1e-4
-                let f: Float = e.kind == .pulse ? 1 - falloff * min(1, d / e.r) : 1 - 0.55 * min(1, d / e.r)
-                if e.kind == .frost { S.chill[b] = min(1, S.chill[b] + 0.45) }
+                let f: Float = e.kind == .pulse ? 1 - falloff * minf(1, d / e.r) : 1 - 0.55 * minf(1, d / e.r)
+                if e.kind == .frost { S.chill[b] = minf(1, S.chill[b] + 0.45) }
                 if S.type[b] != T_BRUTE { S.vx[b] += dx / d * knock * f; S.vz[b] += dz / d * knock * f }
                 hitBug(b, e.dmg * f, e.src)
             }
@@ -181,16 +182,20 @@ extension Game {
         let n = S.count
         let X = S.x, Z = S.z, VX = S.vx, VZ = S.vz, Y = S.y, R = S.r, SPD = S.spd, SC = S.sc
         let T = S.t, CD = S.cd, CHILL = S.chill, FRZ = S.frz, BURN = S.burn, PH = S.ph, HD = S.hd, FL = S.fl
-        let AX = S.ax, AZ = S.az, VR = S.vr, TY = S.type, ST = S.st, DEAD = S.dead, HIT = S.hit, BSRC = S.bsrc
+        let AX = S.ax, AZ = S.az, VR = S.vr, MS = S.ms, TY = S.type, ST = S.st, DEAD = S.dead, HIT = S.hit, BSRC = S.bsrc
         let hStart = H.start, hItems = H.items, hCell = H.cell
         let hashN = H.hashedCount
         let walk = L.walk, liftCell = L.liftCell
         let flowX = swarmFlow.x, flowZ = swarmFlow.z
-        let MX = mX, MZ = mZ, MUP = mUp, CROWD = crowd, BMASS = bugMass
+        let MX = mX, MZ = mZ, MUP = mUp, CROWD = crowd
         let G = GRID
         let GH = GRID_HALF
         var ta0 = 0, ta1 = 0, ta2 = 0, ta3 = 0
-        for i in 0..<n where DEAD[i] == 0 {
+        var ci = 0
+        while ci < n {
+            let i = ci
+            ci += 1
+            if DEAD[i] != 0 { continue }
             switch TY[i] { case 0: ta0 += 1; case 1: ta1 += 1; case 2: ta2 += 1; default: ta3 += 1 }
         }
         typeAlive[0] = ta0; typeAlive[1] = ta1; typeAlive[2] = ta2; typeAlive[3] = ta3
@@ -199,7 +204,10 @@ extension Game {
         let dmgMulL = dmgMul
 
         let burnDps = CLASS_SPECS[1].burnDps
-        for i in 0..<n {
+        var iNext = 0
+        while iNext < n {
+            let i = iNext
+            iNext += 1
             if DEAD[i] != 0 { continue }
             let ty = TY[i]
             if FL[i] > 0 { FL[i] -= dt * 4 }
@@ -209,11 +217,11 @@ extension Game {
                 let src = Int(BSRC[i])
                 if hitBug(i, burnDps * pyroBurnMul(src) * dt, src, true) { continue }
                 if rng.next() < spreadRate * dt {
-                    let c = i < hashN ? Int(hCell[i]) : Level.cellClamp(X[i], Z[i])
-                    let e = Int(hStart[c + 1])
-                    var kk = Int(hStart[c])
+                    let c = i < hashN ? hCell[i] : Level.cellClamp(X[i], Z[i])
+                    let e = hStart[c + 1]
+                    var kk = hStart[c]
                     while kk < e {
-                        let o = Int(hItems[kk]); kk += 1
+                        let o = hItems[kk]; kk += 1
                         if o != i && DEAD[o] == 0 && BURN[o] <= 0 { BURN[o] = 2.5; BSRC[o] = Int8(truncatingIfNeeded: src); break }
                     }
                 }
@@ -223,7 +231,7 @@ extension Game {
                 if FRZ[i] <= 0 { CHILL[i] = 0.5 }
                 continue
             }
-            if CHILL[i] > 0 { CHILL[i] = max(0, CHILL[i] - dt * 0.4) }
+            if CHILL[i] > 0 { CHILL[i] = maxf(0, CHILL[i] - dt * 0.4) }
             let x = X[i], z = Z[i]
             let st = ST[i]
             if liftFall && liftCell[Level.cellClamp(x, z)] != 0 {
@@ -244,10 +252,13 @@ extension Game {
             // --- pick target marine ---
             var best = 0
             var bd: Float = 1e9
-            for k in 0..<4 {
-                if anyUp && MUP[k] == 0 { continue }
-                let dx = MX[k] - x, dz = MZ[k] - z, d2 = dx * dx + dz * dz
-                if d2 < bd { bd = d2; best = k }
+            var k = 0
+            while k < 4 {
+                if !(anyUp && MUP[k] == 0) {
+                    let dx = MX[k] - x, dz = MZ[k] - z, d2 = dx * dx + dz * dz
+                    if d2 < bd { bd = d2; best = k }
+                }
+                k += 1
             }
             let dist = bd.squareRoot() + 1e-4
             let tx = (MX[best] - x) / dist, tz = (MZ[best] - z) / dist
@@ -311,32 +322,36 @@ extension Game {
                 }
             }
             // --- steering ---
-            let k1 = min(1, acc * dt)
+            let k1 = minf(1, acc * dt)
             var vx = VX[i] + (ddx * speed - VX[i]) * k1
             var vz = VZ[i] + (ddz * speed - VZ[i]) * k1
             // --- separation (the 2x2 cells nearest the bug's sub-cell position, at most 16 live neighbours) ---
-            let ri = R[i], mi = BMASS[Int(ty)]
+            let ri = R[i], mi = MS[i]
             var px: Float = 0, pz: Float = 0
             var checks = 0
-            let hc = i < hashN ? Int(hCell[i]) : Level.cellClamp(x, z)
+            let hc = i < hashN ? hCell[i] : Level.cellClamp(x, z)
             let hi = hc % G, hj = hc / G
             let di0 = (x + GH - Float(hi)) < 0.5 ? -1 : 0
             let dj0 = (z + GH - Float(hj)) < 0.5 ? -1 : 0
-            sep: for dj in dj0...(dj0 + 1) {
+            var dj = dj0
+            sep: while dj <= dj0 + 1 {
                 let j = hj + dj
+                dj += 1
                 if j < 0 || j >= G { continue }
-                for di in di0...(di0 + 1) {
+                var di = di0
+                while di <= di0 + 1 {
                     let ii = hi + di
+                    di += 1
                     if ii < 0 || ii >= G { continue }
                     let c = j * G + ii
-                    let e = Int(hStart[c + 1])
-                    var kk = Int(hStart[c])
+                    let e = hStart[c + 1]
+                    var kk = hStart[c]
                     while kk < e {
-                        let o = Int(hItems[kk]); kk += 1
+                        let o = hItems[kk]; kk += 1
                         if o == i || DEAD[o] != 0 { continue }
                         let dx = x - X[o], dz = z - Z[o], rr = ri + R[o], d2 = dx * dx + dz * dz
                         if d2 < rr * rr && d2 > 1e-8 {
-                            let d = d2.squareRoot(), mo = BMASS[Int(TY[o])]
+                            let d = d2.squareRoot(), mo = MS[o]
                             let w = (rr - d) / d * (mo / (mi + mo))
                             px += dx * w; pz += dz * w
                         }
@@ -346,12 +361,14 @@ extension Game {
                 }
             }
             // --- marines are solid; bugs pressing on them slow them down ---
-            for k in 0..<4 {
+            k = 0
+            while k < 4 {
                 let dx = x - MX[k], dz = z - MZ[k], rr = ri + 0.42, d2 = dx * dx + dz * dz
                 if d2 < (rr + 0.5) * (rr + 0.5) {
-                    if MUP[k] != 0 { CROWD[k] += BMASS[Int(ty)] }
+                    if MUP[k] != 0 { CROWD[k] += mi }
                     if d2 < rr * rr && d2 > 1e-8 { let d = d2.squareRoot(), w = (rr - d) / d; px += dx * w; pz += dz * w }
                 }
+                k += 1
             }
             let pl = hypotf2(px, pz)
             if pl > 0.14 { px *= 0.14 / pl; pz *= 0.14 / pl }
@@ -384,7 +401,7 @@ extension Game {
             if stN == S_WIND {
                 want = ty == T_SPIT ? atan2f2(AX[i] - x, AZ[i] - z) : atan2f2(AX[i], AZ[i]); hasWant = true
             } else if sp2 > 0.09 { want = atan2f2(vx, vz); hasWant = true }
-            if hasWant { HD[i] += angDiff(HD[i], want) * min(1, 10 * dt) }
+            if hasWant { HD[i] += angDiff(HD[i], want) * minf(1, 10 * dt) }
             PH[i] += sp2.squareRoot() * dt * 8 / SC[i]
         }
     }

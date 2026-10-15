@@ -103,6 +103,9 @@ extension Game {
         return xpLevel
     }
 
+    /// Explicit quality choice: changes the gameplay bug cap (adaptive render steps must not call this).
+    public func setQuality(_ q: QualityTier) { bugCap = q.bugCap }
+
     /// Trigger a horde of n bugs now.
     public func debugHorde(_ n: Int = 300) { startHorde(n) }
 

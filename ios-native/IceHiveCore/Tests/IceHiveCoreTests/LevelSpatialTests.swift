@@ -118,7 +118,7 @@ final class SpatialTests: XCTestCase {
     func testFlowFieldLeadsToSource() {
         let L = Level(source: KelvinStation(), seed: 1)
         let F = FlowField()
-        let q = UnsafeMutablePointer<Int32>.allocate(capacity: GRID * GRID)
+        let q = UnsafeMutablePointer<Int>.allocate(capacity: GRID * GRID)
         defer { q.deallocate() }
         let src: [Float] = [30, 30]
         src.withUnsafeBufferPointer { F.compute(level: L, sources: $0, queue: q) }

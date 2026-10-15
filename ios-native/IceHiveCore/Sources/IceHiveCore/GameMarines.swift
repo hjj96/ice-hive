@@ -262,7 +262,7 @@ extension Game {
         let cnt = hash.queryCircle(S, ox + m.ax * range * 0.5, oz + m.az * range * 0.5, range * 0.58)
         var hitAny = false
         for q in 0..<cnt {
-            let b = Int(hash.qb[q])
+            let b = hash.qb[q]
             let dx = S.x[b] - ox, dz = S.z[b] - oz, d = (dx * dx + dz * dz).squareRoot() + 1e-4
             if d > range + S.r[b] { continue }
             if d > 0.9 && (dx * m.ax + dz * m.az) / d < cosC { continue }
@@ -281,7 +281,7 @@ extension Game {
         let cnt = hash.queryCircle(S, ox + m.ax * len * 0.5, oz + m.az * len * 0.5, len * 0.56)
         var hitAny = false
         for q in 0..<cnt {
-            let b = Int(hash.qb[q])
+            let b = hash.qb[q]
             let dx = S.x[b] - ox, dz = S.z[b] - oz, t = dx * m.ax + dz * m.az
             if t < -0.3 || t > len { continue }
             let perp = abs(dx * m.az - dz * m.ax), w = 0.42 + t / len * 0.75
@@ -329,7 +329,7 @@ extension Game {
             napalms[k].active = true; napalms[k].x = m.x; napalms[k].z = m.z; napalms[k].r = r; napalms[k].t = 5; napalms[k].own = m.index
             let cnt = hash.queryCircle(S, m.x, m.z, r)
             for q in 0..<cnt {
-                let b = Int(hash.qb[q])
+                let b = hash.qb[q]
                 S.burn[b] = 5; S.bsrc[b] = Int8(truncatingIfNeeded: m.index)
                 hitBug(b, 30 * md.dmg, m.index)
             }
@@ -343,7 +343,7 @@ extension Game {
             let r = 7 * md.arad
             let cnt = hash.queryCircle(S, m.x, m.z, r)
             for q in 0..<cnt {
-                let b = Int(hash.qb[q])
+                let b = hash.qb[q]
                 S.frz[b] = S.type[b] == T_BRUTE ? 1.6 : 3.2; S.chill[b] = 1; S.vx[b] = 0; S.vz[b] = 0
                 hitBug(b, 30 * md.dmg, m.index)
             }
@@ -395,7 +395,7 @@ extension Game {
             let cnt = hash.queryCircle(S, n.x, n.z, n.r + 1.4)
             let dmg = 28 * marines[n.own].mods.dmg * dt
             for q in 0..<cnt {
-                let b = Int(hash.qb[q])
+                let b = hash.qb[q]
                 let d = hypotf2(S.x[b] - n.x, S.z[b] - n.z)
                 if abs(d - n.r) > 1.3 { continue }
                 S.burn[b] = 3.5; S.bsrc[b] = Int8(truncatingIfNeeded: n.own)
@@ -414,7 +414,7 @@ extension Game {
                     let cnt = hash.queryCircle(S, turret.x, turret.z, turretRange())
                     var bd: Float = 1e9
                     for q in 0..<cnt {
-                        let b = Int(hash.qb[q])
+                        let b = hash.qb[q]
                         let ddx = S.x[b] - turret.x, ddz = S.z[b] - turret.z
                         let d = ddx * ddx + ddz * ddz - (S.type[b] == T_BOOM ? 30 : 0)
                         if d < bd { bd = d; turret.target = b }

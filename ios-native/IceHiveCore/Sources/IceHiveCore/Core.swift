@@ -27,6 +27,12 @@ public let FWD_Z: Float = -0.70710678118
 public let RIGHT_X: Float = 0.70710678118
 public let RIGHT_Z: Float = -0.70710678118
 
+// Non-generic min/max: the generic Swift.min/max are slow in unoptimised (Debug) builds.
+@inline(__always) func minf(_ a: Float, _ b: Float) -> Float { a < b ? a : b }
+@inline(__always) func maxf(_ a: Float, _ b: Float) -> Float { a > b ? a : b }
+@inline(__always) func mini(_ a: Int, _ b: Int) -> Int { a < b ? a : b }
+@inline(__always) func maxi(_ a: Int, _ b: Int) -> Int { a > b ? a : b }
+@inline(__always) func absf(_ a: Float) -> Float { a < 0 ? -a : a }
 @inline(__always) func clampf(_ v: Float, _ a: Float, _ b: Float) -> Float { v < a ? a : (v > b ? b : v) }
 @inline(__always) func lerpf(_ a: Float, _ b: Float, _ t: Float) -> Float { a + (b - a) * t }
 @inline(__always) func hypotf2(_ a: Float, _ b: Float) -> Float { (a * a + b * b).squareRoot() }

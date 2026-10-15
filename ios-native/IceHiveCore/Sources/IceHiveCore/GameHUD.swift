@@ -122,7 +122,7 @@ extension Game {
         let n = hash.queryCircle(bugs, center.x, center.y, radius)
         var out: [Int] = []
         out.reserveCapacity(n)
-        for q in 0..<n { out.append(Int(hash.qb[q])) }
+        for q in 0..<n { out.append(hash.qb[q]) }
         return out
     }
 

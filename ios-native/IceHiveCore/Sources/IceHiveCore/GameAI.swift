@@ -63,7 +63,7 @@ extension Game {
         var best = -1
         var bs: Float = -1e9
         for q in 0..<cnt {
-            let b = Int(hash.qb[q])
+            let b = hash.qb[q]
             if S.st[b] == S_CLIMB && S.y[b] < -0.6 { continue }
             let vx = S.x[b] - m.x, vz = S.z[b] - m.z, d = hypotf2(vx, vz)
             if d < 0.6 || d > 17 { continue }
@@ -71,7 +71,7 @@ extension Game {
             if cs < 0.92 { continue }
             // never snap to (or lob a grenade at) a bug the player cannot see
             if !isVisible(S.x[b], S.z[b]) { continue }
-            let hc = b < hash.hashedCount ? Int(hash.cell[b]) : Level.cellClamp(S.x[b], S.z[b])
+            let hc = b < hash.hashedCount ? hash.cell[b] : Level.cellClamp(S.x[b], S.z[b])
             let dens = Float(min(14, hash.cellDensity(hc)))
             var s = cs * 5 - d * 0.1 + dens * 0.07
             if S.type[b] == T_BOOM { s += 0.6 }
@@ -121,7 +121,7 @@ extension Game {
         var bs: Float = 1e9
         let P = marines[0]
         for q in 0..<cnt {
-            let b = Int(hash.qb[q])
+            let b = hash.qb[q]
             if S.st[b] == S_CLIMB && S.y[b] < -0.8 { continue }
             let dx = S.x[b] - m.x, dz = S.z[b] - m.z, d = (dx * dx + dz * dz).squareRoot()
             let off = abs(angDiff(m.aim, atan2f2(dx, dz)))
@@ -234,7 +234,7 @@ extension Game {
             m.ai.dodge = 0.1
             let cnt = hash.queryCircle(S, m.x, m.z, 13)
             for q in 0..<cnt {
-                let b = Int(hash.qb[q])
+                let b = hash.qb[q]
                 if S.type[b] != T_BRUTE || (S.st[b] != S_WIND && S.st[b] != S_CHARGE) { continue }
                 let rx = m.x - S.x[b], rz = m.z - S.z[b], along = rx * S.ax[b] + rz * S.az[b]
                 let perp = rx * S.az[b] - rz * S.ax[b]

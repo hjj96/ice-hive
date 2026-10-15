@@ -6,15 +6,15 @@ import Foundation
 // ================================================================
 final class SpatialHash {
     /// hStart[c] ..< hStart[c+1] = slice of `items` for cell c.
-    let start: UnsafeMutablePointer<Int32>
-    let cursor: UnsafeMutablePointer<Int32>
-    let items: UnsafeMutablePointer<Int32>
+    let start: UnsafeMutablePointer<Int>
+    let cursor: UnsafeMutablePointer<Int>
+    let items: UnsafeMutablePointer<Int>
     /// Cell of bug i at the last rebuild.
-    let cell: UnsafeMutablePointer<Int32>
+    let cell: UnsafeMutablePointer<Int>
     /// Bugs hashed at the last rebuild (bugs spawned later have no cell yet).
     var hashedCount: Int = 0
     /// Shared query result buffer (queries never nest).
-    let qb: UnsafeMutablePointer<Int32>
+    let qb: UnsafeMutablePointer<Int>
     let capacity: Int
 
     init(capacity: Int = MAX_BUGS) {
@@ -39,18 +39,23 @@ final class SpatialHash {
         hs.update(repeating: 0, count: GG + 1)
         let n = S.count
         let X = S.x, Z = S.z
-        for i in 0..<n {
+        var i = 0
+        while i < n {
             let c = Level.cellClamp(X[i], Z[i])
-            hc[i] = Int32(c)
+            hc[i] = c
             hs[c + 1] += 1
+            i += 1
         }
-        var acc: Int32 = 0
-        for c in 0...GG { acc += hs[c]; hs[c] = acc }
+        var acc = 0
+        var c = 0
+        while c <= GG { acc += hs[c]; hs[c] = acc; c += 1 }
         cur.update(from: hs, count: GG)
-        for i in 0..<n {
-            let c = Int(hc[i])
-            it[Int(cur[c])] = Int32(i)
-            cur[c] += 1
+        i = 0
+        while i < n {
+            let cc = hc[i]
+            it[cur[cc]] = i
+            cur[cc] += 1
+            i += 1
         }
         hashedCount = n
     }
@@ -58,21 +63,25 @@ final class SpatialHash {
     /// All live bugs whose body overlaps the circle -> qb[0..<count).
     func queryCircle(_ S: Swarm, _ x: Float, _ z: Float, _ r: Float) -> Int {
         var cnt = 0
-        let i0 = max(0, floorInt(x - r - 1 + GRID_HALF)), i1 = min(GRID - 1, floorInt(x + r + 1 + GRID_HALF))
-        let j0 = max(0, floorInt(z - r - 1 + GRID_HALF)), j1 = min(GRID - 1, floorInt(z + r + 1 + GRID_HALF))
+        let i0 = maxi(0, floorInt(x - r - 1 + GRID_HALF)), i1 = mini(GRID - 1, floorInt(x + r + 1 + GRID_HALF))
+        let j0 = maxi(0, floorInt(z - r - 1 + GRID_HALF)), j1 = mini(GRID - 1, floorInt(z + r + 1 + GRID_HALF))
         if i0 > i1 || j0 > j1 { return 0 }
         let hs = start, it = items, D = S.dead, X = S.x, Z = S.z, R = S.r, out = qb
-        for j in j0...j1 {
-            for i in i0...i1 {
+        var j = j0
+        while j <= j1 {
+            defer { j += 1 }
+            var i = i0
+            while i <= i1 {
+                defer { i += 1 }
                 let c = j * GRID + i
-                let e = Int(hs[c + 1])
-                var k = Int(hs[c])
+                let e = hs[c + 1]
+                var k = hs[c]
                 while k < e {
-                    let b = Int(it[k])
+                    let b = it[k]
                     k += 1
                     if D[b] != 0 { continue }
                     let dx = X[b] - x, dz = Z[b] - z, rr = r + R[b]
-                    if dx * dx + dz * dz < rr * rr { out[cnt] = Int32(b); cnt += 1 }
+                    if dx * dx + dz * dz < rr * rr { out[cnt] = b; cnt += 1 }
                 }
             }
         }
@@ -90,7 +99,7 @@ final class SpatialHash {
                 let ii = i + di
                 if ii < 0 || ii >= GRID { continue }
                 let cc = jj * GRID + ii
-                n += Int(start[cc + 1] - start[cc])
+                n += start[cc + 1] - start[cc]
             }
         }
         return n
@@ -114,10 +123,10 @@ final class SpatialHash {
                     if i < 0 || j < 0 || i >= GRID || j >= GRID { continue }
                     let c = j * GRID + i
                     if c == lastC { continue }
-                    let e = Int(hs[c + 1])
-                    var k = Int(hs[c])
+                    let e = hs[c + 1]
+                    var k = hs[c]
                     while k < e {
-                        let b = Int(it[k])
+                        let b = it[k]
                         k += 1
                         if D[b] != 0 || ST[b] == S_CLIMB { continue }
                         let bx = X[b] - ox, bz = Z[b] - oz
@@ -127,7 +136,7 @@ final class SpatialHash {
                         let d2 = px2 * px2 + pz2 * pz2
                         if d2 < rb * rb {
                             let tt = tt0 - (rb * rb - d2).squareRoot()
-                            if tt < best { best = max(0, tt); hit = b }
+                            if tt < best { best = maxf(0, tt); hit = b }
                         }
                     }
                 }
@@ -144,23 +153,23 @@ final class SpatialHash {
         var best = -1
         var segT = len
         let ex = sx + dx * len, ez = sz + dz * len
-        let i0 = max(0, floorInt(min(sx, ex) - 1 + GRID_HALF)), i1 = min(GRID - 1, floorInt(max(sx, ex) + 1 + GRID_HALF))
-        let j0 = max(0, floorInt(min(sz, ez) - 1 + GRID_HALF)), j1 = min(GRID - 1, floorInt(max(sz, ez) + 1 + GRID_HALF))
+        let i0 = maxi(0, floorInt(minf(sx, ex) - 1 + GRID_HALF)), i1 = mini(GRID - 1, floorInt(maxf(sx, ex) + 1 + GRID_HALF))
+        let j0 = maxi(0, floorInt(minf(sz, ez) - 1 + GRID_HALF)), j1 = mini(GRID - 1, floorInt(maxf(sz, ez) + 1 + GRID_HALF))
         if i0 > i1 || j0 > j1 { return (-1, segT) }
         let hs = start, it = items, D = S.dead, ST = S.st, X = S.x, Z = S.z, R = S.r, U = S.uid
         for j in j0...j1 {
             for i in i0...i1 {
                 let c = j * GRID + i
-                let e = Int(hs[c + 1])
-                var k = Int(hs[c])
+                let e = hs[c + 1]
+                var k = hs[c]
                 while k < e {
-                    let b = Int(it[k])
+                    let b = it[k]
                     k += 1
                     if D[b] != 0 || U[b] == exclude || ST[b] == S_CLIMB { continue }
                     let bx = X[b] - sx, bz = Z[b] - sz, t = bx * dx + bz * dz
                     if t < -0.3 || t > segT { continue }
                     let px = bx - dx * t, pz = bz - dz * t, rb = R[b] + 0.08
-                    if px * px + pz * pz < rb * rb { segT = max(0, t); best = b }
+                    if px * px + pz * pz < rb * rb { segT = maxf(0, t); best = b }
                 }
             }
         }
@@ -173,9 +182,9 @@ final class SpatialHash {
 //  a unit direction toward lower distance (8-way, no corner cutting).
 // ================================================================
 public final class FlowField {
-    public static let unreachable: UInt16 = 65535
+    public static let unreachable: Int = 65535
     /// BFS distance in cells (65535 = unreachable).
-    let d: UnsafeMutablePointer<UInt16>
+    let d: UnsafeMutablePointer<Int>
     let x: UnsafeMutablePointer<Float>
     let z: UnsafeMutablePointer<Float>
 
@@ -188,12 +197,12 @@ public final class FlowField {
     deinit { d.deallocate(); x.deallocate(); z.deallocate() }
 
     /// Distance (cells) of cell c from the nearest source.
-    public func distance(_ c: Int) -> UInt16 { (c >= 0 && c < GRID * GRID) ? d[c] : FlowField.unreachable }
+    public func distance(_ c: Int) -> Int { (c >= 0 && c < GRID * GRID) ? d[c] : FlowField.unreachable }
     /// Unit flow direction at cell c (zero at sources and unreachable cells).
     public func direction(_ c: Int) -> Vec2 { (c >= 0 && c < GRID * GRID) ? Vec2(x[c], z[c]) : Vec2(0, 0) }
 
-    /// `queue` is scratch space of G*G Int32.
-    func compute(level: Level, sources: UnsafeBufferPointer<Float>, queue fq: UnsafeMutablePointer<Int32>) {
+    /// `queue` is scratch space of G*G Int.
+    func compute(level: Level, sources: UnsafeBufferPointer<Float>, queue fq: UnsafeMutablePointer<Int>) {
         let G = GRID, GG = G * G
         let D = d, FX = x, FZ = z, walk = level.walk
         D.update(repeating: FlowField.unreachable, count: GG)
@@ -203,20 +212,20 @@ public final class FlowField {
         var k = 0
         while k + 1 < sources.count {
             let c = level.cellOf(sources[k], sources[k + 1])
-            if c >= 0 && D[c] != 0 { D[c] = 0; fq[qt] = Int32(c); qt += 1 }
+            if c >= 0 && D[c] != 0 { D[c] = 0; fq[qt] = c; qt += 1 }
             k += 2
         }
         while qh < qt {
-            let c = Int(fq[qh]); qh += 1
-            let nd = D[c] &+ 1, i = c % G
-            if i > 0 && walk[c - 1] == 1 && D[c - 1] > nd { D[c - 1] = nd; fq[qt] = Int32(c - 1); qt += 1 }
-            if i < G - 1 && walk[c + 1] == 1 && D[c + 1] > nd { D[c + 1] = nd; fq[qt] = Int32(c + 1); qt += 1 }
-            if c >= G && walk[c - G] == 1 && D[c - G] > nd { D[c - G] = nd; fq[qt] = Int32(c - G); qt += 1 }
-            if c < G * (G - 1) && walk[c + G] == 1 && D[c + G] > nd { D[c + G] = nd; fq[qt] = Int32(c + G); qt += 1 }
+            let c = fq[qh]; qh += 1
+            let nd = D[c] + 1, i = c % G
+            if i > 0 && walk[c - 1] == 1 && D[c - 1] > nd { D[c - 1] = nd; fq[qt] = c - 1; qt += 1 }
+            if i < G - 1 && walk[c + 1] == 1 && D[c + 1] > nd { D[c + 1] = nd; fq[qt] = c + 1; qt += 1 }
+            if c >= G && walk[c - G] == 1 && D[c - G] > nd { D[c - G] = nd; fq[qt] = c - G; qt += 1 }
+            if c < G * (G - 1) && walk[c + G] == 1 && D[c + G] > nd { D[c + G] = nd; fq[qt] = c + G; qt += 1 }
         }
         // direction = weighted sum toward lower-distance neighbours (8-way, no corner cutting)
         for q in 0..<qt {
-            let c = Int(fq[q]), d0 = D[c], i = c % G, j = c / G
+            let c = fq[q], d0 = D[c], i = c % G, j = c / G
             if d0 == 0 { continue }
             var vx: Float = 0, vz: Float = 0
             for n8 in 0..<8 {
@@ -247,7 +256,7 @@ public final class FlowField {
             if vx != 0 && vz != 0 {
                 let ci = i + (vx > 0 ? 1 : -1), cj = j + (vz > 0 ? 1 : -1)
                 if ci < 0 || cj < 0 || ci >= G || cj >= G || walk[cj * G + ci] != 1 {
-                    if abs(vx) >= abs(vz) { vz = 0 } else { vx = 0 }
+                    if absf(vx) >= absf(vz) { vz = 0 } else { vx = 0 }
                 }
             }
             let l = hypotf2(vx, vz)

@@ -17,6 +17,8 @@ public final class Swarm {
 
     // Float arrays
     let x: UnsafeMutablePointer<Float>, z: UnsafeMutablePointer<Float>
+    /// Position at the start of the current tick (render interpolation).
+    let px: UnsafeMutablePointer<Float>, pz: UnsafeMutablePointer<Float>
     let vx: UnsafeMutablePointer<Float>, vz: UnsafeMutablePointer<Float>
     /// Height offset (climbing up from the abyss is negative; falling with the lift).
     let y: UnsafeMutablePointer<Float>
@@ -34,6 +36,8 @@ public final class Swarm {
     let ax: UnsafeMutablePointer<Float>, az: UnsafeMutablePointer<Float>
     /// Per-bug random variation 0..1 (render tint, climb speed).
     let vr: UnsafeMutablePointer<Float>
+    /// Separation mass (from the type).
+    let ms: UnsafeMutablePointer<Float>
     // byte arrays
     let type: UnsafeMutablePointer<UInt8>, st: UnsafeMutablePointer<UInt8>, dead: UnsafeMutablePointer<UInt8>
     /// Brute charge: bit k = marine k already hit by this charge.
@@ -49,12 +53,12 @@ public final class Swarm {
         self.capacity = capacity
         func f() -> UnsafeMutablePointer<Float> { let p = UnsafeMutablePointer<Float>.allocate(capacity: capacity); p.initialize(repeating: 0, count: capacity); return p }
         func b() -> UnsafeMutablePointer<UInt8> { let p = UnsafeMutablePointer<UInt8>.allocate(capacity: capacity); p.initialize(repeating: 0, count: capacity); return p }
-        x = f(); z = f(); vx = f(); vz = f(); y = f(); hp = f(); hpMax = f(); r = f(); spd = f(); sc = f(); t = f(); cd = f()
-        chill = f(); frz = f(); burn = f(); ph = f(); hd = f(); fl = f(); ax = f(); az = f(); vr = f()
+        x = f(); z = f(); px = f(); pz = f(); vx = f(); vz = f(); y = f(); hp = f(); hpMax = f(); r = f(); spd = f(); sc = f(); t = f(); cd = f()
+        chill = f(); frz = f(); burn = f(); ph = f(); hd = f(); fl = f(); ax = f(); az = f(); vr = f(); ms = f()
         type = b(); st = b(); dead = b(); hit = b()
         bsrc = .allocate(capacity: capacity); bsrc.initialize(repeating: -1, count: capacity)
         uid = .allocate(capacity: capacity); uid.initialize(repeating: 0, count: capacity)
-        floats = [x, z, vx, vz, y, hp, hpMax, r, spd, sc, t, cd, chill, frz, burn, ph, hd, fl, ax, az, vr]
+        floats = [x, z, px, pz, vx, vz, y, hp, hpMax, r, spd, sc, t, cd, chill, frz, burn, ph, hd, fl, ax, az, vr, ms]
         bytes = [type, st, dead, hit]
     }
 
@@ -87,6 +91,11 @@ public final class Swarm {
     }
 
     func clear() { count = 0; deadPending = 0 }
+
+    /// Remember the current positions as the previous ones (start of a tick).
+    func storePrevious() {
+        if count > 0 { px.update(from: x, count: count); pz.update(from: z, count: count) }
+    }
 
     /// Live (not dead) bugs.
     public var aliveCount: Int {
@@ -127,6 +136,9 @@ public final class Swarm {
     @inline(__always) public func state(_ i: Int) -> BugState { BugState(rawValue: st[i]) ?? .move }
     public var xs: UnsafePointer<Float> { UnsafePointer(x) }
     public var zs: UnsafePointer<Float> { UnsafePointer(z) }
+    /// Positions at the start of the last tick: lerp(prev, current, alpha) for smooth rendering above 60 Hz.
+    public var prevXs: UnsafePointer<Float> { UnsafePointer(px) }
+    public var prevZs: UnsafePointer<Float> { UnsafePointer(pz) }
     public var velocityX: UnsafePointer<Float> { UnsafePointer(vx) }
     public var velocityZ: UnsafePointer<Float> { UnsafePointer(vz) }
     /// Height offset below/above the floor (climbing, falling with the lift).
