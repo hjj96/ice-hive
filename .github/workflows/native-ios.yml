@@ -178,10 +178,12 @@ jobs:
         run: |
           set -x
           mkdir -p results
+          cp sim.txt results/simulator.txt
           tar -xzf IceHive-app.tgz
           xcrun simctl install "$UDID" IceHive.app
           # Unified log of the app process (os_log / Logger output).
-          xcrun simctl spawn "$UDID" log stream --style compact --level debug \
+          # default level (notice/error/fault) keeps app.log readable; AppLog uses .notice
+          xcrun simctl spawn "$UDID" log stream --style compact \
             --predicate 'process == "IceHive"' > results/app.log 2>&1 &
           echo $! > logstream.pid
           sleep 2
