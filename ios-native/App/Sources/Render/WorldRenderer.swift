@@ -34,7 +34,7 @@ final class WorldRenderer {
         world.addChild(marines.root)
         fx = FxLayer(assets: assets, level: level, worldRoot: world, groundRoot: groundRoot)
         world.addChild(fx.root)
-        motes = MotesLayer(texture: assets.background.texture("bg_motes"))
+        motes = MotesLayer(texture: assets.texture("bg_motes"))
         weather = WeatherLayer(assets: assets, snow: 420, mist: 14)
         world.addChild(weather.root)
         let pa = fx.pa

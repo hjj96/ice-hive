@@ -34,7 +34,7 @@ final class MarineLayer {
             bodies.append(b)
             let g = SKSpriteNode(texture: nil)
             g.blendMode = .add
-            g.zPosition = ZBand.glow + 1
+            g.zPosition = ZBand.glow
             root.addChild(g)
             glows.append(g)
             for far in [false, true] {
@@ -49,9 +49,9 @@ final class MarineLayer {
         turretSight.blendMode = .add
         turretSight.anchorPoint = CGPoint(x: 0, y: 0.5)
         turretSight.zPosition = ZBand.beams
-        turretSight.texture = assets.ground.texture("laser_turret")
+        turretSight.texture = assets.texture("laser_turret")
         root.addChild(turretSight)
-        for c in MarineClass.allCases { laserTex.append(assets.ground.texture("laser_\(c.id)")) }
+        for c in MarineClass.allCases { laserTex.append(assets.texture("laser_\(c.id)")) }
         for c in MarineClass.allCases {
             let l = Tone.linear(c.spec.laser)
             laserColors.append(Tone.color(l.0, l.1, l.2))
@@ -111,28 +111,27 @@ final class MarineLayer {
             frame = max(0, min(set.frameCount - 1, frame))
             let tex = set.tex(dir, frame)
             let p = Iso.point(x, y, z)
-            if body.texture !== tex { body.texture = tex }
-            body.size = set.info.size
-            body.anchorPoint = set.info.anchor
+            body.show(tex, size: set.info.size, anchor: set.info.anchor)
             body.position = p
             body.zPosition = ZBand.object(Iso.nearness(x, y, z)) + 1
 
             // emissive layer; hurt = red flash, revive invulnerability = blue blink
             glow.position = p
-            glow.size = set.info.size
-            glow.anchorPoint = set.info.anchor
             if m.hurtT > 0 {
-                if glow.texture !== tex { glow.texture = tex }
+                glow.show(tex, size: set.info.size, anchor: set.info.anchor)
+                glow.zPosition = ZBand.glowLit
                 glow.color = SKColor(red: 1, green: 0.15, blue: 0.1, alpha: 1)
                 glow.colorBlendFactor = 1
                 glow.alpha = 0.55
             } else if m.invulnerable {
-                if glow.texture !== tex { glow.texture = tex }
+                glow.show(tex, size: set.info.size, anchor: set.info.anchor)
+                glow.zPosition = ZBand.glowLit
                 glow.color = SKColor(red: 0.2, green: 0.5, blue: 1, alpha: 1)
                 glow.colorBlendFactor = 1
                 glow.alpha = CGFloat(0.15 + 0.12 * sinf(time * 20))
             } else if let gt = set.glow(dir, frame) {
-                if glow.texture !== gt { glow.texture = gt }
+                glow.show(gt, size: set.info.size, anchor: set.info.anchor)
+                glow.zPosition = ZBand.glow
                 glow.colorBlendFactor = 0
                 glow.alpha = 1
             } else {

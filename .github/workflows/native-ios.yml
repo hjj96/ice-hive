@@ -140,6 +140,8 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Print' "$app/Info.plist" | head -80
           tar -czf IceHive-app.tgz -C "$(dirname "$app")" IceHive.app
           ls -la IceHive-app.tgz
+          mkdir -p results
+          { echo "app bundle: $(du -sh "$app" | cut -f1)"; echo "largest files:"; find "$app" -type f -exec du -k {} + | sort -rn | head -15; } | tee results/bundle.txt
       - uses: actions/upload-artifact@v4
         with:
           name: app
@@ -193,12 +195,19 @@ jobs:
           sleep 3
           : > results/alive.txt
           # run_demo <label> <seconds> "<launch args>" <screenshot times (s)...>
+          # Times count from the app's "scene ready" line (end of loading); -seconds too.
           run_demo() {
             local label=$1 secs=$2 args=$3; shift 3
             # shellcheck disable=SC2086
             xcrun simctl launch --terminate-running-process \
               --stdout="$PWD/results/app-$label.log" --stderr="$PWD/results/app-$label-stderr.log" \
               "$UDID" "$BUNDLE_ID" $args -seconds "$secs" -debugHUD
+            local w=0
+            until grep -q 'scene ready' "results/app-$label.log" 2>/dev/null; do
+              sleep 1; w=$((w + 1))
+              if [ $w -ge 90 ]; then echo "$label: no 'scene ready' after 90 s"; break; fi
+            done
+            echo "$label ready ${w}s after launch" >> results/loading.txt
             local t=0
             for s in "$@"; do
               sleep $((s - t)); t=$s
@@ -217,16 +226,18 @@ jobs:
             done
             sleep 1
           }
-          run_demo combat 40 "-demo combat" 10 18 28 38
-          run_demo beacon 26 "-demo beacon" 14 24
-          run_demo title 14 "-demo title" 12
-          run_demo calm 12 "-demo calm" 10
-          run_demo landscape 16 "-demo combat -orient landscape" 14
+          run_demo combat 30 "-demo combat" 4 12 20 29
+          run_demo beacon 16 "-demo beacon" 6 15
+          run_demo title 8 "-demo title" 6
+          run_demo calm 6 "-demo calm" 5
+          run_demo landscape 10 "-demo combat -orient landscape" 9
           xcrun simctl spawn "$UDID" launchctl list | grep -i icehive | tee results/launchctl.txt || true
           cp results/app-combat.log results/app-stdout.log
           cp results/app-combat-stderr.log results/app-stderr.log
-          grep -h 'demo done' results/app-*.log > results/fps.txt || true
-          cat results/alive.txt results/fps.txt
+          for f in results/app-combat.log results/app-beacon.log results/app-title.log results/app-calm.log results/app-landscape.log; do
+            { echo "== $f"; grep -h -E 'loading took|sheets decoded|demo done' "$f" || true; } >> results/fps.txt
+          done
+          cat results/alive.txt results/loading.txt results/fps.txt
       - name: Verify app is alive and rendered
         run: |
           echo "--- combat stdout ---"; cat results/app-combat.log || true

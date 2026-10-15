@@ -29,7 +29,7 @@ final class LightingLayer {
         float b = -d.y / 0.593030;
         return vec2((a + b) * 0.5, (b - a) * 0.5);
     }
-    float spot(vec2 p, vec4 L, float I, float ppm, float gain) {
+    float spot(vec2 p, vec4 L, float I, float ppm, float gain, float halo) {
         if (I <= 0.0) { return 0.0; }
         vec2 g = gnd((p - L.xy) / ppm);
         vec2 aim = L.zw;
@@ -41,8 +41,7 @@ final class LightingLayer {
         float q = d / 32.0;
         float att = clamp(1.0 - q * q * q * q, 0.0, 1.0);
         float lit = cone * (1.75 / d) * att * att / pow(d, 1.35);
-        float halo = 0.06 * exp(-dot(g, g) * 0.45);
-        return I * (lit * gain + halo);
+        return I * (lit * gain + halo * exp(-dot(g, g) * 0.8));
     }
     vec3 pt(vec2 p, vec4 L, vec4 C, float ppm) {
         if (L.w <= 0.0) { return vec3(0.0); }
@@ -56,6 +55,7 @@ final class LightingLayer {
         vec2 wm = (u_cam.xy + (p - u_size * 0.5) * u_cam.z) / 24.0;
         float ppm = u_ppm;
         float gain = u_gain.x;
+        float halo = u_gain.y;
         float onStation = 0.0;
         float a = wm.x / 0.707107;
         for (int i = 0; i < 20; i++) {
@@ -69,8 +69,8 @@ final class LightingLayer {
         if (onStation < 0.5) {
             gl_FragColor = vec4(u_bg.rgb, 1.0);
         } else {
-            float s = spot(p, u_fl0, u_fli.x, ppm, gain) + spot(p, u_fl1, u_fli.y, ppm, gain)
-                    + spot(p, u_fl2, u_fli.z, ppm, gain) + spot(p, u_fl3, u_fli.w, ppm, gain);
+            float s = spot(p, u_fl0, u_fli.x, ppm, gain, halo) + spot(p, u_fl1, u_fli.y, ppm, gain, halo)
+                    + spot(p, u_fl2, u_fli.z, ppm, gain, halo) + spot(p, u_fl3, u_fli.w, ppm, gain, halo);
             vec3 l = u_ambient.rgb + vec3(1.0, 0.95, 0.87) * s;
             l += pt(p, u_pt0, u_pc0, ppm) + pt(p, u_pt1, u_pc1, ppm) + pt(p, u_pt2, u_pc2, ppm);
             l += pt(p, u_pt3, u_pc3, ppm) + pt(p, u_pt4, u_pc4, ppm) + pt(p, u_pt5, u_pc5, ppm);
@@ -82,8 +82,8 @@ final class LightingLayer {
     let node: SKSpriteNode
     private let uSize = SKUniform(name: "u_size", vectorFloat2: SIMD2<Float>(1, 1))
     private let uPpm = SKUniform(name: "u_ppm", float: 18)
-    private let uGain = SKUniform(name: "u_gain", vectorFloat4: SIMD4<Float>(1.8, 0, 0, 0))
-    private let uAmbient = SKUniform(name: "u_ambient", vectorFloat4: SIMD4<Float>(0.27, 0.31, 0.42, 1))
+    private let uGain = SKUniform(name: "u_gain", vectorFloat4: SIMD4<Float>(1, 0, 0, 0))
+    private let uAmbient = SKUniform(name: "u_ambient", vectorFloat4: SIMD4<Float>(0.27, 0.32, 0.43, 1))
     private let uFl: [SKUniform]
     private let uFli = SKUniform(name: "u_fli", vectorFloat4: SIMD4<Float>(0, 0, 0, 0))
     private let uPt: [SKUniform]
@@ -91,12 +91,16 @@ final class LightingLayer {
     /// World points of the camera (xy), camera scale (z), lift rise in metres (w).
     private let uCam = SKUniform(name: "u_cam", vectorFloat4: SIMD4<Float>(0, 0, 1, 0))
     /// Light map of the abyss (background is not darkened by the station's darkness).
-    private let uBg = SKUniform(name: "u_bg", vectorFloat4: SIMD4<Float>(0.8, 0.8, 0.8, 1))
+    private let uBg = SKUniform(name: "u_bg", vectorFloat4: SIMD4<Float>(1, 1, 1, 1))
     private let uMask: SKUniform
 
-    /// Darkness level (light map outside every light) and the flashlight gain — tuning knobs.
-    var ambient = SIMD4<Float>(0.30, 0.34, 0.45, 1) { didSet { uAmbient.vectorFloat4Value = ambient } }
-    var gain: Float = 1.8 { didSet { uGain.vectorFloat4Value = SIMD4<Float>(gain, 0, 0, 0) } }
+    /// Darkness level (light map outside every light), flashlight gain and the glow around each marine — tuning
+    /// knobs, calibrated against the web game (store/screenshots/6.9/2-swarm.png and a harness shot of the same
+    /// landing-pad start): unlit slab ≈ 0.27 / 0.33 / 0.42 of the pre-lit sprite, the marines themselves stay dark
+    /// (their own flashlights point away), the cone floor saturates within ~6 m and fades out by ~15 m.
+    var ambient = SIMD4<Float>(0.27, 0.32, 0.43, 1) { didSet { uAmbient.vectorFloat4Value = ambient } }
+    var gain: Float = 1.0 { didSet { uGain.vectorFloat4Value = SIMD4<Float>(gain, halo, 0, 0) } }
+    var halo: Float = 0.004 { didSet { uGain.vectorFloat4Value = SIMD4<Float>(gain, halo, 0, 0) } }
 
     /// `level` gives the floor-height mask: the shader marches each pixel's view ray through it to tell the
     /// station (darkened, lit by the flashlights) from the abyss behind it (keeps its own haze brightness).
@@ -115,7 +119,7 @@ final class LightingLayer {
         node.zPosition = ZBand.darkness
         node.anchorPoint = CGPoint(x: 0.5, y: 0.5)
         uAmbient.vectorFloat4Value = ambient
-        uGain.vectorFloat4Value = SIMD4<Float>(gain, 0, 0, 0)
+        uGain.vectorFloat4Value = SIMD4<Float>(gain, halo, 0, 0)
     }
 
     /// RGBA8 128 × 128: r = floor height ((h + 8) / 16), g = how far the structure reaches below the deck there
@@ -148,7 +152,7 @@ final class LightingLayer {
         return t
     }
 
-    var abyss = SIMD4<Float>(0.8, 0.8, 0.8, 1) { didSet { uBg.vectorFloat4Value = abyss } }
+    var abyss = SIMD4<Float>(1, 1, 1, 1) { didSet { uBg.vectorFloat4Value = abyss } }
 
     struct Flashlight {
         var x: Float, y: Float, z: Float

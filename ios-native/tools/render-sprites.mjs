@@ -6,13 +6,15 @@
 // Loads the web game's own source parts (game/js/01…09) into headless Chromium (Playwright + SwiftShader WebGL)
 // and renders the game's real meshes / materials / canvas textures with an orthographic camera at the web
 // camera's yaw (45°) and pitch (57°). Output:
-//   ios-native/App/Resources/Assets.xcassets/<Atlas>.spriteatlas/<frame>.imageset/{<frame>@2x.png,<frame>@3x.png}
+//   ios-native/art/Sprites/<Atlas>.spriteatlas/<frame>.imageset/{<frame>@2x.png,<frame>@3x.png}  (source frames, not bundled)
+//   ios-native/App/Resources/Sheets/sheet_*.png + sheets.json      (pack-sheets.mjs, run at the end: what the app loads)
 //   ios-native/App/Resources/sprites-manifest.json  (merged per section, so --only re-renders just that part)
 //   ios-native/tools/out/sheets/*.png               (contact sheets: full light | in-game darkness + glow)
 // Needs the repo's npm devDependencies (three, playwright): run `npm ci` in the repo root first.
 import fs from 'node:fs';
 import path from 'node:path';
-import { openGamePage, TOOLS, RES, OUT } from './lib/gamepage.mjs';
+import { execFileSync } from 'node:child_process';
+import { openGamePage, TOOLS, RES, OUT, NATIVE } from './lib/gamepage.mjs';
 import { Catalog, runSet, contactSheet, savePNG, json, MPPM, SIN_P, COS_P, PT_PER_M, AMBIENT, previewRows, composePreview } from './lib/pipeline.mjs';
 import { renderFx } from './lib/fx.mjs';
 import { renderLevel } from './lib/level.mjs';
@@ -21,7 +23,8 @@ import { renderBackground } from './lib/background.mjs';
 const argv = process.argv.slice(2);
 const onlyArg = argv.includes('--only') ? argv[argv.indexOf('--only') + 1].split(',') : null;
 const want = (s) => !onlyArg || onlyArg.includes(s);
-const XC = path.join(RES, 'Assets.xcassets');
+// source frames live outside the app bundle; tools/pack-sheets.mjs packs them into App/Resources/Sheets
+const XC = path.join(NATIVE, 'art', 'Sprites');
 const MANIFEST = path.join(RES, 'sprites-manifest.json');
 const SHEETS = path.join(OUT, 'sheets');
 const PREVIEWS = path.join(TOOLS, 'previews');   // committed: one small PNG per group
@@ -30,8 +33,7 @@ fs.mkdirSync(PREVIEWS, { recursive: true });
 const preview = { group: null, rows: [] };
 function previewBegin(group) { preview.group = group; preview.rows = []; }
 function previewEnd(k = 2) { if (preview.rows.length) savePNG(path.join(PREVIEWS, preview.group + '.png'), composePreview(preview.rows, k)); preview.group = null; preview.rows = []; }
-// the root catalog Contents.json, byte-identical to the one Xcode writes (and the skeleton branch commits), so branches merge cleanly
-if (!fs.existsSync(path.join(XC, 'Contents.json'))) { fs.mkdirSync(XC, { recursive: true }); fs.writeFileSync(path.join(XC, 'Contents.json'), '{\n  "info" : {\n    "author" : "xcode",\n    "version" : 1\n  }\n}\n'); }
+fs.mkdirSync(XC, { recursive: true });
 
 const TAU = Math.PI * 2, DIRS = 16;
 const BUGS = [
@@ -210,7 +212,7 @@ manifest.lighting = {
   glowLayers: '*Glow atlases (BugsGlow, MarinesGlow, LevelGlow, BackgroundGlow) hold the emissive parts only (pink / acid / ember speckles, visors, chest lamps, lamp heads, light strips, rim studs) with a soft halo, premultiplied: draw ABOVE the darkness with blendMode .add at the same position, anchor and point size as the lit frame (frame name + "_g"; @2x-only images, so their pixel size is 2/3 of the lit @3x frame)',
   bugBrightness: `bug frames use instance brightness ${BUG_V}; the web game varies it per bug 0.55…1.3 → multiply color by 0.48…1.13 (colorBlendFactor 1, SKColor(white:))`,
 };
-manifest.atlasNotes = 'Format: .spriteatlas folders inside Assets.xcassets (Xcode 7+ "Sprite Atlas"): each frame is an imageset with @2x + @3x PNGs, so App Store thinning ships only the device scale, actool packs every atlas into texture pages per scale at build time and trims transparent borders (SKTexture.size() keeps the untrimmed frame size, so the anchors stay valid). Loose .atlas folders would ship both scales to every device. Load with SKTextureAtlas(named: "Bugs").textureNamed("runner_walk_03_5") (preload the atlases at launch: SKTextureAtlas.preloadTextureAtlases). Frame names are unique across the whole catalog. Lit frames (Bugs, Corpses, Marines, Props, Level, Background towers) are @2x + @3x; glow layers and the flat textures (Ground, Particles, Background haze / motes) are single @2x images (point size = px / 2 — set their size explicitly from metres). Every set entry below gives the atlas, the frame naming pattern, directions / frames / fps, the anchor (feet / ground point, as SKSpriteNode.anchorPoint, y up) and the frame size.';
+manifest.atlasNotes = 'Shipped as five packed sheets (App/Resources/Sheets, tools/pack-sheets.mjs: @2x, trimmed, grouped by draw layer; sheets.json gives every frame\'s rect and its offset in the full frame). Source format: .spriteatlas folders in ios-native/art/Sprites (Xcode 7+ "Sprite Atlas"): each frame is an imageset with @2x + @3x PNGs, so App Store thinning ships only the device scale, actool packs every atlas into texture pages per scale at build time and trims transparent borders (SKTexture.size() keeps the untrimmed frame size, so the anchors stay valid). Loose .atlas folders would ship both scales to every device. Load with SKTextureAtlas(named: "Bugs").textureNamed("runner_walk_03_5") (preload the atlases at launch: SKTextureAtlas.preloadTextureAtlases). Frame names are unique across the whole catalog. Lit frames (Bugs, Corpses, Marines, Props, Level, Background towers) are @2x + @3x; glow layers and the flat textures (Ground, Particles, Background haze / motes) are single @2x images (point size = px / 2 — set their size explicitly from metres). Every set entry below gives the atlas, the frame naming pattern, directions / frames / fps, the anchor (feet / ground point, as SKSpriteNode.anchorPoint, y up) and the frame size.';
 manifest.atlases = {
   Bugs: 'runner / spitter / brute / boomer: walk, climb, crest, brute charge, boomer swell, contact shadows',
   BugsGlow: 'additive emissive layer of every Bugs frame (+ "_g")',
@@ -234,3 +236,4 @@ for (const k of order) if (manifest[k] !== undefined) outObj[k] = manifest[k];
 for (const k of Object.keys(manifest)) if (!(k in outObj)) outObj[k] = manifest[k];
 fs.writeFileSync(MANIFEST, json(outObj));
 console.log(`done: ${cat.files} PNGs, ${(cat.bytes / 1048576).toFixed(1)} MB written this run, ${((Date.now() - t0) / 1000).toFixed(0)} s`);
+execFileSync(process.execPath, [path.join(TOOLS, 'pack-sheets.mjs')], { stdio: 'inherit' });

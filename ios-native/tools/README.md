@@ -9,6 +9,7 @@ npm ci                                       # в корне репозитор�
 npx playwright install chromium              # если браузер ещё не скачан
 node ios-native/tools/render-sprites.mjs     # все спрайты (≈ 6 мин)
 node ios-native/tools/render-sprites.mjs --only marines,level   # только часть: bugs, corpses, marines, props, fx, level, bg
+node ios-native/tools/pack-sheets.mjs        # только переупаковать листы из art/Sprites (≈ 25 с)
 node ios-native/tools/render-audio.mjs       # все звуки (≈ 5 с)
 node ios-native/tools/fetch-fonts.mjs        # шрифты Oswald / JetBrains Mono (npm pack)
 ```
@@ -17,7 +18,8 @@ node ios-native/tools/fetch-fonts.mjs        # шрифты Oswald / JetBrains M
 
 | Что | Куда |
 | --- | --- |
-| текстурные атласы (`*.spriteatlas`, у каждого кадра @2x/@3x) | `App/Resources/Assets.xcassets/` |
+| исходные кадры (`*.spriteatlas`, у каждого кадра @2x/@3x; в приложение не входят) | `art/Sprites/` |
+| пять листов спрайтов для приложения (@2x, обрезка, упаковка по слоям) + `sheets.json` — `pack-sheets.mjs`, запускается в конце `render-sprites.mjs` | `App/Resources/Sheets/` |
 | описание всех наборов: проекция, якоря, имена кадров, направления, fps, слои, правила сборки уровня | `App/Resources/sprites-manifest.json` |
 | звуки (WAV 44.1 кГц моно, нормализованы к −1 dBFS) + `sounds-manifest.json` (громкость, интервалы, петли) | `App/Resources/Sounds/` |
 | шрифты TTF + лицензии OFL + `fonts.json` (PostScript-имена) | `App/Resources/Fonts/` |

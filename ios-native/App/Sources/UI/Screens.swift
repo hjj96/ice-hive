@@ -39,6 +39,7 @@ final class MenuButton {
         }
         panel = Shapes.panel(width: s.width, height: s.height, fill: fill, stroke: stroke)
         panel.position = CGPoint(x: -s.width / 2, y: s.height / 2)
+        panel.zPosition = -1
         node.insertChild(panel, at: 0)
         node.position = c
         rect = CGRect(x: c.x - s.width / 2, y: c.y - s.height / 2, width: s.width, height: s.height)
@@ -75,6 +76,7 @@ final class TitleScreen {
 
     init() {
         root.zPosition = ZBand.hud + 200
+        shade.zPosition = -2   // ignoresSiblingOrder: equal z draws in any order
         root.addChild(shade)
         root.addChild(content)
         root.addChild(go.node)
@@ -144,6 +146,7 @@ final class TitleScreen {
             let panel = Shapes.panel(width: cardW, height: cardH, fill: sel ? UIPalette.rgba(20, 30, 40, 0.96) : UIPalette.panel,
                                      stroke: sel ? UIPalette.amber : UIPalette.line, lineWidth: sel ? 2 : 1)
             panel.position = CGPoint(x: x, y: top)
+            panel.zPosition = -1
             content.addChild(panel)
             let chip = SKSpriteNode(color: UIPalette.classColors[k], size: CGSize(width: 4, height: cardH - 16))
             chip.anchorPoint = CGPoint(x: 0, y: 1)
@@ -187,6 +190,7 @@ final class LevelUpScreen {
 
     init() {
         root.zPosition = ZBand.hud + 150
+        shade.zPosition = -2   // ignoresSiblingOrder: equal z draws in any order
         root.addChild(shade)
         root.addChild(content)
         root.isHidden = true
@@ -221,6 +225,7 @@ final class LevelUpScreen {
             let classCard = u.classes != nil
             let panel = Shapes.panel(width: cardW, height: cardH, fill: UIPalette.panel2, stroke: classCard ? UIPalette.amberDim : UIPalette.line)
             panel.position = CGPoint(x: x, y: top)
+            panel.zPosition = -1
             content.addChild(panel)
             let t = Label(classCard ? "СПЕЦИАЛИЗАЦИЯ" : "УЛУЧШЕНИЕ", font: Fonts.medium, size: 11, color: classCard ? UIPalette.amber : UIPalette.teal, kern: 2, align: .left)
             t.node.position = CGPoint(x: x + 14, y: top - 16)
@@ -264,6 +269,7 @@ final class MenuScreen {
 
     init() {
         root.zPosition = ZBand.hud + 180
+        shade.zPosition = -2   // ignoresSiblingOrder: equal z draws in any order
         root.addChild(shade)
         root.addChild(content)
         root.isHidden = true
@@ -321,6 +327,7 @@ final class MenuScreen {
             let cx = -w / 2 + CGFloat(k % cols) * cellW, cy = y - CGFloat(k / cols) * cellH
             let cell = Shapes.panel(width: cellW - 2, height: cellH - 2, cut: 0, fill: UIPalette.panel2)
             cell.position = CGPoint(x: cx + 1, y: cy)
+            cell.zPosition = -1
             content.addChild(cell)
             let a = Label(r.0.uppercased(), font: Fonts.medium, size: 10, color: UIPalette.inkDim, kern: 1.2, align: .left)
             a.node.position = CGPoint(x: cx + 10, y: cy - 14)

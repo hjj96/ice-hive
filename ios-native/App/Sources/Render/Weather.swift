@@ -17,8 +17,8 @@ final class WeatherLayer {
     private let mistTex: [SKTexture]
 
     init(assets: SpriteAssets, snow: Int, mist: Int) {
-        flakeTex = assets.particles.texture("p_dot")
-        mistTex = [assets.particles.texture("p_mist_0"), assets.particles.texture("p_mist_1")]
+        flakeTex = assets.texture("p_dot")
+        mistTex = [assets.texture("p_mist_0"), assets.texture("p_mist_1")]
         snowPool = SpritePool(parent: root, capacity: snow) { n in
             n.zPosition = ZBand.particlesAlpha + 20
             n.color = SKColor(red: 0.86, green: 0.9, blue: 1, alpha: 1)

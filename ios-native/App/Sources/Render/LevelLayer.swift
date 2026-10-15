@@ -22,12 +22,17 @@ final class LevelLayer {
     private final class Chunk {
         let node = SKNode()
         var bounds = CGRect.null
+        var nodes = 0
     }
     private var chunks: [Int: Chunk] = [:]
     private var chunkList: [Chunk] = []
     private var liftBounds = CGRect.null
     private(set) var nodeCount = 0
     private(set) var visibleChunks = 0
+    /// Level nodes SpriteKit actually walks this frame (visible chunks + lift + background).
+    private(set) var liveNodeCount = 0
+    private var liftNodes = 0
+    private var fixedNodes = 0
 
     /// Static lights for the darkness overlay / glow pools: (x, z, diameter m, colour hex).
     private(set) var glowPools: [(Float, Float, Float, UInt32)] = []
@@ -81,14 +86,15 @@ final class LevelLayer {
 
     private func zFor(_ band: Band, _ x: Float, _ y: Float, _ z: Float) -> CGFloat {
         switch band {
-        case .background: return ZBand.background + 5 + Iso.nearness(x, y, z) * 0.01
+        case .background: return ZBand.background + 5
         case .underBack: return ZBand.under
         case .underMid: return ZBand.under + 10
         case .underFront: return ZBand.under + 20
-        case .floor: return ZBand.floor + CGFloat(y) * 10
+        // higher floors draw later; ramps / stairs in 0.25 m steps so a sloped run is a handful of draw calls
+        case .floor: return ZBand.floor + (CGFloat(y) * 4).rounded() * 2.5
         case .floorDecal: return ZBand.floorDecal + 10
         case .farEdge: return ZBand.farEdge
-        case .object: return ZBand.object((Iso.nearness(x, y, z) * 2).rounded(.down) * 0.5)
+        case .object: return ZBand.slice(Iso.nearness(x, y, z))
         case .nearEdge: return ZBand.nearEdge
         }
     }
@@ -96,22 +102,22 @@ final class LevelLayer {
     /// Place one lit piece (+ its LevelGlow layer when there is one). Returns nil if the frame is missing.
     @discardableResult
     private func place(_ name: String, set: String, _ x: Float, _ y: Float, _ z: Float, _ band: Band,
-                       parent: SKNode? = nil, atlas: Atlas? = nil, glowAtlas: Atlas? = nil, scale: CGFloat = 1) -> SKSpriteNode? {
-        let lit = atlas ?? assets.level
-        if lit.count > 0 && !lit.has(name) {
+                       parent: SKNode? = nil, scale: CGFloat = 1) -> SKSpriteNode? {
+        if !assets.has(name) {
             AppLog.error("level: missing piece \(name)")
             return nil
         }
         let info = assets.manifest.info(set)
-        let node = SKSpriteNode(texture: lit.texture(name))
-        node.anchorPoint = info.anchor
-        node.size = CGSize(width: info.size.width * scale, height: info.size.height * scale)
+        let full = CGSize(width: info.size.width * scale, height: info.size.height * scale)
+        let node = SKSpriteNode(texture: nil)
+        node.show(assets.sprite(name), size: full, anchor: info.anchor)
         let p = Iso.point(x, y, z)
         node.position = p
         node.zPosition = zFor(band, x, y, z)
-        let frame = CGRect(x: p.x - info.anchor.x * node.size.width, y: p.y - info.anchor.y * node.size.height,
+        let frame = CGRect(x: p.x - node.anchorPoint.x * node.size.width, y: p.y - node.anchorPoint.y * node.size.height,
                            width: node.size.width, height: node.size.height)
         let target: SKNode
+        var owner: Chunk? = nil
         if let parent = parent {
             target = parent
             if parent === liftNode { liftBounds = liftBounds.union(frame) }
@@ -119,14 +125,15 @@ final class LevelLayer {
             let c = chunk(for: x, z)
             c.bounds = c.bounds.union(frame)
             target = c.node
+            owner = c
         }
         target.addChild(node)
         nodeCount += 1
-        let ga = glowAtlas ?? assets.levelGlow
-        if ga.has(name + "_g") {
-            let g = SKSpriteNode(texture: ga.texture(name + "_g"))
-            g.anchorPoint = info.anchor
-            g.size = node.size
+        let added = assets.has(name + "_g") ? 2 : 1
+        if let c = owner { c.nodes += added } else if parent === liftNode { liftNodes += added } else { fixedNodes += added }
+        if assets.has(name + "_g") {
+            let g = SKSpriteNode(texture: nil)
+            g.show(assets.sprite(name + "_g"), size: full, anchor: info.anchor)
             g.position = p
             g.blendMode = .add
             g.zPosition = band == .background ? node.zPosition + 0.5 : ZBand.glow
@@ -139,7 +146,7 @@ final class LevelLayer {
     /// Flat glow pool on the floor (additive, above the darkness).
     private func pool(_ x: Float, _ z: Float, _ size: Float, _ hex: UInt32, _ k: Float) {
         glowPools.append((x, z, size, hex))
-        let s = SKSpriteNode(texture: assets.ground.texture("glow"))
+        let s = SKSpriteNode(texture: assets.texture("glow"))
         let gy = level.groundY(x, z)
         let p = Iso.point(x, gy, z)
         s.position = CGPoint(x: p.x, y: p.y / Iso.groundSquash)
@@ -463,9 +470,9 @@ final class LevelLayer {
         let base = Int((h * 10).rounded())
         for delta in [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5] {
             let name = "crate_\(w)x\(d)_\(base + delta)_\(letter)"
-            if assets.level.has(name) { return name }
+            if assets.has(name) { return name }
         }
-        return assets.level.count == 0 ? "crate_\(w)x\(d)_\(base)_\(letter)" : nil
+        return nil
     }
 
     private func buildProps() {
@@ -519,8 +526,8 @@ final class LevelLayer {
                 place("stud_amber", set: "studs", x, level.groundY(x, z), z, .floorDecal)
             }
         }
-        if assets.ground.has("pad_mark") || assets.ground.count == 0 {
-            let m = SKSpriteNode(texture: assets.ground.texture("pad_mark"))
+        if assets.has("pad_mark") {
+            let m = SKSpriteNode(texture: assets.texture("pad_mark"))
             let p = Iso.point(s.x, level.groundY(s.x, s.y), s.y)
             m.position = CGPoint(x: p.x, y: p.y / Iso.groundSquash)
             m.size = CGSize(width: 11 * Iso.ppm, height: 11 * Iso.ppm)
@@ -574,7 +581,7 @@ final class LevelLayer {
 
     // ---------------------------------------------------------------- background: haze + distant towers
     private func buildBackground() {
-        let haze = SKSpriteNode(texture: assets.background.texture("bg_haze"))
+        let haze = SKSpriteNode(texture: assets.texture("bg_haze"))
         let hp = Iso.point(0, -16, -5)
         haze.position = CGPoint(x: hp.x, y: hp.y / Iso.groundSquash)
         haze.size = CGSize(width: 220 * Iso.ppm, height: 220 * Iso.ppm)
@@ -590,19 +597,18 @@ final class LevelLayer {
             _ = R.next(); _ = R.next(); _ = R.next()
             for _ in 0..<12 { _ = R.next() }
             let x = cosf(a) * d, z = -5 + sinf(a) * d
-            place("bg_tower_\(k % 6)", set: "bg_tower", x, top, z, .background, parent: backgroundNode,
-                  atlas: assets.background, glowAtlas: assets.backgroundGlow, scale: 4)
+            place("bg_tower_\(k % 6)", set: "bg_tower", x, top, z, .background, parent: backgroundNode, scale: 4)
         }
     }
 
     // ---------------------------------------------------------------- per frame
     /// Hide chunks outside the visible rect (world points); `liftRise` in metres.
     func update(visible: CGRect, liftRise: Float) {
-        var n = 0
+        var n = 0, live = fixedNodes
         for c in chunkList {
             let show = c.bounds.intersects(visible)
             if c.node.isHidden == show { c.node.isHidden = !show }
-            if show { n += 1 }
+            if show { n += 1; live += c.nodes }
         }
         visibleChunks = n
         let dy = CGFloat(liftRise * Iso.cosPitch) * Iso.ppm
@@ -610,5 +616,6 @@ final class LevelLayer {
         let lb = liftBounds.offsetBy(dx: 0, dy: dy)
         let showLift = lb.intersects(visible)
         if liftNode.isHidden == showLift { liftNode.isHidden = !showLift }
+        liveNodeCount = live + (showLift ? liftNodes : 0)
     }
 }

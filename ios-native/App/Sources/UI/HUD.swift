@@ -153,6 +153,7 @@ final class HUD {
     private let bannerBand = SKSpriteNode(color: UIPalette.bannerRed, size: CGSize(width: 400, height: 52))
     private var bannerStripes: [SKSpriteNode] = []
     private var bannerT: Float = 99
+    private var textT: Float = 0
     // bottom
     private let hpCap = Label("БРОНЯ", font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 1.4, align: .left)
     private let hpVal = Label("100", font: Fonts.monoBold, size: 13, color: UIPalette.ink, align: .right)
@@ -178,7 +179,8 @@ final class HUD {
     private let markerArrow = SKShapeNode()
     private let markerLabel = Label("", font: Fonts.monoBold, size: 12, color: UIPalette.amber)
     // debug
-    let debugLabel = Label("", font: Fonts.mono, size: 11, color: UIPalette.teal, align: .left, valign: .top)
+    /// -debugHUD text: two compact lines in the bottom-left corner (the SKView's own stats sit bottom-right).
+    let debugLabel = Label("", font: Fonts.mono, size: 9, color: UIPalette.teal, align: .left, valign: .bottom)
     var showDebug = false
     var visible = true { didSet { root.isHidden = !visible } }
 
@@ -381,7 +383,7 @@ final class HUD {
 
         // overlays
         for n in [vignette, damage, horde, flash] { n.size = size; n.position = .zero }
-        debugLabel.node.position = hp(sl, landscape ? top + 52 : objBottom + 4 * 26 + 16)
+        debugLabel.node.position = hp(max(8, insets.left), H - max(3, sb - 24))
         plates.topLimit = hp(0, objBottom + 4).y
     }
 
@@ -424,7 +426,13 @@ final class HUD {
     // ---------------------------------------------------------------- per frame
     func update(game: Game, dt: Float, camera: CameraController, marines: MarineLayer, input: InputController) {
         let P = game.player
-        killsVal.set("\(game.kills)")
+        // fast-changing numbers at 10 Hz (each new string is a new label texture)
+        textT -= dt
+        if textT <= 0 {
+            textT = 0.1
+            killsVal.set("\(game.kills)")
+            hpVal.set("\(Int(max(0, P.hp).rounded()))")
+        }
         timeVal.set(formatTime(game.time))
         let combo = game.comboShown
         comboVal.set(combo > 0 ? "×\(combo)" : "")
@@ -447,7 +455,6 @@ final class HUD {
             r.name.color = m.downed ? UIPalette.red : UIPalette.ink
             r.name.node.alpha = m.downed && sinf(game.time * 10.5) < 0 ? 0.3 : 1
         }
-        hpVal.set("\(Int(max(0, P.hp).rounded()))")
         hpBar.set(CGFloat(P.hp / max(1, P.maxHp)))
         lvl.set("УР \(game.xpLevel)")
         xpBar.set(CGFloat(Float(game.xp) / Float(max(1, game.xpNext))))

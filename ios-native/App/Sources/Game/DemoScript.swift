@@ -4,7 +4,8 @@ import IceHiveCore
 // ================================================================
 //  DEMO SCRIPTS — scripted scenarios for CI screenshots / perf logs:
 //    -demo combat   mission (assault unless -class), squad invulnerable, autopilot,
-//                   ~600 bugs spawned around the squad and topped up
+//                   600 bugs spawned around the squad and kept at ~600 alive (like the
+//                   web harness swarm screenshots)
 //    -demo beacon   mission started next to beacon «Альфа» with a crowd
 //    -demo title    the title screen (attract mode behind)
 //    -demo calm     mission start with the director off: no bugs, the squad idles on the
@@ -47,7 +48,7 @@ final class DemoScript {
             if let b = game.beacons.first {
                 game.debugTeleport(b.x + 3, b.z - 3.5)
             }
-            target = 260
+            target = 350
             let n = game.debugSpawn(target, type: nil, minRadius: 7, maxRadius: 24)
             AppLog.info("demo beacon: squad at beacon \(game.beacons.first?.name ?? "?"), spawned \(n) bugs")
         default:
@@ -57,18 +58,27 @@ final class DemoScript {
         }
     }
 
-    /// Per frame while the mission runs: keep the swarm topped up so screenshots stay busy.
+    /// Per frame while the mission runs: keep the swarm at `target` (the squad kills ~100 bugs a second, so
+    /// replacements arrive twice a second from 12–30 m away and walk in).
     func frame(game: Game, dt: Float) {
         if !startsMission || target == 0 { return }
         t += dt
         topUpT -= dt
         if topUpT <= 0 {
-            topUpT = 3
+            topUpT = 0.5
             let alive = game.bugsAlive
-            if alive < target * 3 / 4 {
-                let n = game.debugSpawn(min(200, target - alive), type: nil, minRadius: 10, maxRadius: 26)
-                if n > 0 { AppLog.info("demo \(name): +\(n) bugs (alive \(alive))") }
+            if alive < target - 10 {
+                let n = game.debugSpawn(min(300, target - alive), type: nil, minRadius: 12, maxRadius: 30)
+                spawned += n
+            }
+            logT -= 0.5
+            if logT <= 0 {
+                logT = 5
+                AppLog.info("demo \(name): alive \(game.bugsAlive), topped up \(spawned) in the last 5 s")
+                spawned = 0
             }
         }
     }
+    private var spawned = 0
+    private var logT: Float = 5
 }

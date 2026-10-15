@@ -65,9 +65,10 @@ enum Fonts {
 final class Label {
     let node = SKLabelNode()
     private(set) var text = ""
-    var font: String { didSet { rebuild() } }
-    var size: CGFloat { didSet { rebuild() } }
-    var color: SKColor { didSet { rebuild() } }
+    // every rebuild renders a new text texture: only when something actually changed
+    var font: String { didSet { if font != oldValue { rebuild() } } }
+    var size: CGFloat { didSet { if size != oldValue { rebuild() } } }
+    var color: SKColor { didSet { if !color.isEqual(oldValue) { rebuild() } } }
     var kern: CGFloat
     var stroke: SKColor? = nil
 

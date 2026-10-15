@@ -20,6 +20,8 @@ final class BugLayer {
     var onBurning: ((Float, Float, Float, Float) -> Void)?
     private var emberRng = SeededRNG(seed: 77)
     /// Brightness spread of healthy bugs, quantised (no colour allocation per bug per frame).
+    private static let frostTint = SKColor(red: 0.25, green: 0.5, blue: 0.85, alpha: 1)
+    private static let burnTint = SKColor(red: 1, green: 0.42, blue: 0.08, alpha: 1)
     private let palette: [SKColor] = (0..<32).map { k in
         let vr = Float(k) / 31
         let v = 0.478 + vr * 0.652
@@ -98,13 +100,12 @@ final class BugLayer {
             let tex = set.tex(dir, frame)
             let k = CGFloat(scs[i] / assets.bugBakedScale[t])
             let size = CGSize(width: set.info.size.width * k, height: set.info.size.height * k * hScale)
+            let anchor = set.info.anchor
 
-            if body.texture !== tex { body.texture = tex }
-            body.size = size
-            body.anchorPoint = set.info.anchor
+            body.show(tex, size: size, anchor: anchor)
             body.position = p
-            // nearness quantised to 1 m slices: bugs in one slice share a z, so SpriteKit can batch them by atlas page
-            body.zPosition = ZBand.object(Iso.nearness(x, y, z).rounded(.down))
+            // depth slice shared with the deck objects: every bug of a slice is one draw call (one sheet)
+            body.zPosition = ZBand.slice(Iso.nearness(x, y, z))
 
             // body colour: per-bug brightness, charred while burning, icy while frozen / chilled
             let v = 0.478 + vr * 0.652
@@ -134,21 +135,22 @@ final class BugLayer {
             }
             if let glow = glows.next() {
                 glow.position = p
-                glow.size = size
-                glow.anchorPoint = set.info.anchor
                 if flash > 0.04 {
-                    if glow.texture !== tex { glow.texture = tex }
+                    glow.show(tex, size: size, anchor: anchor)
+                    glow.zPosition = ZBand.glowLit
                     glow.colorBlendFactor = 0
                     glow.alpha = CGFloat(min(1, flash * 1.4))
                 } else if frost > 0.05 {
-                    if glow.texture !== tex { glow.texture = tex }
-                    glow.color = SKColor(red: 0.25, green: 0.5, blue: 0.85, alpha: 1)
+                    glow.show(tex, size: size, anchor: anchor)
+                    glow.zPosition = ZBand.glowLit
+                    glow.color = BugLayer.frostTint
                     glow.colorBlendFactor = 1
                     glow.alpha = CGFloat(frost * 0.45)
                 } else if let gt = set.glow(dir, frame) {
-                    if glow.texture !== gt { glow.texture = gt }
+                    glow.show(gt, size: size, anchor: anchor)
+                    glow.zPosition = ZBand.glow
                     if burnK > 0 {
-                        glow.color = SKColor(red: 1, green: 0.42, blue: 0.08, alpha: 1)
+                        glow.color = BugLayer.burnTint
                         glow.colorBlendFactor = 1
                         glow.alpha = CGFloat(0.7 + 0.3 * burnK)
                     } else {
@@ -164,10 +166,7 @@ final class BugLayer {
             if !climbing, let sh = shadows.next() {
                 let ss = assets.bugShadow[t]
                 if ss.frameCount > 0 {
-                    let stex = ss.tex(dir, 0)
-                    if sh.texture !== stex { sh.texture = stex }
-                    sh.size = CGSize(width: ss.info.size.width * k, height: ss.info.size.height * k)
-                    sh.anchorPoint = ss.info.anchor
+                    sh.show(ss.tex(dir, 0), size: CGSize(width: ss.info.size.width * k, height: ss.info.size.height * k), anchor: ss.info.anchor)
                     sh.position = Iso.point(x, floorY, z)
                 }
             }

@@ -57,136 +57,170 @@ final class SpriteManifest {
 }
 
 // ================================================================
-//  ATLAS — one SKTextureAtlas with a name check (missing frames are
-//  logged once instead of silently drawing the placeholder).
+//  SPRITE SHEETS — every frame lives in one of five big sheets packed
+//  by tools/pack-sheets.mjs (Resources/Sheets: sheet_*.png +
+//  sheets.json), grouped by draw layer so SpriteKit batches them:
+//  bugs, squad (marines, props, deck objects), glow (all additive
+//  emissive layers), level (tiles, background), fx (flat / particles).
+//  Frames are @2x and trimmed to their visible pixels; a Sprite keeps
+//  where the trimmed rect sits in the full frame, so the manifest's
+//  anchors and point sizes still apply (see SKSpriteNode.show).
 // ================================================================
-final class Atlas {
-    let name: String
-    let atlas: SKTextureAtlas
-    private var names: Set<String> = []
-    private var cache: [String: SKTexture] = [:]
-    private static var missingLogged = 0
-    /// SKTextureAtlas.textureNamed costs ~1 ms per call on the simulator: count + time them.
-    static var lookups = 0
-    /// `-texlookup atlas` switches back to SKTextureAtlas.textureNamed (comparison runs).
-    static var useNamedLookup = true
-    static var lookupSeconds: Double = 0
 
-    init(_ name: String) {
-        self.name = name
-        atlas = SKTextureAtlas(named: name)
-        let t0 = ProcessInfo.processInfo.systemUptime
-        for n in atlas.textureNames {
-            var s = n
-            if let dot = s.lastIndex(of: ".") { s = String(s[s.startIndex..<dot]) }
-            if s.hasSuffix("@2x") || s.hasSuffix("@3x") { s = String(s.dropLast(3)) }
-            names.insert(s)
-        }
-        let dt = ProcessInfo.processInfo.systemUptime - t0
-        if dt > 0.05 { AppLog.info("atlas \(name): textureNames " + String(format: "%.0f ms", dt * 1000)) }
-    }
+/// A packed frame: sub-texture of a sheet + its trimmed rect inside the full frame (normalised, origin bottom-left).
+struct Sprite {
+    let tex: SKTexture
+    let rx: CGFloat, ry: CGFloat, rw: CGFloat, rh: CGFloat
+    /// Sheet index (layers use it to keep one draw call per sheet).
+    let sheet: Int
 
-    var count: Int { names.count }
+    /// Point size of the trimmed sprite for a full frame of `full` points.
+    @inline(__always) func size(_ full: CGSize) -> CGSize { CGSize(width: full.width * rw, height: full.height * rh) }
+    /// Anchor inside the trimmed sprite that puts the full frame's anchor `a` at the node position.
+    @inline(__always) func anchor(_ a: CGPoint) -> CGPoint { CGPoint(x: (a.x - rx) / rw, y: (a.y - ry) / rh) }
+}
 
-    /// Every texture resolved so far (preload list).
-    var cachedTextures: [SKTexture] { Array(cache.values) }
-
-    func has(_ frame: String) -> Bool { names.contains(frame) }
-
-    func texture(_ frame: String) -> SKTexture {
-        if let t = cache[frame] { return t }
-        if !names.isEmpty && !names.contains(frame) && Atlas.missingLogged < 12 {
-            Atlas.missingLogged += 1
-            AppLog.error("atlas \(name): missing frame \(frame)")
-        }
-        let t0 = ProcessInfo.processInfo.systemUptime
-        // SKTexture(imageNamed:) resolves the frame inside the compiled sprite atlas lazily (~0.01 ms);
-        // SKTextureAtlas.textureNamed costs ~3 ms per call on the simulator.
-        let t = Atlas.useNamedLookup ? SKTexture(imageNamed: frame) : atlas.textureNamed(frame)
-        Atlas.lookupSeconds += ProcessInfo.processInfo.systemUptime - t0
-        Atlas.lookups += 1
-        cache[frame] = t
-        return t
+extension SKSpriteNode {
+    /// Show a packed frame with the full frame's point size and anchor (manifest values).
+    @inline(__always) func show(_ s: Sprite, size full: CGSize, anchor a: CGPoint) {
+        if texture !== s.tex { texture = s.tex }
+        size = s.size(full)
+        anchorPoint = s.anchor(a)
     }
 }
 
-/// Frames of one animated sprite set, [dir][frame], resolved lazily (texture lookups are slow) and cached;
-/// `warm` resolves a few per call so the tables fill up in the background.
+final class SpriteSheets {
+    /// One texture per sheet, in sheets.json order.
+    private(set) var pages: [SKTexture] = []
+    private(set) var pageNames: [String] = []
+    private var raw: [String: [Int]] = [:]
+    private var cache: [String: Sprite] = [:]
+    private var missingLogged = 0
+    private let placeholder: Sprite
+
+    init() {
+        let empty = SKTexture()
+        placeholder = Sprite(tex: empty, rx: 0, ry: 0, rw: 1, rh: 1, sheet: -1)
+        guard let url = Bundle.main.url(forResource: "sheets", withExtension: "json"),
+              let data = try? Data(contentsOf: url),
+              let rootAny = try? JSONSerialization.jsonObject(with: data, options: []),
+              let root = rootAny as? [String: Any],
+              let sheets = root["sheets"] as? [[String: Any]],
+              let frames = root["frames"] as? [String: Any] else {
+            AppLog.error("sheets.json missing or unreadable")
+            return
+        }
+        for sh in sheets {
+            let file = (sh["file"] as? String) ?? "missing.png"
+            let base = file.hasSuffix(".png") ? String(file.dropLast(4)) : file
+            var tex: SKTexture
+            if Bundle.main.path(forResource: base, ofType: "png") != nil {
+                // loose bundle PNG (not an asset catalog): decoded by SKTexture.preload behind the loading screen
+                tex = SKTexture(imageNamed: base)
+            } else {
+                AppLog.error("sheet \(file) missing from the bundle")
+                tex = SKTexture()
+            }
+            tex.filteringMode = .linear
+            pages.append(tex)
+            pageNames.append((sh["name"] as? String) ?? base)
+            sizes.append(CGSize(width: SpriteSheets.number(sh["w"]), height: SpriteSheets.number(sh["h"])))
+        }
+        raw.reserveCapacity(frames.count)
+        for (name, v) in frames {
+            guard let arr = v as? [Any], arr.count >= 9 else { continue }
+            raw[name] = arr.map { Int(SpriteSheets.number($0)) }
+        }
+    }
+
+    private var sizes: [CGSize] = []
+
+    private static func number(_ v: Any?) -> CGFloat {
+        if let n = v as? NSNumber { return CGFloat(n.doubleValue) }
+        if let d = v as? Double { return CGFloat(d) }
+        if let i = v as? Int { return CGFloat(i) }
+        return 0
+    }
+
+    var frameCount: Int { raw.count }
+
+    func has(_ name: String) -> Bool { raw[name] != nil }
+
+    /// The packed frame `name` (created on first use, then cached). Missing frames log once and draw nothing.
+    func sprite(_ name: String) -> Sprite {
+        if let s = cache[name] { return s }
+        guard let f = raw[name], f[0] >= 0, f[0] < pages.count else {
+            if missingLogged < 12 {
+                missingLogged += 1
+                AppLog.error("sheets: missing frame \(name)")
+            }
+            return placeholder
+        }
+        let page = f[0]
+        let W = sizes[page].width, H = sizes[page].height
+        let x = CGFloat(f[1]), y = CGFloat(f[2]), w = CGFloat(f[3]), h = CGFloat(f[4])
+        let ox = CGFloat(f[5]), oy = CGFloat(f[6]), fw = CGFloat(max(1, f[7])), fh = CGFloat(max(1, f[8]))
+        // sheet rows are top-down, SpriteKit texture space is bottom-up
+        let rect = CGRect(x: x / W, y: 1 - (y + h) / H, width: w / W, height: h / H)
+        let tex = SKTexture(rect: rect, in: pages[page])
+        let s = Sprite(tex: tex, rx: ox / fw, ry: (fh - oy - h) / fh, rw: w / fw, rh: h / fh, sheet: page)
+        cache[name] = s
+        return s
+    }
+
+    /// Texture of an untrimmed frame (flat ground textures, particles: sized in metres by the caller).
+    func texture(_ name: String) -> SKTexture { sprite(name).tex }
+
+    /// Index of a sheet by name (bugs, squad, glow, level, fx), -1 if absent.
+    func sheetIndex(_ name: String) -> Int { pageNames.firstIndex(of: name) ?? -1 }
+}
+
+/// Frames of one animated sprite set, [dir][frame], resolved up front (cheap sub-texture creation).
 final class FrameSet {
     let info: SpriteSetInfo
     let frameCount: Int
     let hasGlow: Bool
-    private let lit: Atlas
-    private let glowAtlas: Atlas?
-    private let prefix: String
-    private var litTex: [SKTexture?]
-    private var glowTex: [SKTexture?]
-    private var warmIndex = 0
+    private var litTex: [Sprite] = []
+    private var glowTex: [Sprite?] = []
 
-    init(_ lit: Atlas, _ glow: Atlas?, _ prefix: String, frames: Int, info: SpriteSetInfo) {
-        self.lit = lit
-        self.glowAtlas = glow
-        self.prefix = prefix
+    init(_ sheets: SpriteSheets, _ prefix: String, frames: Int, glow: Bool, info: SpriteSetInfo) {
         self.frameCount = frames
         self.info = info
-        self.hasGlow = glow != nil
-        litTex = [SKTexture?](repeating: nil, count: 16 * frames)
-        glowTex = [SKTexture?](repeating: nil, count: glow == nil ? 0 : 16 * frames)
-    }
-
-    private func name(_ dir: Int, _ f: Int) -> String {
-        let dd = dir < 10 ? "0\(dir)" : "\(dir)"
-        return frameCount > 1 ? "\(prefix)_\(dd)_\(f)" : "\(prefix)_\(dd)"
-    }
-
-    @inline(__always) func tex(_ dir: Int, _ f: Int) -> SKTexture {
-        let k = dir * frameCount + f
-        if let t = litTex[k] { return t }
-        let t = lit.texture(name(dir, f))
-        litTex[k] = t
-        return t
-    }
-
-    @inline(__always) func glow(_ dir: Int, _ f: Int) -> SKTexture? {
-        guard let ga = glowAtlas else { return nil }
-        let k = dir * frameCount + f
-        if let t = glowTex[k] { return t }
-        let t = ga.texture(name(dir, f) + "_g")
-        glowTex[k] = t
-        return t
-    }
-
-    /// Resolve up to `count` more frames; returns false when the set is complete.
-    func warm(_ count: Int) -> Bool {
-        var n = 0
-        while warmIndex < 16 * frameCount && n < count {
-            let d = warmIndex / frameCount, f = warmIndex % frameCount
-            _ = tex(d, f)
-            _ = glow(d, f)
-            warmIndex += 1
-            n += 1
+        self.hasGlow = glow
+        litTex.reserveCapacity(16 * frames)
+        for d in 0..<16 {
+            let dd = d < 10 ? "0\(d)" : "\(d)"
+            for f in 0..<frames {
+                let name = frames > 1 ? "\(prefix)_\(dd)_\(f)" : "\(prefix)_\(dd)"
+                litTex.append(sheets.sprite(name))
+                if glow { glowTex.append(sheets.has(name + "_g") ? sheets.sprite(name + "_g") : nil) }
+            }
         }
-        return warmIndex < 16 * frameCount
+    }
+
+    @inline(__always) func tex(_ dir: Int, _ f: Int) -> Sprite { litTex[dir * frameCount + f] }
+
+    @inline(__always) func glow(_ dir: Int, _ f: Int) -> Sprite? {
+        if !hasGlow { return nil }
+        return glowTex[dir * frameCount + f]
     }
 }
 
 // ================================================================
-//  SPRITE ASSETS — every atlas + the frame tables the layers index
+//  SPRITE ASSETS — the sheets + the frame tables the layers index
 // ================================================================
 final class SpriteAssets {
     let manifest = SpriteManifest()
-    let bugs: Atlas, bugsGlow: Atlas, corpses: Atlas, marines: Atlas, marinesGlow: Atlas
-    let props: Atlas, level: Atlas, levelGlow: Atlas, ground: Atlas, particles: Atlas
-    let background: Atlas, backgroundGlow: Atlas
+    let sheets = SpriteSheets()
 
     // bugs, index = BugType.rawValue
     private(set) var bugWalk: [FrameSet] = []
     private(set) var bugClimb: [FrameSet] = []
     private(set) var bugCrest: [FrameSet] = []
     private(set) var bugShadow: [FrameSet] = []
-    private(set) var bruteCharge: FrameSet
-    private(set) var boomerSwell: FrameSet
-    private(set) var corpseFrames: [[SKTexture]] = []
+    let bruteCharge: FrameSet
+    let boomerSwell: FrameSet
+    private(set) var corpseFrames: [[Sprite]] = []
     private(set) var corpseInfo: [SpriteSetInfo] = []
     /// Sprite scale baked into the bug frames (BUG_SPECS scale).
     let bugBakedScale: [Float] = BugType.allCases.map { $0.spec.scale }
@@ -197,77 +231,36 @@ final class SpriteAssets {
     private(set) var marineIdle: [FrameSet] = []
     private(set) var marineDash: [FrameSet] = []
     private(set) var marineDowned: [FrameSet] = []
-    /// Warm-up order: what the first seconds of play need first.
-    private var warmQueue: [FrameSet] = []
 
     init() {
-        bugs = Atlas("Bugs"); bugsGlow = Atlas("BugsGlow"); corpses = Atlas("Corpses")
-        marines = Atlas("Marines"); marinesGlow = Atlas("MarinesGlow"); props = Atlas("Props")
-        level = Atlas("Level"); levelGlow = Atlas("LevelGlow"); ground = Atlas("Ground"); particles = Atlas("Particles")
-        background = Atlas("Background"); backgroundGlow = Atlas("BackgroundGlow")
-        bruteCharge = FrameSet(bugs, bugsGlow, "brute_charge", frames: 4, info: manifest.info("brute_charge"))
-        boomerSwell = FrameSet(bugs, bugsGlow, "boomer_swell", frames: 3, info: manifest.info("boomer_swell"))
-
+        let S = sheets
+        bruteCharge = FrameSet(S, "brute_charge", frames: 4, glow: true, info: manifest.info("brute_charge"))
+        boomerSwell = FrameSet(S, "boomer_swell", frames: 3, glow: true, info: manifest.info("boomer_swell"))
         for t in BugType.allCases {
             let id = t.id
-            bugWalk.append(dirFrames(bugs, bugsGlow, "\(id)_walk", frames: 8, set: "\(id)_walk"))
-            bugClimb.append(dirFrames(bugs, bugsGlow, "\(id)_climb", frames: 4, set: "\(id)_climb"))
-            bugCrest.append(dirFrames(bugs, bugsGlow, "\(id)_crest", frames: 2, set: "\(id)_crest"))
-            bugShadow.append(dirFrames(bugs, nil, "\(id)_shadow", frames: 1, set: "\(id)_shadow"))
+            bugWalk.append(FrameSet(S, "\(id)_walk", frames: 8, glow: true, info: manifest.info("\(id)_walk")))
+            bugClimb.append(FrameSet(S, "\(id)_climb", frames: 4, glow: true, info: manifest.info("\(id)_climb")))
+            bugCrest.append(FrameSet(S, "\(id)_crest", frames: 2, glow: true, info: manifest.info("\(id)_crest")))
+            bugShadow.append(FrameSet(S, "\(id)_shadow", frames: 1, glow: false, info: manifest.info("\(id)_shadow")))
             corpseInfo.append(manifest.info("corpse_\(id)"))
+            corpseFrames.append((0..<6).map { S.sprite("\(id)_corpse_\($0)") })
         }
         for c in MarineClass.allCases {
             let id = c.id
-            marineRun.append(dirFrames(marines, marinesGlow, "\(id)_run", frames: 8, set: "\(id)_run"))
-            marineStrafe.append(dirFrames(marines, marinesGlow, "\(id)_strafe", frames: 4, set: "\(id)_strafe"))
-            marineIdle.append(dirFrames(marines, marinesGlow, "\(id)_idle", frames: 1, set: "\(id)_idle"))
-            marineDash.append(dirFrames(marines, marinesGlow, "\(id)_dash", frames: 1, set: "\(id)_dash"))
-            marineDowned.append(dirFrames(marines, marinesGlow, "\(id)_downed", frames: 1, set: "\(id)_downed"))
+            marineRun.append(FrameSet(S, "\(id)_run", frames: 8, glow: true, info: manifest.info("\(id)_run")))
+            marineStrafe.append(FrameSet(S, "\(id)_strafe", frames: 4, glow: true, info: manifest.info("\(id)_strafe")))
+            marineIdle.append(FrameSet(S, "\(id)_idle", frames: 1, glow: true, info: manifest.info("\(id)_idle")))
+            marineDash.append(FrameSet(S, "\(id)_dash", frames: 1, glow: true, info: manifest.info("\(id)_dash")))
+            marineDowned.append(FrameSet(S, "\(id)_downed", frames: 1, glow: true, info: manifest.info("\(id)_downed")))
         }
-        warmQueue = marineIdle + marineRun + [bugWalk[0], bugShadow[0]] + marineStrafe + marineDash + marineDowned
-            + [bugClimb[0], bugCrest[0], bugWalk[1], bugShadow[1], bugWalk[3], bugShadow[3], bugWalk[2], bugShadow[2],
-               bruteCharge, boomerSwell, bugClimb[1], bugCrest[1], bugClimb[2], bugCrest[2], bugClimb[3], bugCrest[3]]
-        AppLog.info("atlases: bugs=\(bugs.count) glow=\(bugsGlow.count) marines=\(marines.count) level=\(level.count) ground=\(ground.count) particles=\(particles.count) props=\(props.count)")
+        AppLog.info("sheets: \(sheets.pages.count) pages (\(sheets.pageNames.joined(separator: ","))), \(sheets.frameCount) frames")
     }
 
-    private func dirFrames(_ lit: Atlas, _ glow: Atlas?, _ prefix: String, frames: Int, set: String) -> FrameSet {
-        FrameSet(lit, glow, prefix, frames: frames, info: manifest.info(set))
-    }
+    /// Corpse frame of a bug type (6 variants).
+    @inline(__always) func corpse(_ t: Int, _ v: Int) -> Sprite { corpseFrames[t][v % 6] }
 
-    /// Corpse frames of a bug type (6 variants, resolved on first use).
-    func corpse(_ t: Int, _ v: Int) -> SKTexture {
-        if corpseFrames.isEmpty {
-            for b in BugType.allCases { corpseFrames.append((0..<6).map { corpses.texture("\(b.id)_corpse_\($0)") }) }
-        }
-        return corpseFrames[t][v % 6]
-    }
-
-    /// Resolve every bug / marine / corpse frame (cheap with named lookups) so they can be preloaded.
-    func resolveAll() {
-        while let s = warmQueue.first {
-            if !s.warm(64) { warmQueue.removeFirst() }
-        }
-        _ = corpse(0, 0)
-    }
-
-    /// All textures resolved in any atlas (for SKTexture.preload behind the loading screen).
-    func allTextures() -> [SKTexture] {
-        var out: [SKTexture] = []
-        for a in [bugs, bugsGlow, corpses, marines, marinesGlow, props, level, levelGlow, ground, particles, background, backgroundGlow] {
-            out.append(contentsOf: a.cachedTextures)
-        }
-        return out
-    }
-
-    /// Resolve frame textures for about `budget` seconds; returns true while work remains.
-    @discardableResult
-    func warm(budget: Double) -> Bool {
-        let t0 = ProcessInfo.processInfo.systemUptime
-        while let s = warmQueue.first {
-            if !s.warm(4) { warmQueue.removeFirst() }
-            if ProcessInfo.processInfo.systemUptime - t0 > budget { break }
-        }
-        return !warmQueue.isEmpty
-    }
-
+    /// Packed frame / untrimmed texture by name (frame names are unique across all sheets).
+    @inline(__always) func sprite(_ name: String) -> Sprite { sheets.sprite(name) }
+    @inline(__always) func texture(_ name: String) -> SKTexture { sheets.texture(name) }
+    @inline(__always) func has(_ name: String) -> Bool { sheets.has(name) }
 }

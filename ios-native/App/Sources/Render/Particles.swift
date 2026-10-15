@@ -49,8 +49,7 @@ final class ParticleSystem {
             n.zPosition = additive ? ZBand.particlesAdd : ZBand.particlesAlpha
             n.colorBlendFactor = 1
         }
-        let A = assets.particles
-        func list(_ names: [String]) -> [SKTexture] { names.map { A.texture($0) } }
+        func list(_ names: [String]) -> [SKTexture] { names.map { assets.texture($0) } }
         let all: [PTex] = [.soft, .puff, .spark, .streak, .flash, .shard, .chunk, .dot, .firePyro, .fireBlast, .fireball]
         for t in all {
             switch t {

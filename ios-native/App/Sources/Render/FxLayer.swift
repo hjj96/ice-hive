@@ -25,9 +25,9 @@ final class FxLayer {
     private let beam = SKSpriteNode(texture: nil)
     private var beamFrames: [SKTexture] = []
     private let props: SpritePool
-    private var globTex: SKTexture, grenadeTex: SKTexture, medkitTex: SKTexture, turretBaseTex: SKTexture
-    private var turretHeads: [SKTexture] = []
-    private var beaconTops: [SKTexture] = []
+    private var globTex: Sprite, grenadeTex: Sprite, medkitTex: Sprite, turretBaseTex: Sprite
+    private var turretHeads: [Sprite] = []
+    private var beaconTops: [Sprite] = []
     private let beaconBeamTex: SKTexture
     private var beaconTopNodes: [SKSpriteNode] = []
     private var beaconBeamNodes: [SKSpriteNode] = []
@@ -51,24 +51,24 @@ final class FxLayer {
             n.zPosition = ZBand.beams
         }
         props = SpritePool(parent: root, capacity: 64) { _ in }
-        tracerTex = ["tracer_assault", "tracer_gunner", "tracer_turret"].map { assets.ground.texture($0) }
-        beamFrames = (0..<8).map { assets.ground.texture("cryo_beam_\($0)") }
+        tracerTex = ["tracer_assault", "tracer_gunner", "tracer_turret"].map { assets.texture($0) }
+        beamFrames = (0..<8).map { assets.texture("cryo_beam_\($0)") }
         beam.blendMode = .add
         beam.anchorPoint = CGPoint(x: 0, y: 0.5)
         beam.zPosition = ZBand.beams + 1
         beam.isHidden = true
         root.addChild(beam)
-        globTex = assets.props.texture("glob")
-        grenadeTex = assets.props.texture("grenade")
-        medkitTex = assets.props.texture("medkit")
-        turretBaseTex = assets.props.texture("turret_base")
-        turretHeads = (0..<16).map { assets.props.texture("turret_head_\($0 < 10 ? "0" : "")\($0)") }
-        beaconTops = (0..<4).map { assets.props.texture("beacon_top_\($0)") }
-        beaconBeamTex = assets.particles.texture("beacon_beam")
+        globTex = assets.sprite("glob")
+        grenadeTex = assets.sprite("grenade")
+        medkitTex = assets.sprite("medkit")
+        turretBaseTex = assets.sprite("turret_base")
+        turretHeads = (0..<16).map { assets.sprite("turret_head_\($0 < 10 ? "0" : "")\($0)") }
+        beaconTops = (0..<4).map { assets.sprite("beacon_top_\($0)") }
+        beaconBeamTex = assets.texture("beacon_beam")
         let M = assets.manifest
         propInfo = (M.info("glob"), M.info("grenade"), M.info("medkit"), M.info("turret_base"), M.info("turret_head"), M.info("beacon_top"))
         for _ in level.layout.beacons {
-            let top = SKSpriteNode(texture: beaconTops.first)
+            let top = SKSpriteNode(texture: beaconTops.first?.tex)
             top.zPosition = ZBand.glow + 2
             top.colorBlendFactor = 1
             root.addChild(top)
@@ -413,11 +413,9 @@ final class FxLayer {
         if beam.isHidden == shown { beam.isHidden = !shown }
     }
 
-    private func prop(_ tex: SKTexture, _ info: SpriteSetInfo, _ x: Float, _ y: Float, _ z: Float, scale: CGFloat = 1, z band: CGFloat? = nil) -> SKSpriteNode? {
+    private func prop(_ tex: Sprite, _ info: SpriteSetInfo, _ x: Float, _ y: Float, _ z: Float, scale: CGFloat = 1, z band: CGFloat? = nil) -> SKSpriteNode? {
         guard let n = props.next() else { return nil }
-        if n.texture !== tex { n.texture = tex }
-        n.size = CGSize(width: info.size.width * scale, height: info.size.height * scale)
-        n.anchorPoint = info.anchor
+        n.show(tex, size: CGSize(width: info.size.width * scale, height: info.size.height * scale), anchor: info.anchor)
         n.position = Iso.point(x, y, z)
         n.zPosition = band ?? ZBand.object(Iso.nearness(x, y, z)) + 0.5
         n.colorBlendFactor = 0
@@ -465,8 +463,7 @@ final class FxLayer {
             let top = beaconTopNodes[k]
             let spin = time * (b.state == 1 ? 4 : 1.2)
             let fi = Iso.wrap(Int(spin / (Float.pi / 2) * 4), 4)
-            if top.texture !== beaconTops[fi] { top.texture = beaconTops[fi] }
-            top.size = propInfo.top.size
+            top.show(beaconTops[fi], size: propInfo.top.size, anchor: propInfo.top.anchor)
             top.position = Iso.point(b.x, gy + 2.9 + sinf(time * 2 + Float(k)) * 0.12, b.z)
             top.color = SKColor(red: CGFloat(min(1, col.0 * 1.3)), green: CGFloat(min(1, col.1 * 1.3)), blue: CGFloat(min(1, col.2 * 1.3)), alpha: 1)
             let beamNode = beaconBeamNodes[k]

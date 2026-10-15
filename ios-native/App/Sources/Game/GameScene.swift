@@ -53,10 +53,18 @@ final class GameScene: SKScene {
     private var reportedDone = false
     private var loadingLabel: Label?
     private var loadingSub: Label?
+    /// Opaque cover over the world while loading and for the first frames after it (texture uploads and shader
+    /// compiles happen behind it), then faded out: the moment it is gone is "scene ready".
+    private let cover = SKSpriteNode(color: Tone.hex(0x05070a), size: CGSize(width: 4000, height: 4000))
+    private var coverFrames = 0
+    private var readyTime: Double = -1
     private var loadStep = 0
-    private let sceneTimer = FrameTimer(["sim", "ev", "cam", "draw", "hud", "au", "warm"])
-    private var lastLookups = 0
-    private var lastLookupSeconds: Double = 0
+    private var bootTime: Double = 0
+    private let sceneTimer = FrameTimer(["sim", "ev", "cam", "draw", "hud", "au"])
+    private var worstDt: Double = 0
+    private var lastDebugText: Double = 0
+    private var lastFrameTime: Double = 0
+    private var worstMs: Double = 0
 
     init(size: CGSize, options: LaunchOptions) {
         self.options = options
@@ -64,7 +72,6 @@ final class GameScene: SKScene {
         backgroundColor = Tone.hex(0x1a2737)
         anchorPoint = CGPoint(x: 0.5, y: 0.5)
         if let c = options.playerClass, let mc = MarineClass(id: c) { selectedClass = mc }
-        Atlas.useNamedLookup = options.textureLookup != "atlas"
         demo = DemoScript.make(options: options)
     }
 
@@ -77,12 +84,14 @@ final class GameScene: SKScene {
         if assets != nil || loadingLabel != nil { relayout(); return }
         addChild(cameraCtl.node)
         camera = cameraCtl.node
+        cover.zPosition = ZBand.hud + 900
+        cameraCtl.node.addChild(cover)
         let title = Label("ЛЕДЯНОЙ УЛЕЙ", font: Fonts.bold, size: 30, color: UIPalette.ink, kern: 4)
-        title.node.zPosition = ZBand.hud
+        title.node.zPosition = ZBand.hud + 901
         cameraCtl.node.addChild(title.node)
         let sub = Label("ПРОГРЕВ РЕАКТОРОВ…", font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 2.5)
         sub.node.position = CGPoint(x: 0, y: -30)
-        sub.node.zPosition = ZBand.hud
+        sub.node.zPosition = ZBand.hud + 901
         cameraCtl.node.addChild(sub.node)
         loadingLabel = title
         loadingSub = sub
@@ -97,31 +106,18 @@ final class GameScene: SKScene {
             loadStep += 1          // let the loading screen render first
         case 2:
             loadStep = 3
-            let t0 = ProcessInfo.processInfo.systemUptime
+            bootTime = ProcessInfo.processInfo.systemUptime
             let a = SpriteAssets()
             assets = a
-            AppLog.info(String(format: "assets indexed in %.0f ms", (ProcessInfo.processInfo.systemUptime - t0) * 1000))
-            benchmarkLookups(a)
+            AppLog.info(String(format: "sprites indexed in %.0f ms", (ProcessInfo.processInfo.systemUptime - bootTime) * 1000))
             finishLoading()
         default:
             if let l = loadingSub { l.node.alpha = 0.5 + 0.5 * CGFloat(sinf(Float(lastTime) * 4)) }
         }
     }
 
-    /// textureNamed vs SKTexture(imageNamed:) on atlas frames (both are logged; the faster one is a later switch).
-    private func benchmarkLookups(_ a: SpriteAssets) {
-        let names = (0..<8).map { "spitter_walk_0\($0)_3" }
-        let t0 = ProcessInfo.processInfo.systemUptime
-        for n in names { _ = a.bugs.atlas.textureNamed(n) }
-        let t1 = ProcessInfo.processInfo.systemUptime
-        for n in (0..<8).map({ "brute_walk_0\($0)_5" }) { _ = SKTexture(imageNamed: n) }
-        let t2 = ProcessInfo.processInfo.systemUptime
-        AppLog.info(String(format: "lookup bench: atlas.textureNamed %.2f ms/frame, SKTexture(imageNamed:) %.2f ms/frame",
-                           (t1 - t0) * 1000 / 8, (t2 - t1) * 1000 / 8))
-    }
-
-    /// Build the world (hidden), then decode every atlas page in the background (SKTexture.preload) before the
-    /// first frame shows it — otherwise each page is decoded synchronously the first time a frame of it is drawn.
+    /// Build the world (hidden), then decode the five sprite sheets in the background (SKTexture.preload) before the
+    /// first frame shows them — otherwise each sheet is decoded synchronously the first time a frame of it is drawn.
     private func finishLoading() {
         guard let a = assets else { return }
         let t0 = ProcessInfo.processInfo.systemUptime
@@ -149,14 +145,13 @@ final class GameScene: SKScene {
             return s.hud.dashButton.contains(hudPoint: s.hud.hp(p.x, p.y))
         }
         audio = AudioEngine(enabled: !options.mute)
-        a.resolveAll()
-        let textures = a.allTextures()
-        AppLog.info(String(format: "world built in %.0f ms; preloading %d textures", (ProcessInfo.processInfo.systemUptime - t0) * 1000, textures.count))
+        let pages = a.sheets.pages
+        AppLog.info(String(format: "world built in %.0f ms; preloading %d sheets", (ProcessInfo.processInfo.systemUptime - t0) * 1000, pages.count))
         let t1 = ProcessInfo.processInfo.systemUptime
-        SKTexture.preload(textures) {
+        SKTexture.preload(pages) {
             DispatchQueue.main.async { [weak self] in
                 guard let s = self else { return }
-                AppLog.info(String(format: "textures preloaded in %.0f ms", (ProcessInfo.processInfo.systemUptime - t1) * 1000) + " mem=\(Memory.footprintMB())MB")
+                AppLog.info(String(format: "sheets decoded in %.0f ms", (ProcessInfo.processInfo.systemUptime - t1) * 1000) + " mem=\(Memory.footprintMB())MB")
                 s.startAfterLoading()
             }
         }
@@ -173,10 +168,10 @@ final class GameScene: SKScene {
     private func startAfterLoading() {
         guard let r = renderer, !started else { return }
         started = true
-        loadingLabel?.node.removeFromParent()
-        loadingSub?.node.removeFromParent()
         r.world.isHidden = false
         r.lighting.node.isHidden = options.noLighting
+        // the world now renders behind the cover: GPU uploads and shader compiles happen before anyone sees a frame
+        coverFrames = 0
         relayout()
         if let d = demo, d.startsMission {
             startMission(selectedClass)
@@ -373,15 +368,18 @@ final class GameScene: SKScene {
     }
 
     override func update(_ currentTime: TimeInterval) {
-        if startTime < 0 { startTime = currentTime; lastTime = currentTime; fpsWindowStart = currentTime; lastHeartbeat = currentTime }
+        if startTime < 0 { startTime = currentTime; lastTime = currentTime; lastFrameTime = currentTime; fpsWindowStart = currentTime; lastHeartbeat = currentTime }
         let dt = Float(min(0.1, max(0, currentTime - lastTime)))
         lastTime = currentTime
         frameCount += 1
+        worstDt = max(worstDt, currentTime - lastFrameTime)
+        lastFrameTime = currentTime
         guard let g = game, let r = renderer, mode != .loading else {
             advanceLoading()
             heartbeat(currentTime)
             return
         }
+        updateCover(currentTime)
         sceneTimer.begin()
 
         // hit-stop slows the whole world (simulation + effects) for a few frames
@@ -438,14 +436,14 @@ final class GameScene: SKScene {
         let near = g.bugCountNear(Vec2(cameraCtl.tx, cameraCtl.tz))
         audio?.update(dt: dt, game: g, bugsNear: near, listener: listener(), title: mode == .title)
         sceneTimer.mark()
-        assets?.warm(budget: mode == .title ? 0.006 : 0.003)
-        sceneTimer.mark()
         let t2 = ProcessInfo.processInfo.systemUptime
         renderMs += ((t2 - t1r) * 1000 - renderMs) * 0.05
-        if hud.showDebug {
-            hud.setDebug(String(format: "fps %.0f · sim %.1f ms · draw %.1f ms\nbugs %d (на экране %d) · частицы %d\nузлы: уровень %d (+%d) · ",
-                                fps, simMs, renderMs, g.bugsAlive, r.bugs.visibleCount, r.fx.pa.visibleCount + r.fx.pn.visibleCount,
-                                r.levelLayer.nodeCount, r.dynamicNodeCount) + mode.rawValue)
+        // debug text 4× a second (every new string renders a new label texture)
+        if hud.showDebug && currentTime - lastDebugText >= 0.25 {
+            lastDebugText = currentTime
+            hud.setDebug(String(format: "fps %.0f sim %.1f draw %.1f ms ", fps, simMs, renderMs) + mode.rawValue
+                         + String(format: "\nжуки %d/%d част %d узлы %d+%d", g.bugsAlive, r.bugs.visibleCount,
+                                  r.fx.pa.visibleCount + r.fx.pn.visibleCount, r.levelLayer.liveNodeCount, r.dynamicNodeCount))
         }
         heartbeat(currentTime)
     }
@@ -482,38 +480,58 @@ final class GameScene: SKScene {
         }
     }
 
+    /// Keep the cover up for a few frames after loading, then fade it out; its disappearance is "scene ready".
+    private func updateCover(_ currentTime: TimeInterval) {
+        guard cover.parent != nil else { return }
+        coverFrames += 1
+        let hold = 20
+        if coverFrames == hold {
+            loadingLabel?.node.removeFromParent()
+            loadingSub?.node.removeFromParent()
+        }
+        if coverFrames >= hold {
+            cover.alpha = max(0, 1 - CGFloat(coverFrames - hold) / 12)
+            if cover.alpha <= 0 {
+                cover.removeFromParent()
+                readyTime = currentTime
+                worstDt = 0
+                AppLog.info(String(format: "loading took %.2f s (from the first frame)", currentTime - startTime))
+                reportedReady = true
+                AppLog.info("scene ready mode=\(mode.rawValue) size=\(Int(size.width))x\(Int(size.height)) levelNodes=\(renderer?.levelLayer.nodeCount ?? 0)")
+            }
+        }
+    }
+
     private func heartbeat(_ currentTime: TimeInterval) {
         if currentTime - fpsWindowStart >= 1.0 {
             fps = Double(frameCount) / max(0.001, currentTime - fpsWindowStart)
             frameCount = 0
             fpsWindowStart = currentTime
         }
-        if !reportedReady && renderer != nil && mode != .loading {
-            reportedReady = true
-            AppLog.info("scene ready mode=\(mode.rawValue) size=\(Int(size.width))x\(Int(size.height)) levelNodes=\(renderer?.levelLayer.nodeCount ?? 0)")
-        }
         if currentTime - lastHeartbeat >= 1.0 {
             lastHeartbeat = currentTime
             let t = currentTime - startTime
-            if let g = game, let r = renderer {
-                if mode != .loading && t > 3 { fpsSum += fps; fpsSamples += 1; fpsMin = min(fpsMin, fps) }
-                AppLog.info(String(format: "hb t=%.1f fps=%.1f sim=%.2fms draw=%.2fms ", t, fps, simMs, renderMs)
+            // demo time runs from "scene ready" (the end of loading); fps statistics skip its first second
+            let td = readyTime > 0 ? currentTime - readyTime : -1
+            let worst = worstDt * 1000
+            worstDt = 0
+            if let g = game, let r = renderer, readyTime > 0 {
+                if td > 1.2 { fpsSum += fps; fpsSamples += 1; fpsMin = min(fpsMin, fps); worstMs = max(worstMs, worst) }
+                AppLog.info(String(format: "hb t=%.1f td=%.1f fps=%.1f worst=%.0fms sim=%.2fms draw=%.2fms ", t, td, fps, worst, simMs, renderMs)
                             + "mode=\(mode.rawValue) bugs=\(g.bugsAlive) vis=\(r.bugs.visibleCount) parts=\(r.fx.pa.visibleCount + r.fx.pn.visibleCount) "
                             + "chunks=\(r.levelLayer.visibleChunks) nodes=\(r.levelLayer.nodeCount + r.dynamicNodeCount) stage=\(g.stage.rawValue) "
                             + "hp=\(Int(g.player.hp)) kills=\(g.kills) mem=\(Memory.footprintMB())MB demo=\(demo?.name ?? "-")")
             } else {
                 AppLog.info(String(format: "hb t=%.1f fps=%.1f ", t, fps) + "mode=\(mode.rawValue) demo=\(demo?.name ?? "-")")
             }
-            if let r = renderer, mode != .loading {
-                let n = Atlas.lookups - lastLookups, sec = Atlas.lookupSeconds - lastLookupSeconds
-                lastLookups = Atlas.lookups; lastLookupSeconds = Atlas.lookupSeconds
-                AppLog.info("hb ms " + sceneTimer.summary + " | " + r.timer.summary
-                            + " | lookups \(n) (" + String(format: "%.0f ms", sec * 1000) + ") sfx \(audio?.played ?? 0)")
+            if let r = renderer, readyTime > 0 {
+                AppLog.info("hb ms " + sceneTimer.summary + " | " + r.timer.summary + " | sfx \(audio?.played ?? 0)")
             }
-            if let s = options.seconds, !reportedDone, t >= s {
+            if let s = options.seconds, !reportedDone, td >= s {
                 reportedDone = true
                 let avg = fpsSamples > 0 ? fpsSum / Double(fpsSamples) : fps
-                AppLog.info(String(format: "demo done after %.0fs avgFps=%.1f minFps=%.1f", s, avg, fpsMin == 999 ? fps : fpsMin))
+                AppLog.info(String(format: "demo done after %.0fs avgFps=%.1f minFps=%.1f worstFrame=%.0fms", s, avg, fpsMin == 999 ? fps : fpsMin, worstMs)
+                            + " mem=\(Memory.footprintMB())MB")
             }
         }
     }

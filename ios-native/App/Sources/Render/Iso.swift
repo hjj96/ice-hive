@@ -97,12 +97,19 @@ enum ZBand {
     static let floorGlow: CGFloat = 1100
     /// Additive emissive layers of sprites (*Glow atlases).
     static let glow: CGFloat = 1200
+    /// Additive flashes that re-use a lit frame (hit flash, frost sheen, hurt): other sheet, own band.
+    static let glowLit: CGFloat = 1200.5
     static let beams: CGFloat = 1250
     static let particlesAlpha: CGFloat = 1300
     static let particlesAdd: CGFloat = 1400
     static let hud: CGFloat = 5000
 
+    /// Exact depth of the few unique objects (marines, props).
     @inline(__always) static func object(_ nearness: CGFloat) -> CGFloat { objects + nearness * objectScale }
+    /// Depth slice for the many: bugs and deck pieces (crates, pillars, lamps) round their nearness to whole units
+    /// (≈ 1.8 m of ground along the view), so everything in a slice shares one z and SpriteKit draws each slice
+    /// with one call per sheet instead of one per sprite.
+    @inline(__always) static func slice(_ nearness: CGFloat) -> CGFloat { objects + nearness.rounded() * objectScale }
 }
 
 // ================================================================

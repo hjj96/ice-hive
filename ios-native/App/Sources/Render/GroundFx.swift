@@ -107,10 +107,10 @@ final class GroundFx {
             n.zPosition = ZBand.floorGlow + 1
             n.colorBlendFactor = 1
         }
-        glowTex = assets.ground.texture("glow")
-        ringTex = assets.ground.texture("tele_ring")
-        fillTex = assets.ground.texture("tele_fill")
-        laneTex = assets.ground.texture("tele_lane")
+        glowTex = assets.texture("glow")
+        ringTex = assets.texture("tele_ring")
+        fillTex = assets.texture("tele_fill")
+        laneTex = assets.texture("tele_lane")
         beaconInd = level.layout.beacons.map { _ in RingIndicator(radius: BEACON_R) }
         liftInd = RingIndicator(radius: level.lift.r - 0.3)
         reviveInd = (0..<4).map { _ in RingIndicator(radius: 1.5) }
@@ -142,7 +142,7 @@ final class GroundFx {
             k += 1
         }
         let n = decals.next()
-        let tex = assets.ground.texture(name)
+        let tex = assets.texture(name)
         if n.texture !== tex { n.texture = tex }
         let d = CGFloat(size) * Iso.ppm
         n.size = CGSize(width: d, height: d)
@@ -155,12 +155,9 @@ final class GroundFx {
         if !walkable2(x, z) { return }
         let t = type.rawValue
         let n = corpses.next()
-        let tex = assets.corpse(t, Int(rng.next() * 6))
-        if n.texture !== tex { n.texture = tex }
         let info = assets.corpseInfo[t]
         let k = CGFloat(scale / assets.bugBakedScale[t])
-        n.size = CGSize(width: info.size.width * k, height: info.size.height * k)
-        n.anchorPoint = info.anchor
+        n.show(assets.corpse(t, Int(rng.next() * 6)), size: CGSize(width: info.size.width * k, height: info.size.height * k), anchor: info.anchor)
         n.position = Iso.point(x, level.groundY(x, z), z)
         let v = CGFloat(0.75 + rng.next() * 0.25)
         n.color = SKColor(red: v, green: v * 0.92, blue: v * 0.9, alpha: 1)
