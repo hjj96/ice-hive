@@ -59,9 +59,11 @@ const t0 = Date.now();
 const { browser, page } = await openGamePage(['inpage-sprites.js', 'inpage-fx.js', 'inpage-level.js'].map(f => path.join(TOOLS, 'lib', f)));
 console.log(`game modules loaded (${Date.now() - t0} ms)`);
 
+const images = {};   // frame name -> { lit3, glow2, ax, ay } (@3x pixels; used by the level assembly test)
 async function set(def, cols, sheetOpts = {}) {
   const { entry, sheet } = await runSet(page, cat, def);
   manifest.sets[def.id] = entry;
+  for (const s of sheet) images[s.name] = { lit3: s.lit3, glow2: s.glow2, ax: entry.anchorPixel3x[0], ay: entry.anchorPixel3x[1] };
   savePNG(path.join(SHEETS, def.id + '.png'), contactSheet(sheet, cols, sheetOpts));
   if (preview.group && def.preview !== false) preview.rows.push(previewRows(sheet, def.previewOpts));
   return entry;
@@ -178,7 +180,7 @@ if (want('props')) {
   previewEnd(2);
 }
 
-const ctx = { page, cat, manifest, SHEETS, PREVIEWS, set, cv, dd, DIRS, previewBegin, previewEnd };
+const ctx = { page, cat, manifest, SHEETS, PREVIEWS, set, cv, dd, DIRS, previewBegin, previewEnd, images };
 if (want('fx')) await renderFx(ctx);
 if (want('level')) await renderLevel(ctx);
 if (want('bg')) await renderBackground(ctx);

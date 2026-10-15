@@ -94,6 +94,7 @@ export async function runSet(page, cat, set, log = console.log) {
   for (const f of set.frames) {
     let img = await shot(page, f.fn, f.args, W, H, AX, AY, 1);
     if (set.post === 'shadow') img = blur(img, 2.2);
+    else if (typeof set.post === 'function') img = set.post(img, { W, H, AX, AY });
     lit.push(img);
     if (set.glowAtlas) glow.push(toAdditive(await shot(page, f.fn, f.args, W, H, AX, AY, 0)));
   }
