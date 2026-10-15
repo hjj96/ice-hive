@@ -92,29 +92,37 @@ extension Game {
         let n = booms.count
         if n == 0 { return }
         let S = bugs
-        do { var k = 0; while k < n { defer { k += 1 }
-            let e = booms[k]
-            let cnt = hash.queryCircle(S, e.x, e.z, e.r)
-            let knock: Float = e.kind == .frost ? 2 : (e.kind == .pulse ? 5 : 11)
-            let falloff = difficulty.pulseFalloff
-            do { var q = 0; while q < cnt { defer { q += 1 }
-                let b = hash.qb[q]
-                let dx = S.x[b] - e.x, dz = S.z[b] - e.z, d = (dx * dx + dz * dz).squareRoot() + 1e-4
-                let f: Float = e.kind == .pulse ? 1 - falloff * minf(1, d / e.r) : 1 - 0.55 * minf(1, d / e.r)
-                if e.kind == .frost { S.chill[b] = minf(1, S.chill[b] + 0.45) }
-                if S.type[b] != T_BRUTE { S.vx[b] += dx / d * knock * f; S.vz[b] += dz / d * knock * f }
-                hitBug(b, e.dmg * f, e.src)
-            } }
-            if e.kind == .boomer {
-                for m in marines {
-                    let dx = m.x - e.x, dz = m.z - e.z, d = hypotf2(dx, dz)
-                    if d < e.r + 0.4 {
-                        hurtMarine(m, BUG_SPECS[3].dmg * dmgMul * (1 - 0.5 * d / (e.r + 0.4)), dx / (d + 0.01) * 7, dz / (d + 0.01) * 7)
+        do {
+            var k = 0
+            while k < n {
+                defer { k += 1 }
+                let e = booms[k]
+                let cnt = hash.queryCircle(S, e.x, e.z, e.r)
+                let knock: Float = e.kind == .frost ? 2 : (e.kind == .pulse ? 5 : 11)
+                let falloff = difficulty.pulseFalloff
+                do {
+                    var q = 0
+                    while q < cnt {
+                        defer { q += 1 }
+                        let b = hash.qb[q]
+                        let dx = S.x[b] - e.x, dz = S.z[b] - e.z, d = (dx * dx + dz * dz).squareRoot() + 1e-4
+                        let f: Float = e.kind == .pulse ? 1 - falloff * minf(1, d / e.r) : 1 - 0.55 * minf(1, d / e.r)
+                        if e.kind == .frost { S.chill[b] = minf(1, S.chill[b] + 0.45) }
+                        if S.type[b] != T_BRUTE { S.vx[b] += dx / d * knock * f; S.vz[b] += dz / d * knock * f }
+                        hitBug(b, e.dmg * f, e.src)
                     }
                 }
+                if e.kind == .boomer {
+                    for m in marines {
+                        let dx = m.x - e.x, dz = m.z - e.z, d = hypotf2(dx, dz)
+                        if d < e.r + 0.4 {
+                            hurtMarine(m, BUG_SPECS[3].dmg * dmgMul * (1 - 0.5 * d / (e.r + 0.4)), dx / (d + 0.01) * 7, dz / (d + 0.01) * 7)
+                        }
+                    }
+                }
+                if !simOnly { explosionFx(e.x, e.z, e.r, e.kind) }
             }
-            if !simOnly { explosionFx(e.x, e.z, e.r, e.kind) }
-        } }
+        }
         booms.removeFirst(n)
     }
 
@@ -174,12 +182,16 @@ extension Game {
     func simBugs(_ dt: Float) {
         let S = bugs, H = hash, L = level
         var anyUp = false
-        do { var k = 0; while k < 4 { defer { k += 1 }
-            let m = marines[k]
-            mX[k] = m.x; mZ[k] = m.z; mUp[k] = m.downed ? 0 : 1
-            if !m.downed { anyUp = true }
-            crowd[k] = 0
-        } }
+        do {
+            var k = 0
+            while k < 4 {
+                defer { k += 1 }
+                let m = marines[k]
+                mX[k] = m.x; mZ[k] = m.z; mUp[k] = m.downed ? 0 : 1
+                if !m.downed { anyUp = true }
+                crowd[k] = 0
+            }
+        }
         let n = S.count
         let X = S.x, Z = S.z, VX = S.vx, VZ = S.vz, Y = S.y, R = S.r, SPD = S.spd, SC = S.sc
         let T = S.t, CD = S.cd, CHILL = S.chill, FRZ = S.frz, BURN = S.burn, PH = S.ph, HD = S.hd, FL = S.fl
@@ -310,15 +322,19 @@ extension Game {
                 } else if st == S_CHARGE {
                     ddx = AX[i]; ddz = AZ[i]; speed = 12.5; acc = 30
                     T[i] -= dt
-                    do { var k = 0; while k < 4 { defer { k += 1 }
-                        if MUP[k] == 0 || (HIT[i] & UInt8(1 << k)) != 0 { continue }
-                        let dx = MX[k] - x, dz = MZ[k] - z
-                        let rr = R[i] + 0.6
-                        if dx * dx + dz * dz < rr * rr {
-                            HIT[i] |= UInt8(1 << k)
-                            hurtMarine(marines[k], 16 * dmgMulL, AX[i] * 13, AZ[i] * 13)
+                    do {
+                        var k = 0
+                        while k < 4 {
+                            defer { k += 1 }
+                            if MUP[k] == 0 || (HIT[i] & UInt8(1 << k)) != 0 { continue }
+                            let dx = MX[k] - x, dz = MZ[k] - z
+                            let rr = R[i] + 0.6
+                            if dx * dx + dz * dz < rr * rr {
+                                HIT[i] |= UInt8(1 << k)
+                                hurtMarine(marines[k], 16 * dmgMulL, AX[i] * 13, AZ[i] * 13)
+                            }
                         }
-                    } }
+                    }
                     if T[i] <= 0 { ST[i] = S_MOVE; CD[i] = 5 + rng.next() * 3 }
                 }
             } else if ty == T_BOOM {

@@ -46,12 +46,16 @@ extension Game {
     func isVisible(_ x: Float, _ z: Float) -> Bool {
         guard let q = viewQuad, q.count >= 3 else { return true }
         var sign: Float = 0
-        do { var k = 0; while k < q.count { defer { k += 1 }
-            let a = q[k], b = q[(k + 1) % q.count]
-            let cr = (b.x - a.x) * (z - a.y) - (b.y - a.y) * (x - a.x)
-            if cr == 0 { continue }
-            if sign == 0 { sign = cr > 0 ? 1 : -1 } else if (cr > 0 ? 1 : -1) != sign { return false }
-        } }
+        do {
+            var k = 0
+            while k < q.count {
+                defer { k += 1 }
+                let a = q[k], b = q[(k + 1) % q.count]
+                let cr = (b.x - a.x) * (z - a.y) - (b.y - a.y) * (x - a.x)
+                if cr == 0 { continue }
+                if sign == 0 { sign = cr > 0 ? 1 : -1 } else if (cr > 0 ? 1 : -1) != sign { return false }
+            }
+        }
         return true
     }
 
@@ -63,22 +67,26 @@ extension Game {
         let cnt = hash.queryCircle(S, m.x + dx * 8, m.z + dz * 8, 9)
         var best = -1
         var bs: Float = -1e9
-        do { var q = 0; while q < cnt { defer { q += 1 }
-            let b = hash.qb[q]
-            if S.st[b] == S_CLIMB && S.y[b] < -0.6 { continue }
-            let vx = S.x[b] - m.x, vz = S.z[b] - m.z, d = hypotf2(vx, vz)
-            if d < 0.6 || d > 17 { continue }
-            let cs = (vx * dx + vz * dz) / d
-            if cs < 0.92 { continue }
-            // never snap to (or lob a grenade at) a bug the player cannot see
-            if !isVisible(S.x[b], S.z[b]) { continue }
-            let hc = b < hash.hashedCount ? hash.cell[b] : Level.cellClamp(S.x[b], S.z[b])
-            let dens = Float(min(14, hash.cellDensity(hc)))
-            var s = cs * 5 - d * 0.1 + dens * 0.07
-            if S.type[b] == T_BOOM { s += 0.6 }
-            if S.type[b] == T_BRUTE { s += 0.4 }
-            if s > bs { bs = s; best = b }
-        } }
+        do {
+            var q = 0
+            while q < cnt {
+                defer { q += 1 }
+                let b = hash.qb[q]
+                if S.st[b] == S_CLIMB && S.y[b] < -0.6 { continue }
+                let vx = S.x[b] - m.x, vz = S.z[b] - m.z, d = hypotf2(vx, vz)
+                if d < 0.6 || d > 17 { continue }
+                let cs = (vx * dx + vz * dz) / d
+                if cs < 0.92 { continue }
+                // never snap to (or lob a grenade at) a bug the player cannot see
+                if !isVisible(S.x[b], S.z[b]) { continue }
+                let hc = b < hash.hashedCount ? hash.cell[b] : Level.cellClamp(S.x[b], S.z[b])
+                let dens = Float(min(14, hash.cellDensity(hc)))
+                var s = cs * 5 - d * 0.1 + dens * 0.07
+                if S.type[b] == T_BOOM { s += 0.6 }
+                if S.type[b] == T_BRUTE { s += 0.4 }
+                if s > bs { bs = s; best = b }
+            }
+        }
         return best
     }
 
@@ -129,23 +137,27 @@ extension Game {
         var best = -1
         var bs: Float = 1e9
         let P = marines[0]
-        do { var q = 0; while q < cnt { defer { q += 1 }
-            let b = hash.qb[q]
-            if S.st[b] == S_CLIMB && S.y[b] < -0.8 { continue }
-            let dx = S.x[b] - m.x, dz = S.z[b] - m.z, d = (dx * dx + dz * dz).squareRoot()
-            let off = abs(angDiff(m.aim, atan2f2(dx, dz)))
-            var s = d + off * 2.2
-            let ty = S.type[b]
-            if ty == T_BOOM && d < 8 { s -= 6 }
-            if ty == T_BRUTE { s -= 2.5 }
-            if S.st[b] == S_CHARGE || S.st[b] == S_WIND { s -= 3 }
-            if !P.downed {
-                let px = S.x[b] - P.x, pz = S.z[b] - P.z
-                if px * px + pz * pz < 16 { s -= 3 }
+        do {
+            var q = 0
+            while q < cnt {
+                defer { q += 1 }
+                let b = hash.qb[q]
+                if S.st[b] == S_CLIMB && S.y[b] < -0.8 { continue }
+                let dx = S.x[b] - m.x, dz = S.z[b] - m.z, d = (dx * dx + dz * dz).squareRoot()
+                let off = abs(angDiff(m.aim, atan2f2(dx, dz)))
+                var s = d + off * 2.2
+                let ty = S.type[b]
+                if ty == T_BOOM && d < 8 { s -= 6 }
+                if ty == T_BRUTE { s -= 2.5 }
+                if S.st[b] == S_CHARGE || S.st[b] == S_WIND { s -= 3 }
+                if !P.downed {
+                    let px = S.x[b] - P.x, pz = S.z[b] - P.z
+                    if px * px + pz * pz < 16 { s -= 3 }
+                }
+                if m.cls == .cryo && S.frz[b] > 0 { s += 4 }
+                if s < bs { bs = s; best = b }
             }
-            if m.cls == .cryo && S.frz[b] > 0 { s += 4 }
-            if s < bs { bs = s; best = b }
-        } }
+        }
         return best
     }
 
@@ -242,26 +254,34 @@ extension Game {
         if m.ai.dodge <= 0 {
             m.ai.dodge = 0.1
             let cnt = hash.queryCircle(S, m.x, m.z, 13)
-            do { var q = 0; while q < cnt { defer { q += 1 }
-                let b = hash.qb[q]
-                if S.type[b] != T_BRUTE || (S.st[b] != S_WIND && S.st[b] != S_CHARGE) { continue }
-                let rx = m.x - S.x[b], rz = m.z - S.z[b], along = rx * S.ax[b] + rz * S.az[b]
-                let perp = rx * S.az[b] - rz * S.ax[b]
-                if along > 0 && along < 13 && abs(perp) < 2.0 {
-                    let s: Float = perp >= 0 ? 1 : -1
-                    m.ai.sideX = S.az[b] * s; m.ai.sideZ = -S.ax[b] * s; m.ai.sideT = 0.5
-                    if S.st[b] == S_CHARGE && along < 6 { tryDash(m, m.ai.sideX, m.ai.sideZ) }
+            do {
+                var q = 0
+                while q < cnt {
+                    defer { q += 1 }
+                    let b = hash.qb[q]
+                    if S.type[b] != T_BRUTE || (S.st[b] != S_WIND && S.st[b] != S_CHARGE) { continue }
+                    let rx = m.x - S.x[b], rz = m.z - S.z[b], along = rx * S.ax[b] + rz * S.az[b]
+                    let perp = rx * S.az[b] - rz * S.ax[b]
+                    if along > 0 && along < 13 && abs(perp) < 2.0 {
+                        let s: Float = perp >= 0 ? 1 : -1
+                        m.ai.sideX = S.az[b] * s; m.ai.sideZ = -S.ax[b] * s; m.ai.sideT = 0.5
+                        if S.st[b] == S_CHARGE && along < 6 { tryDash(m, m.ai.sideX, m.ai.sideZ) }
+                    }
                 }
-            } }
+            }
         }
         // sidestep acid globs that are about to land on us
         let GL = globs
-        do { var k = 0; while k < GL.count { defer { k += 1 }
-            let left = GL.dur[k] - GL.t[k]
-            if left > 0.75 { continue }
-            let dx = m.x - GL.x1[k], dz = m.z - GL.z1[k], d = hypotf2(dx, dz)
-            if d < 1.9 { m.ai.sideX = d > 0.05 ? dx / d : 1; m.ai.sideZ = d > 0.05 ? dz / d : 0; m.ai.sideT = 0.35 }
-        } }
+        do {
+            var k = 0
+            while k < GL.count {
+                defer { k += 1 }
+                let left = GL.dur[k] - GL.t[k]
+                if left > 0.75 { continue }
+                let dx = m.x - GL.x1[k], dz = m.z - GL.z1[k], d = hypotf2(dx, dz)
+                if d < 1.9 { m.ai.sideX = d > 0.05 ? dx / d : 1; m.ai.sideZ = d > 0.05 ? dz / d : 0; m.ai.sideT = 0.35 }
+            }
+        }
         if m.ai.sideT > 0 { m.ai.sideT -= dt; mx = m.ai.sideX; mz = m.ai.sideZ }
         // stuck detection: wants to move but barely moves -> rely on the flow field for a while
         if abs(mx) + abs(mz) > 0.5 && hypotf2(m.x - m.ai.lx, m.z - m.ai.lz) < 1.2 * dt { m.ai.stuck = min(2, m.ai.stuck + dt * 2) }
