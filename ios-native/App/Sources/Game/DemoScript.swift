@@ -11,6 +11,8 @@ import IceHiveCore
 //    -demo calm     mission start with the director off: no bugs, the squad idles on the
 //                   landing pad (lighting / station look)
 //    -demo smoke    alias of combat (the original CI scenario name)
+//    -demo probe    combat, plus one horde ingredient every 4 s (overlay, banner, shake, sounds,
+//                   haptic, then a real horde) — CI hitch attribution
 // ================================================================
 final class DemoScript {
     let name: String
@@ -24,7 +26,7 @@ final class DemoScript {
         guard let d = options.demo else { return nil }
         switch d {
         case "combat", "smoke", "default": return DemoScript(name: d == "default" ? "combat" : d)
-        case "beacon", "title", "calm": return DemoScript(name: d)
+        case "beacon", "title", "calm", "probe": return DemoScript(name: d)
         default:
             AppLog.error("unknown demo \(d), using combat")
             return DemoScript(name: "combat")
@@ -58,11 +60,22 @@ final class DemoScript {
         }
     }
 
+    /// Probe steps due this frame (executed by the scene: HUD / audio / haptics live there).
+    enum Probe: String { case overlay, banner, shake, sounds, haptic, horde }
+    private let probeSteps: [Probe] = [.overlay, .banner, .shake, .sounds, .haptic, .horde]
+    private var probeIndex = 0
+    private(set) var probe: Probe? = nil
+
     /// Per frame while the mission runs: keep the swarm at `target` (the squad kills ~100 bugs a second, so
     /// replacements arrive twice a second from 12–30 m away and walk in).
     func frame(game: Game, dt: Float) {
         if !startsMission || target == 0 { return }
         t += dt
+        probe = nil
+        if name == "probe" && probeIndex < probeSteps.count && t >= Float(4 * (probeIndex + 1)) {
+            probe = probeSteps[probeIndex]
+            probeIndex += 1
+        }
         topUpT -= dt
         if topUpT <= 0 {
             topUpT = 0.5

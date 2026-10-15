@@ -408,6 +408,7 @@ final class GameScene: SKScene {
                 input.consumePresses()
             }
             demo?.frame(game: g, dt: dt)
+            if let pr = demo?.probe { runProbe(pr, g) }
             acc += Double(dt * ts)
             var steps = 0
             let step = Double(SIM_DT)
@@ -507,6 +508,22 @@ final class GameScene: SKScene {
             default:
                 break
             }
+        }
+    }
+
+    /// `-demo probe`: one ingredient of a horde at a time, logged, so CI can tell which one hitches.
+    private func runProbe(_ p: DemoScript.Probe, _ g: Game) {
+        let td = readyTime > 0 ? lastTime - readyTime : -1
+        AppLog.info("probe " + p.rawValue + String(format: " td=%.2f wall=%.3f", td, Date().timeIntervalSince1970))
+        switch p {
+        case .overlay: hud.hordeFlash()
+        case .banner: hud.showBanner(title: "ОРДА!", subtitle: "РОЙ ПРОРЫВАЕТСЯ ИЗ БЕЗДНЫ", teal: false)
+        case .shake: cameraCtl.addShake(0.25)
+        case .sounds:
+            audio?.play(.siren, pos: nil, listener: listener())
+            audio?.play(.hordeRoar, pos: nil, listener: listener())
+        case .haptic: haptics.play(.warning)
+        case .horde: g.debugHorde(300)
         }
     }
 

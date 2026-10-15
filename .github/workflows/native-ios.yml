@@ -242,13 +242,16 @@ jobs:
           run_demo landscape 10 "-demo combat -orient landscape" 0
           # same swarm without the darkness pass: separates the lighting shader's GPU cost from the rest
           run_demo nolight 15 "-demo combat -nolight -seed 7" 0
+          # horde ingredients one by one (overlay, banner, shake, sounds, haptic, horde) every 4 s: hitch attribution
+          run_demo probe 26 "-demo probe -seed 7"
           xcrun simctl spawn "$UDID" launchctl list | grep -i icehive | tee results/launchctl.txt || true
           cp results/app-combat.log results/app-stdout.log
           cp results/app-combat-stderr.log results/app-stderr.log
-          for f in results/app-combat.log results/app-beacon.log results/app-title.log results/app-calm.log results/app-landscape.log results/app-nolight.log; do
+          for f in results/app-combat.log results/app-beacon.log results/app-title.log results/app-calm.log results/app-landscape.log results/app-nolight.log results/app-probe.log; do
             { echo "== $f"; grep -h -E 'loading took|sheets decoded|demo done' "$f" || true; } >> results/fps.txt
           done
-          grep -H 'hitch' results/app-combat.log results/app-beacon.log results/app-title.log results/app-calm.log results/app-landscape.log results/app-nolight.log > results/hitches.txt || true
+          grep -H 'hitch' results/app-combat.log results/app-beacon.log results/app-title.log results/app-calm.log results/app-landscape.log results/app-nolight.log results/app-probe.log > results/hitches.txt || true
+          grep -H 'probe ' results/app-probe.log >> results/hitches.txt || true
           cat results/alive.txt results/loading.txt results/fps.txt results/shots.txt results/hitches.txt
       - name: Verify app is alive and rendered
         run: |
