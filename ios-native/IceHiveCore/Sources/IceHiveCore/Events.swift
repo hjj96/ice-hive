@@ -78,8 +78,9 @@ public enum GameEvent {
     case medkitDropped(pos: Vec2)
     case healed(marine: Int, amount: Float, pos: Vec2)
 
-    // --- telegraphs (also kept in `Game.telegraphs` with their lifetime) ---
-    case telegraph(index: Int)
+    // --- telegraphs (also kept in `Game.telegraphs` with their lifetime; draw from the pool,
+    //     the index may be reused once that telegraph has expired) ---
+    case telegraph(index: Int, shape: TelegraphShape, cause: TelegraphCause, pos: Vec2)
 
     // --- mission flow ---
     case hordeStarted(size: Int, title: String, subtitle: String)

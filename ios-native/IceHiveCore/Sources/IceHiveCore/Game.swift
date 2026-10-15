@@ -439,7 +439,7 @@ public final class Game {
         e.active = true; e.shape = .ring; e.cause = cause; e.x = x; e.z = z; e.r0 = r; e.r1 = r1 ?? r
         e.r = cr; e.g = cg; e.b = cb; e.t = 0; e.life = life; e.pulse = pulse
         telegraphs[k] = e
-        events.append(.telegraph(index: k))
+        events.append(.telegraph(index: k, shape: .ring, cause: cause, pos: Vec2(x, z)))
     }
     /// Disc that fills up as the impact approaches (acid globs).
     func teleFill(_ x: Float, _ z: Float, _ r: Float, _ cr: Float, _ cg: Float, _ cb: Float, _ life: Float, cause: TelegraphCause) {
@@ -449,7 +449,7 @@ public final class Game {
         e.active = true; e.shape = .fill; e.cause = cause; e.x = x; e.z = z; e.r0 = r; e.r1 = r
         e.r = cr; e.g = cg; e.b = cb; e.t = 0; e.life = life; e.pulse = false
         telegraphs[k] = e
-        events.append(.telegraph(index: k))
+        events.append(.telegraph(index: k, shape: .fill, cause: cause, pos: Vec2(x, z)))
     }
     /// Brute charge lane.
     func teleLane(_ x: Float, _ z: Float, _ dx: Float, _ dz: Float, _ len: Float, _ w: Float, _ wind: Float, _ charge: Float) {
@@ -459,7 +459,7 @@ public final class Game {
         e.active = true; e.shape = .lane; e.cause = .bruteLane; e.x = x; e.z = z; e.dx = dx; e.dz = dz; e.len = len; e.w = w
         e.r = 1.0; e.g = 0.18; e.b = 0.1; e.t = 0; e.life = wind + charge; e.wind = wind; e.pulse = true
         telegraphs[k] = e
-        events.append(.telegraph(index: k))
+        events.append(.telegraph(index: k, shape: .lane, cause: .bruteLane, pos: Vec2(x, z)))
     }
     func updateTelegraphs(_ dt: Float) {
         for k in 0..<telegraphs.count where telegraphs[k].active {

@@ -13,6 +13,10 @@ swift test                 # все тесты (debug)
 swift test -c release      # те же тесты с оптимизацией: замер производительности с порогом 2 мс/тик
 ```
 
+Производительность (1500 жуков, мс на тик): CI Mac без оптимизации ≈ 1,7; с `-c release` ≈ 0,3 (Linux x86).
+Автопилот выигрывает миссию за 5:30–5:40 игрового времени на всех классах — как веб-версия
+(эталон: пулемётчик, маяки 6,5 / 78 / 148 с, удержание лифта с 228 с, победа на 333 с, 8650 убитых).
+
 Тесты: юнит-тесты хеша, лучей и потоковых полей; игровые проверки (ввод, способности, особые жуки,
 падение/подъём, уровни, этапы миссии); полная миссия на автопилоте для каждого класса (победа за ≤ 8
 минут игрового времени, без NaN, в пределах лимита жуков); бенчмарк 500/1500/3000 жуков (`[perf]` в логе).
@@ -57,7 +61,9 @@ switch game.phase { case .won, .lost: /* экран итогов: game.stats */ 
 - `game.telegraphs` — предупреждения на полу со временем жизни: кольца, полосы тарана, заполняющиеся круги.
 - `game.beacons`, `game.stage`, `game.objectiveText`, `game.objectiveProgress`, `game.objectiveMarker`,
   `game.contextHint`, `game.liftRise`, `game.kills`, `game.time`, `game.comboShown`, `game.xpLevel`, `game.xp/xpNext`.
-- `game.laserLength(marine)`, `game.turretLaserLength`, `game.raycastBugs(...)`, `game.bugsInCircle(...)`.
+- `game.laserLength(marine)`, `game.turretLaserLength`, `game.raycastBugs(...)`, `game.bugsInCircle(...)`,
+  `game.bugCountNear(center)` (громкость стрекота роя), `game.assistedAim(angle, strength:)`, `game.setVisibleArea(...)`
+  (аим-ассист не выбирает жуков за краем экрана).
 
 ### События (`GameEvent`)
 Накапливаются за тики и забираются `drainEvents`: смерть жука (тип, место, заморожен, кто убил, поворот,

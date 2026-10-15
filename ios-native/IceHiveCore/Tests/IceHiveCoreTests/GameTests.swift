@@ -134,7 +134,7 @@ final class GameTests: XCTestCase {
             g.tick()
             g.drainEvents { e in
                 switch e {
-                case .telegraph(let k): if g.telegraphs[k].cause == .bruteLane { lane = true }
+                case .telegraph(_, _, let cause, _): if cause == .bruteLane { lane = true }
                 case .acidLaunched: acid = true
                 case .explosion(let kind, _, _): if kind == .boomer { boom = true }
                 default: break

@@ -126,6 +126,19 @@ extension Game {
         return out
     }
 
+    /// Live bugs inside the square |dx|, |dz| < halfExtent around `center` (web `nearCam`: 22 m around the
+    /// camera target drives the swarm chitter / rumble loops, full at 500).
+    public func bugCountNear(_ center: Vec2, halfExtent: Float = 22) -> Int {
+        let S = bugs, X = S.x, Z = S.z, D = S.dead
+        var n = 0, i = 0
+        let cnt = S.count
+        while i < cnt {
+            if D[i] == 0 && absf(X[i] - center.x) < halfExtent && absf(Z[i] - center.y) < halfExtent { n += 1 }
+            i += 1
+        }
+        return n
+    }
+
     /// Turret laser length toward its current aim.
     public var turretLaserLength: Float {
         if !turret.active { return 0 }

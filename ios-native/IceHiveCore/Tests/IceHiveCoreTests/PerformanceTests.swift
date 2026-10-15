@@ -1,8 +1,9 @@
 import XCTest
 @testable import IceHiveCore
 
-/// Simulation cost per fixed step (web __dbg.bench). Printed to the CI log; the 2 ms budget for 1500 bugs
-/// is asserted only for optimised builds (`swift test -c release`), debug builds are ~10x slower.
+/// Simulation cost per fixed step (web __dbg.bench), printed to the CI log. The 2 ms budget for 1500 bugs is
+/// asserted for optimised builds (`swift test -c release`: ~0.3 ms); the CI runs unoptimised builds (~1.7 ms on
+/// the CI Mac), checked against a looser regression guard.
 final class PerformanceTests: XCTestCase {
     #if DEBUG
     static let optimized = false
@@ -23,7 +24,8 @@ final class PerformanceTests: XCTestCase {
             XCTAssertLessThan(r1500.msPerTick, 2.0, "1500 bugs: \(r1500.msPerTick) ms/tick")
             XCTAssertLessThan(r1500.denseMsPerTick, 2.0, "1500 bugs dense: \(r1500.denseMsPerTick) ms/tick")
         } else {
-            XCTAssertLessThan(r1500.msPerTick, 40, "debug build, 1500 bugs: \(r1500.msPerTick) ms/tick")
+            // unoptimised builds measured ~1.7 ms on the CI Mac; generous regression guard
+            XCTAssertLessThan(r1500.msPerTick, 8, "debug build, 1500 bugs: \(r1500.msPerTick) ms/tick")
         }
         // the bench restores the world
         XCTAssertEqual(g.bugs.count, 0)
