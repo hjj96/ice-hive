@@ -1,0 +1,478 @@
+{
+  "version": 1,
+  "generator": "ios-native/tools/render-audio.mjs (game/js/09-audio.js rendered with OfflineAudioContext in headless Chromium)",
+  "format": "WAV, 44.1 kHz, mono, 16-bit PCM, each file peak-normalised to -1 dBFS",
+  "playback": "volume = baseGain * (distance factor if attenuated) * master. baseGain restores the web level of the recipe (files are normalised). attenuated: v = clamp(1.1 - d / 34, 0.08, 1) with d = distance (m) from the player marine. minInterval: the web SFX_GAP — drop a new play of the same sound inside this window. variants: pick one at random per play.",
+  "master": {
+    "volume": "default 0.8 (settings cycle 1 / 0.8 / 0.6 / 0.4 / 0.2, mute)",
+    "compressor": {
+      "thresholdDb": -14,
+      "ratio": 6,
+      "attack": 0.003,
+      "release": 0.25,
+      "note": "the web master bus: DynamicsCompressor after the master gain (use AVAudioUnitEffect kAudioUnitSubType_DynamicsProcessor or a limiter)"
+    }
+  },
+  "sounds": {
+    "pulse": {
+      "files": [
+        "pulse_1.wav",
+        "pulse_2.wav",
+        "pulse_3.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.1243,
+      "webPeakDb": -19.11,
+      "duration": 0.11,
+      "attenuated": true,
+      "minInterval": 0.045
+    },
+    "mg": {
+      "files": [
+        "mg_1.wav",
+        "mg_2.wav",
+        "mg_3.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.1046,
+      "webPeakDb": -20.61,
+      "duration": 0.08,
+      "attenuated": true,
+      "minInterval": 0.04
+    },
+    "tur": {
+      "files": [
+        "tur.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.0368,
+      "webPeakDb": -29.68,
+      "duration": 0.07,
+      "attenuated": true,
+      "minInterval": 0.06
+    },
+    "reload": {
+      "files": [
+        "reload.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.0512,
+      "webPeakDb": -26.81,
+      "duration": 0.22,
+      "attenuated": true,
+      "minInterval": 0.3
+    },
+    "overheat": {
+      "files": [
+        "overheat.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.2011,
+      "webPeakDb": -14.93,
+      "duration": 0.63,
+      "attenuated": true,
+      "minInterval": 0.5
+    },
+    "explode": {
+      "files": [
+        "explode.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.9527,
+      "webPeakDb": -1.42,
+      "duration": 0.942,
+      "attenuated": true,
+      "minInterval": 0.06
+    },
+    "pop": {
+      "files": [
+        "pop.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.273,
+      "webPeakDb": -12.28,
+      "duration": 0.301,
+      "attenuated": true,
+      "minInterval": 0.05
+    },
+    "squish": {
+      "files": [
+        "squish_1.wav",
+        "squish_2.wav",
+        "squish_3.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.0224,
+      "webPeakDb": -33.99,
+      "duration": 0.113,
+      "attenuated": true,
+      "minInterval": 0.035
+    },
+    "shatter": {
+      "files": [
+        "shatter.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.2259,
+      "webPeakDb": -13.92,
+      "duration": 0.21,
+      "attenuated": true,
+      "minInterval": 0.05
+    },
+    "freeze": {
+      "files": [
+        "freeze.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.0393,
+      "webPeakDb": -29.12,
+      "duration": 0.15,
+      "attenuated": true,
+      "minInterval": 0.08
+    },
+    "hurt": {
+      "files": [
+        "hurt.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.1118,
+      "webPeakDb": -20.03,
+      "duration": 0.209,
+      "attenuated": false,
+      "minInterval": 0.22
+    },
+    "down": {
+      "files": [
+        "down.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.1591,
+      "webPeakDb": -16.97,
+      "duration": 0.829,
+      "attenuated": true
+    },
+    "revive": {
+      "files": [
+        "revive.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.1119,
+      "webPeakDb": -20.02,
+      "duration": 0.35,
+      "attenuated": true
+    },
+    "dash": {
+      "files": [
+        "dash.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.0419,
+      "webPeakDb": -28.56,
+      "duration": 0.25,
+      "attenuated": true
+    },
+    "throw": {
+      "files": [
+        "throw.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.034,
+      "webPeakDb": -30.36,
+      "duration": 0.231,
+      "attenuated": true
+    },
+    "napalm": {
+      "files": [
+        "napalm.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.5783,
+      "webPeakDb": -5.76,
+      "duration": 0.904,
+      "attenuated": true
+    },
+    "shock": {
+      "files": [
+        "shock.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.2723,
+      "webPeakDb": -12.3,
+      "duration": 0.428,
+      "attenuated": true,
+      "minInterval": 0.3
+    },
+    "thud": {
+      "files": [
+        "thud.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.4712,
+      "webPeakDb": -7.54,
+      "duration": 0.48,
+      "attenuated": true,
+      "minInterval": 0.12
+    },
+    "kill": {
+      "files": [
+        "kill_1.wav",
+        "kill_2.wav",
+        "kill_3.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.037,
+      "webPeakDb": -29.65,
+      "duration": 0.093,
+      "attenuated": false,
+      "minInterval": 0.05
+    },
+    "combo": {
+      "files": [
+        "combo.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.0636,
+      "webPeakDb": -24.93,
+      "duration": 0.19,
+      "attenuated": false,
+      "minInterval": 0.2,
+      "pitch": "rate = 1.06 ^ min(24, floor(combo / 5)) (the web recipe raises the base 520 Hz with the combo counter)"
+    },
+    "hordeRoar": {
+      "files": [
+        "hordeRoar.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.1304,
+      "webPeakDb": -18.69,
+      "duration": 2.029,
+      "attenuated": false
+    },
+    "nova": {
+      "files": [
+        "nova.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.5092,
+      "webPeakDb": -6.86,
+      "duration": 0.83,
+      "attenuated": true
+    },
+    "turret": {
+      "files": [
+        "turret.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.0659,
+      "webPeakDb": -24.62,
+      "duration": 0.26,
+      "attenuated": true
+    },
+    "heal": {
+      "files": [
+        "heal.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.1117,
+      "webPeakDb": -20.04,
+      "duration": 0.28,
+      "attenuated": true
+    },
+    "spit": {
+      "files": [
+        "spit.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.0591,
+      "webPeakDb": -25.57,
+      "duration": 0.181,
+      "attenuated": true,
+      "minInterval": 0.08
+    },
+    "acid": {
+      "files": [
+        "acid.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.1171,
+      "webPeakDb": -19.63,
+      "duration": 0.53,
+      "attenuated": true,
+      "minInterval": 0.1
+    },
+    "roar": {
+      "files": [
+        "roar.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.2297,
+      "webPeakDb": -13.78,
+      "duration": 0.831,
+      "attenuated": true,
+      "minInterval": 0.25
+    },
+    "swell": {
+      "files": [
+        "swell.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.1342,
+      "webPeakDb": -18.44,
+      "duration": 0.78,
+      "attenuated": true,
+      "minInterval": 0.15
+    },
+    "siren": {
+      "files": [
+        "siren.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.3625,
+      "webPeakDb": -9.81,
+      "duration": 3.71,
+      "attenuated": false
+    },
+    "beacon": {
+      "files": [
+        "beacon.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.0932,
+      "webPeakDb": -21.61,
+      "duration": 1.231,
+      "attenuated": false
+    },
+    "beaconDone": {
+      "files": [
+        "beaconDone.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.1713,
+      "webPeakDb": -16.32,
+      "duration": 1.48,
+      "attenuated": false
+    },
+    "lift": {
+      "files": [
+        "lift.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.2786,
+      "webPeakDb": -12.1,
+      "duration": 4.431,
+      "attenuated": false
+    },
+    "levelup": {
+      "files": [
+        "levelup.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.0548,
+      "webPeakDb": -26.23,
+      "duration": 0.36,
+      "attenuated": false
+    },
+    "click": {
+      "files": [
+        "click.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.0378,
+      "webPeakDb": -29.45,
+      "duration": 0.055,
+      "attenuated": false
+    },
+    "heart": {
+      "files": [
+        "heart.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.3203,
+      "webPeakDb": -10.89,
+      "duration": 0.348,
+      "attenuated": false
+    },
+    "victory": {
+      "files": [
+        "victory.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.1671,
+      "webPeakDb": -16.54,
+      "duration": 1.63,
+      "attenuated": false
+    },
+    "defeat": {
+      "files": [
+        "defeat.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.2499,
+      "webPeakDb": -13.04,
+      "duration": 2.529,
+      "attenuated": false
+    }
+  },
+  "loops": {
+    "wind": {
+      "files": [
+        "loop_wind.wav"
+      ],
+      "loop": true,
+      "baseGain": 0.0536,
+      "webPeakDb": -26.41,
+      "duration": 14.2857,
+      "level": "constant 0.085 (the cold wind bed, always on while the context runs)"
+    },
+    "chitter": {
+      "files": [
+        "loop_chitter.wav"
+      ],
+      "loop": true,
+      "baseGain": 0.0992,
+      "webPeakDb": -21.07,
+      "duration": 2,
+      "level": "web gain = min(1, bugsNearCamera / 500) * 0.16 (x0.4 on the title screen), smoothed 0.3 s; baseGain is for the maximum"
+    },
+    "rumble": {
+      "files": [
+        "loop_rumble.wav"
+      ],
+      "loop": true,
+      "baseGain": 0.1051,
+      "webPeakDb": -20.57,
+      "duration": 2,
+      "level": "web gain = min(1, bugsNearCamera / 500) * 0.35 (x0.4 on the title screen), smoothed 0.4 s; baseGain is for the maximum"
+    },
+    "flame": {
+      "files": [
+        "loop_flame.wav"
+      ],
+      "loop": true,
+      "baseGain": 0.237,
+      "webPeakDb": -13.51,
+      "duration": 2,
+      "level": "pyro firing: 0.3 * clamp(1.1 - d / 30, 0.1, 1) * (player 1 / bot 0.6), smoothed 0.06 s; baseGain is for 0.3"
+    },
+    "cryo": {
+      "files": [
+        "loop_cryo.wav"
+      ],
+      "loop": true,
+      "baseGain": 0.1626,
+      "webPeakDb": -16.78,
+      "duration": 2,
+      "level": "cryo beam on: 0.12 * clamp(1.1 - d / 30, 0.1, 1) * (player 1 / bot 0.6), smoothed 0.06 s; baseGain is for 0.12"
+    },
+    "spin": {
+      "files": [
+        "loop_spin.wav"
+      ],
+      "loop": true,
+      "baseGain": 0.0656,
+      "webPeakDb": -24.66,
+      "duration": 2,
+      "level": "minigun barrel whine: gain spin² * 0.05 * near (near = clamp(1.1 - d / 30, 0.1, 1) * (player 1 / bot 0.55)); rendered at full spin (330 / 165 Hz): playback rate = (70 + 260 * spin) / 330, smoothed 0.1 s; baseGain is for spin = 1"
+    }
+  }
+}
