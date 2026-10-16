@@ -1,0 +1,1160 @@
+{
+  "format": {
+    "magic": "IHM1",
+    "endian": "little",
+    "header": "char[4] magic, u32 vertexCount, u32 indexCount, u32 flags",
+    "vertexStride": 52,
+    "vertex": [
+      [
+        "position",
+        "float3",
+        0
+      ],
+      [
+        "normal",
+        "float3",
+        12
+      ],
+      [
+        "colour",
+        "float3",
+        24,
+        "linear RGB"
+      ],
+      [
+        "aGlow",
+        "float",
+        36
+      ],
+      [
+        "aLeg",
+        "float3",
+        40
+      ]
+    ],
+    "indices": "u32 triangle list after the vertices; CCW front faces (three.js winding)",
+    "flags": {
+      "1": "aGlow used",
+      "2": "aLeg = bug leg data (weight, phase, smudgeFlag)",
+      "4": "aLeg.xy = uv (top-left image origin), aLeg.z = 0",
+      "bits8-15": "vertex stride in bytes (52)"
+    },
+    "units": "metres, y up, web game world space; level_* and lift_* are world-placed, the rest model space",
+    "textures": "PNG, straight alpha; uv origin top-left: load without flipping (MTKTextureLoader default origin). srgb: true -> *_srgb pixel format. The snow mask is linear data.",
+    "bundle": "XcodeGen adds App/Resources as groups, so these files land flat in the bundle root (look them up by name, no subdirectory); keep PNG compression off for exact alpha if needed.",
+    "source": "game/js 01…09 via ios-native/tools/export-meshes.mjs"
+  },
+  "meshes": {
+    "bug_runner": {
+      "file": "bug_runner.mesh",
+      "notes": "Instanced swarm geometry for bug_runner (BT scale 0.8; instance matrix = rotY(heading) * scale, nose +z). Includes the dark contact smudge (aLeg.z = 1). Material: bug.",
+      "flags": 13315,
+      "source": {
+        "triangles": 243,
+        "area": 3.1351,
+        "colourArea": 0.1474
+      },
+      "bounds": {
+        "min": [
+          -0.8187,
+          -0.0134,
+          -0.78
+        ],
+        "max": [
+          0.8187,
+          0.6381,
+          0.5639
+        ]
+      },
+      "vertices": 330,
+      "indices": 729
+    },
+    "bug_spitter": {
+      "file": "bug_spitter.mesh",
+      "notes": "Instanced swarm geometry for bug_spitter (BT scale 1.02; instance matrix = rotY(heading) * scale, nose +z). Includes the dark contact smudge (aLeg.z = 1). Material: bug.",
+      "flags": 13315,
+      "source": {
+        "triangles": 233,
+        "area": 4.307,
+        "colourArea": 0.2997
+      },
+      "bounds": {
+        "min": [
+          -0.7289,
+          -0.013,
+          -0.7157
+        ],
+        "max": [
+          0.7289,
+          0.9204,
+          0.6157
+        ]
+      },
+      "vertices": 340,
+      "indices": 699
+    },
+    "bug_brute": {
+      "file": "bug_brute.mesh",
+      "notes": "Instanced swarm geometry for bug_brute (BT scale 2; instance matrix = rotY(heading) * scale, nose +z). Includes the dark contact smudge (aLeg.z = 1). Material: bug.",
+      "flags": 13315,
+      "source": {
+        "triangles": 313,
+        "area": 6.6046,
+        "colourArea": 0.6008
+      },
+      "bounds": {
+        "min": [
+          -0.6464,
+          -0.0165,
+          -0.81
+        ],
+        "max": [
+          0.6464,
+          0.7895,
+          0.6612
+        ]
+      },
+      "vertices": 336,
+      "indices": 939
+    },
+    "bug_boomer": {
+      "file": "bug_boomer.mesh",
+      "notes": "Instanced swarm geometry for bug_boomer (BT scale 1.15; instance matrix = rotY(heading) * scale, nose +z). Includes the dark contact smudge (aLeg.z = 1). Material: bug.",
+      "flags": 13315,
+      "source": {
+        "triangles": 213,
+        "area": 3.535,
+        "colourArea": 1.8753
+      },
+      "bounds": {
+        "min": [
+          -0.5242,
+          -0.011,
+          -0.6645
+        ],
+        "max": [
+          0.5242,
+          0.8155,
+          0.5645
+        ]
+      },
+      "vertices": 280,
+      "indices": 639
+    },
+    "corpse_generic": {
+      "file": "corpse_generic.mesh",
+      "notes": "Flattened corpse (y * 0.55, curled legs, no glints) from the runner; used for every non-brute type. Instance colour multiplies (see materials.corpse). No glow / legs.",
+      "flags": 13312,
+      "source": {
+        "triangles": 222,
+        "area": 1.5107,
+        "colourArea": 0.0892
+      },
+      "bounds": {
+        "min": [
+          -0.6008,
+          0.0962,
+          -0.78
+        ],
+        "max": [
+          0.6008,
+          0.3514,
+          0.5639
+        ]
+      },
+      "vertices": 573,
+      "indices": 666
+    },
+    "corpse_brute": {
+      "file": "corpse_brute.mesh",
+      "notes": "Flattened corpse (y * 0.55, curled legs, no glints) from the brute; used for brutes. Instance colour multiplies (see materials.corpse). No glow / legs.",
+      "flags": 13312,
+      "source": {
+        "triangles": 292,
+        "area": 3.8107,
+        "colourArea": 0.4107
+      },
+      "bounds": {
+        "min": [
+          -0.4971,
+          0.099,
+          -0.81
+        ],
+        "max": [
+          0.4971,
+          0.4342,
+          0.6612
+        ]
+      },
+      "vertices": 770,
+      "indices": 876
+    },
+    "marine_assault_body": {
+      "file": "marine_assault_body.mesh",
+      "notes": "Marine (assault) body. Group: rotation order YXZ, scale 1.12, yaw = aim; body at the group origin (walk bob: body.y = |sin(walkPh)|*0.05*w). Material: marine.",
+      "flags": 13313,
+      "source": {
+        "triangles": 504,
+        "area": 6.8898,
+        "colourArea": 1.8005
+      },
+      "bounds": {
+        "min": [
+          -0.6075,
+          0.67,
+          -0.455
+        ],
+        "max": [
+          0.6075,
+          1.805,
+          0.49
+        ]
+      },
+      "vertices": 654,
+      "indices": 1512
+    },
+    "marine_assault_leg": {
+      "file": "marine_assault_leg.mesh",
+      "notes": "Marine (assault) leg, pivot at the hip: drawn twice at (-0.13, 0.78, 0) and (+0.13, 0.78, 0) in group space; swing rotation.x = ±sw*rel, rotation.z = ±sw*0.4*(1-|rel|). Material: marine.",
+      "flags": 13312,
+      "source": {
+        "triangles": 48,
+        "area": 1.1806,
+        "colourArea": 0.2042
+      },
+      "pivots": [
+        [
+          -0.13,
+          0.78,
+          0
+        ],
+        [
+          0.13,
+          0.78,
+          0
+        ]
+      ],
+      "bounds": {
+        "min": [
+          -0.11,
+          -0.79,
+          -0.12
+        ],
+        "max": [
+          0.11,
+          0.01,
+          0.215
+        ]
+      },
+      "vertices": 96,
+      "indices": 144
+    },
+    "marine_assault_gun": {
+      "file": "marine_assault_gun.mesh",
+      "notes": "Marine (assault) gun at (0.2, 1.12, 0.08) in group space (recoil: z -= 0.05; the gunner barrel spins about z). Material: marine.",
+      "flags": 13313,
+      "source": {
+        "triangles": 48,
+        "area": 0.7372,
+        "colourArea": 0.1385
+      },
+      "pivot": [
+        0.2,
+        1.12,
+        0.08
+      ],
+      "bounds": {
+        "min": [
+          -0.065,
+          -0.22,
+          -0.11
+        ],
+        "max": [
+          0.065,
+          0.115,
+          0.79
+        ]
+      },
+      "vertices": 96,
+      "indices": 144
+    },
+    "marine_pyro_body": {
+      "file": "marine_pyro_body.mesh",
+      "notes": "Marine (pyro) body. Group: rotation order YXZ, scale 1.12, yaw = aim; body at the group origin (walk bob: body.y = |sin(walkPh)|*0.05*w). Material: marine.",
+      "flags": 13313,
+      "source": {
+        "triangles": 556,
+        "area": 7.1844,
+        "colourArea": 3.1966
+      },
+      "bounds": {
+        "min": [
+          -0.6075,
+          0.67,
+          -0.42
+        ],
+        "max": [
+          0.6075,
+          1.805,
+          0.49
+        ]
+      },
+      "vertices": 698,
+      "indices": 1668
+    },
+    "marine_pyro_leg": {
+      "file": "marine_pyro_leg.mesh",
+      "notes": "Marine (pyro) leg, pivot at the hip: drawn twice at (-0.13, 0.78, 0) and (+0.13, 0.78, 0) in group space; swing rotation.x = ±sw*rel, rotation.z = ±sw*0.4*(1-|rel|). Material: marine.",
+      "flags": 13312,
+      "source": {
+        "triangles": 48,
+        "area": 1.1806,
+        "colourArea": 0.2452
+      },
+      "pivots": [
+        [
+          -0.13,
+          0.78,
+          0
+        ],
+        [
+          0.13,
+          0.78,
+          0
+        ]
+      ],
+      "bounds": {
+        "min": [
+          -0.11,
+          -0.79,
+          -0.12
+        ],
+        "max": [
+          0.11,
+          0.01,
+          0.215
+        ]
+      },
+      "vertices": 96,
+      "indices": 144
+    },
+    "marine_pyro_gun": {
+      "file": "marine_pyro_gun.mesh",
+      "notes": "Marine (pyro) gun at (0.2, 1.12, 0.08) in group space (recoil: z -= 0.05; the gunner barrel spins about z). Material: marine.",
+      "flags": 13313,
+      "source": {
+        "triangles": 76,
+        "area": 0.6205,
+        "colourArea": 0.0902
+      },
+      "pivot": [
+        0.2,
+        1.12,
+        0.08
+      ],
+      "bounds": {
+        "min": [
+          -0.1,
+          -0.105,
+          -0.04
+        ],
+        "max": [
+          0.1,
+          0.1,
+          0.87
+        ]
+      },
+      "vertices": 92,
+      "indices": 228
+    },
+    "marine_cryo_body": {
+      "file": "marine_cryo_body.mesh",
+      "notes": "Marine (cryo) body. Group: rotation order YXZ, scale 1.12, yaw = aim; body at the group origin (walk bob: body.y = |sin(walkPh)|*0.05*w). Material: marine.",
+      "flags": 13313,
+      "source": {
+        "triangles": 556,
+        "area": 6.8769,
+        "colourArea": 3.0981
+      },
+      "bounds": {
+        "min": [
+          -0.6075,
+          0.67,
+          -0.44
+        ],
+        "max": [
+          0.6075,
+          1.805,
+          0.49
+        ]
+      },
+      "vertices": 698,
+      "indices": 1668
+    },
+    "marine_cryo_leg": {
+      "file": "marine_cryo_leg.mesh",
+      "notes": "Marine (cryo) leg, pivot at the hip: drawn twice at (-0.13, 0.78, 0) and (+0.13, 0.78, 0) in group space; swing rotation.x = ±sw*rel, rotation.z = ±sw*0.4*(1-|rel|). Material: marine.",
+      "flags": 13312,
+      "source": {
+        "triangles": 48,
+        "area": 1.1806,
+        "colourArea": 0.2451
+      },
+      "pivots": [
+        [
+          -0.13,
+          0.78,
+          0
+        ],
+        [
+          0.13,
+          0.78,
+          0
+        ]
+      ],
+      "bounds": {
+        "min": [
+          -0.11,
+          -0.79,
+          -0.12
+        ],
+        "max": [
+          0.11,
+          0.01,
+          0.215
+        ]
+      },
+      "vertices": 96,
+      "indices": 144
+    },
+    "marine_cryo_gun": {
+      "file": "marine_cryo_gun.mesh",
+      "notes": "Marine (cryo) gun at (0.2, 1.12, 0.08) in group space (recoil: z -= 0.05; the gunner barrel spins about z). Material: marine.",
+      "flags": 13313,
+      "source": {
+        "triangles": 984,
+        "area": 0.7931,
+        "colourArea": 0.5987
+      },
+      "pivot": [
+        0.2,
+        1.12,
+        0.08
+      ],
+      "bounds": {
+        "min": [
+          -0.125,
+          -0.125,
+          -0.08
+        ],
+        "max": [
+          0.125,
+          0.125,
+          0.76
+        ]
+      },
+      "vertices": 528,
+      "indices": 2952
+    },
+    "marine_gunner_body": {
+      "file": "marine_gunner_body.mesh",
+      "notes": "Marine (gunner) body. Group: rotation order YXZ, scale 1.12, yaw = aim; body at the group origin (walk bob: body.y = |sin(walkPh)|*0.05*w). Material: marine.",
+      "flags": 13313,
+      "source": {
+        "triangles": 516,
+        "area": 7.6668,
+        "colourArea": 2.2412
+      },
+      "bounds": {
+        "min": [
+          -0.6075,
+          0.67,
+          -0.5
+        ],
+        "max": [
+          0.6075,
+          1.805,
+          0.49
+        ]
+      },
+      "vertices": 656,
+      "indices": 1548
+    },
+    "marine_gunner_leg": {
+      "file": "marine_gunner_leg.mesh",
+      "notes": "Marine (gunner) leg, pivot at the hip: drawn twice at (-0.13, 0.78, 0) and (+0.13, 0.78, 0) in group space; swing rotation.x = ±sw*rel, rotation.z = ±sw*0.4*(1-|rel|). Material: marine.",
+      "flags": 13312,
+      "source": {
+        "triangles": 48,
+        "area": 1.1806,
+        "colourArea": 0.2024
+      },
+      "pivots": [
+        [
+          -0.13,
+          0.78,
+          0
+        ],
+        [
+          0.13,
+          0.78,
+          0
+        ]
+      ],
+      "bounds": {
+        "min": [
+          -0.11,
+          -0.79,
+          -0.12
+        ],
+        "max": [
+          0.11,
+          0.01,
+          0.215
+        ]
+      },
+      "vertices": 96,
+      "indices": 144
+    },
+    "marine_gunner_gun": {
+      "file": "marine_gunner_gun.mesh",
+      "notes": "Marine (gunner) gun at (0.2, 1.12, 0.08) in group space (recoil: z -= 0.05; the gunner barrel spins about z). Material: marine.",
+      "flags": 13312,
+      "source": {
+        "triangles": 184,
+        "area": 1.4206,
+        "colourArea": 0.1693
+      },
+      "pivot": [
+        0.2,
+        1.12,
+        0.08
+      ],
+      "bounds": {
+        "min": [
+          -0.13,
+          -0.13,
+          -0.15
+        ],
+        "max": [
+          0.13,
+          0.13,
+          0.88
+        ]
+      },
+      "vertices": 200,
+      "indices": 552
+    },
+    "level_floor_grating": {
+      "file": "level_floor_grating.mesh",
+      "notes": "Grating floor slabs, stairs and sloped catwalks (world space, uv = world xz * 0.5 on tops). Material: floorGrating + floorSnow.",
+      "flags": 13316,
+      "source": {
+        "triangles": 146,
+        "area": 2384.0206,
+        "colourArea": 7152.0617
+      },
+      "bounds": {
+        "min": [
+          -42,
+          -3.5,
+          -18
+        ],
+        "max": [
+          38,
+          0,
+          38
+        ]
+      },
+      "vertices": 276,
+      "indices": 438
+    },
+    "level_floor_slab": {
+      "file": "level_floor_slab.mesh",
+      "notes": "Snowy concrete slabs (landing pad, both staircases). Material: floorSlab + floorSnow.",
+      "flags": 13316,
+      "source": {
+        "triangles": 530,
+        "area": 1791.5,
+        "colourArea": 5374.5
+      },
+      "bounds": {
+        "min": [
+          -6,
+          -6.5,
+          -32.5
+        ],
+        "max": [
+          38,
+          0,
+          38
+        ]
+      },
+      "vertices": 964,
+      "indices": 1590
+    },
+    "level_props": {
+      "file": "level_props.mesh",
+      "notes": "All static props merged (railings, girders, supports, crates, pillars, pipes, snow drifts, vents, beacon bases, pad lights, stair nosings, distant towers). Material: props (snow caps on).",
+      "flags": 13313,
+      "source": {
+        "triangles": 34156,
+        "area": 72487.7941,
+        "colourArea": 3653.4137
+      },
+      "bounds": {
+        "min": [
+          -95.0821,
+          -90,
+          -103.7269
+        ],
+        "max": [
+          98.0468,
+          21.2704,
+          90.5007
+        ]
+      },
+      "vertices": 42602,
+      "indices": 102468
+    },
+    "level_hazard": {
+      "file": "level_hazard.mesh",
+      "notes": "Hazard strips along the beacon / pad edges (uv along the strip / 1.6 m). Material: hazard, drawn with a depth bias over the floor.",
+      "flags": 13316,
+      "source": {
+        "triangles": 48,
+        "area": 94.0798,
+        "colourArea": 282.2395
+      },
+      "bounds": {
+        "min": [
+          -42,
+          -2.988,
+          -18
+        ],
+        "max": [
+          38,
+          0.012,
+          38
+        ]
+      },
+      "vertices": 96,
+      "indices": 144
+    },
+    "level_pad_mark": {
+      "file": "level_pad_mark.mesh",
+      "notes": "Landing pad marking quad, 11 x 11 m at the start point. Material: padMark (alpha blended, no depth write).",
+      "flags": 13316,
+      "source": {
+        "triangles": 2,
+        "area": 121,
+        "colourArea": 363
+      },
+      "bounds": {
+        "min": [
+          24.5,
+          0.01,
+          24.5
+        ],
+        "max": [
+          35.5,
+          0.01,
+          35.5
+        ]
+      },
+      "vertices": 4,
+      "indices": 6
+    },
+    "level_glow": {
+      "file": "level_glow.mesh",
+      "notes": "Floor light pools under lamps / pillars / vents (additive; colours pre-scaled by 0.3, uv 0..1 per quad). Material: floorGlow.",
+      "flags": 13316,
+      "source": {
+        "triangles": 138,
+        "area": 619.1999,
+        "colourArea": 280.7785
+      },
+      "bounds": {
+        "min": [
+          -43.1,
+          -5.97,
+          -30.5
+        ],
+        "max": [
+          39.1,
+          0.03,
+          38.1
+        ]
+      },
+      "vertices": 276,
+      "indices": 414
+    },
+    "level_haze": {
+      "file": "level_haze.mesh",
+      "notes": "Icy haze plane 16 m below the decks (220 x 220 m, drawn first). Material: haze.",
+      "flags": 13316,
+      "source": {
+        "triangles": 2,
+        "area": 48400,
+        "colourArea": 145200
+      },
+      "bounds": {
+        "min": [
+          -110,
+          -16,
+          -115
+        ],
+        "max": [
+          110,
+          -16,
+          105
+        ]
+      },
+      "vertices": 4,
+      "indices": 6
+    },
+    "lift_floor": {
+      "file": "lift_floor.mesh",
+      "notes": "Lift deck disc (r 10, grating) at rest height LIFT_Y = -6; translate by +rise (0…22 m, u*u*22) during extraction. Material: floorGrating + floorSnow.",
+      "flags": 13316,
+      "source": {
+        "triangles": 144,
+        "area": 352.8187,
+        "colourArea": 1058.4561
+      },
+      "bounds": {
+        "min": [
+          -13,
+          -6.6,
+          -52
+        ],
+        "max": [
+          7,
+          -5.97,
+          -32
+        ]
+      },
+      "vertices": 241,
+      "indices": 432
+    },
+    "lift_props": {
+      "file": "lift_props.mesh",
+      "notes": "Lift railing ring, pads, teal rings, studs — same rise offset as lift_floor. Material: props.",
+      "flags": 13313,
+      "source": {
+        "triangles": 4160,
+        "area": 189.9644,
+        "colourArea": 54.414
+      },
+      "bounds": {
+        "min": [
+          -12.9,
+          -6,
+          -51.9
+        ],
+        "max": [
+          6.9,
+          -4.9,
+          -32.52
+        ]
+      },
+      "vertices": 5106,
+      "indices": 12480
+    },
+    "turret_base": {
+      "file": "turret_base.mesh",
+      "notes": "Gunner turret tripod (model space, origin on the floor). Material: props.",
+      "flags": 13312,
+      "source": {
+        "triangles": 68,
+        "area": 1.3251,
+        "colourArea": 0.1846
+      },
+      "bounds": {
+        "min": [
+          -0.2731,
+          -0.0202,
+          -0.433
+        ],
+        "max": [
+          0.4769,
+          0.85,
+          0.433
+        ]
+      },
+      "vertices": 106,
+      "indices": 204
+    },
+    "turret_head": {
+      "file": "turret_head.mesh",
+      "notes": "Turret head; place at (0, pivotY = 0.95, 0) relative to the base and rotate about y by the aim angle. Material: props.",
+      "flags": 13313,
+      "source": {
+        "triangles": 48,
+        "area": 1.3258,
+        "colourArea": 0.2277
+      },
+      "pivot": [
+        0,
+        0.95,
+        0
+      ],
+      "bounds": {
+        "min": [
+          -0.18,
+          -0.13,
+          -0.25
+        ],
+        "max": [
+          0.18,
+          0.13,
+          0.8
+        ]
+      },
+      "vertices": 96,
+      "indices": 144
+    },
+    "medkit": {
+      "file": "medkit.mesh",
+      "notes": "Medkit (origin on the floor). Material: props.",
+      "flags": 13313,
+      "source": {
+        "triangles": 36,
+        "area": 1.604,
+        "colourArea": 3.2052
+      },
+      "bounds": {
+        "min": [
+          -0.31,
+          0,
+          -0.22
+        ],
+        "max": [
+          0.31,
+          0.4,
+          0.22
+        ]
+      },
+      "vertices": 72,
+      "indices": 108
+    },
+    "glob": {
+      "file": "glob.mesh",
+      "notes": "Spitter acid glob (r 0.22). Material: unlit, colour 0xc8ff3a baked.",
+      "flags": 13312,
+      "source": {
+        "triangles": 80,
+        "area": 0.5646,
+        "colourArea": 0.9146
+      },
+      "bounds": {
+        "min": [
+          -0.22,
+          -0.22,
+          -0.22
+        ],
+        "max": [
+          0.22,
+          0.22,
+          0.22
+        ]
+      },
+      "vertices": 42,
+      "indices": 240
+    },
+    "grenade": {
+      "file": "grenade.mesh",
+      "notes": "Grenade (r 0.14). Material: unlit, colour 0xffc040 baked.",
+      "flags": 13312,
+      "source": {
+        "triangles": 80,
+        "area": 0.2287,
+        "colourArea": 0.3609
+      },
+      "bounds": {
+        "min": [
+          -0.14,
+          -0.14,
+          -0.14
+        ],
+        "max": [
+          0.14,
+          0.14,
+          0.14
+        ]
+      },
+      "vertices": 42,
+      "indices": 240
+    },
+    "beacon_top": {
+      "file": "beacon_top.mesh",
+      "notes": "Beacon tip octahedron (r 0.42), placed at ground + 2.9 over each beacon. Material: unlit, colour 0xff3020 baked.",
+      "flags": 13312,
+      "source": {
+        "triangles": 8,
+        "area": 1.2221,
+        "colourArea": 1.2759
+      },
+      "bounds": {
+        "min": [
+          -0.42,
+          -0.42,
+          -0.42
+        ],
+        "max": [
+          0.42,
+          0.42,
+          0.42
+        ]
+      },
+      "vertices": 24,
+      "indices": 24
+    }
+  },
+  "textures": {
+    "grating": {
+      "file": "tex_grating.png",
+      "wrap": "repeat",
+      "srgb": true,
+      "size": [
+        256,
+        256
+      ],
+      "notes": "Grated steel floor, one tile = 2 m (uv = world * 0.5). Also the bump source."
+    },
+    "slab": {
+      "file": "tex_slab.png",
+      "wrap": "repeat",
+      "srgb": true,
+      "size": [
+        256,
+        256
+      ],
+      "notes": "Snow-crusted concrete walkway tile, 2 m."
+    },
+    "hazard": {
+      "file": "tex_hazard.png",
+      "wrap": "repeat",
+      "srgb": true,
+      "size": [
+        128,
+        32
+      ],
+      "notes": "Amber/black hazard stripes, repeats along u (1.6 m per repeat)."
+    },
+    "pad": {
+      "file": "tex_pad.png",
+      "wrap": "clamp",
+      "srgb": true,
+      "size": [
+        256,
+        256
+      ],
+      "notes": "Landing pad marking (circle + H), straight alpha."
+    },
+    "decals": {
+      "file": "tex_decals.png",
+      "wrap": "clamp",
+      "srgb": true,
+      "size": [
+        256,
+        256
+      ],
+      "notes": "Decal atlas 2x2 (multiply blend): top-left splat, top-right streak splat, bottom-left corpse remains (final colours), bottom-right scorch."
+    },
+    "glow": {
+      "file": "tex_glow.png",
+      "wrap": "clamp",
+      "srgb": false,
+      "size": [
+        64,
+        64
+      ],
+      "notes": "Soft radial glow (white -> transparent): floor pools, splashes, particles."
+    },
+    "ring": {
+      "file": "tex_ring.png",
+      "wrap": "clamp",
+      "srgb": false,
+      "size": [
+        128,
+        128
+      ],
+      "notes": "Telegraph / team ring: bright rim, faint fill, ticks."
+    },
+    "fill": {
+      "file": "tex_fill.png",
+      "wrap": "clamp",
+      "srgb": false,
+      "size": [
+        128,
+        128
+      ],
+      "notes": "Filled disc with a bright rim (acid landing countdown)."
+    },
+    "lane": {
+      "file": "tex_lane.png",
+      "wrap": "clamp",
+      "srgb": false,
+      "size": [
+        64,
+        256
+      ],
+      "notes": "Brute charge lane: border + chevrons pointing toward +v (image top)."
+    },
+    "dash": {
+      "file": "tex_dash.png",
+      "wrap": "repeat",
+      "srgb": false,
+      "size": [
+        64,
+        4
+      ],
+      "notes": "Laser sight dash pattern (repeat along u)."
+    },
+    "streak": {
+      "file": "tex_streak.png",
+      "wrap": "repeat",
+      "srgb": false,
+      "size": [
+        128,
+        32
+      ],
+      "notes": "Streaky noise for the cryo beam (repeat)."
+    },
+    "snow": {
+      "file": "tex_snow.png",
+      "wrap": "clamp",
+      "srgb": false,
+      "size": [
+        256,
+        256
+      ],
+      "notes": "World-space snow drift mask, 2 px per metre over x,z in [-64, 64): sample at ((x + 64) / 128, (z + 64) / 128) with a top-left origin (first row = z -64). Linear data, linear filtering, no mips."
+    },
+    "haze": {
+      "file": "tex_haze.png",
+      "wrap": "clamp",
+      "srgb": true,
+      "size": [
+        256,
+        256
+      ],
+      "notes": "Radial haze gradient for level_haze."
+    }
+  },
+  "materials": {
+    "props": {
+      "model": "standard",
+      "roughness": 0.62,
+      "metalness": 0.45,
+      "vertexColors": true,
+      "emissive": "colour * aGlow * 2.2",
+      "snowCaps": "mix(colour, (0.80,0.86,0.93), smoothstep(0.72,0.97,normal.y) * (1-aGlow) * 0.8)",
+      "src": "03-render.js makeGlowMaterial({ snow: true })"
+    },
+    "marine": {
+      "model": "standard",
+      "roughness": 0.55,
+      "metalness": 0.5,
+      "vertexColors": true,
+      "emissive": "colour * aGlow * 2.2",
+      "snowCaps": false,
+      "src": "06-marines.js makeMarine"
+    },
+    "floorGrating": {
+      "model": "standard",
+      "roughness": 0.72,
+      "metalness": 0.42,
+      "map": "grating",
+      "bumpMap": "grating",
+      "bumpScale": 1.6,
+      "snowBias": 0,
+      "src": "makeFloorMaterial(TEX.grating, 1.6, 0.0)"
+    },
+    "floorSlab": {
+      "model": "standard",
+      "roughness": 0.72,
+      "metalness": 0.42,
+      "map": "slab",
+      "bumpMap": "slab",
+      "bumpScale": 0.6,
+      "snowBias": 0.18,
+      "src": "makeFloorMaterial(TEX.slab, 0.6, 0.18)"
+    },
+    "floorSnow": "sm = snow(worldXZ) + snowBias; bar = smoothstep(0.08,0.32, avg(map rgb)); fill = smoothstep(0.28,0.72,sm) * step(0.5,normal.y) * mix(0.55,1,bar); rgb = mix(rgb,(0.68,0.74,0.82),fill); roughness = mix(r,0.92,fill); metalness = mix(m,0,fill)",
+    "bug": {
+      "model": "lambert",
+      "vertexColors": true,
+      "instanceColor": true,
+      "src": "03-render.js makeBugMaterial",
+      "vertex": "if (aLeg.z > 0.5) pos *= step(0.85, up.y/|up|) (smudge hidden while climbing); ph = iAnim.x + aLeg.y; pos.z += sin(ph)*aLeg.x*0.17; pos.y += max(0,cos(ph))*aLeg.x*0.08; pos.y += (aLeg.x == 0) * |sin(iAnim.x)| * 0.03",
+      "fragment": "rgb = mix(rgb,(0.2,0.38,0.55),freeze*0.8); rgb *= 1 - burn*0.6; emissive += colour*aGlow*(1-freeze) + (0.22,0.14,0.26)*rim^3*0.3*(1-aGlow)*(1-freeze) + (1,0.3,0.04)*burn*(0.12+0.88*aGlow)*0.9 + (1,0.92,0.88)*flash*0.8 + (0.05,0.16,0.3)*freeze*0.5; iAnim = (phase, flash, burn, freeze)"
+    },
+    "corpse": {
+      "model": "lambert",
+      "vertexColors": true,
+      "instanceColor": "v*(1, 0.72, 0.58) with v = 1.6…2.3 (spitter: v*(0.85,0.95,0.58))",
+      "src": "07-fx.js corpseMat / addCorpse"
+    },
+    "hazard": {
+      "model": "standard",
+      "roughness": 0.8,
+      "metalness": 0.1,
+      "map": "hazard",
+      "polygonOffset": -1
+    },
+    "padMark": {
+      "model": "standard",
+      "roughness": 0.85,
+      "map": "pad",
+      "transparent": true,
+      "depthWrite": false,
+      "polygonOffset": -2
+    },
+    "floorGlow": {
+      "model": "unlit",
+      "blend": "additive",
+      "map": "glow",
+      "vertexColors": true,
+      "depthWrite": false,
+      "fog": false
+    },
+    "haze": {
+      "model": "unlit",
+      "blend": "alpha",
+      "map": "haze",
+      "depthWrite": false,
+      "fog": false,
+      "renderOrder": -1
+    },
+    "unlit": {
+      "model": "unlit",
+      "vertexColors": true,
+      "fog": false,
+      "note": "glob, grenade, beacon_top: MeshBasicMaterial (colour baked into the vertices)"
+    }
+  },
+  "constants": {
+    "LIFT_Y": -6,
+    "liftRiseMax": 22,
+    "lift": {
+      "x": -3,
+      "z": -42,
+      "r": 10
+    },
+    "start": {
+      "x": 30,
+      "z": 30
+    },
+    "fog": "#1a2737",
+    "fogDensity": "0.42 / camDist",
+    "marineScale": 1.12,
+    "bugScale": {
+      "runner": 0.8,
+      "spitter": 1.02,
+      "brute": 2,
+      "boomer": 1.15
+    }
+  }
+}
