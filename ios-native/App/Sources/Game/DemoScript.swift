@@ -18,6 +18,11 @@ import IceHiveCore
 //    -demo levelup  a forced level-up after 1.5 s: the upgrade cards
 //    -demo pause    the pause menu after 1.5 s
 //    -demo end      surrender after 1.5 s: the mission report (record highlight on)
+//    -demo swarmshot  the App Store 2-swarm moment (harness/scenarios/store-shots.mjs (b)):
+//                   gunner, 12 s into the mission, the squad at the crossing (0, -5), a few
+//                   steps, 600 bugs around it, the player aiming up-left and firing for 1.6 s,
+//                   then time almost frozen (×0.02) for the screenshot — the renderer A/B
+//                   against store/screenshots/6.3/2-swarm.png
 // ================================================================
 final class DemoScript {
     let name: String
@@ -34,7 +39,7 @@ final class DemoScript {
         switch d {
         case "combat", "smoke", "default": return DemoScript(name: d == "default" ? "combat" : d, bugs: options.bugs)
         case "beacon": return DemoScript(name: d, bugs: options.bugs)
-        case "title", "calm", "probe", "hold", "extract", "levelup", "pause", "end": return DemoScript(name: d)
+        case "title", "calm", "probe", "hold", "extract", "levelup", "pause", "end", "swarmshot": return DemoScript(name: d)
         default:
             AppLog.error("unknown demo \(d), using combat")
             return DemoScript(name: "combat")
@@ -42,6 +47,13 @@ final class DemoScript {
     }
 
     var startsMission: Bool { name != "title" }
+
+    /// Class the demo plays unless `-class` says otherwise (the store shot is the gunner's).
+    var preferredClass: String? { name == "swarmshot" ? "gunner" : nil }
+
+    /// World time scale the scene applies on top of hit-stop (swarmshot: ~frozen after the staging).
+    private(set) var timeScale: Float = 1
+    private var shotStage = 0
 
     /// Called right after the mission starts.
     func begin(game: Game) {
@@ -61,6 +73,10 @@ final class DemoScript {
             target = 260
             let n = game.debugSpawn(target, type: nil, minRadius: 5, maxRadius: 18)
             AppLog.info("demo \(name): stage \(game.stage.rawValue), spawned \(n) bugs around the lift")
+        case "swarmshot":
+            game.autopilot = false
+            target = 0
+            AppLog.info("demo swarmshot: staging the store 2-swarm moment")
         case "levelup", "pause", "end":
             if name == "levelup" { game.autoPickUpgrades = false }
             target = 300
@@ -93,6 +109,7 @@ final class DemoScript {
     /// Per frame while the mission runs: keep the swarm at `target` (the squad kills ~100 bugs a second, so
     /// replacements arrive twice a second from 12–30 m away and walk in).
     func frame(game: Game, dt: Float) {
+        if name == "swarmshot" { swarmShot(game); return }
         if !startsMission || target == 0 { return }
         t += dt
         probe = nil
@@ -131,4 +148,33 @@ final class DemoScript {
     }
     private var spawned = 0
     private var logT: Float = 5
+
+    /// store-shots.mjs (b), one step per frame so the scene drains (renders) the events of each step:
+    /// fast(12) → tp(0, -5) → left stick (+50, -20) px for 1.5 s → 1.5 s idle → spawn(600) → right stick (-40, -45) px,
+    /// firing, for 1.6 s → time ×0.02 (the web harness renders the shot at timeScale 0.05 for 4 frames).
+    private func swarmShot(_ game: Game) {
+        let r = Float(InputController.stickRadius)
+        let aimDir = Game.worldFromScreen(-40 / (40 * 40 + 45 * 45).squareRoot(), -45 / (40 * 40 + 45 * 45).squareRoot())
+        let aim = Game.angle(of: aimDir)
+        switch shotStage {
+        case 0:
+            game.fastForward(seconds: 12)
+            game.debugTeleport(0, -5)
+            game.setPlayerInput(move: Game.worldFromScreen(50 / r, -20 / r), aim: nil, fire: false, ability: false, dash: false)
+            game.fastForward(seconds: 1.5)
+            game.setPlayerInput(move: Vec2(0, 0), aim: nil, fire: false, ability: false, dash: false)
+            game.fastForward(seconds: 1.5)
+            shotStage = 1
+        case 1:
+            let n = game.debugSpawn(600, type: nil, minRadius: 6, maxRadius: 26)
+            game.setPlayerInput(move: Vec2(0, 0), aim: aim, fire: true, ability: false, dash: false, assist: 0.75)
+            game.fastForward(seconds: 1.6)
+            timeScale = 0.02
+            shotStage = 2
+            AppLog.info("demo swarmshot: spawned \(n), alive \(game.bugsAlive), kills \(game.kills), player at (\(game.player.x), \(game.player.z))")
+        default:
+            // keep the trigger down (the scene sets the empty touch command before this every frame)
+            game.setPlayerInput(move: Vec2(0, 0), aim: aim, fire: true, ability: false, dash: false, assist: 0.75)
+        }
+    }
 }

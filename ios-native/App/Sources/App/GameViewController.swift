@@ -36,10 +36,12 @@ final class GameViewController: UIViewController {
             mv.clearColor = MTLClearColor(red: 0x1a / 255.0, green: 0x27 / 255.0, blue: 0x37 / 255.0, alpha: 1)
             mv.isPaused = true
             mv.enableSetNeedsDisplay = false
-            mv.autoResizeDrawable = true
+            // the drawable size is set explicitly (applyMetalScale): UIKit resets contentScaleFactor to the screen's
+            // scale when the view joins the window, so the default 2x drawable silently became 3x before (41337a8)
+            mv.autoResizeDrawable = false
             mv.framebufferOnly = true
             mv.isUserInteractionEnabled = false
-            mv.contentScaleFactor = CGFloat(options.metalScale ?? 2)
+            mv.layer.magnificationFilter = .linear
             root.addSubview(mv)
             sk.autoresizingMask = [.flexibleWidth, .flexibleHeight]
             sk.allowsTransparency = true
@@ -95,11 +97,23 @@ final class GameViewController: UIViewController {
             self?.presentedScene?.applyReduceMotion()
         })
         AppLog.info("SKView ready maxFPS=\(maxFPS) preferredFPS=\(view.preferredFramesPerSecond) cull=\(options.cull) hud=\(showHUD)"
-                    + " renderer=\(metalView != nil ? "metal scale=\(metalView?.contentScaleFactor ?? 0)" : "spritekit")")
+                    + " renderer=\(metalView != nil ? "metal scale=\(metalScale)" : "spritekit")")
+    }
+
+    /// Pixels per point of the Metal drawable (`-mscale`, default 2 — the web phone build renders at a pixel ratio of
+    /// 1.5 (med) / 2 (high) and lets the compositor scale it to the 3x screen).
+    private var metalScale: CGFloat { CGFloat(options.metalScale ?? 2) }
+
+    private func applyMetalScale() {
+        guard let mv = metalView else { return }
+        let b = mv.bounds.size
+        let want = CGSize(width: (b.width * metalScale).rounded(), height: (b.height * metalScale).rounded())
+        if want.width > 0, want.height > 0, mv.drawableSize != want { mv.drawableSize = want }
     }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        applyMetalScale()
         let size = view.bounds.size
         guard size.width > 0, size.height > 0 else { return }
         if presentedScene == nil {

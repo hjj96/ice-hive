@@ -96,8 +96,8 @@ final class GameScene: SKScene {
         backgroundColor = metalView != nil ? .clear : Tone.hex(0x1a2737)
         anchorPoint = CGPoint(x: 0.5, y: 0.5)
         if let mc = MarineClass(id: settings.cls) { selectedClass = mc }
-        if let c = options.playerClass, let mc = MarineClass(id: c) { selectedClass = mc }
         demo = DemoScript.make(options: options)
+        if let c = options.playerClass ?? demo?.preferredClass, let mc = MarineClass(id: c) { selectedClass = mc }
         BugLayer.glintShaderOn = !options.plainGlints
         haptics.enabled = settings.haptics
         if !settings.migrated.isEmpty { AppLog.info("settings: migrated from v1: " + settings.migrated.joined(separator: ",")) }
@@ -639,7 +639,7 @@ final class GameScene: SKScene {
         sceneTimer.begin()
 
         // hit-stop slows the whole world (simulation + effects) for a few frames
-        var ts: Float = 1
+        var ts: Float = demo?.timeScale ?? 1
         if hitStopCd > 0 { hitStopCd -= dt }
         if hitStopT > 0 { hitStopT -= dt; ts *= hitStopK; if hitStopT <= 0 { hitStopK = 1 } }
         let running = mode == .playing || mode == .title
