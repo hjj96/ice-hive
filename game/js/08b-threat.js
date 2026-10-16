@@ -140,7 +140,31 @@ function updateThreatHUD() {
 window.__dbgExt = Object.assign(window.__dbgExt || {}, {
   // switch the live tier (0 Новобранец · 1 Ветеран · 2 Кошмар); missions started later pick their own via tierPrepare
   diff(i) { if (i != null) setTier(+i); return TH.id; },
-  // the Матка climbs up right now (lift hold only); returns her uid or 0
-  queen() { if (DIR.stage !== 'hold' || DIR.q.spawned) return 0; QSTATE.edge = -1; queenSpawn(); return DIR.q.uid; },
+  // the Матка climbs up right now (lift hold only); returns her uid or 0. hp (optional, tests) overrides her health.
+  queen(hp) {
+    if (DIR.stage !== 'hold' || DIR.q.spawned) return 0;
+    QSTATE.edge = -1; queenSpawn();
+    if (hp > 0 && QSTATE.i >= 0) B.hp[QSTATE.i] = B.hpMax[QSTATE.i] = +hp;
+    return DIR.q.uid;
+  },
   press() { return { press: +DIR.press.toFixed(2), idleMul: +DIR.idleMul.toFixed(3), afkT: +GS.afkT.toFixed(2), state: threatState() }; },
+  // everything the regression scenario checks (harness/scenarios/v11-threat.mjs)
+  threat() {
+    const q = DIR.q;
+    let qi = -1, runners = 0, runnerHpMax = 0, brutes = 0;
+    for (let i = 0; i < B.n; i++) {
+      if (B.dead[i]) continue;
+      if (B.uid[i] === q.uid && q.alive) qi = i;
+      if (B.type[i] === RUN) { runners++; if (B.hpMax[i] > runnerHpMax) runnerHpMax = B.hpMax[i]; }
+      else if (B.type[i] === BRUTE) brutes++;
+    }
+    const nb = DIR.stage === 'beacons' ? nextBeacon() : null;
+    return {
+      tier: TH.id, stage: DIR.stage, liftT: +DIR.liftT.toFixed(2), press: +DIR.press.toFixed(2), idleMul: +DIR.idleMul.toFixed(3), afkT: +GS.afkT.toFixed(2),
+      state: threatState(), downs: GS.downs, downBy: GS.downBy, runners, runnerHpMax: +runnerHpMax.toFixed(2), brutes,
+      beacon: nb ? [nb.x, nb.z] : null, lift: [LV.lift.x, LV.lift.z],
+      queen: { uid: q.uid, spawned: q.spawned, alive: q.alive, done: q.done, killT: +q.killT.toFixed(2), hp: qi >= 0 ? Math.round(B.hp[qi]) : 0, hpMax: qi >= 0 ? Math.round(B.hpMax[qi]) : 0,
+        frz: qi >= 0 ? +B.frz[qi].toFixed(3) : 0, chill: qi >= 0 ? +B.chill[qi].toFixed(3) : 0, st: qi >= 0 ? B.st[qi] : -1, warn: +QSTATE.warn.toFixed(2) },
+    };
+  },
 });

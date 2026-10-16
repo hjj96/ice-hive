@@ -25,6 +25,7 @@ export default async (page, h) => {
     d.timeScale(0.05);   // the real-time frame loop barely ticks between our chunks
     d.start(cls, { tier, coach: false, seed });
     window.__mode = mode;
+    window.__hurt = [0, 0, 0, 0, 0, 0]; window.__downBy = [0, 0, 0, 0, 0, 0];   // index = src + 1 (mkcalib hooks)
     d.auto(mode !== 'afk');
     window.__W = {
       stageAt: {}, downs: [0, 0, 0, 0], minHp: [999, 999, 999, 999], wasDown: [0, 0, 0, 0], maxAlive: 0, aliveSum: 0, aliveN: 0, holdAliveMax: 0,
@@ -101,6 +102,7 @@ export default async (page, h) => {
       minHp: W.minHp.map(x => Math.round(x)), pLowS: +W.lowHpT.toFixed(1), pHalfS: +W.halfHpT.toFixed(1), pTakenPerMin: Math.round(W.pTaken / Math.max(0.1, I.GS.time / 60)),
       maxAlive: W.maxAlive, avgAlive: Math.round(W.aliveSum / Math.max(1, W.aliveN)), holdAliveMax: W.holdAliveMax, deckMax: W.deckMax, nearMax: W.nearMax,
       idleMax: +W.idleMax.toFixed(2), pressMax: +W.pressMax.toFixed(1), firstBrute: W.firstBrute, downSt: W.downSt, queen: W.queen,
+      hurtBy: (window.__hurt || []).map(Math.round), downBy4: window.__downBy || [],
       aliveAt: W.aliveAt.join(','), hpAt: W.hpAt.join(' '),
     };
   });

@@ -7,7 +7,11 @@ import path from 'node:path';
 
 const [inArg, outArg] = process.argv.slice(2);
 if (!inArg || !outArg) { console.error('usage: node harness/calib/mkcalib.mjs <built.html> <out-calib.html>'); process.exit(2); }
-const src = fs.readFileSync(path.resolve(inArg), 'utf8');
+let src = fs.readFileSync(path.resolve(inArg), 'utf8');
+// measurement hooks (calibration copy only): damage taken and downs by source (bug type 0..3, 4 = Матка, -1 = other)
+function rep(a, b) { const n = src.split(a).length - 1; if (n !== 1) { console.error('[mkcalib] anchor x' + n + ': ' + a.slice(0, 80)); process.exit(1); } src = src.replace(a, b); }
+rep('  if (m.isPlayer) GS.lastHit = src;\n', '  if (m.isPlayer) GS.lastHit = src;\n  m.lastSrc = src; if (window.__hurt) window.__hurt[src + 1] += dmg;\n');
+rep('  if (m.isPlayer) { GS.downs++; GS.downBy = GS.lastHit; }\n', '  if (m.isPlayer) { GS.downs++; GS.downBy = GS.lastHit; }\n  if (window.__downBy) window.__downBy[(m.lastSrc ?? -1) + 1]++;\n');
 const end = src.lastIndexOf('</script>');
 if (end < 0 || !src.includes('window.__dbg = {')) { console.error('[mkcalib] not a built game artifact: ' + inArg); process.exit(1); }
 const inj = `
