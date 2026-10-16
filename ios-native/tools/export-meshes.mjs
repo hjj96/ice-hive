@@ -4,7 +4,7 @@
 //   node ios-native/tools/export-meshes.mjs              # export + validate + verification render
 //   node ios-native/tools/export-meshes.mjs --verify     # only re-validate / re-render what is on disk
 //
-// Loads game/js/01…09 as ONE module in headless Chromium (lib/gamepage.mjs, same as render-sprites.mjs) and
+// Loads game/js/01…09 as ONE module in headless Chromium (lib/gamepage.mjs) and
 // appends lib/inpage-meshes.js, which reads the geometry the game itself built (buildBugGeometry, the corpse
 // meshes, buildMarineGeos, the level / lift / turret / medkit / glob / grenade meshes) and the TEX.* canvases.
 //
