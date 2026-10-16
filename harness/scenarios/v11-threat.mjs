@@ -6,14 +6,25 @@ export default async (page, h) => {
   const ev = (f, a) => page.evaluate(f, a);
   const expect = (cond, msg) => { if (cond) log('[ok]', msg); else fail(msg); };
   const T = () => ev(() => window.__dbg.threat());
-  const frame = () => sleep(250);   // the HUD (DOM) updates on rendered frames only
-  const hud = () => ev(() => {
-    const box = document.querySelector('.obj-box'), mk = document.getElementById('marker');
-    return { cls: ['press1', 'press2', 'boss'].filter((c) => box.classList.contains(c)).join(','), urge: mk.classList.contains('urge'), text: document.getElementById('hObj').textContent, bar: document.getElementById('hObjBar').classList.contains('on') };
-  });
+  // the HUD (DOM) updates on rendered frames only, and SwiftShader frames can take seconds: wait until the objective
+  // text has caught up with the simulation (the real-time loop runs at timeScale 0.05 here, so it barely ticks)
+  const frame = async () => {
+    for (let k = 0; k < 60; k++) {
+      if (await ev(() => document.getElementById('hObj').textContent === window.__dbg.state().objective)) return;
+      await sleep(200);
+    }
+  };
+  const hud = async () => {
+    await frame(); await sleep(50);
+    return ev(() => {
+      const box = document.querySelector('.obj-box'), mk = document.getElementById('marker');
+      return { cls: ['press1', 'press2', 'boss'].filter((c) => box.classList.contains(c)).join(','), urge: mk.classList.contains('urge'), text: document.getElementById('hObj').textContent, bar: document.getElementById('hObjBar').classList.contains('on') };
+    });
+  };
   const has = await ev(() => !!(window.__dbg && ['diff', 'queen', 'press', 'threat'].every((k) => typeof window.__dbg[k] === 'function')));
   expect(has, '__dbg exposes diff / queen / press / threat');
   if (!has) return;
+  await ev(() => window.__dbg.timeScale(0.05));
 
   // ---- 1. tiers + one-shot fodder: 200 runners at the drop and after ~2 min stay ≤ 16.8 HP on every tier
   for (const [i, id] of [[0, 'rec'], [1, 'vet'], [2, 'nm']]) {
@@ -37,11 +48,9 @@ export default async (page, h) => {
   let u = await hud();
   expect(t.state === 0 && !u.cls, `14 s idle: calm (press ${t.press}, hud '${u.cls}')`);
   t = await ev(() => { window.__dbg.fast(1.5); return window.__dbg.threat(); });
-  await frame();
   u = await hud();
   expect(t.state === 1 && u.cls === 'press1' && u.text === 'Улей просыпается — к маяку' && u.bar, `15.5 s: amber press1 «${u.text}» (press ${t.press})`);
   t = await ev(() => { window.__dbg.fast(10); return window.__dbg.threat(); });
-  await frame();
   u = await hud();
   expect(t.state === 2 && u.cls === 'press2' && u.urge && u.text === 'Рой стягивается — к маяку!', `25.5 s: red press2 + marker urge «${u.text}» (press ${t.press}, idleMul ${t.idleMul})`);
   if (h.args.shots) await h.shot('pressure');
@@ -64,7 +73,6 @@ export default async (page, h) => {
   t = await T();
   await ev(([x, z]) => { const d = window.__dbg; d.tp(x + 2.4, z); d.fast(0.3); }, t.beacon);
   t = await T();
-  await frame();
   u = await hud();
   expect(t.state === 0 && !u.cls && !u.urge, `beacon started: pressure state cleared («${u.text}», press ${t.press})`);
   await ev(() => window.__dbg.god(false));
@@ -75,7 +83,6 @@ export default async (page, h) => {
   t = await T();
   expect(uid > 0 && t.stage === 'hold' && t.queen.alive && t.queen.hpMax === 1e6, `queen() in the hold: uid ${uid}, hp ${t.queen.hp}`);
   await ev(() => window.__dbg.fast(3));
-  await frame();
   u = await hud();
   expect(u.cls === 'boss' && u.text === 'Убейте Матку · лифт ждёт', `boss HUD «${u.text}» (${u.cls})`);
   if (h.args.shots) await h.shot('queen');
@@ -108,15 +115,12 @@ export default async (page, h) => {
       I.TUR.on = false;
       let qi = -1; for (let i = 0; i < B.n; i++) if (B.uid[i] === I.DIR.q.uid) qi = i;
       const bi = I.spawnBug(2, B.x[qi] + 1.5, B.z[qi], 0);
-      B.burn.fill(0);   // no fire can spread onto her during the test tick
-      const q0 = B.hp[qi], b0 = B.hp[bi], vx0 = B.vx[qi];
+      // only this pulse: no other blasts, shots or fire land on her during the check
+      I.BOOMS.length = 0; B.burn.fill(0); I.rebuildHash();
+      const q0 = B.hp[qi], b0 = B.hp[bi];
       I.queueBoom(B.x[qi], B.z[qi], 10.6, 48 * I.DIR.hpMul, -1, 'pulse');
-      for (const m of I.M) m.downed = true;   // nobody fires during this one tick (pyro burn ignores mods.dmg)
-      I.tick(1 / 60);
-      for (const m of I.M) { m.downed = false; m.hp = m.maxHp; }
-      let qj = -1, bj = -1; for (let i = 0; i < B.n; i++) { if (B.uid[i] === I.DIR.q.uid) qj = i; }
-      const bu = B.uid[bi]; for (let i = 0; i < B.n; i++) if (B.uid[i] === bu) bj = i;
-      return { q0, q1: B.hp[qj], b0, b1: bj >= 0 ? B.hp[bj] : 0, frz: B.frz[qj] };
+      I.processBooms();
+      return { q0, q1: B.hp[qi], b0, b1: B.dead[bi] ? 0 : B.hp[bi], frz: B.frz[qi] };
     });
     expect(pr.q1 === pr.q0 && pr.b1 < pr.b0, `lift pulse: Матка HP ${pr.q0} -> ${pr.q1}, brute beside her ${Math.round(pr.b0)} -> ${Math.round(pr.b1)}`);
     await ev(() => window.__dbg.god(false));
@@ -133,5 +137,5 @@ export default async (page, h) => {
   }
   const sx = await ev(() => window.__dbg.sfxAll());
   expect(!sx.bad.length, `sfxAll incl. 'queen': ${sx.played} played, bad: ${sx.bad.join(', ') || 'none'}`);
-  await ev(() => window.__dbg.diff(1));
+  await ev(() => { window.__dbg.diff(1); window.__dbg.timeScale(1); });
 };

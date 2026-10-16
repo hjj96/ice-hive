@@ -18,7 +18,7 @@ const inj = `
 // ---- calibration hooks (harness/calib/mkcalib.mjs) ----
 window.__int = {
   M, B, DIR, GS, LV, BT, DIFF, CLASSES, UPG, QSTATE, IN, TUR, typeAlive, crowd,
-  tick, rollUpgrades, applyUpgrade, queryCircle, spawnBug, killBug, hitBug, hurtMarine, startHorde, queueBoom, showScreen, setTier,
+  tick, rollUpgrades, applyUpgrade, queryCircle, spawnBug, killBug, hitBug, hurtMarine, startHorde, queueBoom, processBooms, rebuildHash, BOOMS, showScreen, setTier,
   onLift, standingIn, nextBeacon, capLeft, hordeScale, threatState,
   get TH() { return TH; }, get simCap() { return simCap; }, get simTime() { return simTime; },
   get autoPlayer() { return autoPlayer; }, set autoPlayer(v) { autoPlayer = v; },

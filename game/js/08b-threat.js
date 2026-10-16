@@ -8,6 +8,10 @@
 // private Матка state (DIR.q is the shared view: B reads uid, D reads spawned / alive / done)
 const QSTATE = { warn: -1, edge: -1, i: -1, x: 0, z: 0, hpFrac: 1, brood: 0, volley: 0, ram: 0, mcd: 0, armed: false, enr: false };
 
+// per mission (resetDirector): a warning or a fight cut short by the end of the last mission must not carry over
+function queenReset() {
+  QSTATE.warn = -1; QSTATE.edge = -1; QSTATE.i = -1; QSTATE.hpFrac = 1; QSTATE.mcd = 0; QSTATE.armed = false; QSTATE.enr = false;
+}
 // a rim edge of the lift on its far side (z − lift.z < −4), else any rim edge, else the edge nearest to the lift
 function queenEdge() {
   const L = LV.lift, r2 = (L.r + 1.5) * (L.r + 1.5);

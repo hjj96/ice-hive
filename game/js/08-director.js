@@ -24,6 +24,7 @@ function resetDirector(attract) {
   for (const b of LV.beacons) DIR.beacons.push({ x: b.x, z: b.z, name: b.name, state: 0, progress: 0, contested: false });
   DIR.calm = false; DIR.beaconHordeMul = 1; DIR.press = 0; DIR.idleMul = 1;
   const q = DIR.q; q.uid = 0; q.alive = false; q.spawned = false; q.done = false; q.t0 = 0; q.killT = 0;
+  queenReset();
   liftGroup.position.y = 0;
 }
 function nextBeacon() {
