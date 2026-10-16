@@ -315,6 +315,8 @@ jobs:
           run_demo probe 26 "-demo probe -seed 7"
           # A/B: SpriteKit's own node culling back on (off by default; compare fps / sk ms with the combat run)
           run_demo cull 15 "-demo combat -cull -seed 7"
+          # A/B: swarm glints without their shader (compare the 'bug' ms of hb ms lines with the combat run)
+          run_demo plainglint 15 "-demo combat -plainGlints -seed 7"
           # lift: holding out on the platform, then the extraction pinned at +2 s (gore rides up with the deck)
           run_demo hold 8 "-demo hold -seed 3" 0
           run_demo extract 10 "-demo extract -seed 3" 0
@@ -325,7 +327,7 @@ jobs:
           xcrun simctl spawn "$UDID" launchctl list | grep -i icehive | tee results/launchctl.txt || true
           cp results/app-combat.log results/app-stdout.log
           cp results/app-combat-stderr.log results/app-stderr.log
-          demos="firstlaunch combat beacon title calm landscape nolight probe cull hold extract levelup pause end"
+          demos="firstlaunch combat beacon title calm landscape nolight probe cull plainglint hold extract levelup pause end"
           for d in $demos; do
             f=results/app-$d.log
             { echo "== $f"; grep -h -E 'loading took|sheets decoded|demo done' "$f" || true; } >> results/fps.txt

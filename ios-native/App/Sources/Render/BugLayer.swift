@@ -12,11 +12,12 @@ import IceHiveCore
 //  Calibrated against the web swarm (store 2-swarm.png): the baked bodies
 //  are lit for full light, and under the darkness multiply (ambient ≈ 0.3)
 //  they went near-black — the web bugs keep maroon bodies with readable
-//  legs and a carpet of pink / white glints. Bodies therefore draw through
-//  one shared shader that lifts them past 1 (gain · per-type palette, the
-//  web 0.55…1.3 instance spread), and the glint layer through another that
-//  grows each speckle by a texel and brightens it (glints of bright bugs
-//  burn to white, like the web emissive under ACES).
+//  legs and a carpet of pink / white glints. The body frames are therefore
+//  packed with a filmic lift (tools/pack-sheets.mjs, ≈ ×4.5 on the dark
+//  tones) and tinted per bug with the web 0.55…1.3 instance spread; the
+//  glint layer draws through a shader that softly grows each speckle and
+//  brightens it (glints of bright bugs burn to white, like the web
+//  emissive under ACES).
 // ================================================================
 final class BugLayer {
     let root = SKNode()
@@ -37,23 +38,17 @@ final class BugLayer {
     private static let frostTint = SKColor(red: 0.25, green: 0.5, blue: 0.85, alpha: 1)
     private static let burnTint = SKColor(red: 1, green: 0.42, blue: 0.08, alpha: 1)
 
-    /// Body gain of the shader (colours are passed as value / bodyGain so they stay ≤ 1).
-    static let bodyGain: Float = 4.5
-    /// Effective body brightness per type over the baked frame at the mean spread (runners / spitters / brutes are
-    /// baked dark, boomers glow orange already).
-    static let typeGain: [Float] = [3.4, 3.4, 3.0, 1.3]
-    static let bodyShader = SKShader(source: """
-    void main() {
-        vec4 c = texture2D(u_texture, v_tex_coord) * v_color_mix;
-        gl_FragColor = vec4(c.rgb * 4.5, c.a);
-    }
-    """)
+    /// Spread scale per type over the (lifted) body frames: ≈ 0.75 at the mean spread for the lifted types, boomers
+    /// (not lifted, already orange) near full.
+    static let typeScale: [Float] = [0.81, 0.81, 0.81, 1.2]
     /// Glint layer: max over the texel cross (each 1–2 px speckle grows to a small blob, like the web glints at
     /// 3× resolution), times a gain; the per-bug colour carries the web brightness spread.
     private let glowShader: SKShader
     static let glintGain: Float = 2.3
-    /// Bodies lean maroon under the blue-grey ambient (web bodies ≈ 41 / 26 / 28 in the dark).
-    static let bodyTint: (Float, Float, Float) = (1.0, 0.86, 0.84)
+    /// `-plainGlints` (A/B cost of the glint shader in CI): plain additive glow sprites.
+    static var glintShaderOn = true
+    /// Bodies lean maroon under the blue-grey ambient (web bodies ≈ 41 / 26 / 28 in the dark); boomers untinted.
+    static let bodyTint: [(Float, Float, Float)] = [(1.0, 0.86, 0.8), (1.0, 0.86, 0.8), (1.0, 0.86, 0.8), (1, 1, 1)]
 
     /// Healthy bodies: [type][spread 0…31]; burning / frozen: lazily filled [type][spread][burn 0…7][frost 0…7].
     private let palette: [[SKColor]]
@@ -86,8 +81,8 @@ final class BugLayer {
         palette = (0..<4).map { t in
             (0..<32).map { k in
                 let c = BugLayer.spread(Float(k) / 31)
-                let g = BugLayer.typeGain[t] / 0.925 / BugLayer.bodyGain
-                let w = BugLayer.bodyTint
+                let g = BugLayer.typeScale[t]
+                let w = BugLayer.bodyTint[t]
                 return SKColor(red: CGFloat(min(1, c.0 * g * w.0)), green: CGFloat(min(1, c.1 * g * w.1)), blue: CGFloat(min(1, c.2 * g * w.2)), alpha: 1)
             }
         }
@@ -97,9 +92,8 @@ final class BugLayer {
         }
         bodies = SpritePool(parent: root, capacity: capacity) { n in
             n.colorBlendFactor = 1
-            n.shader = BugLayer.bodyShader
         }
-        let gsh = glowShader
+        let gsh: SKShader? = BugLayer.glintShaderOn ? glowShader : nil
         glows = SpritePool(parent: root, capacity: capacity) { n in
             n.blendMode = .add
             n.zPosition = ZBand.glow
@@ -247,10 +241,10 @@ final class BugLayer {
         let k = ((t * 32 + vq) * 8 + bq) * 8 + fq
         if let c = tinted[k] { return c }
         let s = BugLayer.spread(Float(vq) / 31)
-        let g = BugLayer.typeGain[t] / 0.925 / BugLayer.bodyGain
+        let g = BugLayer.typeScale[t]
         let b = Float(bq) / 7, f = Float(fq) / 7
         let ch = 1 - b * 0.6
-        let w = BugLayer.bodyTint
+        let w = BugLayer.bodyTint[t]
         let r = s.0 * g * w.0 * ch * (1 - 0.5 * f), gg = s.1 * g * w.1 * ch * (1 - 0.25 * f), bb = s.2 * g * w.2 * ch
         let c = SKColor(red: CGFloat(min(1, r)), green: CGFloat(min(1, gg)), blue: CGFloat(min(1, bb)), alpha: 1)
         tinted[k] = c

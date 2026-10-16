@@ -88,6 +88,7 @@ final class GameScene: SKScene {
         if let mc = MarineClass(id: settings.cls) { selectedClass = mc }
         if let c = options.playerClass, let mc = MarineClass(id: c) { selectedClass = mc }
         demo = DemoScript.make(options: options)
+        BugLayer.glintShaderOn = !options.plainGlints
         haptics.enabled = settings.haptics
         if !settings.migrated.isEmpty { AppLog.info("settings: migrated from v1: " + settings.migrated.joined(separator: ",")) }
         AppLog.info("settings: cls=\(settings.cls) best=\(settings.bestKills)/\(settings.bestWin)s muted=\(settings.muted) vol=\(settings.vol) "
@@ -654,7 +655,16 @@ final class GameScene: SKScene {
     private func drainEvents(_ g: Game, _ r: WorldRenderer) {
         let lis = listener()
         let inMission = mode != .title
+        let diag = AppLog.diagnostics
         g.drainEvents { e in
+            let te = diag ? FrameTimer.now() : 0
+            defer {
+                // CI attribution of multi-second stalls inside the event drain (579f726: 7–9 s once per run)
+                if diag {
+                    let ms = (FrameTimer.now() - te) * 1000
+                    if ms > 40 { AppLog.info(String(format: "slow event %.0f ms: ", ms) + String(String(describing: e).prefix(80))) }
+                }
+            }
             r.handle(e, game: g)
             switch e {
             case .combo(let c):

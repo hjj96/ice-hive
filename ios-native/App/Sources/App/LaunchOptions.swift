@@ -21,6 +21,8 @@ struct LaunchOptions {
     var noLighting: Bool = false
     /// SpriteKit's own node culling (`-cull`, off by default: the pools and level chunks cull themselves).
     var cull: Bool = false
+    /// Swarm glints without their shader (`-plainGlints`, A/B of its cost).
+    var plainGlints: Bool = false
     /// Arguments that were not recognised (kept for logging).
     var unknown: [String] = []
 
@@ -52,6 +54,7 @@ struct LaunchOptions {
             case "-orient", "--orient": result.orientation = value()
             case "-nolight", "--nolight": result.noLighting = flag()
             case "-cull", "--cull": result.cull = flag()
+            case "-plainGlints", "--plainGlints": result.plainGlints = flag()
             default: result.unknown.append(arg)
             }
         }
@@ -69,6 +72,7 @@ struct LaunchOptions {
         if let o = orientation { parts.append("orient=\(o)") }
         if noLighting { parts.append("nolight") }
         if cull { parts.append("cull") }
+        if plainGlints { parts.append("plainGlints") }
         return parts.joined(separator: " ")
     }
 }

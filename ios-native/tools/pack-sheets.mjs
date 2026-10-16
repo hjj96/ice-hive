@@ -45,7 +45,23 @@ function kneeRim(img) {
   }
   return img;
 }
-const ADJUST = { BugsGlow: kneeRim };
+// Bug bodies are rendered for full light, but the game shows them under the darkness multiply (ambient ≈ 0.3), where
+// they went near-black — the web swarm keeps maroon bodies with readable legs (store 2-swarm.png: ≈ 41 / 26 / 28 in
+// the dark). A filmic lift per type, y = 255 · (1 − e^(−g·x/255)) / (1 − e^(−g)), multiplies the dark body tones by
+// ≈ 4.8 (runner, spitter) / 3.6 (brute) and rolls the highlights off instead of clipping them. Boomers glow orange
+// already; contact shadows stay as they are.
+const BODY_LIFT = { runner: 6.5, spitter: 6.5, brute: 5.3 };
+function liftBody(img, name) {
+  if (name.includes('_shadow')) return img;
+  const g = BODY_LIFT[name.split('_')[0]];
+  if (!g) return img;
+  const lut = new Uint8Array(256), norm = 1 - Math.exp(-g);
+  for (let v = 0; v < 256; v++) lut[v] = Math.round(255 * (1 - Math.exp(-g * v / 255)) / norm);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) { d[i] = lut[d[i]]; d[i + 1] = lut[d[i + 1]]; d[i + 2] = lut[d[i + 2]]; }
+  return img;
+}
+const ADJUST = { BugsGlow: kneeRim, Bugs: liftBody };
 
 // Half resolution (@1x) with a "brightest of 2 × 2" filter: the additive emissive layers are soft light, drawn at
 // 2× they look the same, and the brightest-sample pick keeps every 1-px glint of the swarm instead of averaging it
@@ -93,7 +109,7 @@ function loadFrames(atlas, filter) {
     const img = contents.images.find((i) => i.scale === '2x' && i.filename);
     if (!img) throw new Error(`${atlas}/${name}: no @2x image`);
     const png = decodePNG(fs.readFileSync(path.join(dir, d, img.filename)));
-    out.push({ name, atlas, png: ADJUST[atlas] ? ADJUST[atlas](png) : png });
+    out.push({ name, atlas, png: ADJUST[atlas] ? ADJUST[atlas](png, name) : png });
   }
   return out;
 }

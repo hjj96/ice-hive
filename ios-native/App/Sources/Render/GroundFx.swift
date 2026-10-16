@@ -2,8 +2,10 @@ import SpriteKit
 import IceHiveCore
 
 /// Procedural ring indicator (web ringIndMat): progress pie, dashed remainder, pulsing inner disc.
-/// Drawn on an untextured sprite so v_tex_coord spans 0…1 (atlas textures would not). Every ring shares one
-/// program; progress, colour and alpha are per-node attributes (the rings batch, one pipeline to warm up).
+/// Drawn on an untextured sprite so v_tex_coord spans 0…1 (atlas textures would not). Each ring keeps its own
+/// SKShader with uniforms: a shared program with per-node SKAttribute values crashed SpriteKit intermittently on
+/// iOS 26 (EXC_BAD_ACCESS in SKCNode::addBatchAttributeValues while batching the rings, CI 579f726), and there
+/// are only eight rings.
 final class RingIndicator {
     static let source = """
     void main() {
@@ -12,31 +14,26 @@ final class RingIndicator {
         float ang = fract(atan(p.x, p.y) / 6.2831853 + 1.0);
         float ring = smoothstep(0.84, 0.865, r) * (1.0 - smoothstep(0.955, 0.98, r));
         float seg = step(0.3, fract(ang * 40.0));
-        float prog = step(ang, a_prog);
+        float prog = step(ang, u_prog);
         float inner = (1.0 - smoothstep(0.0, 0.86, r)) * 0.05 * (0.6 + 0.4 * sin(u_time * 3.0 - r * 8.0));
         float sw = 1.0 - smoothstep(0.0, 0.86, abs(r - fract(u_time * 0.5) * 0.86));
-        float sweep = sw * 0.12 * step(r, 0.86) * (1.0 - step(0.999, a_prog));
-        vec3 c = a_col.rgb * (ring * (prog * 1.7 + (1.0 - prog) * 0.35 * seg) + inner + sweep);
+        float sweep = sw * 0.12 * step(r, 0.86) * (1.0 - step(0.999, u_prog));
+        vec3 c = u_col.rgb * (ring * (prog * 1.7 + (1.0 - prog) * 0.35 * seg) + inner + sweep);
         c = vec3(1.0) - exp(-c * 1.3);
-        gl_FragColor = vec4(c * a_alpha, 1.0);
+        gl_FragColor = vec4(c * u_alpha, 1.0);
     }
     """
 
-    static let shader: SKShader = {
-        let sh = SKShader(source: RingIndicator.source)
-        sh.attributes = [SKAttribute(name: "a_prog", type: .float), SKAttribute(name: "a_col", type: .vectorFloat4),
-                         SKAttribute(name: "a_alpha", type: .float)]
-        return sh
-    }()
-
     let node: SKSpriteNode
-    private var prog: Float = -1, alpha: Float = -1, col = SIMD4<Float>(-1, -1, -1, 1)
+    private let uProg = SKUniform(name: "u_prog", float: 0)
+    private let uCol = SKUniform(name: "u_col", vectorFloat4: SIMD4<Float>(0.25, 0.9, 0.85, 1))
+    private let uAlpha = SKUniform(name: "u_alpha", float: 1)
+    private var prog: Float = 0, alpha: Float = 1, col = SIMD4<Float>(0.25, 0.9, 0.85, 1)
 
     init(radius: Float) {
         let d = CGFloat(radius * 2) * Iso.ppm
         node = SKSpriteNode(color: .white, size: CGSize(width: d, height: d))
-        node.shader = RingIndicator.shader
-        set(progress: 0, color: SIMD4<Float>(0.25, 0.9, 0.85, 1), alpha: 1)
+        node.shader = SKShader(source: RingIndicator.source, uniforms: [uProg, uCol, uAlpha])
         node.blendMode = .add
         node.zRotation = Iso.groundRotation(0)
         node.zPosition = ZBand.floorGlow + 2
@@ -51,9 +48,9 @@ final class RingIndicator {
     }
 
     private func set(progress p: Float, color c: SIMD4<Float>, alpha a: Float) {
-        if p != prog { prog = p; node.setValue(SKAttributeValue(float: p), forAttribute: "a_prog") }
-        if c != col { col = c; node.setValue(SKAttributeValue(vectorFloat4: c), forAttribute: "a_col") }
-        if a != alpha { alpha = a; node.setValue(SKAttributeValue(float: a), forAttribute: "a_alpha") }
+        if p != prog { prog = p; uProg.floatValue = p }
+        if c != col { col = c; uCol.vectorFloat4Value = c }
+        if a != alpha { alpha = a; uAlpha.floatValue = a }
     }
 
     func hide() { if !node.isHidden { node.isHidden = true } }
