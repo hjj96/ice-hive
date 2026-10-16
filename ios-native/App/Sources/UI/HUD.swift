@@ -189,7 +189,7 @@ final class HUD {
     private let markerArrow = SKSpriteNode(texture: Shapes.chevron(color: UIPalette.amber))
     private let markerLabel = Label("", font: Fonts.monoBold, size: 12, color: UIPalette.amber)
     // debug
-    /// -debugHUD text: two compact lines in the bottom-left corner (the SKView's own stats sit bottom-right).
+    /// -debugHUD text: two compact lines in the bottom-left corner.
     let debugLabel = Label("", font: Fonts.mono, size: 9, color: UIPalette.teal, align: .left, valign: .bottom)
     var showDebug = false
     var visible = true { didSet { root.isHidden = !visible } }
@@ -200,6 +200,7 @@ final class HUD {
     private var objKey = Int.min
     private var hintRaw = "\u{1}"
     private var timeSec = -1
+    private var levelShown = -1
 
     init() {
         root.zPosition = ZBand.hud
@@ -551,7 +552,7 @@ final class HUD {
             r.name.node.alpha = m.downed && sinf(game.time * 10.5) < 0 ? 0.3 : 1
         }
         hpBar.set(CGFloat(P.hp / max(1, P.maxHp)))
-        lvl.set("УР \(game.xpLevel)")
+        if game.xpLevel != levelShown { levelShown = game.xpLevel; lvl.set("УР \(game.xpLevel)") }
         xpBar.set(CGFloat(Float(game.xp) / Float(max(1, game.xpNext))))
 
         abilityButton.update(ready: P.abilityReady, fraction: CGFloat(P.abilityCooldownFraction))

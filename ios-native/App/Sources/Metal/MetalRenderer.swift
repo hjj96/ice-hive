@@ -1,15 +1,16 @@
 import Foundation
 import Metal
-import MetalKit
 import QuartzCore
 
 // ================================================================
-//  METAL RENDERER — device, pipelines, the per-frame upload arena
-//  (three frames in flight) and the encoding of one frame in the
-//  order of the web scene: opaque level, squad, swarm, corpses, props,
-//  then the transparent passes (haze, pad mark, floor glows, decals,
-//  splashes / telegraphs / rings, particles, ribbons, weather).
-//  MetalWorld fills the arena and a DrawList, then calls draw().
+//  METAL RENDERER — pipelines, the per-frame upload arena (a ring of
+//  three; FrameLoop keeps at most two frames on the GPU) and the
+//  encoding of one world frame in the order of the web scene: opaque
+//  level, squad, swarm, corpses, props, then the transparent passes
+//  (haze, pad mark, floor glows, decals, splashes / telegraphs / rings,
+//  particles, ribbons, weather) into an offscreen target at the world
+//  scale; encodeComposite() scales that image into the drawable.
+//  MetalWorld fills the arena and a DrawList each drawn frame.
 // ================================================================
 
 /// A slice of the current frame's upload arena.
@@ -70,18 +71,20 @@ final class DrawList {
     var proxies = Region()
 }
 
-final class MetalRenderer: NSObject, MTKViewDelegate {
-    static let framesInFlight = 3
+final class MetalRenderer {
+    /// Upload arenas in the ring: one more than FrameLoop.framesInFlight, so the CPU never writes an arena the GPU reads.
+    static let arenaSlots = 3
     /// Swarm speckles drawn again as anti-aliased dots (`-glintDots`; not in the web build). Off by default: at the 2x
     /// drawable the plain speckles match store 2-swarm.png's sparkle (blob count / size) better than the dots.
     static var glintDots = false
     private static let passOrder: [MeshPass] = [.props, .lambert, .unlit]
-    static let arenaSize = 4 * 1024 * 1024
+    /// Bytes per arena: the heaviest frame (high tier: 2500 bugs, 4000 + 2400 particles, 1500 stains, 520 corpses) needs
+    /// ≈ 1 MB; an overflow drops that frame's later uploads and is logged once.
+    static let arenaSize = 2 * 1024 * 1024
 
     let device: MTLDevice
     let queue: MTLCommandQueue
     let store: MeshStore
-    weak var view: MTKView?
     let colorFormat: MTLPixelFormat = .bgra8Unorm
     let depthFormat: MTLPixelFormat = .depth32Float
 
@@ -104,6 +107,8 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
     private var psRibbon: MTLRenderPipelineState?
     private var psWeatherAlpha: MTLRenderPipelineState?
     private var psWeatherAdd: MTLRenderPipelineState?
+    /// World target → drawable (no depth: the HUD shares this pass).
+    private var psComposite: MTLRenderPipelineState?
     private var dsOpaque: MTLDepthStencilState?
     private var dsTransparent: MTLDepthStencilState?
     // flashlight shadow map (web «высокая»: spots[0].castShadow, 1024², PCF)
@@ -124,8 +129,19 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
     private var arenaIndex = 0
     private var arenaOffset = 0
     private var arenaOverflow = false
-    private let inflight = DispatchSemaphore(value: MetalRenderer.framesInFlight)
-    private var waitingForFrame = false
+
+    /// FrameLoop got a free frame slot this tick: MetalWorld may build a frame into the arena.
+    var frameOpen = false
+    /// MetalWorld built a complete frame this tick (encodeWorld draws it).
+    var built = false
+    /// The world target holds a finished image (kept on screen while the world is frozen behind a menu).
+    private(set) var hasWorldImage = false
+    // offscreen world target at the world scale: colour (sampled by the composite) + depth (never stored)
+    private var worldColor: MTLTexture?
+    private var worldDepth: MTLTexture?
+    private let worldPass = MTLRenderPassDescriptor()
+    private(set) var targetWidth = 0
+    private(set) var targetHeight = 0
 
     var frame = FrameUniforms()
     let list = DrawList()
@@ -141,30 +157,21 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
     /// Pipeline / textures last bound by encode() (redundant state changes are skipped).
     private var boundPipeline: MTLRenderPipelineState?
     private var boundMain: MTLTexture?
-    /// One completion handler for every command buffer (no closure context allocated per frame).
-    private var completion: MTLCommandBufferHandler?
     private let matProps = MaterialUniforms(pbr: F4(0.62, 0.45, 1, 2.2), floor: F4(0, 0, 0, 1))
 
-    // stats (smoothed)
+    // stats of the last encoded world frame (encode time smoothed)
     private(set) var drawCalls = 0
     private(set) var instanceCount = 0
     private(set) var triangles = 0
     private(set) var encodeMs: Double = 0
-    private(set) var waitMs: Double = 0
-    private(set) var gpuMs: Double = 0
-    private var gpuMsShared: Double = 0
-    private let gpuLock = NSLock()
     private(set) var frames = 0
-    private(set) var skippedFrames = 0
 
-    init?(device: MTLDevice, store: MeshStore) {
-        guard let q = device.makeCommandQueue() else { return nil }
+    /// `queue`: the app's one command queue (FrameLoop commits every frame on it).
+    init?(device: MTLDevice, queue: MTLCommandQueue, store: MeshStore) {
         self.device = device
-        self.queue = q
+        self.queue = queue
         self.store = store
-        super.init()
-        q.label = "IceHive"
-        for k in 0..<MetalRenderer.framesInFlight {
+        for k in 0..<MetalRenderer.arenaSlots {
             guard let b = device.makeBuffer(length: MetalRenderer.arenaSize, options: [.storageModeShared, .cpuCacheModeWriteCombined]) else { return nil }
             b.label = "arena\(k)"
             arenas.append(b)
@@ -281,6 +288,20 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
                 return nil
             }
         }
+        // world target → drawable: the final pass has no depth attachment (SKRenderer draws the HUD into it)
+        if let v = lib.makeFunction(name: "vs_composite"), let f = lib.makeFunction(name: "fs_composite") {
+            let d = MTLRenderPipelineDescriptor()
+            d.label = "composite"
+            d.vertexFunction = v
+            d.fragmentFunction = f
+            d.colorAttachments[0].pixelFormat = colorFormat
+            d.depthAttachmentPixelFormat = .invalid
+            do { psComposite = try device.makeRenderPipelineState(descriptor: d) } catch {
+                pipelineErrors.append("composite: \(error.localizedDescription)")
+            }
+        } else {
+            pipelineErrors.append("composite: missing vs_composite / fs_composite")
+        }
         psShadowMesh = depthOnly("shadowMesh", "vs_shadow_mesh", vertexDescriptor: true)
         psShadowProxy = depthOnly("shadowProxy", "vs_shadow_proxy", vertexDescriptor: false)
         let sd = MTLDepthStencilDescriptor()
@@ -330,27 +351,59 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
         shadowPass.depthAttachment.loadAction = .clear
         shadowPass.depthAttachment.storeAction = .store
         shadowPass.depthAttachment.clearDepth = 1
-        let sem = inflight
-        completion = { [weak self] c in
-            let ms = (c.gpuEndTime - c.gpuStartTime) * 1000
-            if let s = self, ms > 0 && ms < 1000 {
-                s.gpuLock.lock()
-                s.gpuMsShared += (ms - s.gpuMsShared) * 0.1
-                s.gpuLock.unlock()
-            }
-            sem.signal()
-        }
-        ready = psProps != nil && psBug != nil && dsOpaque != nil
+        // the flashlight shadow map exists from the start (not created on the first «высокая» frame)
+        let sd = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .depth32Float, width: MetalRenderer.shadowSize,
+                                                          height: MetalRenderer.shadowSize, mipmapped: false)
+        sd.usage = [.renderTarget, .shaderRead]
+        sd.storageMode = .private
+        shadowTex = device.makeTexture(descriptor: sd)
+        shadowTex?.label = "flashlight shadow"
+        let fogc = displayRGB(0x1a2737)
+        worldPass.colorAttachments[0].loadAction = .clear
+        worldPass.colorAttachments[0].storeAction = .store
+        worldPass.colorAttachments[0].clearColor = MTLClearColor(red: Double(fogc.x), green: Double(fogc.y), blue: Double(fogc.z), alpha: 1)
+        worldPass.depthAttachment.loadAction = .clear
+        worldPass.depthAttachment.storeAction = .dontCare
+        worldPass.depthAttachment.clearDepth = 1
+        // only what a frame cannot do without is required; an optional pass (shadow, glint dots, …) that failed to
+        // compile is skipped by encode()
+        ready = psProps != nil && psFloor != nil && psBug != nil && psMeshProps != nil && psComposite != nil
+            && dsOpaque != nil && dsTransparent != nil
+    }
+
+    /// Size the offscreen world target (pixels); a new size drops the old image.
+    func setTargetSize(width: Int, height: Int) {
+        let w = max(1, width), h = max(1, height)
+        if w == targetWidth && h == targetHeight && worldColor != nil { return }
+        targetWidth = w
+        targetHeight = h
+        hasWorldImage = false
+        let cd = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: colorFormat, width: w, height: h, mipmapped: false)
+        cd.usage = [.renderTarget, .shaderRead]
+        cd.storageMode = .private
+        worldColor = device.makeTexture(descriptor: cd)
+        worldColor?.label = "world"
+        let dd = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: depthFormat, width: w, height: h, mipmapped: false)
+        dd.usage = .renderTarget
+        // tile memory only on the device (the depth is never stored); the simulator has no memoryless storage
+        #if targetEnvironment(simulator)
+        dd.storageMode = .private
+        #else
+        dd.storageMode = .memoryless
+        #endif
+        worldDepth = device.makeTexture(descriptor: dd)
+        worldPass.colorAttachments[0].texture = worldColor
+        worldPass.depthAttachment.texture = worldDepth
+        AppLog.info("metal: world target \(w)x\(h) px")
     }
 
     // ---------------------------------------------------------------- arena
-    /// Start filling the next frame: waits until the GPU has released that frame's arena.
+    /// FrameLoop holds a free frame slot: start filling the next arena of the ring (never waits — FrameLoop keeps at
+    /// most two frames on the GPU, so the arena after the newest in-flight one is free).
     func beginFrame() {
-        let t0 = FrameTimer.now()
-        inflight.wait()
-        waitingForFrame = true
-        waitMs += ((FrameTimer.now() - t0) * 1000 - waitMs) * 0.1
-        arenaIndex = (arenaIndex + 1) % MetalRenderer.framesInFlight
+        frameOpen = true
+        built = false
+        arenaIndex = (arenaIndex + 1) % MetalRenderer.arenaSlots
         arenaOffset = 0
         list.batches.removeAll(keepingCapacity: true)
     }
@@ -376,65 +429,41 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
         return Region(offset: a.1, count: values.count)
     }
 
-    /// The frame was built but will not be drawn (no drawable / not ready): release its arena.
-    func cancelFrame() {
-        if waitingForFrame { waitingForFrame = false; inflight.signal() }
-    }
-
-    // ---------------------------------------------------------------- MTKViewDelegate
-    func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
-
-    func draw(in view: MTKView) {
-        guard waitingForFrame else { return }
+    // ---------------------------------------------------------------- frame
+    /// The world frame MetalWorld built this tick, into the offscreen target (shadow pass first on «высокая»). No-op
+    /// when nothing was built (frozen world: the last image stays).
+    func encodeWorld(_ cb: MTLCommandBuffer) {
+        frameOpen = false
+        guard built, ready, worldColor != nil else { built = false; return }
+        built = false
         let t0 = FrameTimer.now()
-        guard ready, let rpd = view.currentRenderPassDescriptor, let drawable = view.currentDrawable,
-              let cb = queue.makeCommandBuffer() else {
-            skippedFrames += 1
-            cancelFrame()
-            return
-        }
-        cb.label = "frame"
-        rpd.colorAttachments[0].loadAction = .clear
-        rpd.colorAttachments[0].storeAction = .store
-        let fogc = displayRGB(0x1a2737)
-        rpd.colorAttachments[0].clearColor = MTLClearColor(red: Double(fogc.x), green: Double(fogc.y), blue: Double(fogc.z), alpha: 1)
-        rpd.depthAttachment?.loadAction = .clear
-        rpd.depthAttachment?.storeAction = .dontCare
-        rpd.depthAttachment?.clearDepth = 1
         drawCalls = 0
         instanceCount = 0
         triangles = 0
         if list.shadowOn { encodeShadow(cb) }
-        guard let enc = cb.makeRenderCommandEncoder(descriptor: rpd) else {
-            skippedFrames += 1
-            cancelFrame()
-            return
-        }
+        guard let enc = cb.makeRenderCommandEncoder(descriptor: worldPass) else { return }
+        enc.label = "world"
         encode(enc)
         enc.endEncoding()
-        cb.present(drawable)
-        if let h = completion { cb.addCompletedHandler(h) } else { let sem = inflight; cb.addCompletedHandler { _ in sem.signal() } }
-        waitingForFrame = false
-        cb.commit()
+        hasWorldImage = true
         frames += 1
         encodeMs += ((FrameTimer.now() - t0) * 1000 - encodeMs) * 0.1
-        gpuLock.lock()
-        gpuMs = gpuMsShared
-        gpuLock.unlock()
+    }
+
+    /// The world image scaled into the drawable (final pass, before the HUD). false = no image yet.
+    @discardableResult
+    func encodeComposite(_ enc: MTLRenderCommandEncoder) -> Bool {
+        guard hasWorldImage, let ps = psComposite, let tex = worldColor else { return false }
+        enc.setRenderPipelineState(ps)
+        enc.setFragmentTexture(tex, index: 0)
+        enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        return true
     }
 
     // ---------------------------------------------------------------- encoding
     /// The player's flashlight shadow map: the squad's meshes and the bug proxies inside the cone (back faces, like
     /// three.js shadowSide for front-sided materials).
     private func encodeShadow(_ cb: MTLCommandBuffer) {
-        if shadowTex == nil {
-            let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .depth32Float, width: MetalRenderer.shadowSize,
-                                                             height: MetalRenderer.shadowSize, mipmapped: false)
-            d.usage = [.renderTarget, .shaderRead]
-            d.storageMode = .private
-            shadowTex = device.makeTexture(descriptor: d)
-            shadowTex?.label = "flashlight shadow"
-        }
         guard let tex = shadowTex, let psM = psShadowMesh, let psP = psShadowProxy else { list.shadowOn = false; return }
         shadowPass.depthAttachment.texture = tex
         guard let enc = cb.makeRenderCommandEncoder(descriptor: shadowPass) else { list.shadowOn = false; return }

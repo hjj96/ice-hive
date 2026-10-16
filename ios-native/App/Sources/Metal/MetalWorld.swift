@@ -1,19 +1,21 @@
 import Foundation
 import Metal
-import MetalKit
 import IceHiveCore
 
 // ================================================================
-//  METAL WORLD — the Metal renderer as a WorldPresenter: GameScene
-//  (simulation loop, events, HUD in a transparent SKView on top,
-//  audio, demos) calls update() once per frame; it builds the web
-//  camera, poses the squad (renderMarines), writes the swarm instances
-//  per bug type with a CPU frustum cull (writeBugInstances), runs the
-//  effects (renderFx), fills the lights, uploads everything into the
-//  frame arena and draws the MTKView synchronously.
+//  METAL WORLD — the world of the game: GameScene (simulation loop,
+//  events, HUD, audio, demos) calls update() once per display-link
+//  tick; it always moves the web camera (the HUD projects through it)
+//  and, when FrameLoop holds a free frame slot, builds the frame:
+//  poses the squad (renderMarines), writes the swarm instances per bug
+//  type with a CPU frustum cull (writeBugInstances), runs the effects
+//  (renderFx), fills the lights and uploads everything into the frame
+//  arena; FrameLoop encodes and presents it. Without a slot (the GPU
+//  is behind) nothing is built and the time carries over to the next
+//  drawn frame, so effects do not slow down.
 // ================================================================
-/// Meshes, textures and pipelines of `-renderer metal`, started when the view controller loads its view (before the
-/// scene's first frame); the scene picks the result up behind its loading cover.
+/// Meshes, textures and pipelines, started when the view controller loads its view (before the scene's first frame);
+/// the scene picks the result up behind its loading cover.
 final class MetalPreload {
     let started = FrameTimer.now()
     private(set) var finished: Double = 0
@@ -21,9 +23,10 @@ final class MetalPreload {
     private var result: (MeshStore, MetalRenderer)?
     private var waiters: [((MeshStore, MetalRenderer)?) -> Void] = []
 
-    init(device: MTLDevice) {
+    /// `fail`: `-failMetal` (CI): report Metal as unusable without trying, to exercise the failure screen.
+    init(device: MTLDevice, queue: MTLCommandQueue, fail: Bool = false) {
         DispatchQueue.global(qos: .userInitiated).async { [self] in
-            let r = MetalWorld.prepare(device: device) { AppLog.info($0) }
+            let r = fail ? nil : MetalWorld.prepare(device: device, queue: queue) { AppLog.info($0) }
             DispatchQueue.main.async { [self] in
                 result = r
                 done = true
@@ -41,17 +44,14 @@ final class MetalPreload {
     }
 }
 
-final class MetalWorld: WorldPresenter {
-    let rendererName = "metal"
+final class MetalWorld: HUDProjection {
     let level: Level
-    let view: MTKView
     let store: MeshStore
     let renderer: MetalRenderer
     let camera = MetalCamera()
     let fx: MetalEffects
-    /// wait = free frame slot (GPU back-pressure), mar = squad poses, bug = swarm instances, fx = effects,
-    /// up = uploads + lights, draw = drawable + encode + commit
-    let timer = FrameTimer(["wait", "mar", "bug", "fx", "up", "draw"])
+    /// cam = camera + visible quad, mar = squad poses, bug = swarm instances, fx = effects, up = uploads + lights
+    let timer = FrameTimer(["cam", "mar", "bug", "fx", "up"])
 
     private var poses = [MetalEffects.MarinePose](repeating: MetalEffects.MarinePose(x: 0, y: 0, z: 0), count: 4)
     private var walkPh: [Float] = [0, 0, 0, 0]
@@ -72,7 +72,14 @@ final class MetalWorld: WorldPresenter {
     private var pointPos = [F4](repeating: .zero, count: 3), pointCol = [F4](repeating: .zero, count: 3)
     private var visibleBugs = 0
     private var lastStats = WorldStats()
-    private var loggedDrawable = CGSize.zero
+    /// Effect time of ticks without a drawn frame, added to the next drawn one (effects keep their speed).
+    private var dtCarry: Float = 0
+    /// Camera of the last built frame: a frozen world (menus) is not rebuilt while it holds still.
+    private var lastEye = F3(0, 0, 0), lastFocus = F3(0, 0, 0)
+    private var lastTarget = (0, 0)
+    private var lastRise: Float = -1
+    /// Frames built / ticks skipped for want of a free slot (heartbeat).
+    private(set) var builtFrames = 0
 
     var fxK: Float {
         get { fx.fxK }
@@ -87,9 +94,8 @@ final class MetalWorld: WorldPresenter {
     private var spot0 = (pos: F3(0, -50, 0), dir: F3(0, -1, 0), on: false)
     static let shadowProxyMax = 400
 
-    /// Main thread: takes over the view (delegate) with prepared meshes and pipelines.
-    init(view: MTKView, level: Level, store: MeshStore, renderer: MetalRenderer) {
-        self.view = view
+    /// Main thread: the world with prepared meshes and pipelines.
+    init(level: Level, store: MeshStore, renderer: MetalRenderer) {
         self.level = level
         self.store = store
         self.renderer = renderer
@@ -112,14 +118,12 @@ final class MetalWorld: WorldPresenter {
         }
         propBatches = [turretBase, turretHead, medkit, glob, grenade, beaconTop]
         tailBatches = [turretBase, turretHead, medkit, glob, grenade, beaconTop]
-        view.delegate = renderer
-        renderer.view = view
     }
 
     /// Load meshes, textures and compile the pipelines side by side (call off the main thread). nil if Metal is unusable.
-    static func prepare(device: MTLDevice, log: (String) -> Void) -> (MeshStore, MetalRenderer)? {
+    static func prepare(device: MTLDevice, queue: MTLCommandQueue, log: (String) -> Void) -> (MeshStore, MetalRenderer)? {
         let store = MeshStore(device: device)
-        guard let r = MetalRenderer(device: device, store: store) else { log("metal: renderer init failed"); return nil }
+        guard let r = MetalRenderer(device: device, queue: queue, store: store) else { log("metal: renderer init failed"); return nil }
         let group = DispatchGroup()
         var loaded = ""
         DispatchQueue.global(qos: .userInitiated).async(group: group) { loaded = store.loadAll() }
@@ -134,6 +138,23 @@ final class MetalWorld: WorldPresenter {
     func reset() {
         fx.reset()
         aimInit = false
+        dtCarry = 0
+        lastRise = -1
+    }
+
+    /// Memory warning: the transient particle pools go (stains and corpses stay).
+    func trim() { fx.trim() }
+
+    /// Loading cover: every explosion kind, kill splash, frost burst and acid splash once at `pos`, so their first use
+    /// in the mission costs nothing new (the cover hides them; reset() clears them before the cover lifts).
+    func warmUp(game: Game, at pos: Vec2) {
+        for k in [ExplosionKind.frag, .mini, .boomer, .frost, .pulse] { fx.handle(.explosion(kind: k, pos: pos, radius: 4), game: game) }
+        for t in BugType.allCases {
+            fx.handle(.bugKilled(type: t, pos: pos, frozen: t == .runner, source: 0, heading: 0, scale: 1, height: 0), game: game)
+        }
+        fx.handle(.bugFrozen(pos: pos), game: game)
+        fx.handle(.acidSplash(pos: pos), game: game)
+        fx.handle(.bulletHit(pos: pos, dir: Vec2(1, 0), killed: true), game: game)
     }
 
     func handle(_ e: GameEvent, game: Game) { fx.handle(e, game: game) }
@@ -148,23 +169,31 @@ final class MetalWorld: WorldPresenter {
     var stats: WorldStats { lastStats }
 
     // ---------------------------------------------------------------- frame
-    func update(game: Game, alpha: Float, dt: Float, time: Float, camera cam: CameraController) {
+    /// `viewSize`: points (HUD space). `frozen`: the simulation stands still (pause / level-up / report) — the last
+    /// image is kept while the camera holds still too.
+    func update(game: Game, alpha: Float, dt dt0: Float, time: Float, camera cam: CameraController, viewSize: CGSize, frozen: Bool) {
         timer.begin()
-        renderer.beginFrame()
-        timer.mark()
-        let size = view.bounds.size
-        let ds = view.drawableSize
-        if ds != loggedDrawable {
-            loggedDrawable = ds
-            AppLog.info("metal: view \(Int(size.width))x\(Int(size.height)) pt, drawable \(Int(ds.width))x\(Int(ds.height)) px (scale \(view.contentScaleFactor))")
-        }
-        camera.resize(width: Float(size.width), height: Float(size.height), drawableHeight: Float(ds.height))
+        let tw = renderer.targetWidth, th = renderer.targetHeight
+        camera.resize(width: Float(viewSize.width), height: Float(viewSize.height), drawableHeight: Float(max(1, th)))
         let ex: Float = game.stage == .extract ? smooth01f(game.extractT / 4.5) : 0
         camera.update(focus: F3(cam.focus.0, cam.focus.1, cam.focus.2), shake: F3(cam.shakeOffset.0, cam.shakeOffset.1, cam.shakeOffset.2),
                       title: game.attract, time: time, extract: ex)
         game.setVisibleQuad(camera.ground(ndcX: -1, ndcY: -1, height: cam.ty), camera.ground(ndcX: 1, ndcY: -1, height: cam.ty),
                             camera.ground(ndcX: 1, ndcY: 1, height: cam.ty), camera.ground(ndcX: -1, ndcY: 1, height: cam.ty))
+        timer.mark()
         let rise = game.liftRise
+        // no free frame slot (the GPU is behind): nothing to build; the effects catch up on the next drawn frame
+        guard renderer.frameOpen else {
+            dtCarry = min(0.25, dtCarry + dt0)
+            return
+        }
+        if frozen && renderer.hasWorldImage && rise == lastRise && tw == lastTarget.0 && th == lastTarget.1
+            && maxAbs(camera.eye - lastEye) < 1e-3 && maxAbs(camera.focus - lastFocus) < 1e-3 {
+            return
+        }
+        lastEye = camera.eye; lastFocus = camera.focus; lastTarget = (tw, th); lastRise = rise
+        let dt = dt0 + dtCarry
+        dtCarry = 0
         let list = renderer.list
         list.liftRise = rise
 
@@ -185,9 +214,8 @@ final class MetalWorld: WorldPresenter {
         upload(game: game, dt: dt)
         lights(game: game, time: time)
         timer.mark()
-        view.draw()
-        renderer.cancelFrame()   // no-op when the frame was drawn
-        timer.mark()
+        renderer.built = true
+        builtFrames += 1
 
         var s = WorldStats()
         s.visibleBugs = visibleBugs
@@ -195,11 +223,7 @@ final class MetalWorld: WorldPresenter {
         s.drawCalls = renderer.drawCalls
         s.instances = renderer.instanceCount
         s.triangles = renderer.triangles
-        s.chunks = renderer.drawCalls
-        s.nodes = renderer.instanceCount
         s.encodeMs = renderer.encodeMs
-        s.gpuMs = renderer.gpuMs
-        s.waitMs = renderer.waitMs
         lastStats = s
     }
 
@@ -316,12 +340,14 @@ final class MetalWorld: WorldPresenter {
             }
             let frz: Float = FR[i] > 0 ? 1 : CH[i] * 0.55
             let k = bugCnt[t]
-            out[k] = BugInstance(pos: F4(bx, gy, bz, s), rot: F4(cosf(HD[i]), sinf(HD[i]), sp, cp),
-                                 color: F4(v, v * (0.92 + vr * 0.1), v, sy), anim: F4(PH[i], flash, burn, frz))
+            // built once and written to both slots: the arena is write-combined memory, never read it back
+            let inst = BugInstance(pos: F4(bx, gy, bz, s), rot: F4(cosf(HD[i]), sinf(HD[i]), sp, cp),
+                                   color: F4(v, v * (0.92 + vr * 0.1), v, sy), anim: F4(PH[i], flash, burn, frz))
+            out[k] = inst
             if let pp = proxyPtr, proxyN < MetalWorld.shadowProxyMax {
                 let o = F3(bx, gy + 0.3 * sc, bz) - sp0
                 let d2 = (o * o).sum()
-                if d2 < 32 * 32 && (o * sd0).sum() > cosCone * d2.squareRoot() { pp[proxyN] = out[k]; proxyN += 1 }
+                if d2 < 32 * 32 && (o * sd0).sum() > cosCone * d2.squareRoot() { pp[proxyN] = inst; proxyN += 1 }
             }
             bugCnt[t] = k + 1
             vis += 1
@@ -461,7 +487,8 @@ final class MetalWorld: WorldPresenter {
         }
         F.pointPos = (pointPos[0], pointPos[1], pointPos[2])
         F.pointColor = (pointCol[0], pointCol[1], pointCol[2])
-        F.misc = F4(camera.pxScale, Float(view.drawableSize.height), renderer.list.liftRise, 1)
+        F.misc = F4(camera.pxScale, Float(renderer.targetHeight), renderer.list.liftRise, 0)
+        F.fx = F4(fx.fxK < 0.5 ? 1 : 2, 0, 0, 0)
         F.camRight = F4(camera.right.x, camera.right.y, camera.right.z, 0)
         F.camUp = F4(camera.up.x, camera.up.y, camera.up.z, 0)
         // the player's flashlight shadow camera (three.js SpotLightShadow: fov = 2 × angle, near 0.5, far = distance 32)
@@ -481,3 +508,5 @@ final class MetalWorld: WorldPresenter {
 private extension SIMD3 where Scalar == Float {
     var magnitude: Float { (self * self).sum().squareRoot() }
 }
+
+@inline(__always) private func maxAbs(_ v: F3) -> Float { max(abs(v.x), max(abs(v.y), abs(v.z))) }

@@ -101,6 +101,12 @@ final class MetalEffects {
         for k in 0..<3 { lights[k].intensity = 0; flashPeak[k] = 0 }
     }
 
+    /// Memory warning: the live particles and splashes go (stains and corpses stay; they are part of the battle).
+    func trim() {
+        pa.clear(); pn.clear()
+        splashes.removeAll(keepingCapacity: true)
+    }
+
     @inline(__always) private func rnd() -> Float { rng.next() }
     @inline(__always) private func rr(_ a: Float, _ b: Float) -> Float { a + (b - a) * rng.next() }
     @inline(__always) private func num(_ base: Float) -> Int { Int((base * fxK).rounded(.up)) }

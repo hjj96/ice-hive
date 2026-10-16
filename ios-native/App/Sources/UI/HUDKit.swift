@@ -204,6 +204,8 @@ enum Shapes {
     }
 
     private static var panelCache: [String: SKTexture] = [:]
+    /// Memory warning: textures on screen stay alive through their nodes; the cache only re-renders the rest on demand.
+    static func clearCache() { panelCache.removeAll() }
 
     private static func key(_ c: SKColor?) -> String {
         guard let c = c else { return "-" }
@@ -360,6 +362,7 @@ enum GeneratedTextures {
     }
 
     private static var hazardCache: [String: SKTexture] = [:]
+    static func clearCache() { hazardCache.removeAll() }
 
     /// Amber / black hazard stripes (CSS --hazard), width × height points; `cutRight` clips the right end at 45°
     /// like the web .hz band. Cached per size (layout runs on every rotation / safe-area change).
@@ -417,5 +420,13 @@ enum GeneratedTextures {
             }
         }
         return SKTexture(image: image)
+    }
+}
+
+/// Memory warning: drop the HUD's rebuildable texture caches.
+enum HUDKitCaches {
+    static func clear() {
+        Shapes.clearCache()
+        GeneratedTextures.clearCache()
     }
 }

@@ -1,6 +1,6 @@
 import UIKit
 import SpriteKit
-import MetalKit
+import Metal
 
 final class GameViewController: UIViewController {
     let options: LaunchOptions
@@ -16,72 +16,52 @@ final class GameViewController: UIViewController {
         fatalError("init(coder:) is not supported")
     }
 
-    /// The SpriteKit view: the whole game with `-renderer spritekit`; with `-renderer metal` only the HUD, menus and
-    /// the loading cover, transparent over the MTKView that draws the world.
-    private var skView: SKView!
-    /// Metal world view (`-renderer metal`), drawn on demand from the scene's update (paused, no own display link).
-    private(set) var metalView: MTKView?
-    /// Metal meshes / textures / pipelines, loading from loadView on (`-renderer metal`).
+    /// The display link, the one CAMetalLayer (world + HUD) and SKRenderer for the HUD scene.
+    private var loop: FrameLoop?
+    /// Metal meshes / textures / pipelines, loading from loadView on.
     private var metalPreload: MetalPreload?
+
+    /// «Не удалось запустить графику (Metal)» — shown instead of the game when Metal is unusable.
+    static let metalFailureText = "Не удалось запустить графику (Metal).\nПерезапустите игру."
 
     override func loadView() {
         let bounds = UIScreen.main.bounds
-        let sk = SKView(frame: bounds)
-        skView = sk
-        if options.useMetal, let device = MTLCreateSystemDefaultDevice() {
-            let root = UIView(frame: bounds)
-            root.backgroundColor = Palette.backgroundUI
-            metalPreload = MetalPreload(device: device)
-            let mv = MTKView(frame: bounds, device: device)
-            mv.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-            mv.colorPixelFormat = .bgra8Unorm
-            mv.depthStencilPixelFormat = .depth32Float
-            mv.clearColor = MTLClearColor(red: 0x1a / 255.0, green: 0x27 / 255.0, blue: 0x37 / 255.0, alpha: 1)
-            mv.isPaused = true
-            mv.enableSetNeedsDisplay = false
-            // the drawable size is set explicitly (applyMetalScale): UIKit resets contentScaleFactor to the screen's
-            // scale when the view joins the window, so the default 2x drawable silently became 3x before (41337a8)
-            mv.autoResizeDrawable = false
-            mv.framebufferOnly = true
-            mv.isUserInteractionEnabled = false
-            mv.layer.magnificationFilter = .linear
-            root.addSubview(mv)
-            sk.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-            sk.allowsTransparency = true
-            sk.isOpaque = false
-            sk.backgroundColor = .clear
-            root.addSubview(sk)
-            metalView = mv
-            view = root
-        } else {
-            if options.useMetal { AppLog.error("metal: no Metal device, falling back to SpriteKit") }
-            sk.backgroundColor = Palette.backgroundUI
-            view = sk
+        guard let device = MTLCreateSystemDefaultDevice(), let queue = device.makeCommandQueue() else {
+            // every iOS 16 device has Metal; without it there is nothing to draw with, not even the HUD
+            AppLog.error("metal: no Metal device / command queue")
+            view = GameViewController.failureView(bounds)
+            return
         }
+        queue.label = "IceHive"
+        let gv = GameView(frame: bounds)
+        gv.backgroundColor = Palette.backgroundUI
+        gv.isOpaque = true
+        gv.isMultipleTouchEnabled = true
+        gv.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        loop = FrameLoop(device: device, queue: queue, view: gv, worldScale: CGFloat(options.metalScale ?? 2))
+        metalPreload = MetalPreload(device: device, queue: queue, fail: options.failMetal)
+        gv.onLayout = { [weak self] in self?.loop?.layout() }
+        view = gv
+    }
+
+    /// Plain UIKit message (no Metal device at all).
+    private static func failureView(_ bounds: CGRect) -> UIView {
+        let v = UIView(frame: bounds)
+        v.backgroundColor = Palette.backgroundUI
+        v.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        let l = UILabel(frame: bounds.insetBy(dx: 24, dy: 0))
+        l.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        l.text = metalFailureText
+        l.textColor = UIColor(red: 0xdb / 255.0, green: 0xe6 / 255.0, blue: 0xee / 255.0, alpha: 1)
+        l.font = UIFont(name: "Oswald-Medium", size: 17) ?? UIFont.systemFont(ofSize: 17, weight: .medium)
+        l.numberOfLines = 0
+        l.textAlignment = .center
+        v.addSubview(l)
+        return v
     }
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        let view: SKView = skView
-        view.ignoresSiblingOrder = true
-        view.isMultipleTouchEnabled = true
-        // every pool hides its unused / off-screen sprites and the level culls its own chunks: SpriteKit's per-node
-        // visibility pass over ~7k nodes would only repeat that work (`-cull` turns it back on for A/B runs)
-        view.shouldCullNonVisibleNodes = options.cull
-
-        // 60 Hz like the 60 Hz simulation; the scene raises it to 120 on ProMotion only for «Графика: высокая»
-        // while the device is cool and not in Low Power Mode (GameScene.applyFrameRate)
-        let maxFPS = UIScreen.main.maximumFramesPerSecond
-        view.preferredFramesPerSecond = 60
-
-        var showHUD = options.debugHUD
-        #if DEBUG
-        showHUD = true
-        #endif
-        view.showsFPS = showHUD
-        view.showsNodeCount = showHUD
-        view.showsDrawCount = showHUD
-
         let nc = NotificationCenter.default
         observers.append(nc.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
             self?.presentedScene?.appWillResignActive()
@@ -91,7 +71,7 @@ final class GameViewController: UIViewController {
         })
         observers.append(nc.addObserver(forName: ProcessInfo.thermalStateDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
             AppLog.info("thermal state \(ProcessInfo.processInfo.thermalState.rawValue)")
-            self?.presentedScene?.applyFrameRate()
+            self?.presentedScene?.applyQuality()
         })
         observers.append(nc.addObserver(forName: Notification.Name.NSProcessInfoPowerStateDidChange, object: nil, queue: .main) { [weak self] _ in
             self?.presentedScene?.applyFrameRate()
@@ -99,34 +79,27 @@ final class GameViewController: UIViewController {
         observers.append(nc.addObserver(forName: UIAccessibility.reduceMotionStatusDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
             self?.presentedScene?.applyReduceMotion()
         })
-        AppLog.info("SKView ready maxFPS=\(maxFPS) preferredFPS=\(view.preferredFramesPerSecond) cull=\(options.cull) hud=\(showHUD)"
-                    + " renderer=\(metalView != nil ? "metal scale=\(metalScale)" : "spritekit")")
-    }
-
-    /// Pixels per point of the Metal drawable (`-mscale`, default 2 — the web phone build renders at a pixel ratio of
-    /// 1.5 (med) / 2 (high) and lets the compositor scale it to the 3x screen).
-    private var metalScale: CGFloat { CGFloat(options.metalScale ?? 2) }
-
-    private func applyMetalScale() {
-        guard let mv = metalView else { return }
-        let b = mv.bounds.size
-        let want = CGSize(width: (b.width * metalScale).rounded(), height: (b.height * metalScale).rounded())
-        if want.width > 0, want.height > 0, mv.drawableSize != want { mv.drawableSize = want }
+        observers.append(nc.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.presentedScene?.didReceiveMemoryWarning()
+        })
+        AppLog.info("view ready maxFPS=\(UIScreen.main.maximumFramesPerSecond) scale=\(UIScreen.main.nativeScale) worldScale=\(options.metalScale ?? 2)"
+                    + (loop == nil ? " (no Metal)" : ""))
     }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        applyMetalScale()
+        guard let loop = loop else { return }
         let size = view.bounds.size
         guard size.width > 0, size.height > 0 else { return }
         if presentedScene == nil {
-            let scene = GameScene(size: size, options: options, metalView: metalView, metalPreload: metalPreload)
-            scene.scaleMode = .resizeFill
-            skView.presentScene(scene)
+            let scene = GameScene(size: size, options: options, host: loop, metalPreload: metalPreload)
+            scene.scaleMode = .fill
             presentedScene = scene
+            loop.present(scene)
+            scene.boot()
             AppLog.info("scene presented size=\(Int(size.width))x\(Int(size.height))")
         } else {
-            presentedScene?.relayout()
+            loop.layout()
         }
     }
 

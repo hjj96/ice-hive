@@ -26,8 +26,8 @@ struct FrameUniforms {
     /// Three point lights: xyz position, w = cutoff distance; rgb = colour × intensity / π.
     var pointPos: (F4, F4, F4) = (.zero, .zero, .zero)
     var pointColor: (F4, F4, F4) = (.zero, .zero, .zero)
-    /// x = pixels per metre at unit depth (web pxScale), y = drawable height px, z = lift rise, w = 1 / tone-map exposure
-    var misc = F4(0, 0, 0, 1)
+    /// x = pixels per metre at unit depth (web pxScale), y = world target height px, z = lift rise, w unused
+    var misc = F4(0, 0, 0, 0)
     /// xyz camera right vector, w unused; xyz camera up vector (billboards).
     var camRight = F4(1, 0, 0, 0)
     var camUp = F4(0, 1, 0, 0)
@@ -35,6 +35,8 @@ struct FrameUniforms {
     var shadowMatrix = Mat4.identity
     /// x = 1 shadows on, y = depth bias (three.js shadow.bias), z = 1 / map size, w unused.
     var shadowParams = F4(0, 0, 0, 0)
+    /// x = noise taps of the particle mask (2; 1 on the low tier), yzw unused.
+    var fx = F4(2, 0, 0, 0)
 }
 
 /// One bug of the swarm (`struct BugInstance`): compact transform + per-instance shading.

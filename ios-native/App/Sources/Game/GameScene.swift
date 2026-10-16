@@ -1,29 +1,29 @@
 import SpriteKit
 import UIKit
-import MetalKit
 import IceHiveCore
 
 // ================================================================
-//  GAME SCENE — one SKScene for the whole game: drives Game.tick() at
-//  a fixed 60 Hz with an accumulator (render interpolation between
-//  ticks, hit-stop slow motion), routes GameEvents to the renderer /
-//  HUD / audio / haptics, and switches between the title (attract
-//  mode behind), the mission, level-up cards, pause and the report.
+//  GAME SCENE — one SKScene for the whole game, driven by FrameLoop
+//  through SKRenderer (no SKView): drives Game.tick() at a fixed
+//  60 Hz with an accumulator (render interpolation between ticks,
+//  hit-stop slow motion), routes GameEvents to the Metal world / HUD /
+//  audio / haptics, and switches between the title (attract mode
+//  behind), the mission, level-up cards, pause and the report. The
+//  scene itself only holds the HUD, the menus and the loading cover;
+//  MetalWorld draws the world underneath.
 // ================================================================
 final class GameScene: SKScene {
     enum Mode: String { case loading, title, playing, levelUp, paused, ended }
 
     let options: LaunchOptions
     private(set) var mode: Mode = .loading
-    private var assets: SpriteAssets?
     private var level: Level?
     private var game: Game?
-    /// SpriteKit world renderer (`-renderer spritekit`).
-    private var renderer: WorldRenderer?
-    /// The world renderer in use: the SpriteKit one above or the Metal one (`-renderer metal`).
-    private var world: WorldPresenter?
-    /// MTKView under the (transparent) SKView when the Metal renderer is selected.
-    private let metalView: MTKView?
+    /// The Metal world (nil until its meshes and pipelines are ready).
+    private var world: MetalWorld?
+    /// Its renderer, for FrameLoop.
+    var renderer: MetalRenderer? { world?.renderer }
+    private weak var host: GameHost?
     private let cameraCtl = CameraController()
     private let hud = HUD()
     private let input = InputController()
@@ -59,21 +59,30 @@ final class GameScene: SKScene {
     private var fpsSum: Double = 0
     private var fpsSamples = 0
     private var fpsMin: Double = 999
+    /// Drawn frames (completed on the GPU) per second, over the measured window.
+    private var drawnMin: Double = 999
+    private var drawnSum: Double = 0
+    private var gapWorst: Double = 0
     private var simMs: Double = 0
     private var renderMs: Double = 0
     private var reportedReady = false
     private var reportedDone = false
     private var loadingLabel: Label?
     private var loadingSub: Label?
-    /// Opaque cover over the world while loading and for the first frames after it (texture uploads and shader
-    /// compiles happen behind it), then faded out: the moment it is gone is "scene ready".
+    /// Opaque cover over the world while loading and for the first frames after it (first submissions, texture
+    /// residency and the HUD's first draws happen behind it), then faded out: the moment it is gone is "scene ready".
     private let cover = SKSpriteNode(color: Tone.hex(0x05070a), size: CGSize(width: 4000, height: 4000))
+    /// Drawn frames since the world started behind the cover.
     private var coverFrames = 0
+    /// GPU-completed frames when the world started (the cover waits for a few more).
+    private var coverDoneBase = 0
+    private var coverStart: Double = 0
     private var hudWasVisible = false
     private var readyTime: Double = -1
     private var loadStep = 0
     private var bootTime: Double = 0
-    private let sceneTimer = FrameTimer(["sim", "ev", "cam", "draw", "hud", "au"])
+    private var metalFailed = false
+    private let sceneTimer = FrameTimer(["sim", "ev", "cam", "world", "hud", "au"])
     private var worstDt: Double = 0
     private var lastDebugText: Double = 0
     private var lastFrameTime: Double = 0
@@ -81,27 +90,24 @@ final class GameScene: SKScene {
     private var hitchLogs = 0
     private var cpuProcLast: Double = 0
     private var cpuMainLast: Double = 0
-    /// Hitch attribution: when our update() of the previous frame started / SpriteKit finished its update phase
-    /// (the gap from there to the next update() is SpriteKit's render + present + vsync wait).
-    private var updStartT: Double = 0
-    private var finishT: Double = 0
-    private var createdSeen = 0
-    private var warmGrid: PipelineWarmup?
+    /// Ticks without a free frame slot since the last hitch line.
+    private var skipsSeen = 0
+    /// Effective graphics: the tier, with the thermal fallback applied (logged when it changes).
+    private var thermalNote = ""
 
     private let metalPreload: MetalPreload?
 
-    init(size: CGSize, options: LaunchOptions, metalView: MTKView? = nil, metalPreload: MetalPreload? = nil) {
+    init(size: CGSize, options: LaunchOptions, host: GameHost, metalPreload: MetalPreload?) {
         self.metalPreload = metalPreload
         self.options = options
-        self.metalView = metalView
+        self.host = host
         super.init(size: size)
-        // with Metal the scene only draws the HUD / menus / loading cover over the MTKView
-        backgroundColor = metalView != nil ? .clear : Tone.hex(0x1a2737)
+        // the scene only draws the HUD / menus / loading cover over the composited world
+        backgroundColor = .clear
         anchorPoint = CGPoint(x: 0.5, y: 0.5)
         if let mc = MarineClass(id: settings.cls) { selectedClass = mc }
         demo = DemoScript.make(options: options)
         if let c = options.playerClass ?? demo?.preferredClass, let mc = MarineClass(id: c) { selectedClass = mc }
-        BugLayer.glintShaderOn = !options.plainGlints
         MetalRenderer.glintDots = options.glintDots
         haptics.enabled = settings.haptics
         if !settings.migrated.isEmpty { AppLog.info("settings: migrated from v1: " + settings.migrated.joined(separator: ",")) }
@@ -114,8 +120,9 @@ final class GameScene: SKScene {
     }
 
     // ---------------------------------------------------------------- boot
-    override func didMove(to view: SKView) {
-        if assets != nil || loadingLabel != nil { relayout(); return }
+    /// The loading screen (SKRenderer never calls didMove(to:): the view controller calls this once).
+    func boot() {
+        guard loadingLabel == nil else { return }
         addChild(cameraCtl.node)
         camera = cameraCtl.node
         cover.zPosition = ZBand.hud + 900
@@ -133,7 +140,7 @@ final class GameScene: SKScene {
         loadStep = 0
     }
 
-    /// Loading runs over several frames so the loading screen is on screen while atlases index / preload.
+    /// Loading runs over several frames so the loading screen is on screen while the world loads.
     private func advanceLoading() {
         switch loadStep {
         case 0, 1:
@@ -141,77 +148,17 @@ final class GameScene: SKScene {
         case 2:
             loadStep = 3
             bootTime = FrameTimer.now()
-            if let mv = metalView {
-                loadMetal(mv)
-                return
-            }
-            let a = SpriteAssets()
-            assets = a
-            AppLog.info(String(format: "sprites indexed in %.0f ms", (FrameTimer.now() - bootTime) * 1000))
-            finishLoading()
+            loadMetal()
         default:
-            if let l = loadingSub { l.node.alpha = 0.5 + 0.5 * CGFloat(sinf(Float(lastTime) * 4)) }
-        }
-    }
-
-    /// Build the world (hidden), then decode the five sprite sheets in the background (SKTexture.preload) before the
-    /// first frame shows them — otherwise each sheet is decoded synchronously the first time a frame of it is drawn.
-    private func finishLoading() {
-        guard let a = assets else { return }
-        let t0 = FrameTimer.now()
-        let lv = Level(source: KelvinStation(), seed: 1)
-        level = lv
-        let r = WorldRenderer(level: lv, assets: a, bugCapacity: QualityTier.high.bugCap)
-        renderer = r
-        world = r
-        r.reservePools(bugs: 640)
-        createdSeen = SpritePool.created
-        r.world.isHidden = true
-        addChild(r.world)
-        r.attach(to: cameraCtl)
-        r.lighting.node.isHidden = true
-        cameraCtl.node.addChild(hud.root)
-        cameraCtl.node.addChild(titleScreen.root)
-        cameraCtl.node.addChild(levelUpScreen.root)
-        cameraCtl.node.addChild(menu.root)
-        hud.visible = false
-        titleScreen.root.isHidden = true
-        hud.showDebug = options.debugHUD
-        input.hitAbility = { [weak self] p in
-            guard let s = self else { return false }
-            return s.hud.abilityButton.contains(hudPoint: s.hud.hp(p.x, p.y))
-        }
-        input.hitDash = { [weak self] p in
-            guard let s = self else { return false }
-            return s.hud.dashButton.contains(hudPoint: s.hud.hp(p.x, p.y))
-        }
-        applyQuality()
-        applyReduceMotion()
-        // sounds decode on a background queue (≈ 1.5 s) while the sheets decode; the scene plays nothing until then
-        buildAudio()
-        let pages = a.sheets.pages
-        AppLog.info(String(format: "world built in %.0f ms; preloading %d sheets", (FrameTimer.now() - t0) * 1000, pages.count))
-        let t1 = FrameTimer.now()
-        SKTexture.preload(pages) {
-            DispatchQueue.main.async { [weak self] in
-                guard let s = self else { return }
-                AppLog.info(String(format: "sheets decoded in %.0f ms", (FrameTimer.now() - t1) * 1000) + " " + Memory.summary)
-                s.startAfterLoading()
-            }
-        }
-        // never hang on the loading screen if the preload does not call back
-        DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
-            guard let s = self, !s.started else { return }
-            AppLog.error("texture preload still running after 8 s, starting anyway")
-            s.startAfterLoading()
+            if let l = loadingSub, !metalFailed { l.node.alpha = 0.5 + 0.5 * CGFloat(sinf(Float(lastTime) * 4)) }
         }
     }
 
     private var started = false
 
-    /// `-renderer metal`: meshes, textures and pipelines load off the main thread behind the loading cover, then the
-    /// same HUD / input / audio setup as the SpriteKit path.
-    private func loadMetal(_ mv: MTKView) {
+    /// Meshes, textures and pipelines load off the main thread behind the loading cover (MetalPreload, started with the
+    /// view), the HUD / input / audio meanwhile.
+    private func loadMetal() {
         let t0 = FrameTimer.now()
         let lv = Level(source: KelvinStation(), seed: 1)
         level = lv
@@ -221,7 +168,7 @@ final class GameScene: SKScene {
         cameraCtl.node.addChild(menu.root)
         hud.visible = false
         titleScreen.root.isHidden = true
-        hud.showDebug = options.debugHUD
+        hud.showDebug = options.debugHUD && !options.storeShot
         input.hitAbility = { [weak self] p in
             guard let s = self else { return false }
             return s.hud.abilityButton.contains(hudPoint: s.hud.hp(p.x, p.y))
@@ -232,15 +179,14 @@ final class GameScene: SKScene {
         }
         applyReduceMotion()
         buildAudio()
-        guard let device = mv.device else { AppLog.error("metal: the view has no device"); return }
-        let pre = metalPreload ?? MetalPreload(device: device)
+        guard let pre = metalPreload else { showMetalFailure("no preload"); return }
         pre.whenReady { [weak self] prepared in
             guard let s = self else { return }
             guard let ready = prepared else {
-                AppLog.error("metal: renderer unavailable")
+                s.showMetalFailure("renderer unavailable")
                 return
             }
-            let w = MetalWorld(view: mv, level: lv, store: ready.0, renderer: ready.1)
+            let w = MetalWorld(level: lv, store: ready.0, renderer: ready.1)
             s.world = w
             s.applyQuality()
             AppLog.info(String(format: "metal world ready in %.0f ms (preload %.0f ms, started %.0f ms before the scene) ",
@@ -248,6 +194,20 @@ final class GameScene: SKScene {
                         + Memory.summary)
             s.startAfterLoading()
         }
+    }
+
+    /// Metal could not start (no library / a required pipeline failed): a readable message on the cover instead of an
+    /// endless loading screen.
+    private func showMetalFailure(_ why: String) {
+        metalFailed = true
+        AppLog.error("metal: \(why)")
+        loadingSub?.set("НЕ УДАЛОСЬ ЗАПУСТИТЬ ГРАФИКУ (METAL)")
+        loadingSub?.node.alpha = 1
+        let hint = Label("ПЕРЕЗАПУСТИТЕ ИГРУ", font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 2.5)
+        hint.node.position = CGPoint(x: 0, y: -50)
+        hint.node.zPosition = ZBand.hud + 901
+        cameraCtl.node.addChild(hint.node)
+        AppLog.info("metal: failure screen shown")
     }
 
     /// A new audio engine (boot, or after a media-services reset), built off the main thread.
@@ -273,28 +233,37 @@ final class GameScene: SKScene {
     /// The graphics tier in effect: the «Графика» setting, or the demo's own (swarmshot: high, like the store shots).
     private var qualityName: String { demo?.preferredQuality ?? settings.quality }
 
-    /// «Графика»: auto = the web phone tier (med). Bug cap (gameplay), effect density, and 120 Hz for high.
-    private func applyQuality() {
+    /// «Графика»: auto = the web phone tier (med). Bug cap (gameplay), effect density, flashlight shadows (high), and
+    /// 120 Hz for high. A hot device (thermal .serious / .critical) falls back to the med effects without shadows and a
+    /// 1.5x world image; .critical also caps the display at 30 Hz (applyFrameRate).
+    func applyQuality() {
         let q = QualityTier(rawValue: qualityName) ?? .med
         game?.setQuality(q)
-        world?.fxK = q == .low ? 0.4 : (q == .med ? 0.7 : 1.0)
+        var fxK: Float = q == .low ? 0.4 : (q == .med ? 0.7 : 1.0)
+        var scale = CGFloat(options.metalScale ?? 2)
+        let th = ProcessInfo.processInfo.thermalState
+        let hot = th == .serious || th == .critical
+        if hot {
+            fxK = min(fxK, 0.7)
+            scale = min(scale, 1.5)
+        }
+        world?.fxK = fxK
+        host?.setWorldScale(scale)
+        let note = hot ? "thermal \(th == .critical ? "critical" : "serious"): fxK \(fxK) scale \(scale)" : ""
+        if note != thermalNote { thermalNote = note; if !note.isEmpty { AppLog.info(note) } }
         applyFrameRate()
     }
 
     /// 60 Hz normally; 120 on ProMotion only with «Графика: высокая» while the device is cool and not in Low Power
-    /// Mode; 30 behind the menus (static screens over a paused world).
+    /// Mode; 30 behind the menus (static screens over a frozen world) and when the device is critically hot.
     func applyFrameRate() {
-        guard let v = view else { return }
         let menuUp = mode == .paused || mode == .ended || mode == .levelUp
         var fps = 60
         let pi = ProcessInfo.processInfo
         let cool = pi.thermalState == .nominal || pi.thermalState == .fair
         if qualityName == "high" && UIScreen.main.maximumFramesPerSecond >= 120 && cool && !pi.isLowPowerModeEnabled { fps = 120 }
-        if menuUp { fps = 30 }
-        if v.preferredFramesPerSecond != fps {
-            v.preferredFramesPerSecond = fps
-            AppLog.info("frame rate \(fps) Hz (mode \(mode.rawValue))")
-        }
+        if menuUp || pi.thermalState == .critical { fps = 30 }
+        host?.setFrameRate(fps)
     }
 
     /// iOS Reduce Motion: shake and recoil kick at 35 %, longer banner (web prefers-reduced-motion).
@@ -302,6 +271,14 @@ final class GameScene: SKScene {
         let on = UIAccessibility.isReduceMotionEnabled
         cameraCtl.reducedMotion = on
         hud.reducedMotion = on
+    }
+
+    /// Memory warning: rebuildable HUD textures and the live particles go; the footprint before / after is logged.
+    func didReceiveMemoryWarning() {
+        let before = Memory.summary
+        HUDKitCaches.clear()
+        world?.trim()
+        AppLog.info("memory warning: " + before + " → " + Memory.summary)
     }
 
     /// «Рекорд: N убито · лучшая эвакуация M:SS» (web tBest), nil before the first mission.
@@ -312,20 +289,19 @@ final class GameScene: SKScene {
         return s
     }
 
+    private var insets: UIEdgeInsets { host?.safeAreaInsets ?? .zero }
+
     private func layoutTitle() {
-        guard let v = view else { return }
-        titleScreen.layout(size: size, insets: v.safeAreaInsets, selected: selectedClass, soundOn: !settings.muted, record: recordLine)
+        titleScreen.layout(size: size, insets: insets, selected: selectedClass, soundOn: !settings.muted, record: recordLine)
     }
 
     private func startAfterLoading() {
         guard world != nil, !started else { return }
         started = true
-        if let r = renderer {
-            r.world.isHidden = false
-            r.lighting.node.isHidden = options.noLighting
-        }
-        // the world now renders behind the cover: GPU uploads and shader compiles happen before anyone sees a frame
+        // the world now renders behind the cover: first submissions and residency happen before anyone sees a frame
         coverFrames = 0
+        coverDoneBase = host?.timeline.completedFrames ?? 0
+        coverStart = lastTime
         relayout()
         if let d = demo, d.startsMission {
             startMission(selectedClass)
@@ -335,8 +311,7 @@ final class GameScene: SKScene {
     }
 
     func relayout() {
-        guard let view = view else { return }
-        let insets = view.safeAreaInsets
+        guard loadingLabel != nil else { return }
         input.viewSize = size
         hud.layout(size: size, insets: insets)
         if mode == .title { layoutTitle() }
@@ -403,10 +378,10 @@ final class GameScene: SKScene {
     /// Thumbs held through a level-up or the pause menu keep steering afterwards (web showScreen): the sticks stay,
     /// only one-shot presses are dropped.
     private func openLevelUp() {
-        guard let g = game, let v = view else { return }
+        guard let g = game else { return }
         if g.offer.isEmpty { g.rollUpgrades() }
         levelUpScreen.show(level: g.xpLevel - g.pendingLevels + 1, offer: g.offer, counts: g.upgradeCounts, cls: g.playerClass,
-                           size: size, insets: v.safeAreaInsets)
+                           size: size, insets: insets)
         let first = mode != .levelUp
         mode = .levelUp
         input.consumePresses()
@@ -468,9 +443,9 @@ final class GameScene: SKScene {
     /// Back in the foreground: the audio session may have been taken over meanwhile.
     func appDidBecomeActive() { audio?.restart("app active") }
 
-    // ---------------------------------------------------------------- touches
+    // ---------------------------------------------------------------- touches (forwarded by GameView)
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let view = view else { return }
+        guard let view = host?.touchView else { return }
         for t in touches {
             let p = t.location(in: view)
             let h = hud.hp(p.x, p.y)
@@ -491,12 +466,12 @@ final class GameScene: SKScene {
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let view = view else { return }
+        guard let view = host?.touchView else { return }
         for t in touches { input.moved(t, at: t.location(in: view)) }
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let view = view else { return }
+        guard let view = host?.touchView else { return }
         for t in touches {
             input.ended(t)
             guard let target = taps.removeValue(forKey: ObjectIdentifier(t)) else { continue }
@@ -610,15 +585,9 @@ final class GameScene: SKScene {
         return Vec2(g.player.x, g.player.z)
     }
 
-    override func didFinishUpdate() {
-        finishT = FrameTimer.now()
-    }
-
+    /// One display-link tick (SKRenderer.update → here): simulation, events, camera, the world frame (built only when
+    /// FrameLoop holds a free slot), HUD, audio.
     override func update(_ currentTime: TimeInterval) {
-        let nowUp = FrameTimer.now()
-        let prevUpdMs = (finishT - updStartT) * 1000
-        let prevSkMs = (nowUp - finishT) * 1000
-        updStartT = nowUp
         if startTime < 0 { startTime = currentTime; lastTime = currentTime; lastFrameTime = currentTime; fpsWindowStart = currentTime; lastHeartbeat = currentTime }
         let dt = Float(min(0.1, max(0, currentTime - lastTime)))
         lastTime = currentTime
@@ -626,16 +595,18 @@ final class GameScene: SKScene {
         let frameDt = currentTime - lastFrameTime
         worstDt = max(worstDt, frameDt)
         lastFrameTime = currentTime
-        // long frames with a wall-clock stamp (CI correlates them with its screenshot times)
-        // upd = our update() + SpriteKit's update phase of the frame before; sk = SpriteKit render / present / wait
-        // after it; new = sprites the pools had to create since the last hitch line (should stay 0 after loading)
-        if AppLog.diagnostics && frameDt > 0.1 && readyTime > 0 && hitchLogs < 40 {
+        // long ticks (> 50 ms) with a wall-clock stamp (CI correlates them with its screenshot times): upd / draw / drw =
+        // the tick before: scene update (+ world build), encode + HUD + commit, drawable wait; skip = ticks without a
+        // free frame slot since the last such line; cb = the slowest recent command buffer, commit → done (waiting to be
+        // scheduled, GPU time): far more than its GPU time = the GPU was held up outside the app
+        if AppLog.diagnostics && frameDt > 0.05 && readyTime > 0 && hitchLogs < 60, let h = host {
             hitchLogs += 1
-            let made = SpritePool.created - createdSeen
-            createdSeen = SpritePool.created
-            AppLog.info(String(format: "hitch %.0f ms td=%.2f wall=%.3f upd=%.0fms sk=%.0fms", frameDt * 1000, currentTime - readyTime,
-                               Date().timeIntervalSince1970, prevUpdMs, prevSkMs)
-                        + " vis=\(world?.stats.visibleBugs ?? 0) parts=\(world?.stats.particles ?? 0) new=\(made)")
+            let lt = h.lastTick
+            let skips = h.slotMissTotal - skipsSeen
+            skipsSeen = h.slotMissTotal
+            AppLog.info(String(format: "hitch %.0f ms td=%.2f wall=%.3f upd=%.0fms draw=%.0fms drw=%.0fms skip=%d ", frameDt * 1000,
+                               currentTime - readyTime, Date().timeIntervalSince1970, lt.updateMs, lt.drawMs, lt.drawableMs, skips)
+                        + h.timeline.worstRecent() + " vis=\(world?.stats.visibleBugs ?? 0) parts=\(world?.stats.particles ?? 0)")
         }
         guard let g = game, let r = world, mode != .loading else {
             advanceLoading()
@@ -689,21 +660,21 @@ final class GameScene: SKScene {
             audio?.play(.heart, pos: nil, listener: listener())
         }
 
-        let alpha: Float = running ? Float(max(0, min(1, acc / Double(SIM_DT)))) : 1
-        let vdt: Float = running ? dt * ts : 0
+        let live = mode == .playing || mode == .title
+        let alpha: Float = live ? Float(max(0, min(1, acc / Double(SIM_DT)))) : 1
+        let vdt: Float = live ? dt * ts : 0
         renderTime += vdt
         let P = g.player
         let feet = (P.px + (P.x - P.px) * alpha, g.level.groundY(P.x, P.z), P.pz + (P.z - P.pz) * alpha)
         cameraCtl.update(game: g, feet: feet, dt: max(dt, 0.0001), viewSize: size, title: mode == .title, liftRise: g.liftRise)
-        if renderer != nil { cameraCtl.setVisibleArea(of: g) }
         sceneTimer.mark()
         let t1r = FrameTimer.now()
-        r.update(game: g, alpha: alpha, dt: vdt, time: renderTime, camera: cameraCtl)
+        r.update(game: g, alpha: alpha, dt: vdt, time: renderTime, camera: cameraCtl, viewSize: size, frozen: !live)
         sceneTimer.mark()
         if mode != .title { hud.update(game: g, dt: dt, projection: r, input: input) }
         sceneTimer.mark()
         let near = g.bugCountNear(Vec2(cameraCtl.tx, cameraCtl.tz))
-        audio?.update(dt: dt, game: g, bugsNear: near, listener: listener(), title: mode == .title, live: running)
+        audio?.update(dt: dt, game: g, bugsNear: near, listener: listener(), title: mode == .title, live: live)
         sceneTimer.mark()
         let t2 = FrameTimer.now()
         renderMs += ((t2 - t1r) * 1000 - renderMs) * 0.05
@@ -711,21 +682,15 @@ final class GameScene: SKScene {
         if hud.showDebug && currentTime - lastDebugText >= 0.25 {
             lastDebugText = currentTime
             let st = r.stats
-            if let sr = renderer {
-                hud.setDebug(String(format: "fps %.0f sim %.1f draw %.1f ms ", fps, simMs, renderMs) + mode.rawValue
-                             + String(format: "\nжуки %d/%d част %d узлы %d+%d", g.bugsAlive, st.visibleBugs,
-                                      st.particles, sr.levelLayer.liveNodeCount, sr.dynamicNodeCount))
-            } else {
-                hud.setDebug(String(format: "fps %.0f sim %.1f draw %.1f enc %.1f gpu %.1f ms metal ", fps, simMs, renderMs, st.encodeMs, st.gpuMs)
-                             + mode.rawValue
-                             + String(format: "\nжуки %d/%d част %d вызовы %d инст %d тр %dk", g.bugsAlive, st.visibleBugs,
-                                      st.particles, st.drawCalls, st.instances, st.triangles / 1000))
-            }
+            hud.setDebug(String(format: "fps %.0f sim %.1f мир %.1f enc %.1f gpu %.1f ms ", fps, simMs, renderMs, st.encodeMs,
+                                host?.timeline.gpuEmaMs ?? 0) + mode.rawValue
+                         + String(format: "\nжуки %d/%d част %d вызовы %d инст %d тр %dk", g.bugsAlive, st.visibleBugs,
+                                  st.particles, st.drawCalls, st.instances, st.triangles / 1000))
         }
         heartbeat(currentTime)
     }
 
-    private func drainEvents(_ g: Game, _ r: WorldPresenter) {
+    private func drainEvents(_ g: Game, _ r: MetalWorld) {
         let lis = listener()
         let inMission = mode != .title
         let diag = AppLog.diagnostics
@@ -813,51 +778,50 @@ final class GameScene: SKScene {
         AppLog.info("first " + name() + String(format: " td=%.2f", td))
     }
 
-    /// Keep the cover up for a few frames after loading, then fade it out; its disappearance is "scene ready".
+    /// Keep the cover up after loading while the HUD's overlays and the first effects are drawn once behind it and until
+    /// the GPU has finished a few world frames, then fade it out; its disappearance is "scene ready".
+    private var coverStage = 0
+    private var coverFadeFrom = 0
     private func updateCover(_ currentTime: TimeInterval) {
         guard cover.parent != nil else { return }
-        coverFrames += 1
-        // SpriteKit builds its Metal pipelines on first use: 20 frames of warm-up behind the cover. The Metal world's
-        // pipelines are compiled before it exists, so it only waits for the HUD overlays' first draw.
-        let hold = renderer == nil ? 10 : 20
-        // warm-up behind the cover: every effect, ring shader and HUD overlay once, then a few clean frames
-        if coverFrames == 2 {
+        // only ticks that draw count: the first world frames can take a few hundred ms to come back (first submission,
+        // residency) and the loop does not draw while both frame slots are busy
+        if host?.frameOpen ?? true { coverFrames += 1 }
+        let hold = 20
+        // warm-up behind the cover: every HUD overlay, a banner, toasts, and every explosion / kill / frost / acid effect
+        // once, then a few clean frames
+        if coverStage == 0 && coverFrames >= 2 {
+            coverStage = 1
             hudWasVisible = hud.visible
             hud.visible = true
             hud.warmUp(true)
-            if let r = renderer {
-                r.fx.warmUp(cameraCtl.tx, cameraCtl.tz)
-                if let a = assets {
-                    // every blend / colour-blend / alpha combination on every sheet page: Metal pipelines built now
-                    let w = PipelineWarmup(textures: a.sheets.pages, viewSize: size, z: ZBand.hud + 899)
-                    cameraCtl.node.addChild(w.root)
-                    warmGrid = w
-                    AppLog.info("pipeline warm-up: \(w.count) sprites behind the cover")
-                }
-            }
+            if let g = game { world?.warmUp(game: g, at: Vec2(cameraCtl.tx, cameraCtl.tz)) }
         }
-        if coverFrames == hold - 5 {
-            renderer?.fx.reset()
+        if coverStage == 1 && coverFrames >= hold - 5 {
+            coverStage = 2
             hud.warmUp(false)
             hud.visible = hudWasVisible
-            warmGrid?.root.removeFromParent()
-            warmGrid = nil
-            createdSeen = SpritePool.created
+            world?.reset()
         }
-        if coverFrames == hold {
+        if coverStage == 2 && coverFrames >= hold {
+            let done = (host?.timeline.completedFrames ?? 0) - coverDoneBase
+            guard done >= hold || currentTime - coverStart > 6 else { return }
+            coverStage = 3
+            coverFadeFrom = coverFrames
             loadingLabel?.node.removeFromParent()
             loadingSub?.node.removeFromParent()
         }
-        if coverFrames >= hold {
-            cover.alpha = max(0, 1 - CGFloat(coverFrames - hold) / 12)
+        if coverStage == 3 {
+            cover.alpha = max(0, 1 - CGFloat(coverFrames - coverFadeFrom) / 12)
             if cover.alpha <= 0 {
                 cover.removeFromParent()
                 readyTime = currentTime
                 worstDt = 0
+                skipsSeen = host?.slotMissTotal ?? 0
+                _ = host?.timeline.takeWindow()
                 AppLog.info(String(format: "loading took %.2f s (from the first frame)", currentTime - startTime))
                 reportedReady = true
-                AppLog.info("scene ready mode=\(mode.rawValue) size=\(Int(size.width))x\(Int(size.height)) levelNodes=\(renderer?.levelLayer.nodeCount ?? 0)"
-                            + " renderer=\(world?.rendererName ?? "-")")
+                AppLog.info("scene ready mode=\(mode.rawValue) size=\(Int(size.width))x\(Int(size.height)) renderer=metal")
             }
         }
     }
@@ -878,35 +842,41 @@ final class GameScene: SKScene {
             cpuProcLast = cp
             cpuMainLast = cm
             let t = currentTime - startTime
-            // demo time runs from "scene ready" (the end of loading); fps statistics skip its first second
+            // demo time runs from "scene ready" (the end of loading); fps statistics skip its first 1.2 s
             let td = readyTime > 0 ? currentTime - readyTime : -1
             let worst = worstDt * 1000
             worstDt = 0
+            // GPU side of the same second: frames completed (drawn), the longest gap between two of them, the slowest
+            // command buffer (commit → done), GPU time; loop side: ticks without a free slot, drawable waits
+            let tw = host?.timeline.takeWindow() ?? GPUTimeline.Window()
+            let cn = host?.takeCounters() ?? (slotMisses: 0, noDrawable: 0, drawableMaxMs: 0)
+            let drawn = Double(tw.completed) / span
             if let g = game, let r = world, readyTime > 0 {
-                if td > 1.2 { fpsSum += fps; fpsSamples += 1; fpsMin = min(fpsMin, fps); worstMs = max(worstMs, worst) }
-                let st = r.stats
-                // same keys for both renderers (chunks = level chunks / Metal draw calls, nodes = SpriteKit nodes / Metal
-                // instances); rend=… plus the Metal frame breakdown: enc = CPU encode, gpu = GPU time, wait = frame slot
-                var tail = " rend=\(r.rendererName)" + String(format: " cpu=%.0f main=%.0f", cpuPct, mainPct)
-                if renderer == nil {
-                    tail += String(format: " dc=%d inst=%d tris=%d enc=%.2fms gpu=%.2fms wait=%.2fms", st.drawCalls, st.instances, st.triangles,
-                                   st.encodeMs, st.gpuMs, st.waitMs)
+                if td > 1.2 {
+                    fpsSum += fps; fpsSamples += 1; fpsMin = min(fpsMin, fps); worstMs = max(worstMs, worst)
+                    drawnSum += drawn; drawnMin = min(drawnMin, drawn); gapWorst = max(gapWorst, tw.maxGapMs)
                 }
-                AppLog.info(String(format: "hb t=%.1f td=%.1f fps=%.1f worst=%.0fms sim=%.2fms draw=%.2fms ", t, td, fps, worst, simMs, renderMs)
-                            + "mode=\(mode.rawValue) bugs=\(g.bugsAlive) vis=\(st.visibleBugs) parts=\(st.particles) "
-                            + "chunks=\(st.chunks) nodes=\(st.nodes) stage=\(g.stage.rawValue) "
-                            + "hp=\(Int(g.player.hp)) kills=\(g.kills) " + Memory.summary + " demo=\(demo?.name ?? "-")" + tail)
-            } else {
-                AppLog.info(String(format: "hb t=%.1f fps=%.1f ", t, fps) + "mode=\(mode.rawValue) demo=\(demo?.name ?? "-")")
-            }
-            if let r = world, readyTime > 0 {
+                let st = r.stats
+                AppLog.info(String(format: "hb t=%.1f td=%.1f fps=%.1f worst=%.0fms drawn=%.0f gap=%.0fms sim=%.2fms world=%.2fms ",
+                                   t, td, fps, worst, drawn, tw.maxGapMs, simMs, renderMs)
+                            + "mode=\(mode.rawValue) bugs=\(g.bugsAlive) vis=\(st.visibleBugs) parts=\(st.particles) stage=\(g.stage.rawValue) "
+                            + "hp=\(Int(g.player.hp)) kills=\(g.kills) " + Memory.summary + " demo=\(demo?.name ?? "-") rend=metal"
+                            + String(format: " cpu=%.0f main=%.0f dc=%d inst=%d tris=%d enc=%.2fms gpu=%.2fms gpumax=%.1fms skip=%d nodraw=%d drw=%.0fms cbmax=%.0fms",
+                                     cpuPct, mainPct, st.drawCalls, st.instances, st.triangles, st.encodeMs, host?.timeline.gpuEmaMs ?? 0,
+                                     tw.gpuMaxMs, cn.slotMisses, cn.noDrawable, cn.drawableMaxMs, tw.worst.latencyMs))
                 AppLog.info("hb ms " + sceneTimer.summary + " | " + r.timer.summary + " | sfx \(audio?.played ?? 0)"
                             + " | max " + sceneTimer.takeMax() + " / " + r.timer.takeMax())
+            } else {
+                AppLog.info(String(format: "hb t=%.1f fps=%.1f drawn=%.0f ", t, fps, drawn) + "mode=\(mode.rawValue) demo=\(demo?.name ?? "-")")
             }
             if let s = options.seconds, !reportedDone, td >= s {
                 reportedDone = true
                 let avg = fpsSamples > 0 ? fpsSum / Double(fpsSamples) : fps
-                AppLog.info(String(format: "demo done after %.0fs avgFps=%.1f minFps=%.1f worstFrame=%.0fms", s, avg, fpsMin == 999 ? fps : fpsMin, worstMs)
+                let davg = fpsSamples > 0 ? drawnSum / Double(fpsSamples) : drawn
+                // fps / worstFrame: the game loop (simulation, input, HUD, audio); drawn / worstGap: frames the GPU
+                // completed and the longest time the screen kept one image
+                AppLog.info(String(format: "demo done after %.0fs avgFps=%.1f minFps=%.1f worstFrame=%.0fms drawnAvg=%.1f drawnMin=%.1f worstGap=%.0fms",
+                                   s, avg, fpsMin == 999 ? fps : fpsMin, worstMs, davg, drawnMin == 999 ? drawn : drawnMin, gapWorst)
                             + " " + Memory.summary)
             }
         }

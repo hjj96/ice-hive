@@ -1,6 +1,5 @@
 import Foundation
 import Metal
-import MetalKit
 import ImageIO
 import CoreGraphics
 
@@ -40,8 +39,6 @@ final class MeshStore {
     private(set) var textures: [String: MTLTexture] = [:]
     private(set) var missing: [String] = []
     private(set) var bytesLoaded = 0
-    /// One-time diagnostic: the haze texture's centre texel as decoded here and as MTKTextureLoader returns it.
-    private(set) var textureCheck = ""
     /// Tileable value noise for the particle edges (07-fx.js NOISE_TEX).
     private(set) var noise: MTLTexture?
     private var white: MTLTexture?
@@ -94,7 +91,6 @@ final class MeshStore {
             let (t, err) = loadPNG(u, srgb: srgb[name] ?? s, mips: mips, queue: queue)
             if let t = t { t.label = name; textures[name] = t } else { missing.append(file + ".png (\(err))") }
         }
-        textureCheck = checkHaze(queue: queue)
         noise = makeNoise()
         white = makeWhite()
         let ms = (FrameTimer.now() - t0) * 1000
@@ -102,7 +98,7 @@ final class MeshStore {
         for m in meshes.values { tris += m.indexCount / 3 }
         let gl = ["bug_runner", "bug_spitter", "bug_brute", "bug_boomer"].map { String((meshes[$0]?.glints.count ?? 0) / 2) }.joined(separator: "/")
         return String(format: "meshes %d (%d triangles, %.1f MB) textures %d in %.0f ms", meshes.count, tris,
-                      Double(bytesLoaded) / 1_048_576, textures.count, ms) + " glints " + gl + " " + textureCheck
+                      Double(bytesLoaded) / 1_048_576, textures.count, ms) + " glints " + gl
             + (missing.isEmpty ? "" : " MISSING: " + missing.joined(separator: ", "))
     }
 
@@ -318,27 +314,6 @@ final class MeshStore {
             for c in 0..<3 { px[i + c] = UInt8(min(255, (Float(px[i + c]) * k).rounded())) }
         }
         return px
-    }
-
-    /// Diagnostic for the log: the haze centre texel (straight 119/149/183/139 in the PNG) as loaded here and through
-    /// MTKTextureLoader with the options the spike used — shows whether the loader premultiplies.
-    private func checkHaze(queue: MTLCommandQueue?) -> String {
-        guard let u = url("tex_haze", "png"), let mine = textures["haze"] else { return "" }
-        func texel(_ t: MTLTexture) -> String {
-            guard t.storageMode == .shared, t.width > 128, t.height > 128 else { return "?" }
-            var b = [UInt8](repeating: 0, count: 4)
-            b.withUnsafeMutableBytes { t.getBytes($0.baseAddress!, bytesPerRow: t.width * 4, from: MTLRegionMake2D(128, 128, 1, 1), mipmapLevel: 0) }
-            return t.pixelFormat == .bgra8Unorm || t.pixelFormat == .bgra8Unorm_srgb ? "\(b[2])/\(b[1])/\(b[0])/\(b[3])" : "\(b[0])/\(b[1])/\(b[2])/\(b[3])"
-        }
-        let loader = MTKTextureLoader(device: device)
-        let opts: [MTKTextureLoader.Option: Any] = [
-            .SRGB: NSNumber(value: true), .generateMipmaps: NSNumber(value: false),
-            .textureUsage: NSNumber(value: MTLTextureUsage.shaderRead.rawValue),
-            .textureStorageMode: NSNumber(value: MTLStorageMode.shared.rawValue),
-            .origin: MTKTextureLoader.Origin.topLeft.rawValue,
-        ]
-        let mtk = (try? loader.newTexture(URL: u, options: opts)).map(texel) ?? "-"
-        return "haze texel own=\(texel(mine)) mtkloader=\(mtk)"
     }
 
     // ---------------------------------------------------------------- generated textures

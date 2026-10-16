@@ -9,8 +9,10 @@
 //  (three.js spot attenuation) + 3 point lights; ACES filmic tone
 //  mapping, sRGB encoding, then exp2 fog in display space (three.js
 //  applies fog after the colour-space conversion when it renders to
-//  the screen). The drawable is bgra8Unorm: blending happens on the
-//  encoded values, like WebGL's default framebuffer.
+//  the screen). The world renders into a bgra8Unorm target at the
+//  world scale (blending happens on the encoded values, like WebGL's
+//  default framebuffer); vs_composite / fs_composite then scale it into
+//  the screen-scale drawable, where SKRenderer draws the HUD on top.
 //  Struct layouts mirror MetalShared.swift.
 // ================================================================
 #include <metal_stdlib>
@@ -35,6 +37,7 @@ struct Frame {
     float4 camUp;
     float4x4 shadowMatrix; // the player's flashlight (spot 0) view-projection
     float4 shadowParams;   // x = on, y = depth bias, z = 1 / map size
+    float4 fx;             // x = particle mask noise taps (2, or 1 on the low tier)
 };
 
 struct Material {
@@ -593,12 +596,16 @@ vertex QuadOut vs_particle(uint vid [[vertex_id]], uint iid [[instance_id]],
     float px = clamp(p.pos.w * F.misc.x / z, 1.0, 300.0);
     float hs = 0.5 * px * z / F.misc.x;
     float3 w = p.pos.xyz + (F.camRight.xyz * q.x + F.camUp.xyz * q.y) * hs;
-    return quadOut(F, w, p.color, q * 0.5, float4(p.extra.x, 0.0, 0.0, 0.0));
+    // the colour is constant over the quad: tone-map + encode it once here instead of per fragment (exact)
+    float4 c = float4(encodeColor(F, p.color.rgb, 0.0, false), p.color.a);
+    return quadOut(F, w, c, q * 0.5, float4(p.extra.x, 0.0, 0.0, 0.0));
 }
 
-static float particleMask(float2 q, float seed, texture2d<float> noise) {
-    float n = noise.sample(repeatSampler, q * 0.31 + seed * float2(7.31, 3.17)).r * 0.6
-            + noise.sample(repeatSampler, q * 0.69 - seed * float2(2.93, 5.71)).r * 0.4;
+static float particleMask(float2 q, float seed, texture2d<float> noise, float taps) {
+    float n = noise.sample(repeatSampler, q * 0.31 + seed * float2(7.31, 3.17)).r;
+    if (taps > 1.5) {
+        n = n * 0.6 + noise.sample(repeatSampler, q * 0.69 - seed * float2(2.93, 5.71)).r * 0.4;
+    }
     float d = length(q) * 2.0 * (0.75 + 0.5 * n);
     return 1.0 - smoothstep(0.0, 1.0, d);
 }
@@ -606,17 +613,17 @@ static float particleMask(float2 q, float seed, texture2d<float> noise) {
 fragment float4 fs_particle_add(QuadOut in [[stage_in]],
                                 constant Frame& F [[buffer(1)]],
                                 texture2d<float> noise [[texture(2)]]) {
-    float a = particleMask(in.uv, in.params.x, noise);
+    float a = particleMask(in.uv, in.params.x, noise, F.fx.x);
     a *= a;
-    return float4(encodeColor(F, in.color.rgb, in.depth, false), in.color.a * a);
+    return float4(in.color.rgb, in.color.a * a);
 }
 
 fragment float4 fs_particle_alpha(QuadOut in [[stage_in]],
                                   constant Frame& F [[buffer(1)]],
                                   texture2d<float> noise [[texture(2)]]) {
-    float a = particleMask(in.uv, in.params.x, noise);
+    float a = particleMask(in.uv, in.params.x, noise, F.fx.x);
     a = smoothstep(0.0, 0.6, a);
-    return float4(encodeColor(F, in.color.rgb, in.depth, false), in.color.a * a);
+    return float4(in.color.rgb, in.color.a * a);
 }
 
 // ribbons: laser sights (dash texture), tracers (flat), cryo beam (streak noise), beacon beams (vertical fade)
@@ -708,11 +715,11 @@ vertex QuadOut vs_weather(uint vid [[vertex_id]], uint iid [[instance_id]],
     float hs = 0.5 * px * z / F.misc.x;
     float2 q = QUAD[vid];
     float3 w = p + (F.camRight.xyz * q.x + F.camUp.xyz * q.y) * hs;
-    return quadOut(F, w, float4(col, alpha), q * 0.5, float4(kind, seed, 0.0, 0.0));
+    // constant colour per flake / mote / bank: encoded once per vertex (exact)
+    return quadOut(F, w, float4(encodeColor(F, col, 0.0, false), alpha), q * 0.5, float4(kind, seed, 0.0, 0.0));
 }
 
-fragment float4 fs_weather(QuadOut in [[stage_in]],
-                           constant Frame& F [[buffer(1)]]) {
+fragment float4 fs_weather(QuadOut in [[stage_in]]) {
     float d = length(in.uv) * 2.0;
     float kind = in.params.x;
     float a;
@@ -726,5 +733,28 @@ fragment float4 fs_weather(QuadOut in [[stage_in]],
         float n = 0.75 + 0.25 * sin(q.x * 9.0 + s * 30.0) * sin(q.y * 7.0 - s * 17.0);
         a = in.color.a * n * (1.0 - smoothstep(0.1, 1.0, d));
     }
-    return float4(encodeColor(F, in.color.rgb, in.depth, false), a);
+    return float4(in.color.rgb, a);
+}
+
+// ================================================================ composite (world target → drawable)
+// One full-screen triangle samples the world image (rendered at the world scale, 2x by default) into the drawable at
+// the screen's native scale, bilinear like the compositor scaled the old 2x MTKView layer; the HUD (SKRenderer) is
+// drawn on top in the same pass.
+struct CompositeOut {
+    float4 position [[position]];
+    float2 uv;
+};
+
+vertex CompositeOut vs_composite(uint vid [[vertex_id]]) {
+    float2 p = float2(float((vid << 1) & 2u), float(vid & 2u));
+    CompositeOut o;
+    o.position = float4(p * 2.0 - 1.0, 0.0, 1.0);
+    o.uv = float2(p.x, 1.0 - p.y);
+    return o;
+}
+
+fragment float4 fs_composite(CompositeOut in [[stage_in]],
+                             texture2d<float> world [[texture(0)]]) {
+    constexpr sampler s(filter::linear, address::clamp_to_edge);
+    return float4(world.sample(s, in.uv).rgb, 1.0);
 }
