@@ -12,6 +12,35 @@ import IceHiveCore
 //  effects (renderFx), fills the lights, uploads everything into the
 //  frame arena and draws the MTKView synchronously.
 // ================================================================
+/// Meshes, textures and pipelines of `-renderer metal`, started when the view controller loads its view (before the
+/// scene's first frame); the scene picks the result up behind its loading cover.
+final class MetalPreload {
+    let started = FrameTimer.now()
+    private(set) var finished: Double = 0
+    private var done = false
+    private var result: (MeshStore, MetalRenderer)?
+    private var waiters: [((MeshStore, MetalRenderer)?) -> Void] = []
+
+    init(device: MTLDevice) {
+        DispatchQueue.global(qos: .userInitiated).async { [self] in
+            let r = MetalWorld.prepare(device: device) { AppLog.info($0) }
+            DispatchQueue.main.async { [self] in
+                result = r
+                done = true
+                finished = FrameTimer.now()
+                let w = waiters
+                waiters.removeAll()
+                for f in w { f(r) }
+            }
+        }
+    }
+
+    /// Main thread: `f` runs once everything is loaded (immediately when it already is).
+    func whenReady(_ f: @escaping ((MeshStore, MetalRenderer)?) -> Void) {
+        if done { f(result) } else { waiters.append(f) }
+    }
+}
+
 final class MetalWorld: WorldPresenter {
     let rendererName = "metal"
     let level: Level
@@ -71,20 +100,24 @@ final class MetalWorld: WorldPresenter {
         for c in MarineClass.allCases {
             marineBatches.append(["body", "leg", "gun"].map { b("marine_\(c.id)_\($0)", .props, rough: 0.55, metal: 0.5, snow: false) })
         }
-        corpseGeneric.instances.reserveCapacity(520)
-        corpseBrute.instances.reserveCapacity(64)
         propBatches = [turretBase, turretHead, medkit, glob, grenade, beaconTop]
-        tailBatches = [turretBase, turretHead, medkit, corpseGeneric, corpseBrute, glob, grenade, beaconTop]
+        tailBatches = [turretBase, turretHead, medkit, glob, grenade, beaconTop]
         view.delegate = renderer
         renderer.view = view
     }
 
-    /// Load meshes, textures and compile the pipelines (call off the main thread). nil if Metal is unusable.
+    /// Load meshes, textures and compile the pipelines side by side (call off the main thread). nil if Metal is unusable.
     static func prepare(device: MTLDevice, log: (String) -> Void) -> (MeshStore, MetalRenderer)? {
         let store = MeshStore(device: device)
-        log("metal: " + store.loadAll())
         guard let r = MetalRenderer(device: device, store: store) else { log("metal: renderer init failed"); return nil }
-        log("metal: " + r.buildPipelines() + " device=\(device.name)")
+        let group = DispatchGroup()
+        var loaded = ""
+        DispatchQueue.global(qos: .userInitiated).async(group: group) { loaded = store.loadAll() }
+        let built = r.compilePipelines()
+        group.wait()
+        r.bindResources()
+        log("metal: " + loaded)
+        log("metal: " + built + " device=\(device.name)")
         return r.ready ? (store, r) : nil
     }
 
@@ -308,11 +341,11 @@ final class MetalWorld: WorldPresenter {
     // ---------------------------------------------------------------- uploads
     private func upload(game: Game, dt: Float) {
         let r = renderer, list = r.list
-        // instanced meshes
-        corpseGeneric.instances.removeAll(keepingCapacity: true)
-        corpseGeneric.instances.append(contentsOf: fx.corpses[0])
-        corpseBrute.instances.removeAll(keepingCapacity: true)
-        corpseBrute.instances.append(contentsOf: fx.corpses[1])
+        // instanced meshes (the corpse rings go straight from the effects into the arena)
+        corpseGeneric.region = r.upload(fx.corpses[0])
+        if corpseGeneric.region.count > 0 { list.batches.append(corpseGeneric) }
+        corpseBrute.region = r.upload(fx.corpses[1])
+        if corpseBrute.region.count > 0 { list.batches.append(corpseBrute) }
         for b in marineBatches { for x in b where !x.instances.isEmpty { x.region = r.upload(x.instances); list.batches.append(x) } }
         for b in tailBatches where !b.instances.isEmpty {
             b.region = r.upload(b.instances)

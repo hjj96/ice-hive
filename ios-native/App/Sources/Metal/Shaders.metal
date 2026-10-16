@@ -407,10 +407,31 @@ static QuadOut quadOut(constant Frame& F, float3 w, float4 color, float2 uv, flo
     return o;
 }
 
-// glints: every glow speckle of a visible bug again as a soft additive dot of at least ~3 px, so the sparkle of the
-// swarm survives sub-pixel speckles (the web phone build gets them from its 1.5x canvas, MSAA / bloom on desktop);
-// bright bugs burn to white through the tone mapper like the 2-swarm.png reference
+// glints: every glow speckle of a visible bug again as an anti-aliased dot of at least ~1.6 drawable pixels, shaded
+// exactly like the speckle itself (makeBugMaterial: lit vertex colour + aGlow emissive, tone mapped, fogged) and
+// alpha-blended over it — a 3–5 cm tetrahedron covers about a pixel at the game camera, so without MSAA it flickers in
+// and out; the dot keeps the swarm's sparkle steady at the web's look (pink in the dark, white-hot under a flashlight)
 struct Glint { float4 pos; float4 color; };   // local centre xyz + size, colour
+
+/// Irradiance / PI at a speckle facing every light half-way (the visible faces of a tetrahedron average N·L ≈ 0.5–0.6).
+static float3 glintLight(constant Frame& F, float3 P) {
+    const float NL = 0.6;
+    float3 irr = F.hemiSky.rgb * 0.8 + F.hemiGround.rgb * 0.2 + F.moonColor.rgb * NL;
+    for (int i = 0; i < 4; i++) {
+        float I = F.spotPos[i].w;
+        if (I <= 0.0) continue;
+        float3 Lv = F.spotPos[i].xyz - P;
+        float d = length(Lv);
+        float cone = smoothstep(SPOT_COS_OUT, SPOT_COS_IN, dot(-Lv / max(d, 1e-4), F.spotDir[i].xyz));
+        irr += SPOT_COLOR * (I * cone * distanceAtten(d, SPOT_RANGE, SPOT_DECAY) * NL);
+    }
+    for (int i = 0; i < 3; i++) {
+        float range = F.pointPos[i].w;
+        if (range <= 0.0) continue;
+        irr += F.pointColor[i].rgb * (distanceAtten(length(F.pointPos[i].xyz - P), range, POINT_DECAY) * NL);
+    }
+    return irr;
+}
 
 vertex QuadOut vs_glint(uint vid [[vertex_id]], uint iid [[instance_id]],
                         constant Frame& F [[buffer(1)]],
@@ -427,28 +448,30 @@ vertex QuadOut vs_glint(uint vid [[vertex_id]], uint iid [[instance_id]],
     float3 ay = float3(-sn * sp, cp, -c * sp);
     float3 az = float3(sn * cp, sp, c * cp);
     float3 w = b.pos.xyz + ax * (p.x * s) + ay * (p.y * sy) + az * (p.z * s);
+    // the speckle's own colour (fs_bug for a full-glow vertex)
+    float flash = b.anim.y, burn = b.anim.z, frz = b.anim.w;
+    float3 vcol = g.color.rgb * b.color.rgb;
+    float3 albedo = mix(vcol, float3(0.2, 0.38, 0.55), frz * 0.8) * (1.0 - burn * 0.6);
+    float3 lin = glintLight(F, w) * albedo + vcol * (1.0 - frz) + float3(1.0, 0.3, 0.04) * (burn * 0.9)
+               + float3(1.0, 0.92, 0.88) * (flash * 0.8) + float3(0.05, 0.16, 0.3) * (frz * 0.5);
+    float depth = max(0.05, -(F.view * float4(w, 1.0)).z);
+    float3 col = encodeColor(F, lin, depth, true);
     // pulled a little toward the camera so the dot is not buried in the body it sits on
     w += normalize(F.camPos.xyz - w) * 0.06;
     float z = max(0.05, -(F.view * float4(w, 1.0)).z);
-    float px = max(g.pos.w * s * 2.8 * F.misc.x / z, 7.0);
-    float hs = 0.5 * px * z / F.misc.x;
+    float diam = max(g.pos.w * s * F.misc.x / z, 1.6);   // drawable px
+    float hp = 0.5 * diam + 0.75;                        // + an anti-aliasing rim
+    float hs = hp * z / F.misc.x;
     float2 q = QUAD[vid];
     float3 v = w + (F.camRight.xyz * q.x + F.camUp.xyz * q.y) * hs;
-    float frz = b.anim.w, burn = b.anim.z;
-    float3 col = g.color.rgb * b.color.rgb * (1.0 - frz) * 2.4 + float3(1.0, 0.3, 0.04) * burn * 0.8;
-    // bright bugs (tint above ~0.65) get a white-hot core
-    float white = saturate((b.color.r - 0.65) * 1.6) * (1.0 - frz);
-    return quadOut(F, v, float4(col, white), q * 0.5, float4(0.0));
+    QuadOut o = quadOut(F, v, float4(col, 1.0), q * hp, float4(0.5 * diam, 0.0, 0.0, 0.0));
+    return o;
 }
 
-fragment float4 fs_glint(QuadOut in [[stage_in]],
-                         constant Frame& F [[buffer(1)]]) {
-    float d = length(in.uv) * 2.0;
-    float a = 1.0 - smoothstep(0.0, 1.0, d);
-    float halo = a * a;
-    float core = halo * halo;
-    float3 c = in.color.rgb * (0.45 + core) + float3(in.color.a * 2.5 * core);
-    return float4(encodeColor(F, c, in.depth, true), halo);
+fragment float4 fs_glint(QuadOut in [[stage_in]]) {
+    // uv in drawable px from the centre; params.x = radius (px)
+    float a = saturate(in.params.x + 0.5 - length(in.uv));
+    return float4(in.color.rgb, a);
 }
 
 // persistent floor stains: multiply blend over the lit floor (07-fx.js decalMat)

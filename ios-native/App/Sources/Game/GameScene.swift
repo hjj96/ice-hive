@@ -88,7 +88,10 @@ final class GameScene: SKScene {
     private var createdSeen = 0
     private var warmGrid: PipelineWarmup?
 
-    init(size: CGSize, options: LaunchOptions, metalView: MTKView? = nil) {
+    private let metalPreload: MetalPreload?
+
+    init(size: CGSize, options: LaunchOptions, metalView: MTKView? = nil, metalPreload: MetalPreload? = nil) {
+        self.metalPreload = metalPreload
         self.options = options
         self.metalView = metalView
         super.init(size: size)
@@ -99,6 +102,7 @@ final class GameScene: SKScene {
         demo = DemoScript.make(options: options)
         if let c = options.playerClass ?? demo?.preferredClass, let mc = MarineClass(id: c) { selectedClass = mc }
         BugLayer.glintShaderOn = !options.plainGlints
+        MetalRenderer.glintDots = !options.plainGlints
         haptics.enabled = settings.haptics
         if !settings.migrated.isEmpty { AppLog.info("settings: migrated from v1: " + settings.migrated.joined(separator: ",")) }
         AppLog.info("settings: cls=\(settings.cls) best=\(settings.bestKills)/\(settings.bestWin)s muted=\(settings.muted) vol=\(settings.vol) "
@@ -229,20 +233,20 @@ final class GameScene: SKScene {
         applyReduceMotion()
         buildAudio()
         guard let device = mv.device else { AppLog.error("metal: the view has no device"); return }
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let prepared = MetalWorld.prepare(device: device) { AppLog.info($0) }
-            DispatchQueue.main.async {
-                guard let s = self else { return }
-                guard let ready = prepared else {
-                    AppLog.error("metal: renderer unavailable")
-                    return
-                }
-                let w = MetalWorld(view: mv, level: lv, store: ready.0, renderer: ready.1)
-                s.world = w
-                s.applyQuality()
-                AppLog.info(String(format: "metal world ready in %.0f ms ", (FrameTimer.now() - t0) * 1000) + Memory.summary)
-                s.startAfterLoading()
+        let pre = metalPreload ?? MetalPreload(device: device)
+        pre.whenReady { [weak self] prepared in
+            guard let s = self else { return }
+            guard let ready = prepared else {
+                AppLog.error("metal: renderer unavailable")
+                return
             }
+            let w = MetalWorld(view: mv, level: lv, store: ready.0, renderer: ready.1)
+            s.world = w
+            s.applyQuality()
+            AppLog.info(String(format: "metal world ready in %.0f ms (preload %.0f ms, started %.0f ms before the scene) ",
+                               (FrameTimer.now() - t0) * 1000, (pre.finished - pre.started) * 1000, max(0, t0 - pre.started) * 1000)
+                        + Memory.summary)
+            s.startAfterLoading()
         }
     }
 
@@ -810,23 +814,27 @@ final class GameScene: SKScene {
     private func updateCover(_ currentTime: TimeInterval) {
         guard cover.parent != nil else { return }
         coverFrames += 1
-        let hold = 20
+        // SpriteKit builds its Metal pipelines on first use: 20 frames of warm-up behind the cover. The Metal world's
+        // pipelines are compiled before it exists, so it only waits for the HUD overlays' first draw.
+        let hold = renderer == nil ? 10 : 20
         // warm-up behind the cover: every effect, ring shader and HUD overlay once, then a few clean frames
-        if coverFrames == 2, let r = renderer {
+        if coverFrames == 2 {
             hudWasVisible = hud.visible
             hud.visible = true
             hud.warmUp(true)
-            r.fx.warmUp(cameraCtl.tx, cameraCtl.tz)
-            if let a = assets {
-                // every blend / colour-blend / alpha combination on every sheet page: Metal pipelines built now
-                let w = PipelineWarmup(textures: a.sheets.pages, viewSize: size, z: ZBand.hud + 899)
-                cameraCtl.node.addChild(w.root)
-                warmGrid = w
-                AppLog.info("pipeline warm-up: \(w.count) sprites behind the cover")
+            if let r = renderer {
+                r.fx.warmUp(cameraCtl.tx, cameraCtl.tz)
+                if let a = assets {
+                    // every blend / colour-blend / alpha combination on every sheet page: Metal pipelines built now
+                    let w = PipelineWarmup(textures: a.sheets.pages, viewSize: size, z: ZBand.hud + 899)
+                    cameraCtl.node.addChild(w.root)
+                    warmGrid = w
+                    AppLog.info("pipeline warm-up: \(w.count) sprites behind the cover")
+                }
             }
         }
-        if coverFrames == hold - 5, let r = renderer {
-            r.fx.reset()
+        if coverFrames == hold - 5 {
+            renderer?.fx.reset()
             hud.warmUp(false)
             hud.visible = hudWasVisible
             warmGrid?.root.removeFromParent()

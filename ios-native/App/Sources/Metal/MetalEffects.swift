@@ -141,6 +141,7 @@ final class MetalEffects {
             decals.append(d); decalXZ.append(Vec2(x, z))
         } else {
             decals[decHead] = d; decalXZ[decHead] = Vec2(x, z)
+            forgetLiftGore(0, decHead)
             decHead = (decHead + 1) % decRing
         }
     }
@@ -162,8 +163,14 @@ final class MetalEffects {
             corpses[k].append(inst); corpseXZ[k].append(Vec2(x, z))
         } else {
             corpses[k][corpseHead[k]] = inst; corpseXZ[k][corpseHead[k]] = Vec2(x, z)
+            forgetLiftGore(k + 1, corpseHead[k])
             corpseHead[k] = (corpseHead[k] + 1) % corpseRing[k]
         }
+    }
+
+    /// A ring slot riding the lift was reused for new gore elsewhere: it no longer rides (the web moves it anyway).
+    private func forgetLiftGore(_ ring: Int, _ i: Int) {
+        if liftGore != nil { liftGore!.removeAll(where: { $0.0 == ring && $0.1 == i }) }
     }
 
     /// Gore lying on the lift deck rides up with it (web fxLiftRise).
@@ -188,8 +195,16 @@ final class MetalEffects {
     }
 
     // ================================================================ lights / splashes
-    /// web flashLight(): reuse the weaker of the two blast lights.
+    /// The web phone build pools a single point light (03-render.js N_PL = 1: flames / napalm / the player's muzzle);
+    /// blasts light the deck with a floor splash instead. true = the desktop rig (two extra blast lights).
+    static let blastLights = false
+
+    /// web flashLight(): reuse the weaker of the two blast lights (phones: a floor splash).
     func flashLight(_ x: Float, _ y: Float, _ z: Float, _ hex: UInt32, _ peak: Float, _ dur: Float) {
+        if !MetalEffects.blastLights {
+            splash(x, z, 5 + peak.squareRoot() * 0.25, Float((hex >> 16) & 255) / 640, Float((hex >> 8) & 255) / 640, Float(hex & 255) / 640, dur)
+            return
+        }
         let best = lights[1].intensity <= lights[2].intensity ? 1 : 2
         lights[best].pos = F3(x, y + level.groundY(x, z), z)
         lights[best].color = linearRGB(hex)

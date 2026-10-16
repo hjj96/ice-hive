@@ -315,6 +315,8 @@ jobs:
           # look A/B against store/screenshots/6.3/2-swarm.png (same 402x874 @3x size as this simulator)
           run_demo swarmshot-spritekit 4 "-demo swarmshot -seed 7 -renderer spritekit" 0
           run_demo swarmshot-metal 4 "-demo swarmshot -seed 7 -renderer metal" 0
+          # the same without the glint dots (only the speckle geometry, like the web build)
+          run_demo swarmshot-metal-plain 4 "-demo swarmshot -seed 7 -renderer metal -plainGlints" 0
           # heavy swarm (the med tier's cap of 1400 live bugs) with both renderers
           run_demo swarm-spritekit 15 "-demo combat -seed 7 -bugs 1400 -renderer spritekit" 0
           run_demo swarm-metal 15 "-demo combat -seed 7 -bugs 1400 -renderer metal" 0
@@ -347,7 +349,7 @@ jobs:
           xcrun simctl spawn "$UDID" launchctl list | grep -i icehive | tee results/launchctl.txt || true
           cp results/app-combat.log results/app-stdout.log
           cp results/app-combat-stderr.log results/app-stderr.log
-          demos="firstlaunch combat-spritekit combat-metal beacon-spritekit beacon-metal swarmshot-spritekit swarmshot-metal swarm-spritekit swarm-metal swarm-metal3x calm-metal title-metal landscape-metal extract-metal combat beacon title calm landscape nolight probe cull plainglint hold extract levelup pause end"
+          demos="firstlaunch combat-spritekit combat-metal beacon-spritekit beacon-metal swarmshot-spritekit swarmshot-metal swarmshot-metal-plain swarm-spritekit swarm-metal swarm-metal3x calm-metal title-metal landscape-metal extract-metal combat beacon title calm landscape nolight probe cull plainglint hold extract levelup pause end"
           for d in $demos; do
             f=results/app-$d.log
             { echo "== $f"; grep -h -E 'loading took|sheets decoded|demo done' "$f" || true; } >> results/fps.txt

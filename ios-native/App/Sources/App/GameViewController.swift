@@ -21,6 +21,8 @@ final class GameViewController: UIViewController {
     private var skView: SKView!
     /// Metal world view (`-renderer metal`), drawn on demand from the scene's update (paused, no own display link).
     private(set) var metalView: MTKView?
+    /// Metal meshes / textures / pipelines, loading from loadView on (`-renderer metal`).
+    private var metalPreload: MetalPreload?
 
     override func loadView() {
         let bounds = UIScreen.main.bounds
@@ -29,6 +31,7 @@ final class GameViewController: UIViewController {
         if options.useMetal, let device = MTLCreateSystemDefaultDevice() {
             let root = UIView(frame: bounds)
             root.backgroundColor = Palette.backgroundUI
+            metalPreload = MetalPreload(device: device)
             let mv = MTKView(frame: bounds, device: device)
             mv.autoresizingMask = [.flexibleWidth, .flexibleHeight]
             mv.colorPixelFormat = .bgra8Unorm
@@ -117,7 +120,7 @@ final class GameViewController: UIViewController {
         let size = view.bounds.size
         guard size.width > 0, size.height > 0 else { return }
         if presentedScene == nil {
-            let scene = GameScene(size: size, options: options, metalView: metalView)
+            let scene = GameScene(size: size, options: options, metalView: metalView, metalPreload: metalPreload)
             scene.scaleMode = .resizeFill
             skView.presentScene(scene)
             presentedScene = scene

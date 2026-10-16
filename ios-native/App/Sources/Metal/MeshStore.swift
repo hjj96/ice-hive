@@ -1,6 +1,8 @@
 import Foundation
 import Metal
 import MetalKit
+import ImageIO
+import CoreGraphics
 
 // ================================================================
 //  MESH STORE — loads the meshes and textures exported from the web
@@ -9,8 +11,10 @@ import MetalKit
 //  u32 vertexCount, u32 indexCount, u32 flags; interleaved vertices
 //  of position, normal, colour (linear), aGlow, aLeg; u32 indices),
 //  manifest.json (texture colour spaces, wrap modes) and PNG textures
-//  via MTKTextureLoader. A missing file is logged and replaced by a
-//  small placeholder so the renderer always has something to draw.
+//  decoded with ImageIO into straight-alpha RGBA (MTKTextureLoader
+//  premultiplied them: the haze, glow pools and pad mark lost most of
+//  their light). A missing file is logged and replaced by a small
+//  placeholder so the renderer always has something to draw.
 // ================================================================
 struct GPUMesh {
     let name: String
@@ -36,6 +40,8 @@ final class MeshStore {
     private(set) var textures: [String: MTLTexture] = [:]
     private(set) var missing: [String] = []
     private(set) var bytesLoaded = 0
+    /// One-time diagnostic: the haze texture's centre texel as decoded here and as MTKTextureLoader returns it.
+    private(set) var textureCheck = ""
     /// Tileable value noise for the particle edges (07-fx.js NOISE_TEX).
     private(set) var noise: MTLTexture?
     private var white: MTLTexture?
@@ -82,22 +88,13 @@ final class MeshStore {
             missing.append("manifest.json")
         }
         for n in MeshStore.meshNames { meshes[n] = loadMesh(n) ?? placeholder(n) }
-        let loader = MTKTextureLoader(device: device)
+        let queue = device.makeCommandQueue()
         for (name, file, s, mips) in MeshStore.textureDefaults {
             guard let u = url(file, "png") else { missing.append(file + ".png"); continue }
-            let opts: [MTKTextureLoader.Option: Any] = [
-                .SRGB: NSNumber(value: srgb[name] ?? s),
-                .generateMipmaps: NSNumber(value: mips),
-                .textureUsage: NSNumber(value: MTLTextureUsage.shaderRead.rawValue),
-                .textureStorageMode: NSNumber(value: MTLStorageMode.private.rawValue),
-                .origin: MTKTextureLoader.Origin.topLeft.rawValue,
-            ]
-            do {
-                textures[name] = try loader.newTexture(URL: u, options: opts)
-            } catch {
-                missing.append(file + ".png (\(error.localizedDescription))")
-            }
+            let (t, err) = loadPNG(u, srgb: srgb[name] ?? s, mips: mips, queue: queue)
+            if let t = t { t.label = name; textures[name] = t } else { missing.append(file + ".png (\(err))") }
         }
+        textureCheck = checkHaze(queue: queue)
         noise = makeNoise()
         white = makeWhite()
         let ms = (FrameTimer.now() - t0) * 1000
@@ -105,7 +102,7 @@ final class MeshStore {
         for m in meshes.values { tris += m.indexCount / 3 }
         let gl = ["bug_runner", "bug_spitter", "bug_brute", "bug_boomer"].map { String((meshes[$0]?.glints.count ?? 0) / 2) }.joined(separator: "/")
         return String(format: "meshes %d (%d triangles, %.1f MB) textures %d in %.0f ms", meshes.count, tris,
-                      Double(bytesLoaded) / 1_048_576, textures.count, ms) + " glints " + gl
+                      Double(bytesLoaded) / 1_048_576, textures.count, ms) + " glints " + gl + " " + textureCheck
             + (missing.isEmpty ? "" : " MISSING: " + missing.joined(separator: ", "))
     }
 
@@ -142,32 +139,41 @@ final class MeshStore {
                 missing.append(name + ".mesh (bad header \(magic) v\(vc) i\(ic) stride \(stride))")
                 return nil
             }
-            // vertices: copied as-is at the shared stride, repacked otherwise (aLeg zero-filled)
-            var verts = [Float](repeating: 0, count: vc * 13)
+            // vertices: one copy straight from the file at the shared stride (52 B), repacked otherwise (aLeg zero-filled)
+            let vb: MTLBuffer?
+            if stride == MeshStore.stride {
+                vb = device.makeBuffer(bytes: base + 16, length: vc * stride, options: [])
+            } else {
+                var verts = [Float](repeating: 0, count: vc * 13)
+                let nf = min(13, stride / 4)
+                for i in 0..<vc {
+                    for k in 0..<nf { verts[i * 13 + k] = base.loadUnaligned(fromByteOffset: 16 + i * stride + k * 4, as: Float.self) }
+                }
+                vb = device.makeBuffer(bytes: verts, length: verts.count * 4, options: [])
+            }
+            let io = 16 + vc * stride
+            guard let vbuf = vb, let ib = device.makeBuffer(bytes: base + io, length: ic * 4, options: []) else { return nil }
+            // indices checked in place (out-of-range ones are pointed at vertex 0)
+            let ip = ib.contents().bindMemory(to: UInt32.self, capacity: ic)
+            var bad = 0
+            for i in 0..<ic where Int(UInt32(littleEndian: ip[i])) >= vc { ip[i] = 0; bad += 1 }
+            if bad > 0 { missing.append(name + ".mesh (\(bad) indices out of range)") }
+            let vp = vbuf.contents().bindMemory(to: Float.self, capacity: vc * 13)
             var lo = F3(repeating: Float.greatestFiniteMagnitude), hi = F3(repeating: -Float.greatestFiniteMagnitude)
             for i in 0..<vc {
-                let o = 16 + i * stride
-                let nf = min(13, stride / 4)
-                for k in 0..<nf { verts[i * 13 + k] = base.loadUnaligned(fromByteOffset: o + k * 4, as: Float.self) }
-                let p = F3(verts[i * 13], verts[i * 13 + 1], verts[i * 13 + 2])
+                let p = F3(vp[i * 13], vp[i * 13 + 1], vp[i * 13 + 2])
                 lo = pointwiseMin(lo, p); hi = pointwiseMax(hi, p)
             }
-            var idx = [UInt32](repeating: 0, count: ic)
-            let io = 16 + vc * stride
-            var bad = 0
-            for i in 0..<ic {
-                let v = UInt32(littleEndian: base.loadUnaligned(fromByteOffset: io + i * 4, as: UInt32.self))
-                if Int(v) >= vc { bad += 1; idx[i] = 0 } else { idx[i] = v }
-            }
-            if bad > 0 { missing.append(name + ".mesh (\(bad) indices out of range)") }
-            guard let vb = device.makeBuffer(bytes: verts, length: verts.count * 4, options: []),
-                  let ib = device.makeBuffer(bytes: idx, length: idx.count * 4, options: []) else { return nil }
-            vb.label = name + ".v"
+            vbuf.label = name + ".v"
             ib.label = name + ".i"
-            bytesLoaded += verts.count * 4 + idx.count * 4
-            var mesh = GPUMesh(name: name, vertices: vb, indices: ib, vertexCount: vc, indexCount: ic, flags: flags,
+            bytesLoaded += vc * 52 + ic * 4
+            var mesh = GPUMesh(name: name, vertices: vbuf, indices: ib, vertexCount: vc, indexCount: ic, flags: flags,
                                boundsMin: lo, boundsMax: hi, placeholder: false)
-            if name.hasPrefix("bug_") { mesh.glints = MeshStore.glints(verts, vc, idx) }
+            if name.hasPrefix("bug_") {
+                let verts = Array(UnsafeBufferPointer(start: vp, count: vc * 13))
+                let idx = Array(UnsafeBufferPointer(start: ip, count: ic))
+                mesh.glints = MeshStore.glints(verts, vc, idx)
+            }
             return mesh
         }
     }
@@ -233,6 +239,106 @@ final class MeshStore {
         let ib = device.makeBuffer(bytes: idx, length: idx.count * 4, options: [])!
         return GPUMesh(name: name, vertices: vb, indices: ib, vertexCount: v.count / 13, indexCount: idx.count, flags: 0,
                        boundsMin: F3(-h, 0, -h), boundsMax: F3(h, 2 * h, h), placeholder: true)
+    }
+
+    // ---------------------------------------------------------------- PNG textures
+    /// Decode a PNG into a straight-alpha RGBA8 texture (sRGB or linear), mipmapped on the GPU when asked.
+    private func loadPNG(_ url: URL, srgb: Bool, mips: Bool, queue: MTLCommandQueue?) -> (MTLTexture?, String) {
+        guard let src = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let img = CGImageSourceCreateImageAtIndex(src, 0, [kCGImageSourceShouldCache: false] as CFDictionary) else {
+            return (nil, "decode failed")
+        }
+        guard let px = MeshStore.straightRGBA(img) else { return (nil, "unsupported pixel layout") }
+        let w = img.width, h = img.height
+        let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: srgb ? .rgba8Unorm_srgb : .rgba8Unorm, width: w, height: h,
+                                                            mipmapped: mips)
+        desc.usage = mips ? [.shaderRead, .renderTarget] : .shaderRead
+        desc.storageMode = .shared
+        guard let t = device.makeTexture(descriptor: desc) else { return (nil, "makeTexture failed") }
+        px.withUnsafeBytes { t.replace(region: MTLRegionMake2D(0, 0, w, h), mipmapLevel: 0, withBytes: $0.baseAddress!, bytesPerRow: w * 4) }
+        if mips, t.mipmapLevelCount > 1, let cb = queue?.makeCommandBuffer(), let blit = cb.makeBlitCommandEncoder() {
+            blit.generateMipmaps(for: t)
+            blit.endEncoding()
+            cb.commit()
+            cb.waitUntilCompleted()
+        }
+        return (t, "")
+    }
+
+    /// The image's pixels as straight (not premultiplied) RGBA8, rows top to bottom.
+    static func straightRGBA(_ img: CGImage) -> [UInt8]? {
+        let w = img.width, h = img.height
+        var out = [UInt8](repeating: 255, count: w * h * 4)
+        let ai = img.alphaInfo
+        let little = img.bitmapInfo.intersection(.byteOrderMask) == .byteOrder32Little
+        if img.bitsPerComponent == 8, img.bitsPerPixel == 32, let data = img.dataProvider?.data, let p = CFDataGetBytePtr(data) {
+            // byte offsets of R, G, B, A in a pixel (-1 = no alpha)
+            let o: (Int, Int, Int, Int)
+            switch ai {
+            case .last, .premultipliedLast: o = little ? (3, 2, 1, 0) : (0, 1, 2, 3)
+            case .first, .premultipliedFirst: o = little ? (2, 1, 0, 3) : (1, 2, 3, 0)
+            case .noneSkipLast: o = little ? (3, 2, 1, -1) : (0, 1, 2, -1)
+            case .noneSkipFirst: o = little ? (2, 1, 0, -1) : (1, 2, 3, -1)
+            default: return drawnRGBA(img)
+            }
+            let premul = ai == .premultipliedLast || ai == .premultipliedFirst
+            let bpr = img.bytesPerRow
+            for y in 0..<h {
+                for x in 0..<w {
+                    let s = y * bpr + x * 4, d = (y * w + x) * 4
+                    let a = o.3 >= 0 ? p[s + o.3] : 255
+                    var r = p[s + o.0], g = p[s + o.1], b = p[s + o.2]
+                    if premul && a > 0 && a < 255 {
+                        let k = 255 / Float(a)
+                        r = UInt8(min(255, (Float(r) * k).rounded())); g = UInt8(min(255, (Float(g) * k).rounded()))
+                        b = UInt8(min(255, (Float(b) * k).rounded()))
+                    }
+                    out[d] = r; out[d + 1] = g; out[d + 2] = b; out[d + 3] = a
+                }
+            }
+            return out
+        }
+        return drawnRGBA(img)
+    }
+
+    /// Fallback for other layouts: draw into a premultiplied RGBA8 context and divide the alpha back out.
+    private static func drawnRGBA(_ img: CGImage) -> [UInt8]? {
+        let w = img.width, h = img.height
+        var px = [UInt8](repeating: 0, count: w * h * 4)
+        let cs = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
+        let ok: Bool = px.withUnsafeMutableBytes { buf in
+            guard let ctx = CGContext(data: buf.baseAddress, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4, space: cs,
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
+            ctx.draw(img, in: CGRect(x: 0, y: 0, width: w, height: h))
+            return true
+        }
+        if !ok { return nil }
+        for i in stride(from: 0, to: px.count, by: 4) where px[i + 3] > 0 && px[i + 3] < 255 {
+            let k = 255 / Float(px[i + 3])
+            for c in 0..<3 { px[i + c] = UInt8(min(255, (Float(px[i + c]) * k).rounded())) }
+        }
+        return px
+    }
+
+    /// Diagnostic for the log: the haze centre texel (straight 119/149/183/139 in the PNG) as loaded here and through
+    /// MTKTextureLoader with the options the spike used — shows whether the loader premultiplies.
+    private func checkHaze(queue: MTLCommandQueue?) -> String {
+        guard let u = url("tex_haze", "png"), let mine = textures["haze"] else { return "" }
+        func texel(_ t: MTLTexture) -> String {
+            guard t.storageMode == .shared, t.width > 128, t.height > 128 else { return "?" }
+            var b = [UInt8](repeating: 0, count: 4)
+            b.withUnsafeMutableBytes { t.getBytes($0.baseAddress!, bytesPerRow: t.width * 4, from: MTLRegionMake2D(128, 128, 1, 1), mipmapLevel: 0) }
+            return t.pixelFormat == .bgra8Unorm || t.pixelFormat == .bgra8Unorm_srgb ? "\(b[2])/\(b[1])/\(b[0])/\(b[3])" : "\(b[0])/\(b[1])/\(b[2])/\(b[3])"
+        }
+        let loader = MTKTextureLoader(device: device)
+        let opts: [MTKTextureLoader.Option: Any] = [
+            .SRGB: NSNumber(value: true), .generateMipmaps: NSNumber(value: false),
+            .textureUsage: NSNumber(value: MTLTextureUsage.shaderRead.rawValue),
+            .textureStorageMode: NSNumber(value: MTLStorageMode.shared.rawValue),
+            .origin: MTKTextureLoader.Origin.topLeft.rawValue,
+        ]
+        let mtk = (try? loader.newTexture(URL: u, options: opts)).map(texel) ?? "-"
+        return "haze texel own=\(texel(mine)) mtkloader=\(mtk)"
     }
 
     // ---------------------------------------------------------------- generated textures
