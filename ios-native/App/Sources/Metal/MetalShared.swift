@@ -31,6 +31,10 @@ struct FrameUniforms {
     /// xyz camera right vector, w unused; xyz camera up vector (billboards).
     var camRight = F4(1, 0, 0, 0)
     var camUp = F4(0, 1, 0, 0)
+    /// The player's flashlight shadow (web «высокая»: spots[0].castShadow): light view-projection (Metal depth 0…1).
+    var shadowMatrix = Mat4.identity
+    /// x = 1 shadows on, y = depth bias (three.js shadow.bias), z = 1 / map size, w unused.
+    var shadowParams = F4(0, 0, 0, 0)
 }
 
 /// One bug of the swarm (`struct BugInstance`): compact transform + per-instance shading.
@@ -99,7 +103,8 @@ struct RibbonVertex {
 struct MaterialUniforms {
     /// x roughness, y metalness, z snow caps (0 / 1), w glow strength (web makeGlowMaterial glow).
     var pbr: F4
-    /// x snow bias of the floor mask, y = 1 uses the floor texture, z = vertical offset (lift rise), w = unlit (1)
+    /// x snow bias of the floor mask, y = 1 uses the floor texture, z = vertical offset (lift rise),
+    /// w = 1 receives the flashlight shadow (three.js receiveShadow: floors, level props, hazard strips, corpses)
     var floor: F4
 }
 
@@ -115,4 +120,5 @@ enum TextureIndex {
     static let main = 0
     static let snow = 1
     static let noise = 2
+    static let shadow = 3
 }

@@ -36,11 +36,15 @@ final class MeshBatch {
     let material: MaterialUniforms
     var instances: [MeshInstance] = []
     var region = Region()
+    /// Drawn into the flashlight shadow map (the squad: makeMarine castShadow).
+    let castsShadow: Bool
 
-    init(mesh: GPUMesh, pass: MeshPass, roughness: Float = 0.62, metalness: Float = 0.45, glow: Float = 2.2, snow: Bool = false) {
+    init(mesh: GPUMesh, pass: MeshPass, roughness: Float = 0.62, metalness: Float = 0.45, glow: Float = 2.2, snow: Bool = false,
+         castsShadow: Bool = false, receivesShadow: Bool = false) {
         self.mesh = mesh
         self.pass = pass
-        material = MaterialUniforms(pbr: F4(roughness, metalness, snow ? 1 : 0, glow), floor: F4(0, 0, 0, 0))
+        self.castsShadow = castsShadow
+        material = MaterialUniforms(pbr: F4(roughness, metalness, snow ? 1 : 0, glow), floor: F4(0, 0, 0, receivesShadow ? 1 : 0))
         instances.reserveCapacity(8)
     }
 }
@@ -61,6 +65,9 @@ final class DrawList {
     var liftRise: Float = 0
     var weather = F4(0, 0, 0, 0)
     var snow = 0, motes = 0, mist = 0
+    /// The player's flashlight casts shadows this frame («высокая»); proxies = bug blobs inside its cone.
+    var shadowOn = false
+    var proxies = Region()
 }
 
 final class MetalRenderer: NSObject, MTKViewDelegate {
@@ -98,6 +105,16 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
     private var psWeatherAdd: MTLRenderPipelineState?
     private var dsOpaque: MTLDepthStencilState?
     private var dsTransparent: MTLDepthStencilState?
+    // flashlight shadow map (web «высокая»: spots[0].castShadow, 1024², PCF)
+    static let shadowSize = 1024
+    private var psShadowMesh: MTLRenderPipelineState?
+    private var psShadowProxy: MTLRenderPipelineState?
+    private var dsShadow: MTLDepthStencilState?
+    private var shadowTex: MTLTexture?
+    private var shadowDummy: MTLTexture?
+    private let shadowPass = MTLRenderPassDescriptor()
+    private var proxyVB: MTLBuffer?, proxyIB: MTLBuffer?
+    private var proxyIndexCount = 0
     private(set) var ready = false
     private(set) var pipelineErrors: [String] = []
 
@@ -125,7 +142,7 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
     private var boundMain: MTLTexture?
     /// One completion handler for every command buffer (no closure context allocated per frame).
     private var completion: MTLCommandBufferHandler?
-    private let matProps = MaterialUniforms(pbr: F4(0.62, 0.45, 1, 2.2), floor: F4(0, 0, 0, 0))
+    private let matProps = MaterialUniforms(pbr: F4(0.62, 0.45, 1, 2.2), floor: F4(0, 0, 0, 1))
 
     // stats (smoothed)
     private(set) var drawCalls = 0
@@ -248,6 +265,27 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
         td.depthCompareFunction = .lessEqual
         td.isDepthWriteEnabled = false
         dsTransparent = device.makeDepthStencilState(descriptor: td)
+        // depth-only shadow pipelines (no colour target, no fragment stage)
+        func depthOnly(_ label: String, _ vs: String, vertexDescriptor: Bool) -> MTLRenderPipelineState? {
+            guard let v = lib.makeFunction(name: vs) else { pipelineErrors.append("\(label): missing \(vs)"); return nil }
+            let d = MTLRenderPipelineDescriptor()
+            d.label = label
+            d.vertexFunction = v
+            d.fragmentFunction = nil
+            if vertexDescriptor { d.vertexDescriptor = vd }
+            d.colorAttachments[0].pixelFormat = .invalid
+            d.depthAttachmentPixelFormat = .depth32Float
+            do { return try device.makeRenderPipelineState(descriptor: d) } catch {
+                pipelineErrors.append("\(label): \(error.localizedDescription)")
+                return nil
+            }
+        }
+        psShadowMesh = depthOnly("shadowMesh", "vs_shadow_mesh", vertexDescriptor: true)
+        psShadowProxy = depthOnly("shadowProxy", "vs_shadow_proxy", vertexDescriptor: false)
+        let sd = MTLDepthStencilDescriptor()
+        sd.depthCompareFunction = .less
+        sd.isDepthWriteEnabled = true
+        dsShadow = device.makeDepthStencilState(descriptor: sd)
         return String(format: "pipelines built in %.0f ms", (FrameTimer.now() - t0) * 1000)
             + (pipelineErrors.isEmpty ? "" : " ERRORS: " + pipelineErrors.joined(separator: "; "))
     }
@@ -255,7 +293,7 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
     /// Resolve the loaded meshes / textures the frame encodes (after MeshStore.loadAll and compilePipelines).
     func bindResources() {
         // static level: floors (grating / slab + snow mask), merged props, the lift deck and its props (they rise)
-        func floorMat(_ bias: Float) -> MaterialUniforms { MaterialUniforms(pbr: F4(0.72, 0.42, 0, 0), floor: F4(bias, 1, 0, 0)) }
+        func floorMat(_ bias: Float) -> MaterialUniforms { MaterialUniforms(pbr: F4(0.72, 0.42, 0, 0), floor: F4(bias, 1, 0, 1)) }
         levelDraws = [
             (store.mesh("level_floor_grating"), floorMat(0), 1),
             (store.mesh("level_floor_slab"), floorMat(0.18), 2),
@@ -271,6 +309,26 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
         texRing = store.texture("ring"); texFill = store.texture("fill"); texLane = store.texture("lane")
         texDecals = store.texture("decals"); texDash = store.texture("dash"); texStreak = store.texture("streak")
         texHaze = store.texture("haze")
+        let dd = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .depth32Float, width: 1, height: 1, mipmapped: false)
+        dd.usage = [.shaderRead, .renderTarget]
+        dd.storageMode = .private
+        shadowDummy = device.makeTexture(descriptor: dd)
+        // the shadow proxy: IcosahedronGeometry(0.3, 0)
+        let t: Float = (1 + Float(5).squareRoot()) / 2
+        var iv: [Float] = []
+        for v in [F3(-1, t, 0), F3(1, t, 0), F3(-1, -t, 0), F3(1, -t, 0), F3(0, -1, t), F3(0, 1, t), F3(0, -1, -t), F3(0, 1, -t),
+                  F3(t, 0, -1), F3(t, 0, 1), F3(-t, 0, -1), F3(-t, 0, 1)] {
+            let n = v / (v * v).sum().squareRoot() * 0.3
+            iv += [n.x, n.y, n.z]
+        }
+        let ii: [UInt16] = [0, 11, 5, 0, 5, 1, 0, 1, 7, 0, 7, 10, 0, 10, 11, 1, 5, 9, 5, 11, 4, 11, 10, 2, 10, 7, 6, 7, 1, 8,
+                            3, 9, 4, 3, 4, 2, 3, 2, 6, 3, 6, 8, 3, 8, 9, 4, 9, 5, 2, 4, 11, 6, 2, 10, 8, 6, 7, 9, 8, 1]
+        proxyVB = device.makeBuffer(bytes: iv, length: iv.count * 4, options: [])
+        proxyIB = device.makeBuffer(bytes: ii, length: ii.count * 2, options: [])
+        proxyIndexCount = ii.count
+        shadowPass.depthAttachment.loadAction = .clear
+        shadowPass.depthAttachment.storeAction = .store
+        shadowPass.depthAttachment.clearDepth = 1
         let sem = inflight
         completion = { [weak self] c in
             let ms = (c.gpuEndTime - c.gpuStartTime) * 1000
@@ -342,14 +400,15 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
         rpd.depthAttachment?.loadAction = .clear
         rpd.depthAttachment?.storeAction = .dontCare
         rpd.depthAttachment?.clearDepth = 1
+        drawCalls = 0
+        instanceCount = 0
+        triangles = 0
+        if list.shadowOn { encodeShadow(cb) }
         guard let enc = cb.makeRenderCommandEncoder(descriptor: rpd) else {
             skippedFrames += 1
             cancelFrame()
             return
         }
-        drawCalls = 0
-        instanceCount = 0
-        triangles = 0
         encode(enc)
         enc.endEncoding()
         cb.present(drawable)
@@ -364,6 +423,45 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
     }
 
     // ---------------------------------------------------------------- encoding
+    /// The player's flashlight shadow map: the squad's meshes and the bug proxies inside the cone (back faces, like
+    /// three.js shadowSide for front-sided materials).
+    private func encodeShadow(_ cb: MTLCommandBuffer) {
+        if shadowTex == nil {
+            let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .depth32Float, width: MetalRenderer.shadowSize,
+                                                             height: MetalRenderer.shadowSize, mipmapped: false)
+            d.usage = [.renderTarget, .shaderRead]
+            d.storageMode = .private
+            shadowTex = device.makeTexture(descriptor: d)
+            shadowTex?.label = "flashlight shadow"
+        }
+        guard let tex = shadowTex, let psM = psShadowMesh, let psP = psShadowProxy else { list.shadowOn = false; return }
+        shadowPass.depthAttachment.texture = tex
+        guard let enc = cb.makeRenderCommandEncoder(descriptor: shadowPass) else { list.shadowOn = false; return }
+        enc.label = "shadow"
+        let arena = arenas[arenaIndex]
+        var F = frame
+        enc.setVertexBytes(&F, length: MemoryLayout<FrameUniforms>.stride, index: BufferIndex.frame)
+        enc.setDepthStencilState(dsShadow)
+        enc.setFrontFacing(.counterClockwise)
+        enc.setCullMode(.front)
+        enc.setRenderPipelineState(psM)
+        for b in list.batches where b.castsShadow && b.region.count > 0 {
+            enc.setVertexBuffer(arena, offset: b.region.offset, index: BufferIndex.instances)
+            drawMesh(enc, b.mesh, instances: b.region.count)
+        }
+        if list.proxies.count > 0, let vb = proxyVB, let ib = proxyIB {
+            enc.setRenderPipelineState(psP)
+            enc.setVertexBuffer(vb, offset: 0, index: BufferIndex.vertices)
+            enc.setVertexBuffer(arena, offset: list.proxies.offset, index: BufferIndex.instances)
+            enc.drawIndexedPrimitives(type: .triangle, indexCount: proxyIndexCount, indexType: .uint16, indexBuffer: ib,
+                                      indexBufferOffset: 0, instanceCount: list.proxies.count)
+            drawCalls += 1
+            instanceCount += list.proxies.count
+            triangles += 20 * list.proxies.count
+        }
+        enc.endEncoding()
+    }
+
     /// Bind a pipeline unless it is already bound.
     @inline(__always) private func use(_ enc: MTLRenderCommandEncoder, _ ps: MTLRenderPipelineState) {
         if boundPipeline !== ps { enc.setRenderPipelineState(ps); boundPipeline = ps }
@@ -384,8 +482,9 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
         enc.setFrontFacing(.counterClockwise)
         enc.setCullMode(.back)
         enc.setDepthStencilState(dsOpaque)
-        // the snow mask and the particle noise stay bound for the whole pass (slots 1 and 2)
+        // the snow mask, the particle noise and the shadow map stay bound for the whole pass (slots 1, 2, 3)
         enc.setFragmentTexture(texSnow, index: TextureIndex.snow)
+        enc.setFragmentTexture(list.shadowOn ? shadowTex : shadowDummy, index: TextureIndex.shadow)
         if let n = store.noise { enc.setFragmentTexture(n, index: TextureIndex.noise) }
 
         // ---- opaque level: the floors (one pipeline), then the merged props
@@ -410,7 +509,7 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
         if let ps = psTexturedOpaque {
             use(enc, ps)
             bindMain(enc, texHazard)
-            var mat = MaterialUniforms(pbr: F4(0.8, 0.1, 0, 0), floor: F4(0, 0, 0, 0))
+            var mat = MaterialUniforms(pbr: F4(0.8, 0.1, 0, 0), floor: F4(0, 0, 0, 1))
             enc.setDepthBias(-1, slopeScale: -1, clamp: 0)
             drawStatic(enc, meshHazard, &mat)
             enc.setDepthBias(0, slopeScale: 0, clamp: 0)

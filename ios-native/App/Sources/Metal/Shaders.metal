@@ -33,11 +33,13 @@ struct Frame {
     float4 misc;          // x = px per metre at unit depth, y = drawable height, z = lift rise, w unused
     float4 camRight;
     float4 camUp;
+    float4x4 shadowMatrix; // the player's flashlight (spot 0) view-projection
+    float4 shadowParams;   // x = on, y = depth bias, z = 1 / map size
 };
 
 struct Material {
     float4 pbr;     // roughness, metalness, snow caps, glow strength
-    float4 floor;   // snow bias, (unused), vertical offset, unlit
+    float4 floor;   // snow bias, (unused), vertical offset, receives the flashlight shadow
 };
 
 struct BugInstance {
@@ -129,6 +131,7 @@ constant float3x3 ACES_OUT = float3x3(float3(1.60475, -0.10208, -0.00327),
 constexpr sampler repeatSampler(filter::linear, mip_filter::linear, address::repeat);
 constexpr sampler clampSampler(filter::linear, mip_filter::linear, address::clamp_to_edge);
 constexpr sampler dataSampler(filter::linear, address::clamp_to_edge);
+constexpr sampler shadowSampler(coord::normalized, filter::linear, address::clamp_to_edge, compare_func::less_equal);
 
 // ---------------------------------------------------------------- tone mapping / output
 static float3 acesFilmic(float3 c) {
@@ -184,8 +187,25 @@ static float3 brdfGGX(float3 L, float3 V, float3 N, float3 f0, float alpha) {
     return fresnelSchlick(f0, dotVH) * (vis * D);
 }
 
-/// Irradiance / PI of every light at P (Lambert; multiply by the albedo).
-static float3 lambertLight(constant Frame& F, float3 P, float3 N) {
+/// The player's flashlight shadow at P (1 = lit): 3 × 3 PCF over the 1024² depth map (three.js PCFShadowMap).
+static float spotShadow(constant Frame& F, depth2d<float> sm, float3 P) {
+    if (F.shadowParams.x < 0.5) return 1.0;
+    float4 c = F.shadowMatrix * float4(P, 1.0);
+    if (c.w <= 0.0) return 1.0;
+    float3 s = c.xyz / c.w;
+    float2 uv = float2(s.x * 0.5 + 0.5, 0.5 - s.y * 0.5);
+    if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0 || s.z > 1.0) return 1.0;
+    float z = s.z + F.shadowParams.y;
+    float t = F.shadowParams.z;
+    float sum = 0.0;
+    for (int y = -1; y <= 1; y++) {
+        for (int x = -1; x <= 1; x++) sum += sm.sample_compare(shadowSampler, uv + float2(float(x), float(y)) * t, z);
+    }
+    return sum * (1.0 / 9.0);
+}
+
+/// Irradiance / PI of every light at P (Lambert; multiply by the albedo). `sh` scales the player's flashlight (shadow).
+static float3 lambertLight(constant Frame& F, float3 P, float3 N, float sh = 1.0) {
     float3 irr = mix(F.hemiGround.rgb, F.hemiSky.rgb, 0.5 * N.y + 0.5);
     irr += F.moonColor.rgb * saturate(dot(N, F.moonDir.xyz));
     for (int i = 0; i < 4; i++) {
@@ -195,7 +215,7 @@ static float3 lambertLight(constant Frame& F, float3 P, float3 N) {
         float d = length(Lv);
         float3 L = Lv / max(d, 1e-4);
         float cone = smoothstep(SPOT_COS_OUT, SPOT_COS_IN, dot(-L, F.spotDir[i].xyz));
-        irr += SPOT_COLOR * (I * cone * distanceAtten(d, SPOT_RANGE, SPOT_DECAY) * saturate(dot(N, L)));
+        irr += SPOT_COLOR * (I * cone * distanceAtten(d, SPOT_RANGE, SPOT_DECAY) * saturate(dot(N, L)) * (i == 0 ? sh : 1.0));
     }
     for (int i = 0; i < 3; i++) {
         float range = F.pointPos[i].w;
@@ -209,7 +229,7 @@ static float3 lambertLight(constant Frame& F, float3 P, float3 N) {
 }
 
 /// MeshStandardMaterial without environment map: Lambert diffuse * (1 - metalness) + GGX specular.
-static float3 standardLight(constant Frame& F, float3 P, float3 N, float3 V, float3 albedo, float rough, float metal) {
+static float3 standardLight(constant Frame& F, float3 P, float3 N, float3 V, float3 albedo, float rough, float metal, float sh = 1.0) {
     float3 diffuse = albedo * (1.0 - metal);
     float3 f0 = mix(float3(0.04), albedo, metal);
     float r = max(rough, 0.0525);
@@ -230,7 +250,7 @@ static float3 standardLight(constant Frame& F, float3 P, float3 N, float3 V, flo
         float d = length(Lv);
         float3 L = Lv / max(d, 1e-4);
         float cone = smoothstep(SPOT_COS_OUT, SPOT_COS_IN, dot(-L, F.spotDir[i].xyz));
-        float k = I * cone * distanceAtten(d, SPOT_RANGE, SPOT_DECAY) * saturate(dot(N, L));
+        float k = I * cone * distanceAtten(d, SPOT_RANGE, SPOT_DECAY) * saturate(dot(N, L)) * (i == 0 ? sh : 1.0);
         if (k <= 0.0) continue;
         float3 c = SPOT_COLOR * k;
         outD += c * diffuse;
@@ -276,14 +296,16 @@ vertex MeshOut vs_static(MeshIn v [[stage_in]],
 /// makeGlowMaterial: vertex colours, aGlow emissive, optional snow caps (props, lift props, marines, turret, medkit)
 fragment float4 fs_props(MeshOut in [[stage_in]],
                          constant Frame& F [[buffer(1)]],
-                         constant Material& M [[buffer(3)]]) {
+                         constant Material& M [[buffer(3)]],
+                         depth2d<float> shadowMap [[texture(3)]]) {
     float3 N = normalize(in.normal);
     float3 V = normalize(F.camPos.xyz - in.world);
     float3 albedo = in.color;
     if (M.pbr.z > 0.5) {
         albedo = mix(albedo, float3(0.80, 0.86, 0.93), smoothstep(0.72, 0.97, N.y) * (1.0 - in.glow) * 0.8);
     }
-    float3 c = standardLight(F, in.world, N, V, albedo, M.pbr.x, M.pbr.y);
+    float sh = M.floor.w > 0.5 ? spotShadow(F, shadowMap, in.world) : 1.0;
+    float3 c = standardLight(F, in.world, N, V, albedo, M.pbr.x, M.pbr.y, sh);
     c += in.color * in.glow * M.pbr.w + in.extra;
     return float4(encodeColor(F, c, in.depth, true), 1.0);
 }
@@ -293,7 +315,8 @@ fragment float4 fs_floor(MeshOut in [[stage_in]],
                          constant Frame& F [[buffer(1)]],
                          constant Material& M [[buffer(3)]],
                          texture2d<float> map [[texture(0)]],
-                         texture2d<float> snow [[texture(1)]]) {
+                         texture2d<float> snow [[texture(1)]],
+                         depth2d<float> shadowMap [[texture(3)]]) {
     float3 N = normalize(in.normal);
     float3 V = normalize(F.camPos.xyz - in.world);
     float3 albedo = map.sample(repeatSampler, in.uv).rgb * in.color;
@@ -303,7 +326,8 @@ fragment float4 fs_floor(MeshOut in [[stage_in]],
     albedo = mix(albedo, float3(0.68, 0.74, 0.82), fill);
     float rough = mix(M.pbr.x, 0.92, fill);
     float metal = mix(M.pbr.y, 0.0, fill);
-    float3 c = standardLight(F, in.world, N, V, albedo, rough, metal);
+    float sh = M.floor.w > 0.5 ? spotShadow(F, shadowMap, in.world) : 1.0;
+    float3 c = standardLight(F, in.world, N, V, albedo, rough, metal, sh);
     return float4(encodeColor(F, c, in.depth, true), 1.0);
 }
 
@@ -311,11 +335,13 @@ fragment float4 fs_floor(MeshOut in [[stage_in]],
 fragment float4 fs_textured(MeshOut in [[stage_in]],
                             constant Frame& F [[buffer(1)]],
                             constant Material& M [[buffer(3)]],
-                            texture2d<float> map [[texture(0)]]) {
+                            texture2d<float> map [[texture(0)]],
+                            depth2d<float> shadowMap [[texture(3)]]) {
     float3 N = normalize(in.normal);
     float3 V = normalize(F.camPos.xyz - in.world);
     float4 t = map.sample(repeatSampler, in.uv);
-    float3 c = standardLight(F, in.world, N, V, t.rgb * in.color, M.pbr.x, M.pbr.y);
+    float sh = M.floor.w > 0.5 ? spotShadow(F, shadowMap, in.world) : 1.0;
+    float3 c = standardLight(F, in.world, N, V, t.rgb * in.color, M.pbr.x, M.pbr.y, sh);
     return float4(encodeColor(F, c, in.depth, true), t.a);
 }
 
@@ -341,9 +367,12 @@ vertex MeshOut vs_mesh(MeshIn v [[stage_in]],
 
 /// corpses: Lambert with the instance colour
 fragment float4 fs_lambert(MeshOut in [[stage_in]],
-                           constant Frame& F [[buffer(1)]]) {
+                           constant Frame& F [[buffer(1)]],
+                           constant Material& M [[buffer(3)]],
+                           depth2d<float> shadowMap [[texture(3)]]) {
     float3 N = normalize(in.normal);
-    float3 c = lambertLight(F, in.world, N) * in.color;
+    float sh = M.floor.w > 0.5 ? spotShadow(F, shadowMap, in.world) : 1.0;
+    float3 c = lambertLight(F, in.world, N, sh) * in.color;
     return float4(encodeColor(F, c, in.depth, true), 1.0);
 }
 
@@ -392,6 +421,37 @@ fragment float4 fs_bug(MeshOut in [[stage_in]],
     c += float3(1.0, 0.92, 0.88) * (flash * 0.8);
     c += float3(0.05, 0.16, 0.3) * (frz * 0.5);
     return float4(encodeColor(F, c, in.depth, true), 1.0);
+}
+
+// ================================================================ flashlight shadow map (depth only)
+// casters like the web: the squad (castShadow) and, per bug inside the player's flashlight cone, the 20-triangle
+// proxy blob of 05-sim.js (icosahedron r 0.3 scaled 1 / 0.7 / 1.3, lifted 0.35); the level itself casts nothing
+struct ShadowOut { float4 position [[position]]; };
+
+vertex ShadowOut vs_shadow_mesh(MeshIn v [[stage_in]],
+                                uint iid [[instance_id]],
+                                constant Frame& F [[buffer(1)]],
+                                const device MeshInstance* I [[buffer(2)]]) {
+    ShadowOut o;
+    o.position = F.shadowMatrix * (I[iid].model * float4(v.position, 1.0));
+    return o;
+}
+
+vertex ShadowOut vs_shadow_proxy(uint vid [[vertex_id]], uint iid [[instance_id]],
+                                 const device packed_float3* P [[buffer(0)]],
+                                 constant Frame& F [[buffer(1)]],
+                                 const device BugInstance* I [[buffer(2)]]) {
+    BugInstance b = I[iid];
+    float3 p = float3(P[vid]) * float3(1.0, 0.7, 1.3) + float3(0.0, 0.35, 0.0);
+    float s = b.pos.w, sy = b.color.w;
+    float c = b.rot.x, sn = b.rot.y, sp = b.rot.z, cp = b.rot.w;
+    float3 ax = float3(c, 0.0, -sn);
+    float3 ay = float3(-sn * sp, cp, -c * sp);
+    float3 az = float3(sn * cp, sp, c * cp);
+    float3 w = b.pos.xyz + ax * (p.x * s) + ay * (p.y * sy) + az * (p.z * s);
+    ShadowOut o;
+    o.position = F.shadowMatrix * float4(w, 1.0);
+    return o;
 }
 
 // ================================================================ quads (decals, sprites, particles, ribbons)

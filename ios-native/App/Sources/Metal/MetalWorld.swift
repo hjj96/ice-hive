@@ -76,8 +76,16 @@ final class MetalWorld: WorldPresenter {
 
     var fxK: Float {
         get { fx.fxK }
-        set { fx.setQuality(fxK: newValue) }
+        set {
+            fx.setQuality(fxK: newValue)
+            shadows = newValue >= 0.85
+        }
     }
+    /// «Высокая»: the player's flashlight casts shadows (the squad and bug proxies, web Q.shadows).
+    private var shadows = false
+    /// The player's flashlight this frame (web renderFx: spots[0] follows the aim): position, unit direction, on.
+    private var spot0 = (pos: F3(0, -50, 0), dir: F3(0, -1, 0), on: false)
+    static let shadowProxyMax = 400
 
     /// Main thread: takes over the view (delegate) with prepared meshes and pipelines.
     init(view: MTKView, level: Level, store: MeshStore, renderer: MetalRenderer) {
@@ -86,8 +94,10 @@ final class MetalWorld: WorldPresenter {
         self.store = store
         self.renderer = renderer
         self.fx = MetalEffects(level: level)
-        func b(_ n: String, _ pass: MeshPass, rough: Float = 0.62, metal: Float = 0.45, snow: Bool = true) -> MeshBatch {
-            MeshBatch(mesh: store.mesh(n), pass: pass, roughness: rough, metalness: metal, glow: 2.2, snow: snow)
+        func b(_ n: String, _ pass: MeshPass, rough: Float = 0.62, metal: Float = 0.45, snow: Bool = true,
+               casts: Bool = false, receives: Bool = false) -> MeshBatch {
+            MeshBatch(mesh: store.mesh(n), pass: pass, roughness: rough, metalness: metal, glow: 2.2, snow: snow,
+                      castsShadow: casts, receivesShadow: receives)
         }
         turretBase = b("turret_base", .props)
         turretHead = b("turret_head", .props)
@@ -95,10 +105,10 @@ final class MetalWorld: WorldPresenter {
         glob = b("glob", .unlit, snow: false)
         grenade = b("grenade", .unlit, snow: false)
         beaconTop = b("beacon_top", .unlit, snow: false)
-        corpseGeneric = b("corpse_generic", .lambert, snow: false)
-        corpseBrute = b("corpse_brute", .lambert, snow: false)
+        corpseGeneric = b("corpse_generic", .lambert, snow: false, receives: true)
+        corpseBrute = b("corpse_brute", .lambert, snow: false, receives: true)
         for c in MarineClass.allCases {
-            marineBatches.append(["body", "leg", "gun"].map { b("marine_\(c.id)_\($0)", .props, rough: 0.55, metal: 0.5, snow: false) })
+            marineBatches.append(["body", "leg", "gun"].map { b("marine_\(c.id)_\($0)", .props, rough: 0.55, metal: 0.5, snow: false, casts: true) })
         }
         propBatches = [turretBase, turretHead, medkit, glob, grenade, beaconTop]
         tailBatches = [turretBase, turretHead, medkit, glob, grenade, beaconTop]
@@ -159,6 +169,11 @@ final class MetalWorld: WorldPresenter {
         list.liftRise = rise
 
         renderMarines(game: game, alpha: alpha, dt: dt, time: time, rise: rise)
+        spot0.on = false
+        if let m = game.marines.first {
+            let (p, d) = flashlight(m, poses[0])
+            spot0 = (p, d, true)
+        }
         timer.mark()
         writeBugs(game: game, alpha: alpha, time: time, dt: dt)
         timer.mark()
@@ -260,6 +275,15 @@ final class MetalWorld: WorldPresenter {
         let swell = BugState.swell.rawValue, wind = BugState.wind.rawValue, climb = BugState.climb.rawValue
         let brute = UInt8(BugType.brute.rawValue)
         var vis = 0
+        // shadow proxies: bugs inside the player's flashlight cone (cos 0.6, 32 m), «высокая» only
+        list.proxies = Region()
+        var proxyPtr: UnsafeMutablePointer<BugInstance>? = nil
+        var proxyN = 0
+        if shadows && spot0.on, let a = renderer.alloc(BugInstance.self, MetalWorld.shadowProxyMax) {
+            proxyPtr = a.0
+            list.proxies.offset = a.1
+        }
+        let sp0 = spot0.pos, sd0 = spot0.dir, cosCone = cosf(0.6)
         for i in 0..<n where dead[i] == 0 {
             let t = Int(min(3, types[i]))
             guard let out = bugPtr[t] else { continue }
@@ -294,10 +318,16 @@ final class MetalWorld: WorldPresenter {
             let k = bugCnt[t]
             out[k] = BugInstance(pos: F4(bx, gy, bz, s), rot: F4(cosf(HD[i]), sinf(HD[i]), sp, cp),
                                  color: F4(v, v * (0.92 + vr * 0.1), v, sy), anim: F4(PH[i], flash, burn, frz))
+            if let pp = proxyPtr, proxyN < MetalWorld.shadowProxyMax {
+                let o = F3(bx, gy + 0.3 * sc, bz) - sp0
+                let d2 = (o * o).sum()
+                if d2 < 32 * 32 && (o * sd0).sum() > cosCone * d2.squareRoot() { pp[proxyN] = out[k]; proxyN += 1 }
+            }
             bugCnt[t] = k + 1
             vis += 1
         }
         for t in 0..<4 { list.bugs[t].count = bugPtr[t] == nil ? 0 : bugCnt[t] }
+        list.proxies.count = proxyN
         visibleBugs = vis
     }
 
@@ -378,6 +408,20 @@ final class MetalWorld: WorldPresenter {
         list.weather = F4(camera.focus.x, camera.focus.y, camera.focus.z, 0)
     }
 
+    /// A marine's flashlight (renderFx): from the chest along the aim to a point 9 m ahead on the floor; a downed marine's
+    /// lies on the deck pointing 2 m ahead.
+    private func flashlight(_ m: Marine, _ p: MetalEffects.MarinePose) -> (F3, F3) {
+        let pos: F3, target: F3
+        if m.downed {
+            pos = F3(p.x, p.y + 0.6, p.z)
+            target = F3(p.x + m.ax * 2, p.y, p.z + m.az * 2)
+        } else {
+            pos = F3(p.x + m.ax * 0.3, p.y + 1.75, p.z + m.az * 0.3)
+            target = F3(p.x + m.ax * 9, p.y, p.z + m.az * 9)
+        }
+        return (pos, (target - pos) / max(1e-4, (target - pos).magnitude))
+    }
+
     // ---------------------------------------------------------------- lights (03-render.js rig + renderFx updates)
     private func lights(game: Game, time: Float) {
         var F = renderer.frame
@@ -397,18 +441,9 @@ final class MetalWorld: WorldPresenter {
         // flashlights follow the aim
         for k in 0..<4 { spotPos[k] = .zero; spotDir[k] = .zero }
         for (k, m) in game.marines.enumerated() where k < 4 {
-            let p = poses[k]
-            var pos: F3, target: F3, i: Float
-            if m.downed {
-                pos = F3(p.x, p.y + 0.6, p.z)
-                target = F3(p.x + m.ax * 2, p.y, p.z + m.az * 2)
-                i = 12 * (0.6 + 0.4 * sinf(time * 9 + Float(k)))
-            } else {
-                pos = F3(p.x + m.ax * 0.3, p.y + 1.75, p.z + m.az * 0.3)
-                target = F3(p.x + m.ax * 9, p.y, p.z + m.az * 9)
-                i = (m.isPlayer ? 62 : 42) * (m.firing ? 1.12 : 1) * (m.hurtT > 0 ? 0.6 + 0.4 * sinf(time * 60) : 1)
-            }
-            let dir = (target - pos) / max(1e-4, (target - pos).magnitude)
+            let (pos, dir) = flashlight(m, poses[k])
+            let i: Float = m.downed ? 12 * (0.6 + 0.4 * sinf(time * 9 + Float(k)))
+                : (m.isPlayer ? 62 : 42) * (m.firing ? 1.12 : 1) * (m.hurtT > 0 ? 0.6 + 0.4 * sinf(time * 60) : 1)
             spotPos[k] = F4(pos.x, pos.y, pos.z, i * invPi)
             spotDir[k] = F4(dir.x, dir.y, dir.z, 0)
         }
@@ -429,6 +464,16 @@ final class MetalWorld: WorldPresenter {
         F.misc = F4(camera.pxScale, Float(view.drawableSize.height), renderer.list.liftRise, 1)
         F.camRight = F4(camera.right.x, camera.right.y, camera.right.z, 0)
         F.camUp = F4(camera.up.x, camera.up.y, camera.up.z, 0)
+        // the player's flashlight shadow camera (three.js SpotLightShadow: fov = 2 × angle, near 0.5, far = distance 32)
+        let list = renderer.list
+        list.shadowOn = shadows && spot0.on
+        if list.shadowOn {
+            let view = Mat4.lookAt(eye: spot0.pos, target: spot0.pos + spot0.dir)
+            F.shadowMatrix = Mat4.perspective(fovY: 1.0, aspect: 1, near: 0.5, far: 32) * view
+            F.shadowParams = F4(1, -0.0006, 1 / Float(MetalRenderer.shadowSize), 0)
+        } else {
+            F.shadowParams = F4(0, 0, 0, 0)
+        }
         renderer.frame = F
     }
 }
