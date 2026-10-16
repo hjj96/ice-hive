@@ -163,7 +163,9 @@ function spawnBug(type, x, z, mode = 0, nx = 0, nz = 0, depth = 1.8) {
   const k = 0.88 + rnd() * 0.24;
   B.type[i] = type; B.dead[i] = 0; B.hit[i] = 0; B.bsrc[i] = -1; B.uid[i] = uidSeq++;
   B.r[i] = T.radius * k; B.sc[i] = T.scale * k; B.spd[i] = T.speed * (0.85 + rnd() * 0.3);
-  B.hp[i] = B.hpMax[i] = T.hp * DIR.hpMul * (type === BRUTE ? 1 : k);
+  // fodder is fodder: runners keep a flat TH.runHp (13.2–16.8), so one rifle bolt always kills them; every other
+  // type scales with the director's HP multiplier (the bench keeps its 1e5 multiplier on every type)
+  B.hp[i] = B.hpMax[i] = (type === RUN ? TH.runHp * (simOnly ? DIR.hpMul : 1) : T.hp * DIR.hpMul) * (type === BRUTE ? 1 : k);
   B.vx[i] = B.vz[i] = 0; B.cd[i] = rnd() * T.atkCd; B.chill[i] = B.frz[i] = B.burn[i] = B.fl[i] = 0;
   B.ph[i] = rnd() * TAU; B.vr[i] = rnd();
   if (mode === 1) {
@@ -207,35 +209,43 @@ function killBug(i, src) {
   B.dead[i] = 1; deadPending++;
   const x = B.x[i], z = B.z[i], ty = B.type[i];
   const frozen = B.frz[i] > 0;
+  const queen = DIR.q.alive && B.uid[i] === DIR.q.uid;
+  if (queen) GS.xp += 60;   // before onBugKilled, so its level-up loop counts the bounty
   onBugKilled(ty, src, x, z);
-  if (ty === BOOM) queueBoom(x, z, 3.1, 70, src, 'boomer');
+  if (queen) queenKilled(x, z);
+  else if (ty === BOOM) queueBoom(x, z, 3.1, 70, src, 'boomer');
   else if (ty === BRUTE && !simOnly && src >= 0 && Math.hypot(x - M[0].x, z - M[0].z) < 16) hitStop(0.085, 0.12);
   else if (frozen) { const sh = src >= 0 && src < 4 ? M[src].mods.shatter : 1; queueBoom(x, z, 1.7 * sh, 24 * sh, src, 'frost'); }
   if (!simOnly) fxBugDeath(i, frozen);
-  if (ty === BRUTE && rnd() < 0.35) dropMedkit(x, z);
+  if (ty === BRUTE && !queen && rnd() < TH.medkit) dropMedkit(x, z);
 }
 
 // ---------- explosions (deferred, so chain reactions ripple tick by tick) ----------
 const BOOMS = [];
 function queueBoom(x, z, r, dmg, src, kind) { if (BOOMS.length < 48) BOOMS.push({ x, z, r, dmg, src, kind }); }
 function processBooms() {
-  const n = BOOMS.length;
+  const n = BOOMS.length, qUid = DIR.q.uid;
   for (let k = 0; k < n; k++) {
     const e = BOOMS[k];
     const cnt = queryCircle(e.x, e.z, e.r);
-    const knock = e.kind === 'frost' ? 2 : e.kind === 'pulse' ? 5 : 11;
+    const pulse = e.kind === 'pulse';
+    const knock = e.kind === 'frost' ? 2 : pulse ? 5 : 11;
     for (let q = 0; q < cnt; q++) {
       const b = QB[q];
+      // the Матка shrugs off the lift pulse, frost and knockback
+      const qb = B.uid[b] === qUid;
+      if (qb && pulse) continue;
       const dx = B.x[b] - e.x, dz = B.z[b] - e.z, d = Math.sqrt(dx * dx + dz * dz) + 1e-4;
-      const f = e.kind === 'pulse' ? 1 : 1 - 0.55 * Math.min(1, d / e.r);
-      if (e.kind === 'frost') B.chill[b] = Math.min(1, B.chill[b] + 0.45);
+      // the lift pulse fades toward the rim on the harder tiers (no binary deck wipe)
+      const f = pulse ? 1 - TH.pulseFall * Math.min(1, d / e.r) : 1 - 0.55 * Math.min(1, d / e.r);
+      if (e.kind === 'frost' && !qb) B.chill[b] = Math.min(1, B.chill[b] + 0.45);
       if (knock && B.type[b] !== BRUTE) { B.vx[b] += dx / d * knock * f; B.vz[b] += dz / d * knock * f; }
       hitBug(b, e.dmg * f, e.src);
     }
     if (e.kind === 'boomer') {
       for (const m of M) {
         const dx = m.x - e.x, dz = m.z - e.z, d = Math.hypot(dx, dz);
-        if (d < e.r + 0.4) hurtMarine(m, BT[BOOM].dmg * DIR.dmgMul * (1 - 0.5 * d / (e.r + 0.4)), dx / (d + 0.01) * 7, dz / (d + 0.01) * 7);
+        if (d < e.r + 0.4) hurtMarine(m, BT[BOOM].dmg * DIR.dmgMul * (1 - 0.5 * d / (e.r + 0.4)), dx / (d + 0.01) * 7, dz / (d + 0.01) * 7, BOOM);
       }
     }
     if (!simOnly) fxExplosion(e.x, e.z, e.r, e.kind);
@@ -257,7 +267,7 @@ function updateGlobs(dt) {
     GL.t[k] += dt;
     if (GL.t[k] < GL.dur[k]) continue;
     const x = GL.x1[k], z = GL.z1[k];
-    for (const m of M) { const d = Math.hypot(m.x - x, m.z - z); if (d < 1.5) hurtMarine(m, BT[SPIT].dmg * DIR.dmgMul, 0, 0); }
+    for (const m of M) { const d = Math.hypot(m.x - x, m.z - z); if (d < 1.5) hurtMarine(m, BT[SPIT].dmg * DIR.dmgMul, 0, 0, SPIT); }
     if (!simOnly) fxAcid(x, z);
     const l = --GL.n;
     GL.x0[k] = GL.x0[l]; GL.z0[k] = GL.z0[l]; GL.x1[k] = GL.x1[l]; GL.z1[k] = GL.z1[l]; GL.t[k] = GL.t[l]; GL.dur[k] = GL.dur[l];
@@ -318,9 +328,12 @@ function simBugs(dt) {
       continue;
     }
     // --- pick target marine ---
+    // hive pressure / AFK: part of the swarm hunts the player (even uids at idleMul ≥ 1.5, uid%3 ≠ 0 after 12 s AFK)
     let best = 0, bd = 1e9;
+    const hunt = mUp[0] && ((DIR.idleMul >= 1.5 && (B.uid[i] & 1) === 0) || (GS.afkT > 12 && B.uid[i] % 3 !== 0));
     for (let k = 0; k < 4; k++) {
       if (anyUp && !mUp[k]) continue;
+      if (hunt && k !== 0) continue;
       const dx = mX[k] - x, dz = mZ[k] - z, d2 = dx * dx + dz * dz;
       if (d2 < bd) { bd = d2; best = k; }
     }
@@ -364,7 +377,7 @@ function simBugs(dt) {
         for (let k = 0; k < 4; k++) {
           if (!mUp[k] || (B.hit[i] & (1 << k))) continue;
           const dx = mX[k] - x, dz = mZ[k] - z;
-          if (dx * dx + dz * dz < (B.r[i] + 0.6) ** 2) { B.hit[i] |= 1 << k; hurtMarine(M[k], 16 * DIR.dmgMul, B.ax[i] * 13, B.az[i] * 13); }
+          if (dx * dx + dz * dz < (B.r[i] + 0.6) ** 2) { B.hit[i] |= 1 << k; hurtMarine(M[k], 16 * DIR.dmgMul, B.ax[i] * 13, B.az[i] * 13, B.uid[i] === DIR.q.uid ? SRC_QUEEN : BRUTE); }
         }
         if (B.t[i] <= 0) { B.st[i] = S_MOVE; B.cd[i] = 5 + rnd() * 3; }
       }
@@ -423,13 +436,16 @@ function simBugs(dt) {
     }
     B.x[i] = nx; B.z[i] = nz; B.vx[i] = vx; B.vz[i] = vz;
     // --- melee ---
-    if (dist < ri + 0.62 && B.cd[i] <= 0 && B.st[i] === S_MOVE && ty !== BOOM && mUp[best]) {
+    // (the Матка bites ×1.6 on her own clock: her B.cd only gates the ram, see queenTick)
+    const qm = B.uid[i] === DIR.q.uid;
+    if (dist < ri + 0.62 && (qm ? QSTATE.mcd <= 0 : B.cd[i] <= 0) && B.st[i] === S_MOVE && ty !== BOOM && mUp[best]) {
       // attack slots: only a few small bugs can land a bite per second on one marine
       const mm = M[best];
       if (ty === BRUTE || mm.bite >= 1) {
         if (ty !== BRUTE) mm.bite -= 1;
-        hurtMarine(mm, BT[ty].dmg * DIR.dmgMul, tx * (ty === BRUTE ? 6 : 0.6), tz * (ty === BRUTE ? 6 : 0.6));
-        B.cd[i] = BT[ty].atkCd * (0.8 + rnd() * 0.4);
+        hurtMarine(mm, BT[ty].dmg * DIR.dmgMul * (qm ? 1.6 : 1), tx * (ty === BRUTE ? 6 : 0.6), tz * (ty === BRUTE ? 6 : 0.6), qm ? SRC_QUEEN : ty);
+        const cd = BT[ty].atkCd * (0.8 + rnd() * 0.4);
+        if (qm) QSTATE.mcd = cd; else B.cd[i] = cd;
         B.ph[i] += 1.5;
       } else B.cd[i] = 0.15 + rnd() * 0.2;
     }

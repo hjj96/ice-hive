@@ -142,6 +142,8 @@ function sfx(name, x, z, loud) {
     case 'acid': noiseHit('highpass', 2500, 5200, 0.7, 0.5, 0.07 * v); break;
     case 'roar': tone('sawtooth', 75, 42, 0.8, 0.2 * v, 0, 420); noiseHit('lowpass', 520, 180, 1, 0.8, 0.15 * v); break;
     case 'swell': tone('sine', 120, 400, 0.75, 0.12 * v); break;
+    // the Матка: a low, slow roar from the abyss with a wet rattle on top
+    case 'queen': tone('sawtooth', 58, 26, 2.4, 0.3, 0, 240); tone('sawtooth', 87, 39, 2.0, 0.16, 0.08, 330); noiseHit('lowpass', 420, 70, 0.9, 2.2, 0.38); noiseHit('bandpass', 1100, 380, 2.2, 1.3, 0.09, 0.25); break;
     case 'siren': {
       const c = AU.ctx, t = c.currentTime, g = c.createGain(), f = c.createBiquadFilter();
       f.type = 'lowpass'; f.frequency.value = 1700;

@@ -9,7 +9,7 @@ let autoPlayer = false;     // attract mode / debug autopilot: the player marine
 const BOT_DMG = 0.6;
 function baseMods(bot) {
   return {
-    dmg: bot ? BOT_DMG : 1, rof: 1, pierce: 0, arad: 1, acd: 1, speed: 1, regen: 0, dashCd: 1, range: 1, cone: 1,
+    dmg: bot ? BOT_DMG * TH.bot : 1, rof: 1, pierce: 0, arad: 1, acd: 1, speed: 1, regen: 0, dashCd: 1, range: 1, cone: 1,
     burn: 1, shatter: 1, chill: 1, turretDur: 0, turretRof: 1, heat: 1, cluster: 0, explosive: 0, maxHp: 100,
   };
 }
@@ -144,10 +144,12 @@ function tryDash(m, dx, dz) {
 }
 
 // ---------- damage to marines ----------
-function hurtMarine(m, dmg, kx, kz) {
+// src: the bug type that dealt the hit (RUN/SPIT/BRUTE/BOOM) or SRC_QUEEN; the player's last one explains a down
+function hurtMarine(m, dmg, kx, kz, src = -1) {
   if (m.downed) return;
   if (godMode || m.inv > 0 || m.dashT > 0) { m.kx += kx * 0.3; m.kz += kz * 0.3; return; }
   m.hp -= dmg; m.hurtT = 0.22; m.kx += kx; m.kz += kz; m.calm = 0;
+  if (m.isPlayer) GS.lastHit = src;
   // taking a hit breaks the combo: it rewards clean play, not just standing in a horde
   if (m.isPlayer) { GS.combo = 0; GS.comboT = 0; }
   if (m.isPlayer && !simOnly) { GS.dmgFlash = Math.min(1, GS.dmgFlash + dmg / 28); addShake(0.12 + dmg * 0.012); sfx('hurt'); haptic(dmg >= 12 ? 'heavy' : 'light'); }
@@ -155,6 +157,7 @@ function hurtMarine(m, dmg, kx, kz) {
 }
 function downMarine(m) {
   m.hp = 0; m.downed = true; m.revive = 0; m.firing = false; m.dashT = 0;
+  if (m.isPlayer) { GS.downs++; GS.downBy = GS.lastHit; }
   if (!simOnly) { toast(m.isPlayer ? 'Вы ранены — ждите помощи' : m.name + ' ранен', 'warn'); sfx('down', m.x, m.z); if (m.isPlayer) { hitStop(0.3, 0.2); addShake(0.4); haptic('error'); } }
 }
 function updateRevive(dt) {
@@ -164,7 +167,7 @@ function updateRevive(dt) {
     for (const o of M) if (o !== m && !o.downed && (o.x - m.x) ** 2 + (o.z - m.z) ** 2 < 5.3) helped = true;
     m.revive = helped ? m.revive + dt / 3 : Math.max(0, m.revive - dt * 0.25);
     if (m.revive >= 1) {
-      m.downed = false; m.hp = m.maxHp * 0.45; m.inv = 1.6; m.revive = 0;
+      m.downed = false; m.hp = m.maxHp * TH.revive; m.inv = 1.6; m.revive = 0;
       if (!simOnly) { toast((m.isPlayer ? 'Вы снова в строю' : m.name + ' в строю'), 'gold'); sfx('revive', m.x, m.z); }
     }
   }
@@ -321,7 +324,7 @@ function beamTick(m, dt) {
     const perp = Math.abs(dx * m.az - dz * m.ax), w = 0.42 + t / len * 0.75;
     if (perp > w + B.r[b]) continue;
     hitAny = true;
-    if (B.frz[b] <= 0) {
+    if (B.frz[b] <= 0 && B.uid[b] !== DIR.q.uid) {   // the Матка never freezes
       B.chill[b] += C.chill * md.chill * dt;
       if (B.chill[b] >= 1) { B.chill[b] = 1; B.frz[b] = B.type[b] === BRUTE ? 1.3 : 2.6; if (!simOnly) sfx('freeze', B.x[b], B.z[b]); }
     }
@@ -357,7 +360,11 @@ function useAbility(m, tx, tz) {
     if (!simOnly) { fxNapalmBurst(m.x, m.z, n.r); sfx('napalm', m.x, m.z, m.isPlayer); }
   } else if (m.cls === 'cryo') {
     const r = 7 * md.arad, cnt = queryCircle(m.x, m.z, r);
-    for (let q = 0; q < cnt; q++) { const b = QB[q]; B.frz[b] = B.type[b] === BRUTE ? 1.6 : 3.2; B.chill[b] = 1; B.vx[b] = B.vz[b] = 0; hitBug(b, 30 * md.dmg, m.i); }
+    for (let q = 0; q < cnt; q++) {
+      const b = QB[q];
+      if (B.uid[b] !== DIR.q.uid) { B.frz[b] = B.type[b] === BRUTE ? 1.6 : 3.2; B.chill[b] = 1; B.vx[b] = B.vz[b] = 0; }
+      hitBug(b, 30 * md.dmg, m.i);
+    }
     if (!simOnly) { fxNova(m.x, m.z, r); sfx('nova', m.x, m.z, m.isPlayer); }
   } else {
     let x = m.x + m.ax * 1.3, z = m.z + m.az * 1.3;
@@ -616,8 +623,11 @@ function tickMarines(dt) {
     }
     let mx = 0, mz = 0, fire = false;
     if (m.isPlayer && !autoPlayer) {
+      const act = IN.abil || IN.dash;   // (playerCommands consumes the one-shot presses)
       const c = playerCommands(m);
       mx = c.mx; mz = c.mz; fire = c.fire;
+      // AFK clock: no move, no fire, no ability, no dash (pause, menus and backgrounding freeze ticks anyway)
+      GS.afkT = Math.abs(mx) + Math.abs(mz) < 0.05 && !fire && !act ? GS.afkT + dt : 0;
     } else {
       const c = botThink(m, dt);
       mx = c.mx; mz = c.mz; fire = c.fire;
@@ -630,7 +640,8 @@ function tickMarines(dt) {
     m.ax = Math.sin(m.aim); m.az = Math.cos(m.aim);
     updateWeapon(m, dt, fire);
     m.calm += dt;
-    const regen = m.mods.regen + (m.calm > 3.5 ? 4 : 0);
+    // out-of-combat regen: TH.regen HP/s after TH.regenT s without a hit, only up to TH.regenCap of max armour
+    const regen = m.mods.regen + (m.calm > TH.regenT && m.hp < m.maxHp * TH.regenCap ? TH.regen : 0);
     if (regen > 0 && m.hp < m.maxHp) m.hp = Math.min(m.maxHp, m.hp + regen * dt);
   }
   updateRevive(dt);

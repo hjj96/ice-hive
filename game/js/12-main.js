@@ -269,7 +269,7 @@ window.__dbg = {
     else if (DIR.stage === 'toLift') {
       M.forEach((m, k) => { const a = Math.PI / 4 + k * Math.PI / 2; m.x = m.px = LV.lift.x + Math.cos(a) * 2; m.z = m.pz = LV.lift.z + Math.sin(a) * 2; });
       startHold();
-    } else if (DIR.stage === 'hold') DIR.liftT = 0.01;
+    } else if (DIR.stage === 'hold') { queenSkip(); DIR.liftT = 0.01; }   // the Матка dies (or never comes) first
     else if (DIR.stage === 'extract') DIR.extractT = 4.5;
     return DIR.stage;
   },
@@ -318,7 +318,7 @@ window.__dbg = {
   sfxAll() {
     audioInit();
     const bad = [];
-    const names = ['pulse', 'mg', 'tur', 'reload', 'overheat', 'explode', 'pop', 'squish', 'shatter', 'freeze', 'hurt', 'down', 'revive', 'dash', 'throw', 'napalm', 'shock', 'thud', 'kill', 'combo', 'hordeRoar', 'nova', 'turret', 'heal', 'spit', 'acid', 'roar', 'swell', 'siren', 'beacon', 'beaconDone', 'lift', 'levelup', 'click', 'heart', 'victory', 'defeat'];
+    const names = ['pulse', 'mg', 'tur', 'reload', 'overheat', 'explode', 'pop', 'squish', 'shatter', 'freeze', 'hurt', 'down', 'revive', 'dash', 'throw', 'napalm', 'shock', 'thud', 'kill', 'combo', 'hordeRoar', 'nova', 'turret', 'heal', 'spit', 'acid', 'roar', 'swell', 'siren', 'beacon', 'beaconDone', 'lift', 'levelup', 'click', 'heart', 'victory', 'defeat', 'queen'];
     for (const n of names) { try { AU.last[n] = -1; sfx(n, M[0].x, M[0].z, true); } catch (e) { bad.push(n + ': ' + e.message); } }
     return { state: AU.ctx ? AU.ctx.state : 'off', played: names.length, bad };
   },

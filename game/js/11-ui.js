@@ -106,18 +106,28 @@ function updatePlates() {
 }
 
 // ---------- objective text + marker ----------
+// threatState() (08b-threat.js): 1 the hive wakes, 2 the swarm converges (hive pressure), 3 the Матка lives
 function objectiveText() {
   if (GS.attract) return '';
+  const ts = threatState();
   if (DIR.stage === 'beacons') {
     if (DIR.active >= 0) { const b = DIR.beacons[DIR.active]; return 'Удерживайте маяк «' + b.name + '»'; }
+    if (ts === 2) return 'Рой стягивается — к маяку!';
+    if (ts === 1) return 'Улей просыпается — к маяку';
     return 'Запустите маяки ' + DIR.done + '/3';
   }
-  if (DIR.stage === 'toLift') return 'Лифт вызван — к платформе';
-  if (DIR.stage === 'hold') return 'Держитесь на лифте · ' + fmtTime(Math.ceil(DIR.liftT));
+  if (DIR.stage === 'toLift') return ts === 2 ? 'Рой стягивается — к лифту!' : ts === 1 ? 'Улей просыпается — к лифту!' : 'Лифт вызван — к платформе';
+  if (DIR.stage === 'hold') {
+    if (ts === 3) return DIR.liftT <= 0.011 ? 'Лифт заблокирован — Матка жива' : 'Убейте Матку · лифт ждёт';
+    return 'Держитесь на лифте · ' + fmtTime(Math.ceil(DIR.liftT));
+  }
   if (DIR.stage === 'extract') return 'Эвакуация!';
   return '';
 }
 function objectiveProgress() {
+  const ts = threatState();
+  if (ts === 3) return 1 - queenHpFrac();
+  if (ts) return Math.min(1, DIR.press / TH.grace);
   if (DIR.stage === 'beacons' && DIR.active >= 0) return DIR.beacons[DIR.active].progress;
   if (DIR.stage === 'hold') return 1 - DIR.liftT / DIR.liftDur;
   return -1;

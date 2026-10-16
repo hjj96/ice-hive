@@ -34,7 +34,7 @@ const QUALITY = {
 // Bug types: indices used in the SoA type array
 const RUN = 0, SPIT = 1, BRUTE = 2, BOOM = 3;
 const BT = [
-  { id: 'runner',  name: 'Бегун',   hp: 18,  speed: 4.5, radius: 0.27, dmg: 5,  atkCd: 0.8, xp: 1,  scale: 0.8,  mass: 1 },
+  { id: 'runner',  name: 'Бегун',   hp: 15,  speed: 4.5, radius: 0.27, dmg: 5,  atkCd: 0.8, xp: 1,  scale: 0.8,  mass: 1 },
   { id: 'spitter', name: 'Плевун',  hp: 44,  speed: 3.0, radius: 0.36, dmg: 8, atkCd: 1.2, xp: 3,  scale: 1.02, mass: 1.6 },
   { id: 'brute',   name: 'Громила', hp: 360, speed: 2.6, radius: 0.85, dmg: 16, atkCd: 1.3, xp: 10, scale: 2.0,  mass: 7 },
   { id: 'boomer',  name: 'Взрывун', hp: 55,  speed: 3.6, radius: 0.44, dmg: 24, atkCd: 1.0, xp: 3,  scale: 1.15, mass: 2 },

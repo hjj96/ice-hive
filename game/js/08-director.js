@@ -63,14 +63,15 @@ function pickType(horde) {
   // specials follow objective progress (not wall time): the first beacon already brings spitters and boomers,
   // brutes join halfway through it, and later beacons add only a little on top
   const prog = d + (DIR.active >= 0 ? DIR.beacons[DIR.active].progress : 0);
-  const pBrute = (d >= 1 || prog > 0.5) ? (0.012 + 0.004 * d) * k : 0;
+  // ... or the tier's stall clock: a squad that never touches an objective still meets brutes
+  const pBrute = (d >= 1 || prog > 0.5 || (t > TH.stall && !GS.attract)) ? (0.012 + 0.004 * d) * k : 0;
   const pSpit = t > 15 ? ((horde ? 0.05 : 0.07) + 0.008 * d) * k : 0;
   const pBoom = t > 25 ? ((horde ? 0.03 : 0.045) + 0.004 * d) * k : 0;
-  let r = rnd(), ty = RUN;
+  let r = rnd() / TH.spec, ty = RUN;
   if (r < pBrute) ty = BRUTE;
   else if ((r -= pBrute) < pSpit) ty = SPIT;
   else if ((r -= pSpit) < pBoom) ty = BOOM;
-  if (ty !== RUN) { if (typeAlive[ty] >= SPECIAL_CAP[ty] + (ty === BRUTE ? 2 * d : 0)) ty = RUN; else typeAlive[ty]++; }
+  if (ty !== RUN) { if (typeAlive[ty] >= (SPECIAL_CAP[ty] + (ty === BRUTE ? 2 * d : 0)) * TH.specCap) ty = RUN; else typeAlive[ty]++; }
   return ty;
 }
 // the gameplay cap (simCap) only changes with an explicit quality choice, never with adaptive render steps
@@ -84,6 +85,7 @@ function squadCenter() {
 // A burst of bugs pouring from an edge (or a vent) over time
 function queueBurst(e, n, rate, vent) { DIR.queue.push({ e, n, rate, acc: 0, vent }); }
 function startHorde(size, title, sub, rate = 40) {
+  if (!GS.attract) size = Math.round(size * TH.horde);
   const [cx, cz] = squadCenter();
   const k = size > 300 ? 3 : 2;
   if (DIR.stage === 'hold') {
@@ -126,8 +128,8 @@ function tickDirector(dt) {
   GS.time += dt;
   const minutes = GS.time / 60;
   // flat per-beacon steps: escalation comes from the objective, not a cliff after the second beacon
-  DIR.hpMul = 1 + 0.06 * DIR.done + 0.06 * minutes;
-  DIR.dmgMul = 1 + 0.03 * DIR.done;
+  DIR.hpMul = (1 + 0.06 * DIR.done + 0.06 * minutes) * TH.hp;
+  DIR.dmgMul = (1 + 0.03 * DIR.done) * TH.dmg;
   const P = M[0];
   let stageMul = 1;
   if (!GS.attract) {
@@ -137,7 +139,8 @@ function tickDirector(dt) {
           const b = DIR.beacons[k];
           if (b.state === 0 && standingIn(b.x, b.z, BEACON_R) > 0) {
             b.state = 1; DIR.active = k; DIR.waveT = 2;
-            startHorde(Math.round((270 + 50 * DIR.done) * hordeScale()), 'Защищайте маяк', 'Маяк «' + b.name + '» запускается — держите кольцо');
+            startHorde(Math.round((270 + TH.step * DIR.done) * hordeScale() * DIR.beaconHordeMul), 'Защищайте маяк', 'Маяк «' + b.name + '» запускается — держите кольцо');
+            DIR.beaconHordeMul = 1;
             if (!simOnly) sfx('beacon');
             break;
           }
@@ -152,8 +155,8 @@ function tickDirector(dt) {
         if (DIR.waveT <= 0) {
           DIR.waveT = 6 + rnd() * 3;
           const vents = LV.vents.filter(v => Math.hypot(v[0] - b.x, v[1] - b.z) < 14);
-          if (vents.length) { const v = vents[(rnd() * vents.length) | 0]; queueBurst(-1, Math.round((38 + 8 * DIR.done) * hordeScale()), 22, v); }
-          else { const e = pickEdge(b.x, b.z, 8, 22); if (e >= 0) queueBurst(e, Math.round(30 * hordeScale()), 24, null); }
+          if (vents.length) { const v = vents[(rnd() * vents.length) | 0]; queueBurst(-1, Math.round((38 + 8 * DIR.done) * hordeScale() * TH.horde), 22, v); }
+          else { const e = pickEdge(b.x, b.z, 8, 22); if (e >= 0) queueBurst(e, Math.round(30 * hordeScale() * TH.horde), 24, null); }
         }
         if (b.progress >= 1) completeBeacon(DIR.active);
       }
@@ -162,13 +165,21 @@ function tickDirector(dt) {
       if (!P.downed && onLift(P.x, P.z)) startHold();
     } else if (DIR.stage === 'hold') {
       stageMul = 3.2;
+      // the Матка climbs onto the deck TH.qAt s into the hold; while she lives the trickle thins out (she is the horde)
+      queenTick(dt);
+      if (DIR.q.alive) stageMul *= TH.qTrickle;
       let on = false; for (const m of M) if (!m.downed && onLift(m.x, m.z)) on = true;
       if (on) {
         DIR.liftT -= dt;
-        // lift defence circuit: periodic shock pulse across the deck
+        // lift defence circuit: periodic shock pulse across the deck (weaker toward the rim on the harder tiers)
         DIR.pulseT -= dt;
-        if (DIR.pulseT <= 0) { DIR.pulseT = 5; queueBoom(LV.lift.x, LV.lift.z, LV.lift.r + 0.6, 48 * DIR.hpMul, -1, 'pulse'); }
+        if (DIR.pulseT <= 0) {
+          if (TH.pulse > 0) { DIR.pulseT = TH.pulseT; queueBoom(LV.lift.x, LV.lift.z, LV.lift.r + 0.6, 48 * DIR.hpMul * TH.pulse, -1, 'pulse'); }
+          else DIR.pulseT = 0.5;
+        }
       }
+      // the lift waits for the Матка: it cannot leave before she has climbed up and died
+      if (DIR.liftT <= 0 && (DIR.q.alive || !DIR.q.spawned)) DIR.liftT = 0.01;
       if (DIR.liftT <= 0) {
         DIR.liftT = 0;
         // the lift only leaves with the player on it (a downed player is carried back by the squad first)
@@ -182,21 +193,33 @@ function tickDirector(dt) {
       if (DIR.extractT >= 4.6) { endGame(true); return; }
     }
   } else stageMul = B.n < 220 ? 1.5 : 0;
+  // hive pressure: loitering with no beacon running (or dawdling on the way to the lift) wakes the hive — past
+  // TH.grace the trickle and the horde clock speed up and part of the swarm starts hunting the player
+  if (!GS.attract) {
+    const loiter = (DIR.stage === 'beacons' && DIR.active < 0) || DIR.stage === 'toLift';
+    if (!DIR.calm) DIR.press = loiter ? DIR.press + dt : Math.max(0, DIR.press - 3 * dt);
+    const over = Math.max(0, DIR.press - TH.grace);
+    DIR.idleMul = 1 + Math.min(3, 0.05 * over);
+    stageMul *= DIR.idleMul;
+    if (over > 0) DIR.hordeT -= dt * (DIR.idleMul - 1);
+  }
+  // the first-run coach holds the swarm back (no trickle, no hordes)
+  if (DIR.calm) { stageMul = 0; DIR.hordeT = Math.max(DIR.hordeT, 25); }
   // continuous trickle from the abyss edges
   if (stageMul > 0) {
-    const rate = (1.8 + 0.5 * minutes + 0.5 * DIR.done) * stageMul * (GS.attract ? 3 : 1);
+    const rate = (1.8 + 0.5 * minutes + 0.5 * DIR.done) * stageMul * (GS.attract ? 3 : TH.trickle);
     DIR.trickle += rate * dt;
     if (DIR.trickle >= 1) {
       const [cx, cz] = squadCenter();
       while (DIR.trickle >= 1) {
         DIR.trickle -= 1;
         if (capLeft() <= 0) { DIR.trickle = 0; break; }
-        const e = pickEdge(cx, cz, 12, 32);
+        const e = pickEdge(cx, cz, TH.edge, 32);
         if (e >= 0) spawnBug(pickType(false), LV.edgeX[e], LV.edgeZ[e], 1, LV.edgeNX[e], LV.edgeNZ[e]);
       }
     }
-    // periodic hordes (the timer pauses while a beacon defence is running)
-    if (DIR.active < 0) DIR.hordeT -= dt;
+    // periodic hordes (the timer pauses while a beacon defence is running, and while the Матка lives)
+    if (DIR.active < 0 && !DIR.q.alive) DIR.hordeT -= dt;
     if (DIR.hordeT <= 0) {
       if (DIR.stage === 'hold') { DIR.hordeT = 13 + rnd() * 4; startHorde(Math.round((360 + rnd() * 160) * hordeScale()), 'Орда!', 'Они лезут на платформу', 55); }
       else { DIR.hordeT = 45 + rnd() * 15; startHorde(Math.round(Math.min(520, 120 + 55 * DIR.done + 25 * minutes) * hordeScale())); }
@@ -209,8 +232,8 @@ function tickDirector(dt) {
 function completeBeacon(k) {
   const b = DIR.beacons[k];
   b.state = 2; b.progress = 1; DIR.active = -1; DIR.done++;
-  // a breather for the squad: everyone standing patches up a quarter of their armour
-  for (const m of M) if (!m.downed) m.hp = Math.min(m.maxHp, m.hp + m.maxHp * 0.25);
+  // a breather for the squad: everyone standing patches up TH.heal of their armour
+  for (const m of M) if (!m.downed) m.hp = Math.min(m.maxHp, m.hp + m.maxHp * TH.heal);
   DIR.hordeT = Math.max(DIR.hordeT, 28 + rnd() * 10);   // breather before the next push
   if (!simOnly) { sfx('beaconDone'); flashLight(b.x, 3, b.z, 0x40ffe0, 600, 1.0); haptic('success'); }
   if (DIR.done >= 3) {
@@ -219,7 +242,7 @@ function completeBeacon(k) {
   } else if (!simOnly) banner('Маяк запущен', DIR.done + ' из 3 · ищите следующий', true);
 }
 function startHold() {
-  DIR.stage = 'hold'; DIR.liftT = LIFT_TIME; DIR.hordeT = 3; DIR.pulseT = 4;
+  DIR.stage = 'hold'; DIR.liftT = DIR.liftDur = LIFT_TIME; DIR.hordeT = 3; DIR.pulseT = 4;
   const sub = 'Лифт прибудет через ' + LIFT_TIME + ' секунд';
   if (!simOnly) { banner('Держитесь', sub, false); sfx('beacon'); }
   startHorde(Math.round(480 * hordeScale()), 'Держитесь', sub, 70);
@@ -280,5 +303,5 @@ function applyUpgrade(u) {
   u.apply(M[0]);
   GS.upg[u.id] = (GS.upg[u.id] || 0) + 1;
   // bots grow a little with the player so the squad keeps up with the escalation
-  for (const o of M) if (!o.isPlayer) { o.mods.dmg *= 1.04; o.maxHp += 3; if (!o.downed) o.hp = Math.min(o.maxHp, o.hp + 10); }
+  for (const o of M) if (!o.isPlayer) { o.mods.dmg *= TH.botGrow; o.maxHp += 3; if (!o.downed) o.hp = Math.min(o.maxHp, o.hp + 10); }
 }
