@@ -371,7 +371,7 @@ function simBugs(dt) {
     } else if (ty === BOOM) {
       if (st === S_MOVE && dist < 2.4 && anyUp) {
         B.st[i] = S_SWELL; B.t[i] = 0.8;
-        if (!simOnly) { teleRing(x, z, 3.1, 1.0, 0.45, 0.1, 0.8); sfx('swell', x, z); }
+        if (!simOnly) { teleFill(x, z, 3.1, 1.0, 0.2, 0.1, 0.8); teleRing(x, z, 3.1, 1.0, 0.35, 0.2, 0.8); sfx('swell', x, z); }
       } else if (st === S_SWELL) {
         speed *= 0.35; B.t[i] -= dt;
         if (B.t[i] <= 0) { killBug(i, -1); continue; }
@@ -478,11 +478,12 @@ function legs6(parts, hipX, hipY, zs, kneeX, kneeY, footX, spread, th, color, cu
     }
   });
 }
-function speckles(parts, R, n, cx, cy, cz, sx, sz, size, color) {
+// sparse = 1: the gland only lights on the brighter half of the instances (flag carried in aLeg.y of a non-leg part)
+function speckles(parts, R, n, cx, cy, cz, sx, sz, size, color, sparse = 0) {
   for (let k = 0; k < n; k++) {
     const g = new THREE.TetrahedronGeometry(size * (0.7 + R() * 0.6));
     g.translate(cx + (R() - 0.5) * sx, cy, cz + (R() - 0.5) * sz);
-    parts.push(bugPart(g, color, 1));
+    parts.push(bugPart(g, color, 1, 0, sparse));
   }
 }
 function buildBugGeometry(type, corpse = false) {
@@ -503,7 +504,7 @@ function buildBugGeometry(type, corpse = false) {
     for (const s of [-1, 1]) { const g = new THREE.ConeGeometry(0.03, 0.2, 3); g.rotateX(Math.PI / 2); g.rotateY(-s * 0.35); g.translate(s * 0.07, 0.24, 0.47); P.push(bugPart(g, 0x6a2a3e, 0.2)); }
     for (let k = 0; k < 3; k++) { const g = new THREE.ConeGeometry(0.04, 0.16, 3); g.rotateX(-0.5); g.translate(0, 0.52, -0.2 - k * 0.15); P.push(bugPart(g, 0x1a0f18, 0)); }
     // sparse glints: a dark chitin flood with scattered pink sparks, not a carpet of studded beads
-    if (!corpse) { speckles(P, R, 2, 0, 0.5, -0.3, 0.3, 0.55, 0.035, 0xff3c7a); speckles(P, R, 1, 0, 0.47, -0.25, 0.4, 0.7, 0.03, 0xd8142c); }
+    if (!corpse) { speckles(P, R, 2, 0, 0.5, -0.3, 0.3, 0.55, 0.035, 0xff3c7a, 1); speckles(P, R, 1, 0, 0.47, -0.25, 0.4, 0.7, 0.03, 0xd8142c, 1); }
     // long legs: knees above the back, feet pushed out so they break the silhouette in a crowd
     legs6(P, 0.1, 0.3, [0.2, 0.04, -0.12], 0.42, 0.62, 0.8, 0.36, 0.03, 0x24161f, curl);
   } else if (type === SPIT) {
@@ -532,6 +533,15 @@ function buildBugGeometry(type, corpse = false) {
   // welded + indexed: the GPU post-transform cache reuses shared vertices (about half the vertex shading);
   // flat-shaded parts keep distinct normals and stay unmerged, so the look is unchanged
   let g = mergeGeometries(P);
+  // baked height shading: feet and belly sink into shadow, backs stay lit, so every body keeps its own edge in a pile
+  if (!corpse) {
+    const p = g.attributes.position, c = g.attributes.color, gl = g.attributes.aGlow;
+    for (let i = 0; i < p.count; i++) {
+      if (gl.getX(i) > 0.5) continue;
+      const ao = 0.38 + 0.62 * smooth01((p.getY(i) - 0.02) / 0.42);
+      c.setXYZ(i, c.getX(i) * ao, c.getY(i) * ao, c.getZ(i) * ao);
+    }
+  }
   if (!corpse) g = mergeVertices(g, 1e-4);
   if (corpse) {
     g.deleteAttribute('aGlow'); g.deleteAttribute('aLeg');
@@ -565,11 +575,14 @@ bugShadow.count = 0; bugShadow.frustumCulled = false; bugShadow.castShadow = fal
 scene.add(bugShadow);
 const _pv4 = new THREE.Matrix4();
 const _bc = new Int32Array(4);
+// per-bug chitin tints (umber / slate / plum), picked and scaled by B.vr; the queen gets a violet multiplier
+const BUG_TINT = [[1.0, 0.86, 0.74], [0.8, 0.86, 1.0], [1.0, 0.8, 0.98]], QUEEN_TINT = [0.95, 0.5, 1.45];
 function markRange(attr, start, count) { attr.clearUpdateRanges(); attr.addUpdateRange(start, count); attr.needsUpdate = true; }
 function writeBugInstances(time, dt) {
   _bc.fill(0);
   const emitK = 9 * dt * fxK;
   const n = B.n, cx = camTarget.x, cz = camTarget.z;
+  const qUid = (DIR.q && DIR.q.uid) | 0;
   let near = 0;
   // CPU frustum cull: clip-space test of a point at mid-body height (15 % margin covers the body size)
   _pv4.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
@@ -585,11 +598,12 @@ function writeBugInstances(time, dt) {
     if (B.dead[i]) continue;
     const bx = B.x[i], bz = B.z[i];
     if (Math.abs(bx - cx) < 22 && Math.abs(bz - cz) < 22) near++;
-    const gy = groundY(bx, bz) + B.y[i], my = gy + 0.3 * B.sc[i];
+    const bs = B.sc[i], gy = groundY(bx, bz) + B.y[i], my = gy + 0.3 * bs;
     const cw = pe[3] * bx + pe[7] * my + pe[11] * bz + pe[15];
     if (cw <= 0) continue;
-    const ccx = pe[0] * bx + pe[4] * my + pe[8] * bz + pe[12], ccy = pe[1] * bx + pe[5] * my + pe[9] * bz + pe[13];
-    if (ccx > 1.15 * cw || ccx < -1.15 * cw || ccy > 1.15 * cw || ccy < -1.15 * cw) continue;
+    // the margin grows with the body: a 4.2x queen keeps drawing until all of her has left the screen
+    const ccx = pe[0] * bx + pe[4] * my + pe[8] * bz + pe[12], ccy = pe[1] * bx + pe[5] * my + pe[9] * bz + pe[13], mg = (bs > 2 ? 1 + 0.15 * bs : 1.15) * cw;
+    if (ccx > mg || ccx < -mg || ccy > mg || ccy < -mg) continue;
     const t = B.type[i], k = _bc[t]++, mesh = bugMeshes[t];
     const a = mesh.instanceMatrix.array, o = k * 16;
     let s = B.sc[i], sy = s;
@@ -612,9 +626,10 @@ function writeBugInstances(time, dt) {
       const ox = bx - spx, oy = my - spy, oz = bz - spz, d2 = ox * ox + oy * oy + oz * oz;
       if (d2 < 32 * 32 && ox * sdx + oy * sdy + oz * sdz > cosCone * Math.sqrt(d2)) { shA.set(a.subarray(o, o + 16), shN * 16); shN++; }
     }
-    // wide brightness spread breaks up the uniform lattice of glints
-    const col = mesh.instanceColor.array, oc = k * 3, v = 0.55 + B.vr[i] * 0.75;
-    col[oc] = v; col[oc + 1] = v * (0.92 + B.vr[i] * 0.1); col[oc + 2] = v;
+    // three chitin tints x a wide brightness spread: breaks up the uniform carpet without extra draws
+    const isQ = qUid !== 0 && B.uid[i] === qUid;
+    const col = mesh.instanceColor.array, oc = k * 3, tv = B.vr[i] * 3, ti = tv | 0, v = 0.6 + (tv - ti) * 0.6, tt = isQ ? QUEEN_TINT : BUG_TINT[ti > 2 ? 2 : ti];
+    col[oc] = v * tt[0]; col[oc + 1] = v * tt[1]; col[oc + 2] = v * tt[2];
     const an = mesh.geometry.attributes.iAnim.array, oa = k * 4;
     an[oa] = B.ph[i];
     // hit flash; swelling boomers blink white-hot faster and faster before they pop
@@ -623,7 +638,7 @@ function writeBugInstances(time, dt) {
       an[oa + 2] = 0.55 + 0.45 * Math.sin(time * 23 + i * 1.7);
       if (rnd() < emitK) PA.emit(B.x[i] + rr(-0.2, 0.2), 0.35 * B.sc[i], B.z[i] + rr(-0.2, 0.2), 0, rr(1, 2.2), 0, rr(0.25, 0.45), 0.35 * B.sc[i], 0.7 * B.sc[i], 1, 0.6, 0.25, 0.55, -0.5, 1, 1);
     } else an[oa + 2] = 0;
-    an[oa + 3] = B.frz[i] > 0 ? 1 : B.chill[i] * 0.55;
+    an[oa + 3] = isQ ? -1 : B.frz[i] > 0 ? 1 : B.chill[i] * 0.55;
   }
   nearCam = near;
   bugShadow.count = shN;

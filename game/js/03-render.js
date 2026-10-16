@@ -92,9 +92,11 @@ function resize() {
 
 // ---- materials ----
 // Standard material with per-vertex color + aGlow emissive (props, marines); optional snow caps.
-function makeGlowMaterial({ roughness = 0.62, metalness = 0.45, snow = false, glow = 2.2 } = {}) {
+// rim: optional THREE.Color (kept by reference) for a class-coloured fresnel edge light (marines; one extra program)
+function makeGlowMaterial({ roughness = 0.62, metalness = 0.45, snow = false, glow = 2.2, rim = null } = {}) {
   const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness, metalness });
   m.onBeforeCompile = (sh) => {
+    if (rim) sh.uniforms.uRim = { value: rim };
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nattribute float aGlow;\nvarying float vGlow;\nvarying float vUp;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGlow = aGlow;\nvUp = normal.y;');
@@ -102,9 +104,12 @@ function makeGlowMaterial({ roughness = 0.62, metalness = 0.45, snow = false, gl
       .replace('#include <common>', '#include <common>\nvarying float vGlow;\nvarying float vUp;')
       .replace('#include <color_fragment>', '#include <color_fragment>\n' +
         (snow ? 'diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.80, 0.86, 0.93), smoothstep(0.72, 0.97, vUp) * (1.0 - vGlow) * 0.8);' : ''))
-      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vColor.rgb * vGlow * ' + glow.toFixed(2) + ';');
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vColor.rgb * vGlow * ' + glow.toFixed(2) + ';' +
+        // class-coloured fresnel backlight: a marine reads as a coloured cut-out against both the dark deck and the dark swarm
+        (rim ? '\n{ float fr = 1.0 - abs(dot(normal, normalize(vViewPosition))); totalEmissiveRadiance += uRim * fr * fr * (0.35 + 0.65 * smoothstep(0.4, 1.0, fr)); }' : ''));
+    if (rim) sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 uRim;');
   };
-  m.customProgramCacheKey = () => 'glow' + (snow ? 1 : 0) + glow;
+  m.customProgramCacheKey = () => 'glow' + (snow ? 1 : 0) + glow + (rim ? 'r' : '');
   return m;
 }
 
@@ -132,7 +137,8 @@ function makeFloorMaterial(map, bump, snowBias) {
   return m;
 }
 
-// Instanced bug material: Lambert + leg animation + glow speckles + status tints.
+// Instanced bug material: Lambert + leg animation + glow speckles + status tints, then a bug-only tone curve.
+// iAnim = (walk phase, hit flash, burn, frost); frost < 0 flags the queen (she never freezes): full chroma + violet edge.
 function makeBugMaterial() {
   const m = new THREE.MeshLambertMaterial({ vertexColors: true });
   m.onBeforeCompile = (sh) => {
@@ -142,8 +148,10 @@ attribute float aGlow;
 attribute vec3 aLeg;
 attribute vec4 iAnim;
 varying float vGlow;
-varying vec3 vFx;`)
+varying vec3 vFx;
+varying float vSparse;`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
+  vSparse = (1.0 - step(0.001, aLeg.x)) * aLeg.y;
   if (aLeg.z > 0.5) { vec3 iu = instanceMatrix[1].xyz; transformed *= step(0.85, iu.y / max(length(iu), 1e-4)); }
   float ph = iAnim.x + aLeg.y;
   transformed.z += sin(ph) * aLeg.x * 0.17;
@@ -152,16 +160,36 @@ varying vec3 vFx;`)
   vGlow = aGlow;
   vFx = iAnim.yzw;`);
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying float vGlow;\nvarying vec3 vFx;')
-      .replace('#include <color_fragment>', '#include <color_fragment>\n  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.2, 0.38, 0.55), vFx.z * 0.8);\n  diffuseColor.rgb *= 1.0 - vFx.y * 0.6;')
+      .replace('#include <common>', '#include <common>\nvarying float vGlow;\nvarying vec3 vFx;\nvarying float vSparse;')
+      .replace('#include <color_fragment>', `#include <color_fragment>
+  float frz = max(vFx.z, 0.0), qn = max(-vFx.z, 0.0);
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.2, 0.38, 0.55), frz * 0.8);
+  diffuseColor.rgb *= 1.0 - vFx.y * 0.6;`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-  totalEmissiveRadiance += vColor.rgb * vGlow * 1.0 * (1.0 - vFx.z);
+  vec3 gland = vColor.rgb * vGlow * (1.0 - frz);
+  // runner glands are sparse (only the brighter half of the instances shows them) and burn orange, not white
+  gland *= (1.0 - vSparse * (1.0 - smoothstep(0.85, 1.1, vColor.r))) * (1.0 - 0.5 * vFx.y);
+  totalEmissiveRadiance += gland;
   float rim = 1.0 - abs(dot(normal, normalize(vViewPosition)));
-  totalEmissiveRadiance += vec3(0.22, 0.14, 0.26) * rim * rim * rim * 0.3 * (1.0 - vGlow) * (1.0 - vFx.z);
+  totalEmissiveRadiance += vec3(0.10, 0.13, 0.19) * rim * rim * rim * 0.3 * (1.0 - vGlow) * (1.0 - frz);
   // burning: charred body, the glands glow hot (the ember particles supply the flames)
   totalEmissiveRadiance += vec3(1.0, 0.3, 0.04) * vFx.y * (0.12 + 0.88 * vGlow) * 0.9;
   totalEmissiveRadiance += vec3(1.0, 0.92, 0.88) * vFx.x * 0.8;
-  totalEmissiveRadiance += vec3(0.05, 0.16, 0.3) * vFx.z * 0.5;`);
+  totalEmissiveRadiance += vec3(0.05, 0.16, 0.3) * frz * 0.5;
+  // the queen: a deep-violet sheen that survives the tone curve below and any light pool
+  totalEmissiveRadiance += vec3(0.30, 0.07, 0.62) * qn * (0.10 + 0.9 * rim * rim);`)
+      // lit chitin is tone-mapped on its own: half the chroma, a soft shoulder, a cold edge glint where lit,
+      // and the glands dim inside light pools (they are the signal in the dark, noise in the light)
+      .replace('#include <envmap_fragment>', `#include <envmap_fragment>
+  {
+    vec3 dif = outgoingLight - totalEmissiveRadiance;
+    float L = dot(dif, vec3(0.2126, 0.7152, 0.0722));
+    float lit = smoothstep(0.03, 0.25, L);
+    dif = mix(vec3(L), dif, 0.5 + 0.5 * max(frz, qn));
+    dif = dif * 1.15 / (1.0 + dif * 3.0);
+    dif += vec3(0.55, 0.62, 0.70) * rim * rim * lit * 0.22 * (1.0 - vGlow);
+    outgoingLight = dif + totalEmissiveRadiance - gland * 0.55 * lit;
+  }`);
   };
   m.customProgramCacheKey = () => 'bug';
   return m;

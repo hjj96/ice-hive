@@ -15,8 +15,10 @@ function baseMods(bot) {
 }
 
 // ---------- marine model ----------
+// class-tinted armour shell + light ceramic plates (helmet dome, chest, lower arms): a readable value pattern at 20 px
+const VX_ARMOR = { assault: 0x6e3c36, pyro: 0x7a6232, cryo: 0x35607a, gunner: 0x4d6a3c };
 function buildMarineGeos(cls) {
-  const C = CLASSES[cls], trim = C.trim, armor = 0x3d4650, dark = 0x1b2025, plate = 0x4b5662, visor = C.laser;
+  const C = CLASSES[cls], trim = C.trim, armor = VX_ARMOR[cls], dark = 0x22282e, plate = 0xa9b2bb, visor = C.laser;
   const body = [];
   const ell = (list, r, sx, sy, sz, x, y, z, color, glow = 0) => { const g = new THREE.IcosahedronGeometry(r, 1); g.scale(sx, sy, sz); g.translate(x, y, z); list.push(paint(g, color, glow)); };
   // hips, belt with pouches
@@ -30,7 +32,7 @@ function buildMarineGeos(cls) {
   // chest lamp (where the flashlight comes from)
   pBox(body, 0.08, 0.07, 0.04, 0.14, 1.26, 0.24, 0xfff4dc, 2.6);
   // rounded shoulder pads in the class colour
-  for (const s of [-1, 1]) { ell(body, 0.19, 1.25, 0.8, 1.25, s * 0.37, 1.34, 0, trim); pBox(body, 0.05, 0.05, 0.3, s * 0.48, 1.28, 0, dark); }
+  for (const s of [-1, 1]) { ell(body, 0.19, 1.25, 0.8, 1.25, s * 0.37, 1.34, 0, trim); pBox(body, 0.05, 0.05, 0.3, s * 0.48, 1.28, 0, C.laser, 0.7); }
   // arms holding the weapon (right hand on the grip, left hand on the fore-end)
   pBeam(body, 0.36, 1.28, 0.0, 0.38, 1.05, -0.02, 0.14, 0.14, armor);
   pBeam(body, 0.38, 1.05, -0.02, 0.24, 1.03, 0.17, 0.13, 0.13, dark);
@@ -40,8 +42,8 @@ function buildMarineGeos(cls) {
   pBox(body, 0.12, 0.12, 0.12, 0.11, 1.1, 0.43, plate);
   // helmet with a visor glowing in the marine's laser colour
   pBox(body, 0.16, 0.08, 0.16, 0, 1.45, 0, dark);
-  ell(body, 0.19, 1.0, 0.95, 1.12, 0, 1.6, 0.0, armor);
-  pBox(body, 0.06, 0.05, 0.36, 0, 1.78, -0.01, trim);
+  ell(body, 0.19, 1.0, 0.95, 1.12, 0, 1.6, 0.0, plate);
+  pBox(body, 0.07, 0.05, 0.36, 0, 1.78, -0.01, C.laser, 0.9);
   pBox(body, 0.27, 0.075, 0.08, 0, 1.6, 0.17, visor, 1.7);
   // class backpacks
   if (cls === 'pyro') { for (const s of [-1, 1]) pCyl(body, 0.12, 0.12, 0.6, 8, s * 0.13, 1.12, -0.3, 0xc8761a); pBox(body, 0.36, 0.1, 0.1, 0, 1.4, -0.3, dark); pBox(body, 0.06, 0.06, 0.06, 0, 1.47, -0.3, 0xff9a30, 2); }
@@ -73,17 +75,20 @@ function buildMarineGeos(cls) {
 }
 
 // one material per squad slot, created once: disposing them per mission released the shared program (relink)
+// MARINE_RIM[i]: the slot's class-coloured edge light (x0.55 player, x0.40 bots; renderMarines halves it while downed)
 const MARINE_MATS = [];
+const MARINE_RIM = [0, 1, 2, 3].map(() => new THREE.Color());
 function makeMarine(i, cls, name, isPlayer) {
   const C = CLASSES[cls], geos = buildMarineGeos(cls);
-  const mat = MARINE_MATS[i] || (MARINE_MATS[i] = makeGlowMaterial({ snow: false, roughness: 0.55, metalness: 0.5 }));
+  const mat = MARINE_MATS[i] || (MARINE_MATS[i] = makeGlowMaterial({ snow: false, roughness: 0.5, metalness: 0.35, rim: MARINE_RIM[i] }));
+  MARINE_RIM[i].setHex(C.laser).multiplyScalar(isPlayer ? 0.55 : 0.4);
   const g = new THREE.Group(); g.rotation.order = 'YXZ';
   const body = new THREE.Mesh(geos.body, mat);
   const legL = new THREE.Mesh(geos.leg, mat), legR = new THREE.Mesh(geos.leg, mat);
   legL.position.set(-0.13, 0.78, 0); legR.position.set(0.13, 0.78, 0);
   const gun = new THREE.Mesh(geos.gun, mat); gun.position.set(0.2, 1.12, 0.08);
   for (const o of [body, legL, legR, gun]) { o.castShadow = true; g.add(o); }
-  g.scale.setScalar(1.12);
+  g.scale.setScalar(IS_MOBILE ? 1.3 : 1.12);   // phones draw marines bigger (visual only: the collision radius stays 0.32)
   scene.add(g);
   return {
     i, cls, C, name, isPlayer, mods: baseMods(!isPlayer), color: C.laser,
@@ -91,6 +96,7 @@ function makeMarine(i, cls, name, isPlayer) {
     hp: 100, maxHp: 100, downed: false, revive: 0, inv: 0, hurtT: 0, dashT: 0, dashCd: 0, dashX: 0, dashZ: 0,
     abCd: 0, fireCd: 0, heat: 0, over: 0, spin: 0, energy: 1, ammo: C.mag || 0, reload: 0, bar: 1, firing: false,
     beamLen: 0, laserLen: 0, walkPh: 0, muzzle: 0, calm: 0, bite: 3,
+    leanX: 0, leanZ: 0, upT: 0, visDown: false,   // procedural pose state, owned by renderMarines
     ai: { think: 0, target: -1, tuid: 0, dodge: 0, stuck: 0, lx: 0, lz: 0, sideX: 0, sideZ: 0, sideT: 0 },
     mesh: g, body, legL, legR, gun, mat,
   };

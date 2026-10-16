@@ -129,21 +129,50 @@ function updateCamera(rdt, alpha) {
 }
 
 // ---------- marine visuals ----------
+// Procedural poses (no per-frame objects): lean into the run, bank on strafes, recoil and muzzle climb, flame / beam
+// sway, hit flinch, idle breathing, dash slide, a downed marine fighting on the deck and a 0.4 s stand-up after revive.
+// Smoothed with damp(10); angles stay within 0.15 rad except the dash and downed poses; x0.35 under reduced motion.
 function renderMarines(alpha, rdt) {
   const liftOn = DIR.stage === 'extract';
+  const RM = REDUCED_MOTION ? 0.35 : 1, kd = damp(10, rdt), t = renderTime;
   for (const m of M) {
     const x = lerp(m.px, m.x, alpha), z = lerp(m.pz, m.z, alpha);
     const y = groundY(x, z) + (liftOn && onLift(m.x, m.z) ? liftGroup.position.y : 0);
     m.aimVis += angDiff(m.aimVis, m.aim) * Math.min(1, 22 * rdt);
     m.mesh.rotation.y = m.aimVis;
+    // down / up transitions are seen here (updateRevive stays untouched): halve the edge light, start the stand-up
+    if (m.downed !== m.visDown) {
+      m.visDown = m.downed;
+      MARINE_RIM[m.i].multiplyScalar(m.downed ? 0.5 : 2);
+      m.upT = m.downed ? 0 : 0.4;
+    }
     const sp = Math.hypot(m.vx, m.vz);
     if (m.downed) {
+      // lying on the back, rising toward a half-sit as the revive fills; legs kick at 1.5 Hz
       m.mesh.position.set(x, y + 0.28, z);
-      m.mesh.rotation.x = -1.35;
-      m.legL.rotation.x = 0.2; m.legR.rotation.x = -0.1;
+      m.leanX += (-1.35 + 0.45 * clamp(m.revive, 0, 1) - m.leanX) * kd;
+      m.leanZ += (0 - m.leanZ) * kd;
+      const kick = Math.sin(t * 9.42 + m.i * 1.3) * 0.25 * RM;
+      m.legL.rotation.x = 0.2 + kick; m.legR.rotation.x = -0.1 - kick;
+      m.legL.rotation.z = m.legR.rotation.z = 0;
+      m.body.position.y = 0; m.body.position.z = 0; m.body.rotation.y = 0; m.body.scale.y = 1;
+      m.gun.rotation.x = 0; m.gun.rotation.y = 0;
     } else {
-      m.mesh.position.set(x, y, z);
-      m.mesh.rotation.x = m.dashT > 0 ? 0.35 : 0;
+      const ca = Math.cos(m.aimVis), sa = Math.sin(m.aimVis);
+      const fwd = clamp((m.vx * sa + m.vz * ca) / 5.3, -1, 1), side = clamp((m.vx * ca - m.vz * sa) / 5.3, -1, 1);
+      const hurt = m.hurtT > 0 ? m.hurtT / 0.22 : 0;
+      const dash = m.dashT > 0;
+      let tx = dash ? 0.55 * RM : clamp((0.12 * fwd - 0.12 * hurt) * RM, -0.15, 0.15);
+      let tz = dash ? 0 : clamp((-0.10 * side + (hurt ? 0.05 * Math.sin(t * 47) * hurt : 0)) * RM, -0.15, 0.15);
+      m.leanX += (tx - m.leanX) * kd; m.leanZ += (tz - m.leanZ) * kd;
+      // stand-up after a revive: 0.4 s from the half-sit to upright (overrides the smoothed lean)
+      let yUp = 0;
+      if (m.upT > 0) {
+        m.upT = Math.max(0, m.upT - rdt);
+        const u = smooth01(1 - m.upT / 0.4);
+        m.leanX = -0.9 * (1 - u) + m.leanX * u; yUp = 0.28 * (1 - u);
+      }
+      m.mesh.position.set(x, y + yUp, z);
       m.walkPh += sp * rdt * 2.6;
       const w = Math.min(1, sp / 4);
       const sw = Math.sin(m.walkPh) * 0.75 * w;
@@ -151,12 +180,21 @@ function renderMarines(alpha, rdt) {
       const rel = Math.cos(Math.atan2(m.vx, m.vz) - m.aimVis);
       m.legL.rotation.x = sw * rel; m.legR.rotation.x = -sw * rel;
       m.legL.rotation.z = sw * 0.4 * (1 - Math.abs(rel)); m.legR.rotation.z = -m.legL.rotation.z;
-      m.body.position.y = Math.abs(Math.sin(m.walkPh)) * 0.05 * w;
-      m.gun.position.z = 0.08 - (m.muzzle > 0 ? 0.05 : 0) - (m.cls === 'gunner' && m.firing ? Math.sin(renderTime * 80) * 0.015 : 0);
+      const mz = m.muzzle > 0 ? Math.min(1, m.muzzle) : 0;
+      // dash slide drops the hips; walking bobs; standing still breathes
+      m.body.position.y = dash ? -0.18 * RM : Math.abs(Math.sin(m.walkPh)) * 0.05 * w;
+      m.body.position.z = m.cls === 'assault' ? -0.06 * mz * RM : 0;
+      m.body.scale.y = 1 + 0.015 * Math.sin(t * 2.3 + m.i * 1.7) * (1 - w) * RM;
+      const sway = m.firing && (m.cls === 'pyro' || m.cls === 'cryo') ? Math.sin(t * 18.85 + m.i) * 0.04 * RM : 0;
+      m.body.rotation.y = sway * 0.5;
+      m.gun.rotation.y = sway;
+      m.gun.rotation.x = -0.12 * mz * RM;
+      m.gun.position.z = 0.08 - (m.muzzle > 0 ? 0.05 : 0) - (m.cls === 'gunner' && m.firing ? Math.sin(t * 80) * 0.015 * RM : 0);
       if (m.cls === 'gunner') m.gun.rotation.z += m.spin * rdt * 40;
     }
-    const hurt = m.hurtT > 0 ? 0.7 : 0, inv = m.inv > 0 && !m.downed && m.dashT <= 0 ? 0.12 + 0.1 * Math.sin(renderTime * 20) : 0;
-    m.mat.emissive.setRGB(hurt, inv * 0.8, inv);
+    m.mesh.rotation.x = m.leanX; m.mesh.rotation.z = m.leanZ;
+    const hurtF = m.hurtT > 0 ? 0.7 : 0, inv = m.inv > 0 && !m.downed && m.dashT <= 0 ? 0.12 + 0.1 * Math.sin(t * 20) : 0;
+    m.mat.emissive.setRGB(hurtF, inv * 0.8, inv);
   }
 }
 

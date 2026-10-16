@@ -326,6 +326,16 @@ function teleMesh(map, n) {
   return tm;
 }
 const teleRingMesh = teleMesh(TEX.ring, TELE_MAX), teleLaneMesh = teleMesh(TEX.lane, LANE_MAX), teleFillMesh = teleMesh(TEX.fill, FILL_MAX);
+// the charge lane is drawn over the bodies standing on it (no depth test, after the other telegraphs)
+teleLaneMesh.material.depthTest = false; teleLaneMesh.renderOrder = 5;
+// a dark underlay shares each telegraph's instance matrices: the additive warning keeps its contrast on lit snow
+// (one instanced draw each, only while that telegraph kind is on screen)
+function teleUnder(tm, opacity) {
+  const u = new THREE.InstancedMesh(tm.geometry, new THREE.MeshBasicMaterial({ map: tm.material.map, color: 0x000000, transparent: true, opacity, depthWrite: false, fog: false }), tm.instanceMatrix.count);
+  u.instanceMatrix = tm.instanceMatrix; u.count = 0; u.frustumCulled = false; u.renderOrder = 2;
+  scene.add(u); return u;
+}
+const teleUnders = [[teleRingMesh, teleUnder(teleRingMesh, 0.55)], [teleLaneMesh, teleUnder(teleLaneMesh, 0.6)], [teleFillMesh, teleUnder(teleFillMesh, 0.5)]];
 const TELE = [];
 for (let k = 0; k < TELE_MAX + LANE_MAX + FILL_MAX; k++) TELE.push({ on: false, kind: 0, x: 0, z: 0, y: 0, y1: 0, dx: 0, dz: 0, r0: 1, r1: 1, w: 1, len: 1, r: 1, g: 1, b: 1, t: 0, life: 1, wind: 0, pulse: true });
 function teleAlloc() { for (const e of TELE) if (!e.on) return e; return null; }
@@ -339,9 +349,14 @@ function teleFill(x, z, r, cr, cg, cb, life) {
   const e = teleAlloc(); if (!e) return;
   Object.assign(e, { on: true, kind: 2, x, z, y: groundY(x, z), r0: r, r1: r, r: cr, g: cg, b: cb, t: 0, life, pulse: false });
 }
-// kind 1: brute charge lane — pulses during the wind-up, stays lit while the brute charges along it
+// kind 1: brute charge lane — pulses during the wind-up, stays lit while the brute charges along it.
+// The lane ends where the charge leaves the deck: the first non-walkable 0.5 m step (max 12 m).
 function teleLane(x, z, dx, dz, len, w, wind, charge) {
   const e = teleAlloc(); if (!e) return;
+  const lim = Math.min(len, 12);
+  let d = 0;
+  while (d + 0.5 <= lim && walkable(x + dx * (d + 0.5), z + dz * (d + 0.5))) d += 0.5;
+  len = Math.max(d, 1);
   Object.assign(e, { on: true, kind: 1, x, z, y: groundY(x, z), y1: groundY(x + dx * len, z + dz * len), dx, dz, len, w, r: 1.0, g: 0.18, b: 0.1, t: 0, life: wind + charge, wind, pulse: true });
 }
 function updateTelegraphs(dt, time) {
@@ -354,7 +369,7 @@ function updateTelegraphs(dt, time) {
     const u = e.t / e.life;
     if (e.kind === 1) {
       if (nl >= LANE_MAX) continue;
-      const inten = e.t < e.wind ? blink * Math.min(1, e.t / e.wind * 4 + 0.3) * (0.8 + 0.5 * e.t / e.wind) : 1.3 * (1 - (e.t - e.wind) / (e.life - e.wind));
+      const inten = 0.75 * (e.t < e.wind ? blink * Math.min(1, e.t / e.wind * 4 + 0.3) * (0.8 + 0.5 * e.t / e.wind) : 1.3 * (1 - (e.t - e.wind) / (e.life - e.wind)));
       const a = teleLaneMesh.instanceMatrix.array, o = nl * 16, th = Math.atan2(-e.dx, -e.dz), c = Math.cos(th), s = Math.sin(th);
       const cx = e.x + e.dx * e.len / 2, cz = e.z + e.dz * e.len / 2;
       a[o] = c * e.w; a[o + 1] = 0; a[o + 2] = -s * e.w; a[o + 3] = 0; a[o + 4] = 0; a[o + 5] = 1; a[o + 6] = 0; a[o + 7] = 0;
@@ -379,6 +394,7 @@ function updateTelegraphs(dt, time) {
     }
   }
   teleRingMesh.count = nr; teleLaneMesh.count = nl; teleFillMesh.count = nf;
+  for (const [tm, u] of teleUnders) u.count = tm.count;
   for (const tm of [teleRingMesh, teleLaneMesh, teleFillMesh]) tm.instanceMatrix.needsUpdate = tm.instanceColor.needsUpdate = true;
 }
 
@@ -401,6 +417,9 @@ function splashNow(x, z, size, r, g, b) {
   const c0 = cellOf(x, z);
   if (c0 < 0 || !walk[c0]) return;
   const gz = hgz[c0], gy = groundY(x, z) + 0.04 + (stairCell[c0] ? 0.08 : 0);
+  // glare budget: within 3 m of the player a splash never exceeds 0.35 per channel (the player stays readable)
+  const P = M[0];
+  if (P && (P.x - x) * (P.x - x) + (P.z - z) * (P.z - z) < 9) { if (r > 0.35) r = 0.35; if (g > 0.35) g = 0.35; if (b > 0.35) b = 0.35; }
   const a = splashMesh.instanceMatrix.array, o = splN * 16;
   a[o] = size; a[o + 1] = 0; a[o + 2] = 0; a[o + 3] = 0; a[o + 4] = 0; a[o + 5] = 1; a[o + 6] = 0; a[o + 7] = 0;
   a[o + 8] = 0; a[o + 9] = gz * size; a[o + 10] = size; a[o + 11] = 0; a[o + 12] = x; a[o + 13] = gy; a[o + 14] = z; a[o + 15] = 1;
@@ -611,8 +630,9 @@ function hitStop(dur, k) {
 
 // ---------- effect events ----------
 // stain tints (multiplied over the floor) and the ichor droplet colours
-const ICHOR = [[0.62, 0.1, 0.22], [0.5, 0.58, 0.1], [0.58, 0.12, 0.15], [0.62, 0.24, 0.08]];
-const ICHOR_P = [[0.3, 0.05, 0.14], [0.28, 0.32, 0.04], [0.26, 0.06, 0.08], [0.32, 0.12, 0.04]];
+// pink means alive (glands); spilled ichor is oxblood / umber, so a kill front does not paint the deck magenta
+const ICHOR = [[0.55, 0.16, 0.1], [0.5, 0.58, 0.1], [0.58, 0.12, 0.15], [0.62, 0.24, 0.08]];
+const ICHOR_P = [[0.32, 0.09, 0.05], [0.28, 0.32, 0.04], [0.26, 0.06, 0.08], [0.32, 0.12, 0.04]];
 function fxBugDeath(i, frozen) {
   const x = B.x[i], z = B.z[i], ty = B.type[i], sc = B.sc[i];
   if (frozen) {
@@ -623,7 +643,7 @@ function fxBugDeath(i, frozen) {
   }
   const c = ICHOR[ty], cp = ICHOR_P[ty];
   // bright pop at the moment of death, then ichor + chitin shards
-  PA.emit(x, 0.35 * sc + B.y[i], z, 0, 0.6, 0, 0.11, 0.7 * sc, 1.5 * sc, 1.0, 0.45, 0.7, 0.85, 0, 0, 3);
+  PA.emit(x, 0.35 * sc + B.y[i], z, 0, 0.6, 0, 0.11, 0.7 * sc, 1.5 * sc, 0.95, 0.62, 0.5, 0.6, 0, 0, 3);
   for (let k = 0; k < (ty === BRUTE ? 9 : 2) * fxK; k++) PN.emit(x, 0.4 + B.y[i], z, rr(-3.2, 3.2), rr(2, 5.5), rr(-3.2, 3.2), rr(0.5, 0.9), rr(0.08, 0.15) * (ty === BRUTE ? 1.6 : 1), 0.07, 0.13, 0.07, 0.11, 1, 15, 0.4, 0);
   if (ty === BRUTE) { sfx('thud', x, z); splash(x, z, 4, 0.3, 0.06, 0.16, 0.35); }
   addDecal(x, z, sc * rr(1.0, 1.5), rnd() < 0.5 ? 0 : 1, c[0], c[1], c[2]);
@@ -631,7 +651,7 @@ function fxBugDeath(i, frozen) {
   else addDecal(x, z, 2.6, 3, 0.1, 0.08, 0.08);
   const n = (ty === BRUTE ? 14 : 5) * fxK;
   for (let k = 0; k < n; k++) PN.emit(x, 0.35, z, rr(-2.5, 2.5), rr(1.5, 4), rr(-2.5, 2.5), rr(0.4, 0.8), rr(0.12, 0.22), 0.06, cp[0] * 1.6, cp[1] * 1.6, cp[2] * 1.6, 0.95, 12, 0.5, 0);
-  if (ty !== SPIT) for (let k = 0; k < 2 * fxK; k++) PA.emit(x, 0.4, z, rr(-2, 2), rr(1, 3), rr(-2, 2), 0.35, 0.18, 0.05, 1.0, 0.25, 0.5, 1, 8, 0.5, 3);
+  if (ty !== SPIT) for (let k = 0; k < 2 * fxK; k++) PA.emit(x, 0.4, z, rr(-2, 2), rr(1, 3), rr(-2, 2), 0.35, 0.18, 0.05, 0.85, 0.22, 0.16, 1, 8, 0.5, 3);
   sfx('squish', x, z);
 }
 function fxExplosion(x, z, r, kind) {
@@ -677,7 +697,7 @@ function fxAcid(x, z) {
 function fxBulletHit(x, z, dx, dz, killed) {
   if (rnd() > 0.6 * fxK + 0.2) return;
   PA.emit(x, 0.45, z, -dx * rr(2, 5) + rr(-2, 2), rr(1, 3), -dz * rr(2, 5) + rr(-2, 2), 0.18, 0.14, 0.04, 1.0, 0.75, 0.4, 1, 10, 1, 3);
-  if (killed || rnd() < 0.4) PN.emit(x, 0.4, z, rr(-1.5, 1.5) + dx * 2, rr(1, 2.5), rr(-1.5, 1.5) + dz * 2, 0.4, 0.13, 0.05, 0.45, 0.08, 0.2, 0.9, 10, 0.5, 0);
+  if (killed || rnd() < 0.4) PN.emit(x, 0.4, z, rr(-1.5, 1.5) + dx * 2, rr(1, 2.5), rr(-1.5, 1.5) + dz * 2, 0.4, 0.13, 0.05, 0.42, 0.12, 0.07, 0.9, 10, 0.5, 0);
 }
 function fxDash(m) {
   for (let k = 0; k < 12 * fxK; k++) PA.emit(m.x + rr(-0.3, 0.3), rr(0.3, 1.5), m.z + rr(-0.3, 0.3), -m.dashX * rr(1, 4), rr(0, 1), -m.dashZ * rr(1, 4), rr(0.2, 0.4), 0.35, 0.05, 0.3, 0.9, 0.85, 0.6, 0, 3, 0);
@@ -688,7 +708,7 @@ function fxNapalmBurst(x, z, r) {
   for (let k = 0; k < 70 * fxK; k++) { const a = rnd() * TAU, s = rr(r * 0.6, r * 1.6); PA.emit(x, 0.5, z, Math.cos(a) * s, rr(0.5, 2), Math.sin(a) * s, rr(0.4, 0.8), 0.6, 2.0, 1, 0.6, 0.22, 0.55, -1, 1.6, 1); }
   flashLight(x, 1.5, z, 0xff6a20, 200, 0.6);
   splash(x, z, r * 2.4, 0.38, 0.14, 0.03, 0.7);
-  teleRing(x, z, r, 1.0, 0.32, 0.06, 5, r, false);   // the burning edge lies on the deck for the whole burn
+  teleRing(x, z, r, 1.0, 0.62, 0.14, 5, r, false);   // the burning edge (amber: friendly fire, not a red 'get out') lies on the deck for the whole burn
   addShake(0.3);
   addDecal(x, z, r * 1.8, 3, 0.12, 0.08, 0.06);
 }
@@ -709,6 +729,7 @@ function fxHeal(m) {
 }
 
 // ---------- per-frame visual update ----------
+const BEACON_COL = [[0.55, 0.85, 1.0], [1.0, 0.7, 0.15], [0.25, 1.0, 0.85]];
 let steamT = 0;
 function renderFx(dt, time) {
   splN = 0;
@@ -819,12 +840,15 @@ function renderFx(dt, time) {
   turret.visible = TUR.on;
   if (TUR.on) { turret.position.set(TUR.x, groundY(TUR.x, TUR.z), TUR.z); turret.userData.head.rotation.y = TUR.ang; }
   // beacons / lift / revive indicators
+  // colour language: cold blue = go here (state 0), amber = charging (1), teal = done (2). Glare budget: while a marine
+  // stands in the charging ring it drops to alpha 0.55 without the inner sweep, so the squad is not silhouetted
   for (let k = 0; k < beaconFx.length; k++) {
     const b = DIR.beacons[k], f = beaconFx[k], u = f.ind.material.uniforms;
     u.uTime.value = time; u.uProg.value = b.progress;
-    const col = b.state === 2 ? [0.25, 1.0, 0.85] : b.state === 1 ? [1.0, 0.7, 0.15] : [1.0, 0.25, 0.15];
+    const col = BEACON_COL[b.state] || BEACON_COL[0], inside = b.state === 1 && standingIn(b.x, b.z, BEACON_R) > 0;
     u.uCol.value.setRGB(col[0], col[1], col[2]);
-    u.uAlpha.value = b.state === 2 ? 0.5 : 1;
+    u.uAlpha.value = b.state === 2 ? 0.5 : b.state === 1 ? (inside ? 0.55 : 1) : 0.6;
+    if (u.uSweep) u.uSweep.value = inside ? 0 : 1;
     f.top.material.color.setRGB(col[0] * 1.6, col[1] * 1.6, col[2] * 1.6);
     f.top.rotation.y = time * (b.state === 1 ? 4 : 1.2);
     f.top.position.y = f.gy + 2.9 + Math.sin(time * 2 + k) * 0.12;
@@ -917,3 +941,14 @@ function fxReset() {
   for (const p of plights) { p.light.intensity = 0; p.peak = 0; }
   shake = 0;
 }
+
+// package B debug handle: live references for harness/scenarios/v11-visual.mjs (its staging and checks run there)
+window.__dbgExt = Object.assign(window.__dbgExt || {}, {
+  vx() {
+    return { THREE, B, M, DIR, LV, TELE, NAP, MAT, RUN, BRUTE, FWD_X, FWD_Z, RIGHT_X, RIGHT_Z, IS_MOBILE, renderer, camera, walk,
+      bugMeshes, corpseMeshes, teleUnders, teleRingMesh, teleFillMesh, teleLaneMesh, splashMesh, beaconFx, MARINE_RIM,
+      get splN() { return splN; }, set splN(v) { splN = v; }, get renderTime() { return renderTime; }, get decFill() { return decFill; },
+      fn: { teleRing, teleFill, teleLane, updateTelegraphs, splashNow, renderFx, writeBugInstances, renderMarines, spawnBug, killBug,
+        walkable, cellOf, groundY, useAbility, fxNapalmBurst, rnd } };
+  },
+});
