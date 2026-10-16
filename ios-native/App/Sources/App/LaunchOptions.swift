@@ -29,6 +29,8 @@ struct LaunchOptions {
     var bugs: Int?
     /// Metal drawable scale (`-mscale N`, points → pixels; default 2, the screen's native scale is 3 on most iPhones).
     var metalScale: Double?
+    /// Metal: draw every swarm speckle again as an anti-aliased dot (`-glintDots`; off = the web's plain speckles).
+    var glintDots: Bool = false
     /// Arguments that were not recognised (kept for logging).
     var unknown: [String] = []
 
@@ -66,6 +68,7 @@ struct LaunchOptions {
             case "-renderer", "--renderer": result.renderer = (value() ?? "spritekit").lowercased()
             case "-bugs", "--bugs": if let v = value(), let n = Int(v), n >= 0 { result.bugs = n }
             case "-mscale", "--mscale": if let v = value(), let n = Double(v), n > 0.4, n <= 4 { result.metalScale = n }
+            case "-glintDots", "--glintDots": result.glintDots = flag()
             default: result.unknown.append(arg)
             }
         }
@@ -87,6 +90,7 @@ struct LaunchOptions {
         parts.append("renderer=\(renderer)")
         if let b = bugs { parts.append("bugs=\(b)") }
         if let m = metalScale { parts.append("mscale=\(m)") }
+        if glintDots { parts.append("glintDots") }
         return parts.joined(separator: " ")
     }
 }

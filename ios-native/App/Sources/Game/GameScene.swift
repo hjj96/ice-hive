@@ -102,7 +102,7 @@ final class GameScene: SKScene {
         demo = DemoScript.make(options: options)
         if let c = options.playerClass ?? demo?.preferredClass, let mc = MarineClass(id: c) { selectedClass = mc }
         BugLayer.glintShaderOn = !options.plainGlints
-        MetalRenderer.glintDots = !options.plainGlints
+        MetalRenderer.glintDots = options.glintDots
         haptics.enabled = settings.haptics
         if !settings.migrated.isEmpty { AppLog.info("settings: migrated from v1: " + settings.migrated.joined(separator: ",")) }
         AppLog.info("settings: cls=\(settings.cls) best=\(settings.bestKills)/\(settings.bestWin)s muted=\(settings.muted) vol=\(settings.vol) "

@@ -72,8 +72,9 @@ final class DrawList {
 
 final class MetalRenderer: NSObject, MTKViewDelegate {
     static let framesInFlight = 3
-    /// Swarm speckles drawn again as soft dots (sub-pixel glints stay visible; not in the web build).
-    static var glintDots = true
+    /// Swarm speckles drawn again as anti-aliased dots (`-glintDots`; not in the web build). Off by default: at the 2x
+    /// drawable the plain speckles match store 2-swarm.png's sparkle (blob count / size) better than the dots.
+    static var glintDots = false
     private static let passOrder: [MeshPass] = [.props, .lambert, .unlit]
     static let arenaSize = 4 * 1024 * 1024
 
