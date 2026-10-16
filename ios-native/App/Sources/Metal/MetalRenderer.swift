@@ -5,13 +5,51 @@ import QuartzCore
 // ================================================================
 //  METAL RENDERER — pipelines, the per-frame upload arena (a ring of
 //  three; FrameLoop keeps at most two frames on the GPU) and the
-//  encoding of one world frame in the order of the web scene: opaque
-//  level, squad, swarm, corpses, props, then the transparent passes
-//  (haze, pad mark, floor glows, decals, splashes / telegraphs / rings,
-//  particles, ribbons, weather) into an offscreen target at the world
-//  scale; encodeComposite() scales that image into the drawable.
+//  world part of the frame. One command buffer per frame (FrameLoop):
+//
+//    1 shadow       encodeShadow       depth only, 1024², «высокая»     → shadowTex
+//    2 world        encodeOpaque       level, squad, props, corpses,    → worldColor (world scale, 2x)
+//                                      swarm                              + depth (memoryless on device)
+//                   encodeTransparent  haze, pad, glows, decals, floor
+//                                      sprites, particles, ribbons,
+//                                      weather — same encoder (tile memory)
+//    3 post         — (slot)           HDR resolve, bloom, tone map, grade: passes that read worldColor and
+//                                      write the image the composite samples
+//    4 composite    encodeComposite    world image → drawable at the screen's native scale (opens the final pass)
+//    5 HUD          SKRenderer         same encoder as 4 (FrameLoop), then one present
+//
+//  Shading today tone-maps per material (ACES + sRGB in each fragment,
+//  like three.js rendering straight to the canvas), so worldColor is
+//  display-referred bgra8Unorm. An HDR chain changes three things:
+//  worldFormat → .rgba16Float, encodeColor() in Shaders.metal → linear
+//  out, and a tone-map / grade pass in slot 3. Vertex formats are
+//  named by VertexLayout (one MTLVertexDescriptor each), so skinned or
+//  vertex-animation-texture meshes add a layout + their vertex
+//  functions without touching the existing pipelines.
 //  MetalWorld fills the arena and a DrawList each drawn frame.
 // ================================================================
+
+/// Vertex buffer layouts of the mesh pipelines (buffer BufferIndex.vertices).
+enum VertexLayout {
+    /// IHM1 (tools/export-meshes.mjs): float3 position, float3 normal, float3 colour, float aGlow, float3 aLeg — 52 B.
+    case ihm1
+
+    var descriptor: MTLVertexDescriptor {
+        let vd = MTLVertexDescriptor()
+        switch self {
+        case .ihm1:
+            let attrs: [(MTLVertexFormat, Int)] = [(.float3, 0), (.float3, 12), (.float3, 24), (.float, 36), (.float3, 40)]
+            for (k, a) in attrs.enumerated() {
+                vd.attributes[k].format = a.0
+                vd.attributes[k].offset = a.1
+                vd.attributes[k].bufferIndex = BufferIndex.vertices
+            }
+            vd.layouts[BufferIndex.vertices].stride = MeshStore.stride
+            vd.layouts[BufferIndex.vertices].stepFunction = .perVertex
+        }
+        return vd
+    }
+}
 
 /// A slice of the current frame's upload arena.
 struct Region {
@@ -85,7 +123,10 @@ final class MetalRenderer {
     let device: MTLDevice
     let queue: MTLCommandQueue
     let store: MeshStore
-    let colorFormat: MTLPixelFormat = .bgra8Unorm
+    /// The world target's colour format (display-referred today; .rgba16Float once tone mapping moves to a post pass).
+    let worldFormat: MTLPixelFormat = .bgra8Unorm
+    /// The drawable's format (CAMetalLayer.pixelFormat, FrameLoop): the composite and the HUD write it.
+    let drawableFormat: MTLPixelFormat = .bgra8Unorm
     let depthFormat: MTLPixelFormat = .depth32Float
 
     // pipelines
@@ -186,19 +227,10 @@ final class MetalRenderer {
             pipelineErrors.append("no default library")
             return "pipelines: no default Metal library"
         }
-        let vd = MTLVertexDescriptor()
-        let attrs: [(MTLVertexFormat, Int)] = [(.float3, 0), (.float3, 12), (.float3, 24), (.float, 36), (.float3, 40)]
-        for (k, a) in attrs.enumerated() {
-            vd.attributes[k].format = a.0
-            vd.attributes[k].offset = a.1
-            vd.attributes[k].bufferIndex = BufferIndex.vertices
-        }
-        vd.layouts[BufferIndex.vertices].stride = MeshStore.stride
-        vd.layouts[BufferIndex.vertices].stepFunction = .perVertex
 
         enum Blend { case none, alpha, add, multiply }
         let errLock = NSLock()
-        func make(_ label: String, _ vs: String, _ fs: String, _ blend: Blend, vertexDescriptor: Bool) -> MTLRenderPipelineState? {
+        func make(_ label: String, _ vs: String, _ fs: String, _ blend: Blend, _ layout: VertexLayout?) -> MTLRenderPipelineState? {
             guard let v = lib.makeFunction(name: vs), let f = lib.makeFunction(name: fs) else {
                 errLock.lock(); pipelineErrors.append("\(label): missing function \(vs) / \(fs)"); errLock.unlock()
                 return nil
@@ -207,10 +239,10 @@ final class MetalRenderer {
             d.label = label
             d.vertexFunction = v
             d.fragmentFunction = f
-            if vertexDescriptor { d.vertexDescriptor = vd }
+            d.vertexDescriptor = layout?.descriptor
             d.depthAttachmentPixelFormat = depthFormat
             let c = d.colorAttachments[0]!
-            c.pixelFormat = colorFormat
+            c.pixelFormat = worldFormat
             switch blend {
             case .none:
                 c.isBlendingEnabled = false
@@ -241,22 +273,22 @@ final class MetalRenderer {
             }
         }
         // the 18 pipelines compile in parallel (device-specific compilation dominates a cold first launch)
-        let specs: [(String, String, String, Blend, Bool)] = [
-            ("props", "vs_static", "fs_props", .none, true), ("floor", "vs_static", "fs_floor", .none, true),
-            ("hazard", "vs_static", "fs_textured", .none, true), ("pad", "vs_static", "fs_textured", .alpha, true),
-            ("glowQuads", "vs_static", "fs_basic_textured", .add, true), ("haze", "vs_static", "fs_basic_textured", .alpha, true),
-            ("meshProps", "vs_mesh", "fs_props", .none, true), ("meshLambert", "vs_mesh", "fs_lambert", .none, true),
-            ("meshUnlit", "vs_mesh", "fs_unlit", .none, true), ("bug", "vs_bug", "fs_bug", .none, true),
-            ("glint", "vs_glint", "fs_glint", .alpha, false), ("decal", "vs_decal", "fs_decal", .multiply, false),
-            ("sprite", "vs_sprite", "fs_sprite", .add, false), ("particleAdd", "vs_particle", "fs_particle_add", .add, false),
-            ("particleAlpha", "vs_particle", "fs_particle_alpha", .alpha, false), ("ribbon", "vs_ribbon", "fs_ribbon", .add, false),
-            ("weatherAlpha", "vs_weather", "fs_weather", .alpha, false), ("weatherAdd", "vs_weather", "fs_weather", .add, false),
+        let specs: [(String, String, String, Blend, VertexLayout?)] = [
+            ("props", "vs_static", "fs_props", .none, .ihm1), ("floor", "vs_static", "fs_floor", .none, .ihm1),
+            ("hazard", "vs_static", "fs_textured", .none, .ihm1), ("pad", "vs_static", "fs_textured", .alpha, .ihm1),
+            ("glowQuads", "vs_static", "fs_basic_textured", .add, .ihm1), ("haze", "vs_static", "fs_basic_textured", .alpha, .ihm1),
+            ("meshProps", "vs_mesh", "fs_props", .none, .ihm1), ("meshLambert", "vs_mesh", "fs_lambert", .none, .ihm1),
+            ("meshUnlit", "vs_mesh", "fs_unlit", .none, .ihm1), ("bug", "vs_bug", "fs_bug", .none, .ihm1),
+            ("glint", "vs_glint", "fs_glint", .alpha, nil), ("decal", "vs_decal", "fs_decal", .multiply, nil),
+            ("sprite", "vs_sprite", "fs_sprite", .add, nil), ("particleAdd", "vs_particle", "fs_particle_add", .add, nil),
+            ("particleAlpha", "vs_particle", "fs_particle_alpha", .alpha, nil), ("ribbon", "vs_ribbon", "fs_ribbon", .add, nil),
+            ("weatherAlpha", "vs_weather", "fs_weather", .alpha, nil), ("weatherAdd", "vs_weather", "fs_weather", .add, nil),
         ]
         var states = [MTLRenderPipelineState?](repeating: nil, count: specs.count)
         let lock = NSLock()
         DispatchQueue.concurrentPerform(iterations: specs.count) { i in
             let sp = specs[i]
-            let st = make(sp.0, sp.1, sp.2, sp.3, vertexDescriptor: sp.4)
+            let st = make(sp.0, sp.1, sp.2, sp.3, sp.4)
             lock.lock(); states[i] = st; lock.unlock()
         }
         psProps = states[0]; psFloor = states[1]; psTexturedOpaque = states[2]; psTexturedAlpha = states[3]
@@ -274,13 +306,13 @@ final class MetalRenderer {
         td.isDepthWriteEnabled = false
         dsTransparent = device.makeDepthStencilState(descriptor: td)
         // depth-only shadow pipelines (no colour target, no fragment stage)
-        func depthOnly(_ label: String, _ vs: String, vertexDescriptor: Bool) -> MTLRenderPipelineState? {
+        func depthOnly(_ label: String, _ vs: String, _ layout: VertexLayout?) -> MTLRenderPipelineState? {
             guard let v = lib.makeFunction(name: vs) else { pipelineErrors.append("\(label): missing \(vs)"); return nil }
             let d = MTLRenderPipelineDescriptor()
             d.label = label
             d.vertexFunction = v
             d.fragmentFunction = nil
-            if vertexDescriptor { d.vertexDescriptor = vd }
+            d.vertexDescriptor = layout?.descriptor
             d.colorAttachments[0].pixelFormat = .invalid
             d.depthAttachmentPixelFormat = .depth32Float
             do { return try device.makeRenderPipelineState(descriptor: d) } catch {
@@ -294,7 +326,7 @@ final class MetalRenderer {
             d.label = "composite"
             d.vertexFunction = v
             d.fragmentFunction = f
-            d.colorAttachments[0].pixelFormat = colorFormat
+            d.colorAttachments[0].pixelFormat = drawableFormat
             d.depthAttachmentPixelFormat = .invalid
             do { psComposite = try device.makeRenderPipelineState(descriptor: d) } catch {
                 pipelineErrors.append("composite: \(error.localizedDescription)")
@@ -302,8 +334,8 @@ final class MetalRenderer {
         } else {
             pipelineErrors.append("composite: missing vs_composite / fs_composite")
         }
-        psShadowMesh = depthOnly("shadowMesh", "vs_shadow_mesh", vertexDescriptor: true)
-        psShadowProxy = depthOnly("shadowProxy", "vs_shadow_proxy", vertexDescriptor: false)
+        psShadowMesh = depthOnly("shadowMesh", "vs_shadow_mesh", .ihm1)
+        psShadowProxy = depthOnly("shadowProxy", "vs_shadow_proxy", nil)
         let sd = MTLDepthStencilDescriptor()
         sd.depthCompareFunction = .less
         sd.isDepthWriteEnabled = true
@@ -378,7 +410,7 @@ final class MetalRenderer {
         targetWidth = w
         targetHeight = h
         hasWorldImage = false
-        let cd = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: colorFormat, width: w, height: h, mipmapped: false)
+        let cd = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: worldFormat, width: w, height: h, mipmapped: false)
         cd.usage = [.renderTarget, .shaderRead]
         cd.storageMode = .private
         worldColor = device.makeTexture(descriptor: cd)
@@ -430,8 +462,8 @@ final class MetalRenderer {
     }
 
     // ---------------------------------------------------------------- frame
-    /// The world frame MetalWorld built this tick, into the offscreen target (shadow pass first on «высокая»). No-op
-    /// when nothing was built (frozen world: the last image stays).
+    /// Passes 1–3 of the frame (header) for the world MetalWorld built this tick. No-op when nothing was built (a
+    /// frozen world keeps its last image).
     func encodeWorld(_ cb: MTLCommandBuffer) {
         frameOpen = false
         guard built, ready, worldColor != nil else { built = false; return }
@@ -440,11 +472,18 @@ final class MetalRenderer {
         drawCalls = 0
         instanceCount = 0
         triangles = 0
+        // 1 shadow
         if list.shadowOn { encodeShadow(cb) }
+        // 2 world: opaque, then transparent / additive in the same encoder
         guard let enc = cb.makeRenderCommandEncoder(descriptor: worldPass) else { return }
         enc.label = "world"
-        encode(enc)
+        let arena = arenas[arenaIndex]
+        beginWorldPass(enc)
+        encodeOpaque(enc, arena)
+        encodeTransparent(enc, arena)
         enc.endEncoding()
+        // 3 post: no passes yet — an HDR resolve / bloom / tone map / grade chain goes here and leaves its result
+        // where encodeComposite samples it
         hasWorldImage = true
         frames += 1
         encodeMs += ((FrameTimer.now() - t0) * 1000 - encodeMs) * 0.1
@@ -502,21 +541,24 @@ final class MetalRenderer {
         if boundMain !== t { enc.setFragmentTexture(t, index: TextureIndex.main); boundMain = t }
     }
 
-    private func encode(_ enc: MTLRenderCommandEncoder) {
-        let arena = arenas[arenaIndex]
+    /// Frame uniforms and the textures every world draw may read (snow mask, particle noise, shadow map).
+    private func beginWorldPass(_ enc: MTLRenderCommandEncoder) {
         boundPipeline = nil
         boundMain = nil
         var F = frame
         enc.setVertexBytes(&F, length: MemoryLayout<FrameUniforms>.stride, index: BufferIndex.frame)
         enc.setFragmentBytes(&F, length: MemoryLayout<FrameUniforms>.stride, index: BufferIndex.frame)
         enc.setFrontFacing(.counterClockwise)
-        enc.setCullMode(.back)
-        enc.setDepthStencilState(dsOpaque)
         // the snow mask, the particle noise and the shadow map stay bound for the whole pass (slots 1, 2, 3)
         enc.setFragmentTexture(texSnow, index: TextureIndex.snow)
         enc.setFragmentTexture(list.shadowOn ? shadowTex : shadowDummy, index: TextureIndex.shadow)
         if let n = store.noise { enc.setFragmentTexture(n, index: TextureIndex.noise) }
+    }
 
+    /// Opaque geometry, depth-tested and written: the level, the instanced meshes, the swarm.
+    private func encodeOpaque(_ enc: MTLRenderCommandEncoder, _ arena: MTLBuffer) {
+        enc.setCullMode(.back)
+        enc.setDepthStencilState(dsOpaque)
         // ---- opaque level: the floors (one pipeline), then the merged props
         if let ps = psFloor {
             use(enc, ps)
@@ -571,8 +613,12 @@ final class MetalRenderer {
                 drawMesh(enc, bugMeshes[t], instances: list.bugs[t].count)
             }
         }
+    }
 
-        // ---- transparent passes
+    /// Blended geometry over the opaque depth (tested, not written), back to front by kind like the web scene's
+    /// renderOrder: haze, pad mark, floor glows, decals (multiply), floor sprites, glint dots, particles (alpha, then
+    /// additive), ribbons, weather.
+    private func encodeTransparent(_ enc: MTLRenderCommandEncoder, _ arena: MTLBuffer) {
         enc.setDepthStencilState(dsTransparent)
         enc.setCullMode(.none)
         if let ps = psHaze {
