@@ -313,7 +313,7 @@ final class MeshStore {
             return true
         }
         if !ok { return nil }
-        for i in stride(from: 0, to: px.count, by: 4) where px[i + 3] > 0 && px[i + 3] < 255 {
+        for i in Swift.stride(from: 0, to: px.count, by: 4) where px[i + 3] > 0 && px[i + 3] < 255 {
             let k = 255 / Float(px[i + 3])
             for c in 0..<3 { px[i + c] = UInt8(min(255, (Float(px[i + c]) * k).rounded())) }
         }

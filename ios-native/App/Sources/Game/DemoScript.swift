@@ -51,6 +51,9 @@ final class DemoScript {
     /// Class the demo plays unless `-class` says otherwise (the store shot is the gunner's).
     var preferredClass: String? { name == "swarmshot" ? "gunner" : nil }
 
+    /// Graphics tier the demo forces without touching the saved setting (the store shots are taken on «высокая»).
+    var preferredQuality: String? { name == "swarmshot" ? "high" : nil }
+
     /// World time scale the scene applies on top of hit-stop (swarmshot: ~frozen after the staging).
     private(set) var timeScale: Float = 1
     private var shotStage = 0

@@ -270,9 +270,12 @@ final class GameScene: SKScene {
         }
     }
 
+    /// The graphics tier in effect: the «Графика» setting, or the demo's own (swarmshot: high, like the store shots).
+    private var qualityName: String { demo?.preferredQuality ?? settings.quality }
+
     /// «Графика»: auto = the web phone tier (med). Bug cap (gameplay), effect density, and 120 Hz for high.
     private func applyQuality() {
-        let q = QualityTier(rawValue: settings.quality) ?? .med
+        let q = QualityTier(rawValue: qualityName) ?? .med
         game?.setQuality(q)
         world?.fxK = q == .low ? 0.4 : (q == .med ? 0.7 : 1.0)
         applyFrameRate()
@@ -286,7 +289,7 @@ final class GameScene: SKScene {
         var fps = 60
         let pi = ProcessInfo.processInfo
         let cool = pi.thermalState == .nominal || pi.thermalState == .fair
-        if settings.quality == "high" && UIScreen.main.maximumFramesPerSecond >= 120 && cool && !pi.isLowPowerModeEnabled { fps = 120 }
+        if qualityName == "high" && UIScreen.main.maximumFramesPerSecond >= 120 && cool && !pi.isLowPowerModeEnabled { fps = 120 }
         if menuUp { fps = 30 }
         if v.preferredFramesPerSecond != fps {
             v.preferredFramesPerSecond = fps
@@ -348,7 +351,7 @@ final class GameScene: SKScene {
     private func newGame(attract: Bool) -> Game? {
         guard let lv = level else { return nil }
         var cfg = GameConfig()
-        cfg.quality = QualityTier(rawValue: settings.quality) ?? .med
+        cfg.quality = QualityTier(rawValue: qualityName) ?? .med
         cfg.attract = attract
         let seed: UInt32 = options.seed ?? UInt32(truncatingIfNeeded: Int(Date().timeIntervalSince1970 * 1000) & 0x7fff_ffff)
         return Game(seed: seed, playerClass: selectedClass, config: cfg, level: lv)
