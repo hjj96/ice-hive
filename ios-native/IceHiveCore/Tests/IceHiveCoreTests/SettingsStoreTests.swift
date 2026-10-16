@@ -77,4 +77,20 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(s.bestKills, 0)
         XCTAssertEqual(s.migrated, ["cls"])
     }
+
+    /// Keys this version does not read (a later 1.x release's profile, …) are carried over too; other Capacitor
+    /// plugins' keys and keys 2.0 already wrote are left alone.
+    func testMigratesUnknownLegacyKeys() {
+        let d = freshDefaults()
+        d.set("{\"xp\":1200,\"tier\":3}", forKey: "CapacitorStorage.ledulei.profile")
+        d.set("\"cryo\"", forKey: "CapacitorStorage.ledulei.cls")
+        d.set("\"assault\"", forKey: "ledulei.cls")
+        d.set("42", forKey: "CapacitorStorage.other.thing")
+        let s = SettingsStore(defaults: d)
+        XCTAssertEqual(s.migrated, ["profile"])
+        XCTAssertEqual(d.string(forKey: "ledulei.profile"), "{\"xp\":1200,\"tier\":3}")
+        XCTAssertEqual(s.cls, "assault")
+        XCTAssertNil(d.object(forKey: "ledulei.thing"))
+        XCTAssertNil(d.object(forKey: "other.thing"))
+    }
 }

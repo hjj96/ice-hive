@@ -11,15 +11,15 @@ import Foundation
 //    quality  "\"auto\"" | "\"low\"" | "\"med\"" | "\"high\""
 //  v1.x (the Capacitor app, same bundle id) kept them in Capacitor
 //  Preferences = UserDefaults.standard "CapacitorStorage.ledulei.<k>":
-//  on the first launch of 2.0 they are copied over, so an update keeps
-//  the player's record and settings.
+//  on the first launch of 2.0 every such key is copied over (also keys
+//  this version does not read yet, e.g. a later 1.x profile), so an
+//  update keeps the player's record and settings.
 // ================================================================
 public final class SettingsStore {
 
     private let d: UserDefaults
     private static let prefix = "ledulei."
     private static let legacyPrefix = "CapacitorStorage.ledulei."
-    private static let keys = ["cls", "best", "muted", "vol", "haptics", "quality"]
 
     public private(set) var cls: String = "assault"
     public private(set) var bestKills: Int = 0
@@ -53,13 +53,18 @@ public final class SettingsStore {
         return nil
     }
 
-    /// v1 → v2: copy every Capacitor Preferences value we do not have yet (keys never written by 2.0).
+    /// v1 → v2: copy every Capacitor Preferences value under "CapacitorStorage.ledulei." that has no 2.0 key yet
+    /// (keys never written by 2.0) and holds valid JSON text — whatever the key, so values a 1.x release added later
+    /// (a profile, tier records, …) survive the update too.
     private func migrate() {
-        for k in SettingsStore.keys where d.object(forKey: SettingsStore.prefix + k) == nil {
-            if let v = d.string(forKey: SettingsStore.legacyPrefix + k), SettingsStore.parse(v) != nil {
-                d.set(v, forKey: SettingsStore.prefix + k)
-                migrated.append(k)
-            }
+        let pre = SettingsStore.legacyPrefix
+        let legacy = d.dictionaryRepresentation().keys.filter { $0.hasPrefix(pre) && $0.count > pre.count }.sorted()
+        for lk in legacy {
+            let k = String(lk.dropFirst(pre.count))
+            guard d.object(forKey: SettingsStore.prefix + k) == nil,
+                  let v = d.string(forKey: lk), SettingsStore.parse(v) != nil else { continue }
+            d.set(v, forKey: SettingsStore.prefix + k)
+            migrated.append(k)
         }
     }
 
