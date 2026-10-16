@@ -22,6 +22,10 @@ final class CameraController {
     /// depend on the display rate.
     private var shakeOff: (Float, Float, Float) = (0, 0, 0)
     private var shakeAcc: Float = 0
+    /// Look-at point of this frame (target + recoil kick) and the camera position jitter (shake): the Metal renderer
+    /// builds the web's perspective camera from them.
+    private(set) var focus: (Float, Float, Float) = (0, 0, 0)
+    private(set) var shakeOffset: (Float, Float, Float) = (0, 0, 0)
 
     func addShake(_ a: Float) {
         shake = min(1.4, shake + a * (reducedMotion ? 0.35 : 1))
@@ -60,6 +64,8 @@ final class CameraController {
             shakeOff = ((rng.next() - 0.5), (rng.next() - 0.5), (rng.next() - 0.5))
         }
         let sx = shakeOff.0 * sk, sy = shakeOff.1 * sk, sz = shakeOff.2 * sk
+        focus = (tx + kx, ty, tz + kz)
+        shakeOffset = (sx, sy, sz)
         node.position = Iso.point(tx + kx + sx, ty + sy, tz + kz + sz)
 
         // field of view of the web camera

@@ -502,7 +502,7 @@ final class HUD {
     func pauseHit(viewPoint p: CGPoint) -> Bool { pauseRect.contains(p) }
 
     // ---------------------------------------------------------------- per frame
-    func update(game: Game, dt: Float, camera: CameraController, marines: MarineLayer, input: InputController) {
+    func update(game: Game, dt: Float, projection: HUDProjection, input: InputController) {
         let P = game.player
         // fast-changing numbers at 10 Hz (each new string is a new label texture)
         textT -= dt
@@ -607,8 +607,8 @@ final class HUD {
         for n in overlays { n.isHidden = n.alpha < 0.004 }
         banner.isHidden = banner.alpha < 0.004
 
-        plates.update(game: game, camera: camera, marines: marines, size: size)
-        updateMarker(game: game, camera: camera)
+        plates.update(game: game, projection: projection, size: size)
+        updateMarker(game: game, projection: projection)
     }
 
     /// Changes whenever objectiveText would (stage, active beacon, beacons done, lift countdown second).
@@ -625,11 +625,11 @@ final class HUD {
         return ((st * 16 + (g.activeBeacon + 1)) * 16 + g.beaconsDone) * 100_000 + lift
     }
 
-    private func updateMarker(game: Game, camera: CameraController) {
+    private func updateMarker(game: Game, projection: HUDProjection) {
         guard let t = game.objectiveMarker else { marker.isHidden = true; return }
         marker.isHidden = false
         let gy = game.level.groundY(t.x, t.y)
-        let s = camera.toHUD(Iso.point(t.x, gy + 1.2, t.y))
+        let s = projection.hudPoint(t.x, gy + 1.2, t.y)
         let P = game.player
         let dist = hypotf(t.x - P.x, t.y - P.z)
         markerLabel.set("\(Int(dist.rounded())) м")
@@ -700,12 +700,12 @@ final class Nameplates {
         }
     }
 
-    func update(game: Game, camera: CameraController, marines: MarineLayer, size: CGSize) {
+    func update(game: Game, projection: HUDProjection, size: CGSize) {
         let n = min(plates.count, game.marines.count)
         for k in 0..<n {
             let m = game.marines[k]
-            let h = marines.head(k, downed: m.downed)
-            let s = camera.toHUD(Iso.point(h.0, h.1, h.2))
+            let f = projection.feet(k)
+            let s = projection.hudPoint(f.0, f.1 + (m.downed ? 1.3 : 2.55), f.2)
             px[k] = s.x
             py[k] = s.y + 30
         }
@@ -729,8 +729,8 @@ final class Nameplates {
         // a bot plate drawn over the player's own marine fades so the player stays visible (web .plate.dim)
         var meX: CGFloat = -1e4, meY: CGFloat = -1e4
         if n > 0 {
-            let f = marines.feet[0]
-            let me = camera.toHUD(Iso.point(f.0, f.1 + 1.0, f.2))
+            let f = projection.feet(0)
+            let me = projection.hudPoint(f.0, f.1 + 1.0, f.2)
             meX = me.x; meY = me.y
         }
         for k in 0..<n {

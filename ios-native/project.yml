@@ -41,6 +41,8 @@ targets:
       - package: IceHiveCore
         product: IceHiveCore
       - sdk: SpriteKit.framework
+      - sdk: Metal.framework
+      - sdk: MetalKit.framework
     settings:
       base:
         PRODUCT_NAME: IceHive
@@ -54,6 +56,8 @@ targets:
         SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
         CODE_SIGN_STYLE: Automatic
         ENABLE_PREVIEWS: NO
+        # Meshes/*.png are read by MTKTextureLoader: keep them standard PNGs (exact straight alpha), no pngcrush
+        COMPRESS_PNG_FILES: NO
         LOCALIZATION_PREFERS_STRING_CATALOGS: NO
     scheme:
       gatherCoverageData: false

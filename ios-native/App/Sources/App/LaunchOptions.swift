@@ -23,10 +23,16 @@ struct LaunchOptions {
     var cull: Bool = false
     /// Swarm glints without their shader (`-plainGlints`, A/B of its cost).
     var plainGlints: Bool = false
+    /// World renderer (`-renderer metal|spritekit`, default spritekit): the Metal spike draws the web game's 3D meshes.
+    var renderer: String = "spritekit"
+    /// Metal drawable scale (`-mscale N`, points → pixels; default 2, the screen's native scale is 3 on most iPhones).
+    var metalScale: Double?
     /// Arguments that were not recognised (kept for logging).
     var unknown: [String] = []
 
     static let current: LaunchOptions = LaunchOptions.parse(ProcessInfo.processInfo.arguments)
+
+    var useMetal: Bool { renderer == "metal" }
 
     private static let truthy = ["YES", "NO", "1", "0", "true", "false"]
 
@@ -55,6 +61,8 @@ struct LaunchOptions {
             case "-nolight", "--nolight": result.noLighting = flag()
             case "-cull", "--cull": result.cull = flag()
             case "-plainGlints", "--plainGlints": result.plainGlints = flag()
+            case "-renderer", "--renderer": result.renderer = (value() ?? "spritekit").lowercased()
+            case "-mscale", "--mscale": if let v = value(), let n = Double(v), n > 0.4, n <= 4 { result.metalScale = n }
             default: result.unknown.append(arg)
             }
         }
@@ -73,6 +81,8 @@ struct LaunchOptions {
         if noLighting { parts.append("nolight") }
         if cull { parts.append("cull") }
         if plainGlints { parts.append("plainGlints") }
+        parts.append("renderer=\(renderer)")
+        if let m = metalScale { parts.append("mscale=\(m)") }
         return parts.joined(separator: " ")
     }
 }

@@ -1,5 +1,6 @@
 import UIKit
 import SpriteKit
+import MetalKit
 
 final class GameViewController: UIViewController {
     let options: LaunchOptions
@@ -15,20 +16,48 @@ final class GameViewController: UIViewController {
         fatalError("init(coder:) is not supported")
     }
 
-    private var skView: SKView {
-        // swiftlint:disable:next force_cast
-        return view as! SKView
-    }
+    /// The SpriteKit view: the whole game with `-renderer spritekit`; with `-renderer metal` only the HUD, menus and
+    /// the loading cover, transparent over the MTKView that draws the world.
+    private var skView: SKView!
+    /// Metal world view (`-renderer metal`), drawn on demand from the scene's update (paused, no own display link).
+    private(set) var metalView: MTKView?
 
     override func loadView() {
-        let skView = SKView(frame: UIScreen.main.bounds)
-        skView.backgroundColor = Palette.backgroundUI
-        view = skView
+        let bounds = UIScreen.main.bounds
+        let sk = SKView(frame: bounds)
+        skView = sk
+        if options.useMetal, let device = MTLCreateSystemDefaultDevice() {
+            let root = UIView(frame: bounds)
+            root.backgroundColor = Palette.backgroundUI
+            let mv = MTKView(frame: bounds, device: device)
+            mv.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            mv.colorPixelFormat = .bgra8Unorm
+            mv.depthStencilPixelFormat = .depth32Float
+            mv.clearColor = MTLClearColor(red: 0x1a / 255.0, green: 0x27 / 255.0, blue: 0x37 / 255.0, alpha: 1)
+            mv.isPaused = true
+            mv.enableSetNeedsDisplay = false
+            mv.autoResizeDrawable = true
+            mv.framebufferOnly = true
+            mv.isUserInteractionEnabled = false
+            mv.contentScaleFactor = CGFloat(options.metalScale ?? 2)
+            root.addSubview(mv)
+            sk.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            sk.allowsTransparency = true
+            sk.isOpaque = false
+            sk.backgroundColor = .clear
+            root.addSubview(sk)
+            metalView = mv
+            view = root
+        } else {
+            if options.useMetal { AppLog.error("metal: no Metal device, falling back to SpriteKit") }
+            sk.backgroundColor = Palette.backgroundUI
+            view = sk
+        }
     }
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        let view = skView
+        let view: SKView = skView
         view.ignoresSiblingOrder = true
         view.isMultipleTouchEnabled = true
         // every pool hides its unused / off-screen sprites and the level culls its own chunks: SpriteKit's per-node
@@ -65,7 +94,8 @@ final class GameViewController: UIViewController {
         observers.append(nc.addObserver(forName: UIAccessibility.reduceMotionStatusDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
             self?.presentedScene?.applyReduceMotion()
         })
-        AppLog.info("SKView ready maxFPS=\(maxFPS) preferredFPS=\(view.preferredFramesPerSecond) cull=\(options.cull) hud=\(showHUD)")
+        AppLog.info("SKView ready maxFPS=\(maxFPS) preferredFPS=\(view.preferredFramesPerSecond) cull=\(options.cull) hud=\(showHUD)"
+                    + " renderer=\(metalView != nil ? "metal scale=\(metalView?.contentScaleFactor ?? 0)" : "spritekit")")
     }
 
     override func viewDidLayoutSubviews() {
@@ -73,7 +103,7 @@ final class GameViewController: UIViewController {
         let size = view.bounds.size
         guard size.width > 0, size.height > 0 else { return }
         if presentedScene == nil {
-            let scene = GameScene(size: size, options: options)
+            let scene = GameScene(size: size, options: options, metalView: metalView)
             scene.scaleMode = .resizeFill
             skView.presentScene(scene)
             presentedScene = scene

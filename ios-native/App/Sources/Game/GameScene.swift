@@ -1,5 +1,6 @@
 import SpriteKit
 import UIKit
+import MetalKit
 import IceHiveCore
 
 // ================================================================
@@ -17,7 +18,12 @@ final class GameScene: SKScene {
     private var assets: SpriteAssets?
     private var level: Level?
     private var game: Game?
+    /// SpriteKit world renderer (`-renderer spritekit`).
     private var renderer: WorldRenderer?
+    /// The world renderer in use: the SpriteKit one above or the Metal one (`-renderer metal`).
+    private var world: WorldPresenter?
+    /// MTKView under the (transparent) SKView when the Metal renderer is selected.
+    private let metalView: MTKView?
     private let cameraCtl = CameraController()
     private let hud = HUD()
     private let input = InputController()
@@ -80,10 +86,12 @@ final class GameScene: SKScene {
     private var createdSeen = 0
     private var warmGrid: PipelineWarmup?
 
-    init(size: CGSize, options: LaunchOptions) {
+    init(size: CGSize, options: LaunchOptions, metalView: MTKView? = nil) {
         self.options = options
+        self.metalView = metalView
         super.init(size: size)
-        backgroundColor = Tone.hex(0x1a2737)
+        // with Metal the scene only draws the HUD / menus / loading cover over the MTKView
+        backgroundColor = metalView != nil ? .clear : Tone.hex(0x1a2737)
         anchorPoint = CGPoint(x: 0.5, y: 0.5)
         if let mc = MarineClass(id: settings.cls) { selectedClass = mc }
         if let c = options.playerClass, let mc = MarineClass(id: c) { selectedClass = mc }
@@ -127,6 +135,10 @@ final class GameScene: SKScene {
         case 2:
             loadStep = 3
             bootTime = FrameTimer.now()
+            if let mv = metalView {
+                loadMetal(mv)
+                return
+            }
             let a = SpriteAssets()
             assets = a
             AppLog.info(String(format: "sprites indexed in %.0f ms", (FrameTimer.now() - bootTime) * 1000))
@@ -145,6 +157,7 @@ final class GameScene: SKScene {
         level = lv
         let r = WorldRenderer(level: lv, assets: a, bugCapacity: QualityTier.high.bugCap)
         renderer = r
+        world = r
         r.reservePools(bugs: 640)
         createdSeen = SpritePool.created
         r.world.isHidden = true
@@ -190,6 +203,47 @@ final class GameScene: SKScene {
 
     private var started = false
 
+    /// `-renderer metal`: meshes, textures and pipelines load off the main thread behind the loading cover, then the
+    /// same HUD / input / audio setup as the SpriteKit path.
+    private func loadMetal(_ mv: MTKView) {
+        let t0 = FrameTimer.now()
+        let lv = Level(source: KelvinStation(), seed: 1)
+        level = lv
+        cameraCtl.node.addChild(hud.root)
+        cameraCtl.node.addChild(titleScreen.root)
+        cameraCtl.node.addChild(levelUpScreen.root)
+        cameraCtl.node.addChild(menu.root)
+        hud.visible = false
+        titleScreen.root.isHidden = true
+        hud.showDebug = options.debugHUD
+        input.hitAbility = { [weak self] p in
+            guard let s = self else { return false }
+            return s.hud.abilityButton.contains(hudPoint: s.hud.hp(p.x, p.y))
+        }
+        input.hitDash = { [weak self] p in
+            guard let s = self else { return false }
+            return s.hud.dashButton.contains(hudPoint: s.hud.hp(p.x, p.y))
+        }
+        applyReduceMotion()
+        buildAudio()
+        guard let device = mv.device else { AppLog.error("metal: the view has no device"); return }
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let prepared = MetalWorld.prepare(device: device) { AppLog.info($0) }
+            DispatchQueue.main.async {
+                guard let s = self else { return }
+                guard let ready = prepared else {
+                    AppLog.error("metal: renderer unavailable")
+                    return
+                }
+                let w = MetalWorld(view: mv, level: lv, store: ready.0, renderer: ready.1)
+                s.world = w
+                s.applyQuality()
+                AppLog.info(String(format: "metal world ready in %.0f ms ", (FrameTimer.now() - t0) * 1000) + Memory.summary)
+                s.startAfterLoading()
+            }
+        }
+    }
+
     /// A new audio engine (boot, or after a media-services reset), built off the main thread.
     private func buildAudio() {
         let mute = options.mute
@@ -214,7 +268,7 @@ final class GameScene: SKScene {
     private func applyQuality() {
         let q = QualityTier(rawValue: settings.quality) ?? .med
         game?.setQuality(q)
-        renderer?.fx.fxK = q == .low ? 0.4 : (q == .med ? 0.7 : 1.0)
+        world?.fxK = q == .low ? 0.4 : (q == .med ? 0.7 : 1.0)
         applyFrameRate()
     }
 
@@ -255,10 +309,12 @@ final class GameScene: SKScene {
     }
 
     private func startAfterLoading() {
-        guard let r = renderer, !started else { return }
+        guard world != nil, !started else { return }
         started = true
-        r.world.isHidden = false
-        r.lighting.node.isHidden = options.noLighting
+        if let r = renderer {
+            r.world.isHidden = false
+            r.lighting.node.isHidden = options.noLighting
+        }
         // the world now renders behind the cover: GPU uploads and shader compiles happen before anyone sees a frame
         coverFrames = 0
         relayout()
@@ -279,7 +335,7 @@ final class GameScene: SKScene {
 
     override func didChangeSize(_ oldSize: CGSize) {
         super.didChangeSize(oldSize)
-        if renderer != nil { relayout() }
+        if world != nil { relayout() }
     }
 
     // ---------------------------------------------------------------- modes
@@ -295,7 +351,7 @@ final class GameScene: SKScene {
     private func showTitle() {
         guard let g = newGame(attract: true) else { return }
         game = g
-        renderer?.reset()
+        world?.reset()
         cameraCtl.reset()
         acc = 0
         mode = .title
@@ -316,7 +372,7 @@ final class GameScene: SKScene {
         guard let g = newGame(attract: false) else { return }
         game = g
         surrendered = false
-        renderer?.reset()
+        world?.reset()
         cameraCtl.reset()
         input.reset()
         taps.removeAll()
@@ -570,9 +626,9 @@ final class GameScene: SKScene {
             createdSeen = SpritePool.created
             AppLog.info(String(format: "hitch %.0f ms td=%.2f wall=%.3f upd=%.0fms sk=%.0fms", frameDt * 1000, currentTime - readyTime,
                                Date().timeIntervalSince1970, prevUpdMs, prevSkMs)
-                        + " vis=\(renderer?.bugs.visibleCount ?? 0) parts=\((renderer?.fx.pa.visibleCount ?? 0) + (renderer?.fx.pn.visibleCount ?? 0)) new=\(made)")
+                        + " vis=\(world?.stats.visibleBugs ?? 0) parts=\(world?.stats.particles ?? 0) new=\(made)")
         }
-        guard let g = game, let r = renderer, mode != .loading else {
+        guard let g = game, let r = world, mode != .loading else {
             advanceLoading()
             heartbeat(currentTime)
             return
@@ -630,12 +686,12 @@ final class GameScene: SKScene {
         let P = g.player
         let feet = (P.px + (P.x - P.px) * alpha, g.level.groundY(P.x, P.z), P.pz + (P.z - P.pz) * alpha)
         cameraCtl.update(game: g, feet: feet, dt: max(dt, 0.0001), viewSize: size, title: mode == .title, liftRise: g.liftRise)
-        cameraCtl.setVisibleArea(of: g)
+        if renderer != nil { cameraCtl.setVisibleArea(of: g) }
         sceneTimer.mark()
         let t1r = FrameTimer.now()
         r.update(game: g, alpha: alpha, dt: vdt, time: renderTime, camera: cameraCtl)
         sceneTimer.mark()
-        if mode != .title { hud.update(game: g, dt: dt, camera: cameraCtl, marines: r.marines, input: input) }
+        if mode != .title { hud.update(game: g, dt: dt, projection: r, input: input) }
         sceneTimer.mark()
         let near = g.bugCountNear(Vec2(cameraCtl.tx, cameraCtl.tz))
         audio?.update(dt: dt, game: g, bugsNear: near, listener: listener(), title: mode == .title, live: running)
@@ -645,14 +701,22 @@ final class GameScene: SKScene {
         // debug text 4× a second (every new string renders a new label texture)
         if hud.showDebug && currentTime - lastDebugText >= 0.25 {
             lastDebugText = currentTime
-            hud.setDebug(String(format: "fps %.0f sim %.1f draw %.1f ms ", fps, simMs, renderMs) + mode.rawValue
-                         + String(format: "\nжуки %d/%d част %d узлы %d+%d", g.bugsAlive, r.bugs.visibleCount,
-                                  r.fx.pa.visibleCount + r.fx.pn.visibleCount, r.levelLayer.liveNodeCount, r.dynamicNodeCount))
+            let st = r.stats
+            if let sr = renderer {
+                hud.setDebug(String(format: "fps %.0f sim %.1f draw %.1f ms ", fps, simMs, renderMs) + mode.rawValue
+                             + String(format: "\nжуки %d/%d част %d узлы %d+%d", g.bugsAlive, st.visibleBugs,
+                                      st.particles, sr.levelLayer.liveNodeCount, sr.dynamicNodeCount))
+            } else {
+                hud.setDebug(String(format: "fps %.0f sim %.1f draw %.1f enc %.1f gpu %.1f ms metal ", fps, simMs, renderMs, st.encodeMs, st.gpuMs)
+                             + mode.rawValue
+                             + String(format: "\nжуки %d/%d част %d вызовы %d инст %d тр %dk", g.bugsAlive, st.visibleBugs,
+                                      st.particles, st.drawCalls, st.instances, st.triangles / 1000))
+            }
         }
         heartbeat(currentTime)
     }
 
-    private func drainEvents(_ g: Game, _ r: WorldRenderer) {
+    private func drainEvents(_ g: Game, _ r: WorldPresenter) {
         let lis = listener()
         let inMission = mode != .title
         let diag = AppLog.diagnostics
@@ -779,7 +843,8 @@ final class GameScene: SKScene {
                 worstDt = 0
                 AppLog.info(String(format: "loading took %.2f s (from the first frame)", currentTime - startTime))
                 reportedReady = true
-                AppLog.info("scene ready mode=\(mode.rawValue) size=\(Int(size.width))x\(Int(size.height)) levelNodes=\(renderer?.levelLayer.nodeCount ?? 0)")
+                AppLog.info("scene ready mode=\(mode.rawValue) size=\(Int(size.width))x\(Int(size.height)) levelNodes=\(renderer?.levelLayer.nodeCount ?? 0)"
+                            + " renderer=\(world?.rendererName ?? "-")")
             }
         }
     }
@@ -797,16 +862,24 @@ final class GameScene: SKScene {
             let td = readyTime > 0 ? currentTime - readyTime : -1
             let worst = worstDt * 1000
             worstDt = 0
-            if let g = game, let r = renderer, readyTime > 0 {
+            if let g = game, let r = world, readyTime > 0 {
                 if td > 1.2 { fpsSum += fps; fpsSamples += 1; fpsMin = min(fpsMin, fps); worstMs = max(worstMs, worst) }
+                let st = r.stats
+                // same keys for both renderers (chunks = level chunks / Metal draw calls, nodes = SpriteKit nodes / Metal
+                // instances); rend=… plus the Metal frame breakdown: enc = CPU encode, gpu = GPU time, wait = frame slot
+                var tail = " rend=\(r.rendererName)"
+                if renderer == nil {
+                    tail += String(format: " dc=%d inst=%d tris=%d enc=%.2fms gpu=%.2fms wait=%.2fms", st.drawCalls, st.instances, st.triangles,
+                                   st.encodeMs, st.gpuMs, st.waitMs)
+                }
                 AppLog.info(String(format: "hb t=%.1f td=%.1f fps=%.1f worst=%.0fms sim=%.2fms draw=%.2fms ", t, td, fps, worst, simMs, renderMs)
-                            + "mode=\(mode.rawValue) bugs=\(g.bugsAlive) vis=\(r.bugs.visibleCount) parts=\(r.fx.pa.visibleCount + r.fx.pn.visibleCount) "
-                            + "chunks=\(r.levelLayer.visibleChunks) nodes=\(r.levelLayer.nodeCount + r.dynamicNodeCount) stage=\(g.stage.rawValue) "
-                            + "hp=\(Int(g.player.hp)) kills=\(g.kills) " + Memory.summary + " demo=\(demo?.name ?? "-")")
+                            + "mode=\(mode.rawValue) bugs=\(g.bugsAlive) vis=\(st.visibleBugs) parts=\(st.particles) "
+                            + "chunks=\(st.chunks) nodes=\(st.nodes) stage=\(g.stage.rawValue) "
+                            + "hp=\(Int(g.player.hp)) kills=\(g.kills) " + Memory.summary + " demo=\(demo?.name ?? "-")" + tail)
             } else {
                 AppLog.info(String(format: "hb t=%.1f fps=%.1f ", t, fps) + "mode=\(mode.rawValue) demo=\(demo?.name ?? "-")")
             }
-            if let r = renderer, readyTime > 0 {
+            if let r = world, readyTime > 0 {
                 AppLog.info("hb ms " + sceneTimer.summary + " | " + r.timer.summary + " | sfx \(audio?.played ?? 0)"
                             + " | max " + sceneTimer.takeMax() + " / " + r.timer.takeMax())
             }

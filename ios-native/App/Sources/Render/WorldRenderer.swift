@@ -48,8 +48,12 @@ final class WorldRenderer {
         }
     }
 
+    /// Camera of the last attach (HUD projection of the nameplates / objective marker).
+    weak var cameraRef: CameraController?
+
     /// The darkness overlay and the mote field are camera children (screen space).
     func attach(to camera: CameraController) {
+        cameraRef = camera
         camera.node.addChild(lighting.node)
         camera.node.addChild(motes.root)
     }
