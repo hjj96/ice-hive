@@ -88,8 +88,8 @@ final class GameScene: SKScene {
     private var hitchLogs = 0
     private var cpuProcLast: Double = 0
     private var cpuMainLast: Double = 0
-    /// Ticks without a free frame slot since the last hitch line.
-    private var skipsSeen = 0
+    /// Ticks without a free frame slot / without a drawable at the last hitch line.
+    private var skipsSeen = (0, 0)
     /// Effective graphics: the tier, with the thermal fallback applied (logged when it changes).
     private var thermalNote = ""
 
@@ -198,6 +198,7 @@ final class GameScene: SKScene {
     private func showMetalFailure(_ why: String) {
         metalFailed = true
         AppLog.error("metal: \(why)")
+        loadingSub?.color = UIPalette.amber
         loadingSub?.set("НЕ УДАЛОСЬ ЗАПУСТИТЬ ГРАФИКУ (METAL)")
         loadingSub?.node.alpha = 1
         let hint = Label("ПЕРЕЗАПУСТИТЕ ИГРУ", font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 2.5)
@@ -592,17 +593,18 @@ final class GameScene: SKScene {
         let frameDt = currentTime - lastFrameTime
         worstDt = max(worstDt, frameDt)
         lastFrameTime = currentTime
-        // long ticks (> 50 ms) with a wall-clock stamp (CI correlates them with its screenshot times): upd / draw / drw =
-        // the tick before: scene update (+ world build), encode + HUD + commit, drawable wait; skip = ticks without a
-        // free frame slot since the last such line; cb = the slowest recent command buffer, commit → done (waiting to be
-        // scheduled, GPU time): far more than its GPU time = the GPU was held up outside the app
+        // long ticks (> 50 ms) with a wall-clock stamp (CI correlates them with its screenshot times): upd / draw = the
+        // tick before: scene update (+ world build), encode + HUD + commit; skip = ticks that did not draw since the last
+        // such line (no free frame slot / no drawable back from the compositor); cb = the slowest recent command buffer,
+        // commit → done (waiting to be scheduled, GPU time): far more than its GPU time = the GPU was held up outside
+        // the app
         if AppLog.diagnostics && frameDt > 0.05 && readyTime > 0 && hitchLogs < 60, let h = host {
             hitchLogs += 1
             let lt = h.lastTick
-            let skips = h.slotMissTotal - skipsSeen
-            skipsSeen = h.slotMissTotal
-            AppLog.info(String(format: "hitch %.0f ms td=%.2f wall=%.3f upd=%.0fms draw=%.0fms drw=%.0fms skip=%d ", frameDt * 1000,
-                               currentTime - readyTime, Date().timeIntervalSince1970, lt.updateMs, lt.drawMs, lt.drawableMs, skips)
+            let slots = h.slotMissTotal - skipsSeen.0, draws = h.noDrawableTotal - skipsSeen.1
+            skipsSeen = (h.slotMissTotal, h.noDrawableTotal)
+            AppLog.info(String(format: "hitch %.0f ms td=%.2f wall=%.3f upd=%.0fms draw=%.0fms skip=%d/%d ", frameDt * 1000,
+                               currentTime - readyTime, Date().timeIntervalSince1970, lt.updateMs, lt.drawMs, slots, draws)
                         + h.timeline.worstRecent() + " vis=\(world?.stats.visibleBugs ?? 0) parts=\(world?.stats.particles ?? 0)")
         }
         guard let g = game, let r = world, mode != .loading else {
@@ -814,7 +816,7 @@ final class GameScene: SKScene {
                 cover.removeFromParent()
                 readyTime = currentTime
                 worstDt = 0
-                skipsSeen = host?.slotMissTotal ?? 0
+                skipsSeen = (host?.slotMissTotal ?? 0, host?.noDrawableTotal ?? 0)
                 _ = host?.timeline.takeWindow()
                 AppLog.info(String(format: "loading took %.2f s (from the first frame)", currentTime - startTime))
                 AppLog.info("scene ready mode=\(mode.rawValue) size=\(Int(size.width))x\(Int(size.height)) renderer=metal")
