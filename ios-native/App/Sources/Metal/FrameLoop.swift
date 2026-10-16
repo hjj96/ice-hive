@@ -157,7 +157,10 @@ final class FrameLoop: GameHost {
     private let finalPass = MTLRenderPassDescriptor()
     private var observers: [NSObjectProtocol] = []
     private var fps = 60
-    private var minFrameDuration: Double = 0
+    /// Below the panel's rate, presents wait for the display link's target time (an even cadence).
+    private var pacedPresent = false
+    /// When the frame being built is due on screen (CADisplayLink.targetTimestamp of this tick).
+    private var targetTime: CFTimeInterval = 0
     private var worldScale: CGFloat
     private var inBackground = false
     private var frameID = 0
@@ -268,10 +271,9 @@ final class FrameLoop: GameHost {
         guard let l = link else { return }
         let f = Float(fps)
         l.preferredFrameRateRange = CAFrameRateRange(minimum: min(f, 60), maximum: f, preferred: f)
-        // below the panel's rate (60 Hz on a 120 Hz ProMotion screen, the 30 Hz menus) every image stays up at least
-        // one frame interval: presents land on an even vsync cadence instead of whenever the GPU finished
-        let panel = UIScreen.main.maximumFramesPerSecond
-        minFrameDuration = fps < panel ? 0.9 / Double(fps) : 0
+        // below the panel's rate (60 Hz on a 120 Hz ProMotion screen, the 30 Hz menus) each image is presented at
+        // its tick's target time: presents land on an even vsync cadence instead of whenever the GPU finished
+        pacedPresent = fps < UIScreen.main.maximumFramesPerSecond
     }
 
     // ---------------------------------------------------------------- frame
@@ -288,6 +290,7 @@ final class FrameLoop: GameHost {
             r.setTargetSize(width: w, height: h)
             if open { r.beginFrame() } else { r.frameOpen = false }
         }
+        targetTime = link.targetTimestamp
         sk.update(atTime: link.timestamp)
         let t1 = FrameTimer.now()
         if open && !draw(r) {
@@ -320,7 +323,7 @@ final class FrameLoop: GameHost {
                   renderPassDescriptor: finalPass, commandQueue: queue)
         enc.endEncoding()
         finalPass.colorAttachments[0].texture = nil
-        if minFrameDuration > 0 { cb.present(d, afterMinimumDuration: minFrameDuration) } else { cb.present(d) }
+        if pacedPresent && targetTime > 0 { cb.present(d, atTime: targetTime) } else { cb.present(d) }
         let id = frameID
         frameID += 1
         let tl = timeline, sem = slots

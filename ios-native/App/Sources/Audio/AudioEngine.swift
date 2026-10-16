@@ -307,10 +307,6 @@ final class AudioEngine {
             }
         }
     }
-
-    func stopAll() {
-        if enabled { engine.stop() }
-    }
 }
 
 extension SoundID {

@@ -506,7 +506,6 @@ final class MenuScreen {
     }
 
     func hide() { root.isHidden = true }
-    var isShown: Bool { !root.isHidden }
 
     func hit(_ p: CGPoint) -> Action? {
         if root.isHidden { return nil }

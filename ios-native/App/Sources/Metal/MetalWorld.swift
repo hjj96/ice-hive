@@ -78,8 +78,6 @@ final class MetalWorld: HUDProjection {
     private var lastEye = F3(0, 0, 0), lastFocus = F3(0, 0, 0)
     private var lastTarget = (0, 0)
     private var lastRise: Float = -1
-    /// Frames built / ticks skipped for want of a free slot (heartbeat).
-    private(set) var builtFrames = 0
 
     var fxK: Float {
         get { fx.fxK }
@@ -215,7 +213,6 @@ final class MetalWorld: HUDProjection {
         lights(game: game, time: time)
         timer.mark()
         renderer.built = true
-        builtFrames += 1
 
         var s = WorldStats()
         s.visibleBugs = visibleBugs

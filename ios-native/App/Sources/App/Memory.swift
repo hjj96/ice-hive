@@ -5,8 +5,8 @@ import Darwin
 #endif
 
 /// Process memory for the heartbeat log: the footprint jetsam uses, and what the OS still grants the app.
-/// On the simulator the Metal textures live in the host's GPU process, so the footprint stops counting the sprite
-/// sheets once they are uploaded; on a device (unified memory) they count. `avail` is 0 on the simulator.
+/// On the simulator Metal textures and render targets live in the host's GPU process, so the footprint does not count
+/// them; on a device (unified memory) they count. `avail` is 0 on the simulator.
 enum Memory {
     static func footprintMB() -> Int {
         #if canImport(Darwin)
@@ -32,8 +32,8 @@ enum Memory {
     static var summary: String { "mem=\(footprintMB())MB avail=\(availableMB())MB" }
 }
 
-/// Process and main-thread CPU time (s), for the heartbeat's cpu=/main= utilisation (renderer A/B: SpriteKit renders
-/// inside SKView after our update(), so its cost only shows up here, not in the draw= section timer).
+/// Process and main-thread CPU time (s), for the heartbeat's cpu=/main= utilisation (everything the app does, including
+/// SpriteKit's HUD work inside SKRenderer and Metal's driver threads).
 enum CPUTime {
     /// User + system time of the whole process (all threads).
     static func process() -> Double {

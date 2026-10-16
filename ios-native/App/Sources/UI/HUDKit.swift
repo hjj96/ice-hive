@@ -16,7 +16,6 @@ enum UIPalette {
     static let amber = Tone.hex(0xffb420)
     static let amberDim = Tone.hex(0x6b4a0d)
     static let red = Tone.hex(0xff3b3b)
-    static let redDim = Tone.hex(0x5c1515)
     static let hp = Tone.hex(0xe8352e)
     static let hpBg = rgba(48, 10, 10, 0.75)
     static let panel = rgba(7, 11, 16, 0.86)
@@ -190,19 +189,6 @@ final class DashBar {
 }
 
 enum Shapes {
-    /// CSS clip-path --cut-s: top-left origin, extends right / down (y negative).
-    static func cutPanel(width w: CGFloat, height h: CGFloat, cut c: CGFloat = 7) -> CGPath {
-        let p = CGMutablePath()
-        p.move(to: CGPoint(x: 0, y: 0))
-        p.addLine(to: CGPoint(x: w - c, y: 0))
-        p.addLine(to: CGPoint(x: w, y: -c))
-        p.addLine(to: CGPoint(x: w, y: -h))
-        p.addLine(to: CGPoint(x: c, y: -h))
-        p.addLine(to: CGPoint(x: 0, y: -h + c))
-        p.closeSubpath()
-        return p
-    }
-
     private static var panelCache: [String: SKTexture] = [:]
     /// Memory warning: textures on screen stay alive through their nodes; the cache only re-renders the rest on demand.
     static func clearCache() { panelCache.removeAll() }

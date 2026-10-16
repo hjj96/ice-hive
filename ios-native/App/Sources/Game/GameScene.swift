@@ -65,7 +65,6 @@ final class GameScene: SKScene {
     private var gapWorst: Double = 0
     private var simMs: Double = 0
     private var renderMs: Double = 0
-    private var reportedReady = false
     private var reportedDone = false
     private var loadingLabel: Label?
     private var loadingSub: Label?
@@ -80,7 +79,6 @@ final class GameScene: SKScene {
     private var hudWasVisible = false
     private var readyTime: Double = -1
     private var loadStep = 0
-    private var bootTime: Double = 0
     private var metalFailed = false
     private let sceneTimer = FrameTimer(["sim", "ev", "cam", "world", "hud", "au"])
     private var worstDt: Double = 0
@@ -147,7 +145,6 @@ final class GameScene: SKScene {
             loadStep += 1          // let the loading screen render first
         case 2:
             loadStep = 3
-            bootTime = FrameTimer.now()
             loadMetal()
         default:
             if let l = loadingSub, !metalFailed { l.node.alpha = 0.5 + 0.5 * CGFloat(sinf(Float(lastTime) * 4)) }
@@ -820,7 +817,6 @@ final class GameScene: SKScene {
                 skipsSeen = host?.slotMissTotal ?? 0
                 _ = host?.timeline.takeWindow()
                 AppLog.info(String(format: "loading took %.2f s (from the first frame)", currentTime - startTime))
-                reportedReady = true
                 AppLog.info("scene ready mode=\(mode.rawValue) size=\(Int(size.width))x\(Int(size.height)) renderer=metal")
             }
         }
