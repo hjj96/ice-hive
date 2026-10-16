@@ -25,7 +25,8 @@ final class ParticleSystem {
         var kind: UInt8 = 0
         var tex: PTex = .soft
         var variant: Int = 0
-        var color: SKColor? = nil
+        /// ColorCache slot, -1 = untinted (baked fire ramps). Plain data: copying a particle never touches ARC.
+        var color: Int32 = -1
     }
 
     let additive: Bool
@@ -35,6 +36,8 @@ final class ParticleSystem {
     private var ps: [P]
     private(set) var count = 0
     private let pool: SpritePool
+    /// Colour slot last assigned to each pool sprite (sprite colours are only set when they change).
+    private var slotColor: [Int32]
     private var rng = SeededRNG(seed: 99)
     private let level: Level
     private var frames: [[SKTexture]] = []
@@ -44,6 +47,7 @@ final class ParticleSystem {
         self.capacity = capacity
         self.level = level
         ps = [P](repeating: P(), count: capacity)
+        slotColor = [Int32](repeating: -2, count: capacity)
         pool = SpritePool(parent: parent, capacity: capacity) { n in
             n.blendMode = additive ? .add : .alpha
             n.zPosition = additive ? ZBand.particlesAdd : ZBand.particlesAlpha
@@ -85,10 +89,10 @@ final class ParticleSystem {
         p.grav = grav; p.drag = drag; p.kind = kind; p.floorY = gy + 0.03
         if kind == 1 {
             p.tex = additive ? (g > 0.65 ? .firePyro : .fireBlast) : .fireball
-            p.color = nil
+            p.color = -1
         } else {
             p.tex = tex ?? (additive ? .soft : .puff)
-            p.color = Tone.color(r, g, b)
+            p.color = ColorCache.id(r, g, b)
         }
         let nv = frames[p.tex.rawValue].count
         p.variant = nv > 1 ? Int(rng.next() * Float(nv)) % nv : 0
@@ -130,6 +134,7 @@ final class ParticleSystem {
             let pt = Iso.point(p.x, p.y, p.z)
             if pt.x < minX || pt.x > maxX || pt.y < minY || pt.y > maxY { continue }
             guard let n = pool.next() else { continue }
+            let slot = pool.used - 1
             let u = p.t / p.life
             let s = CGFloat(p.s0 + (p.s1 - p.s0) * u) * Iso.ppm
             n.size = CGSize(width: s, height: s)
@@ -152,11 +157,14 @@ final class ParticleSystem {
                 alpha *= 1 - u
             }
             if n.texture !== tex { n.texture = tex }
-            if let c = p.color {
-                n.color = c
-                n.colorBlendFactor = 1
-            } else {
-                n.colorBlendFactor = 0
+            if p.color != slotColor[slot] {
+                slotColor[slot] = p.color
+                if p.color >= 0 {
+                    n.color = ColorCache.colors[Int(p.color)]
+                    n.colorBlendFactor = 1
+                } else {
+                    n.colorBlendFactor = 0
+                }
             }
             n.alpha = CGFloat(max(0, min(1, alpha)))
         }

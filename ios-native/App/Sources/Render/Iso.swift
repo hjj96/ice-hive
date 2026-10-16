@@ -156,3 +156,35 @@ enum Tone {
         return (l((v >> 16) & 255), l((v >> 8) & 255), l(v & 255))
     }
 }
+
+// ================================================================
+//  COLOUR CACHE — display colours of linear web colours, quantised
+//  (√-spaced, 64 steps per channel over 0…2) so per-frame / per-
+//  particle tints never allocate a UIColor or run ACES again.
+// ================================================================
+enum ColorCache {
+    private static var index: [Int: Int32] = [:]
+    private(set) static var colors: [SKColor] = []
+
+    @inline(__always) private static func q(_ v: Float) -> Int {
+        let c = v.isFinite ? max(0, min(2, v)) : 0
+        return Int((c * 0.5).squareRoot() * 63 + 0.5)
+    }
+    @inline(__always) private static func dq(_ k: Int) -> Float {
+        let u = Float(k) / 63
+        return u * u * 2
+    }
+
+    /// Cache slot of a linear colour (stable for the app's lifetime).
+    static func id(_ r: Float, _ g: Float, _ b: Float) -> Int32 {
+        let key = (q(r) << 12) | (q(g) << 6) | q(b)
+        if let i = index[key] { return i }
+        let c = Tone.color(dq(key >> 12), dq((key >> 6) & 63), dq(key & 63))
+        colors.append(c)
+        let i = Int32(colors.count - 1)
+        index[key] = i
+        return i
+    }
+
+    @inline(__always) static func color(_ r: Float, _ g: Float, _ b: Float) -> SKColor { colors[Int(id(r, g, b))] }
+}

@@ -76,8 +76,12 @@ final class SpriteRing {
         self.configure = configure
     }
 
+    /// Ring slot of the sprite the last `next()` returned.
+    private(set) var lastIndex = 0
+
     func next() -> SKSpriteNode {
         if live < capacity { live += 1 }
+        lastIndex = head
         if head == nodes.count && nodes.count < capacity {
             let n = SKSpriteNode(texture: nil)
             configure(n)
@@ -92,6 +96,9 @@ final class SpriteRing {
         n.isHidden = false
         return n
     }
+
+    /// Sprite in ring slot k (nil before it was first used).
+    func node(at k: Int) -> SKSpriteNode? { k >= 0 && k < nodes.count ? nodes[k] : nil }
 
     /// Create every node of the ring up front (hidden), so filling it during play never allocates.
     func reserve() {

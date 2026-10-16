@@ -4,7 +4,7 @@ import SpriteKit
 final class GameViewController: UIViewController {
     let options: LaunchOptions
     private var presentedScene: GameScene?
-    private var resignObserver: NSObjectProtocol?
+    private var observers: [NSObjectProtocol] = []
 
     init(options: LaunchOptions) {
         self.options = options
@@ -31,11 +31,14 @@ final class GameViewController: UIViewController {
         let view = skView
         view.ignoresSiblingOrder = true
         view.isMultipleTouchEnabled = true
-        view.shouldCullNonVisibleNodes = true
+        // every pool hides its unused / off-screen sprites and the level culls its own chunks: SpriteKit's per-node
+        // visibility pass over ~7k nodes would only repeat that work (`-cull` turns it back on for A/B runs)
+        view.shouldCullNonVisibleNodes = options.cull
 
-        // 120 Hz on ProMotion iPhones (needs CADisableMinimumFrameDurationOnPhone in Info.plist), else 60.
+        // 60 Hz like the 60 Hz simulation; the scene raises it to 120 on ProMotion only for «Графика: высокая»
+        // while the device is cool and not in Low Power Mode (GameScene.applyFrameRate)
         let maxFPS = UIScreen.main.maximumFramesPerSecond
-        view.preferredFramesPerSecond = maxFPS >= 120 ? 120 : 60
+        view.preferredFramesPerSecond = 60
 
         var showHUD = options.debugHUD
         #if DEBUG
@@ -45,11 +48,24 @@ final class GameViewController: UIViewController {
         view.showsNodeCount = showHUD
         view.showsDrawCount = showHUD
 
-        resignObserver = NotificationCenter.default.addObserver(forName: UIApplication.willResignActiveNotification,
-                                                                object: nil, queue: .main) { [weak self] _ in
+        let nc = NotificationCenter.default
+        observers.append(nc.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
             self?.presentedScene?.appWillResignActive()
-        }
-        AppLog.info("SKView ready maxFPS=\(maxFPS) preferredFPS=\(view.preferredFramesPerSecond) hud=\(showHUD)")
+        })
+        observers.append(nc.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.presentedScene?.appDidBecomeActive()
+        })
+        observers.append(nc.addObserver(forName: ProcessInfo.thermalStateDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            AppLog.info("thermal state \(ProcessInfo.processInfo.thermalState.rawValue)")
+            self?.presentedScene?.applyFrameRate()
+        })
+        observers.append(nc.addObserver(forName: Notification.Name.NSProcessInfoPowerStateDidChange, object: nil, queue: .main) { [weak self] _ in
+            self?.presentedScene?.applyFrameRate()
+        })
+        observers.append(nc.addObserver(forName: UIAccessibility.reduceMotionStatusDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.presentedScene?.applyReduceMotion()
+        })
+        AppLog.info("SKView ready maxFPS=\(maxFPS) preferredFPS=\(view.preferredFramesPerSecond) cull=\(options.cull) hud=\(showHUD)")
     }
 
     override func viewDidLayoutSubviews() {

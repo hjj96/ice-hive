@@ -29,13 +29,19 @@ final class GameScene: SKScene {
     private var demo: DemoScript?
     private var selectedClass: MarineClass = .assault
     private var surrendered = false
+    /// Settings and records (UserDefaults, v1 values migrated on the first launch).
+    private let settings = SettingsStore()
+    /// Menu / card / title buttons fire when the finger lifts over the target it went down on (web onTap).
+    private enum TapTarget: Equatable { case title(TitleScreen.Action), card(Int), menu(MenuScreen.Action) }
+    private var taps: [ObjectIdentifier: TapTarget] = [:]
+    /// Combo count of the last `.combo` event (pitch of the combo chime that follows it).
+    private var comboForSound = 0
 
     // loop state
     private var acc: Double = 0
     private var lastTime: Double = -1
     private var renderTime: Float = 0
     private var hitStopT: Float = 0, hitStopK: Float = 1, hitStopCd: Float = 0
-    private var endDelay: Float = -1
     private var heartT: Float = 0
 
     // stats
@@ -79,8 +85,13 @@ final class GameScene: SKScene {
         super.init(size: size)
         backgroundColor = Tone.hex(0x1a2737)
         anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        if let mc = MarineClass(id: settings.cls) { selectedClass = mc }
         if let c = options.playerClass, let mc = MarineClass(id: c) { selectedClass = mc }
         demo = DemoScript.make(options: options)
+        haptics.enabled = settings.haptics
+        if !settings.migrated.isEmpty { AppLog.info("settings: migrated from v1: " + settings.migrated.joined(separator: ",")) }
+        AppLog.info("settings: cls=\(settings.cls) best=\(settings.bestKills)/\(settings.bestWin)s muted=\(settings.muted) vol=\(settings.vol) "
+                    + "haptics=\(settings.haptics) quality=\(settings.quality)")
     }
 
     required init?(coder aDecoder: NSCoder) {
@@ -114,10 +125,10 @@ final class GameScene: SKScene {
             loadStep += 1          // let the loading screen render first
         case 2:
             loadStep = 3
-            bootTime = ProcessInfo.processInfo.systemUptime
+            bootTime = FrameTimer.now()
             let a = SpriteAssets()
             assets = a
-            AppLog.info(String(format: "sprites indexed in %.0f ms", (ProcessInfo.processInfo.systemUptime - bootTime) * 1000))
+            AppLog.info(String(format: "sprites indexed in %.0f ms", (FrameTimer.now() - bootTime) * 1000))
             finishLoading()
         default:
             if let l = loadingSub { l.node.alpha = 0.5 + 0.5 * CGFloat(sinf(Float(lastTime) * 4)) }
@@ -128,10 +139,10 @@ final class GameScene: SKScene {
     /// first frame shows them — otherwise each sheet is decoded synchronously the first time a frame of it is drawn.
     private func finishLoading() {
         guard let a = assets else { return }
-        let t0 = ProcessInfo.processInfo.systemUptime
+        let t0 = FrameTimer.now()
         let lv = Level(source: KelvinStation(), seed: 1)
         level = lv
-        let r = WorldRenderer(level: lv, assets: a, bugCapacity: QualityTier.med.bugCap)
+        let r = WorldRenderer(level: lv, assets: a, bugCapacity: QualityTier.high.bugCap)
         renderer = r
         r.reservePools(bugs: 640)
         createdSeen = SpritePool.created
@@ -154,19 +165,17 @@ final class GameScene: SKScene {
             guard let s = self else { return false }
             return s.hud.dashButton.contains(hudPoint: s.hud.hp(p.x, p.y))
         }
+        applyQuality()
+        applyReduceMotion()
         // sounds decode on a background queue (≈ 1.5 s) while the sheets decode; the scene plays nothing until then
-        let mute = options.mute
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let engine = AudioEngine(enabled: !mute)
-            DispatchQueue.main.async { self?.audio = engine }
-        }
+        buildAudio()
         let pages = a.sheets.pages
-        AppLog.info(String(format: "world built in %.0f ms; preloading %d sheets", (ProcessInfo.processInfo.systemUptime - t0) * 1000, pages.count))
-        let t1 = ProcessInfo.processInfo.systemUptime
+        AppLog.info(String(format: "world built in %.0f ms; preloading %d sheets", (FrameTimer.now() - t0) * 1000, pages.count))
+        let t1 = FrameTimer.now()
         SKTexture.preload(pages) {
             DispatchQueue.main.async { [weak self] in
                 guard let s = self else { return }
-                AppLog.info(String(format: "sheets decoded in %.0f ms", (ProcessInfo.processInfo.systemUptime - t1) * 1000) + " mem=\(Memory.footprintMB())MB")
+                AppLog.info(String(format: "sheets decoded in %.0f ms", (FrameTimer.now() - t1) * 1000) + " " + Memory.summary)
                 s.startAfterLoading()
             }
         }
@@ -179,6 +188,70 @@ final class GameScene: SKScene {
     }
 
     private var started = false
+
+    /// A new audio engine (boot, or after a media-services reset), built off the main thread.
+    private func buildAudio() {
+        let mute = options.mute
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let engine = AudioEngine(enabled: !mute)
+            DispatchQueue.main.async {
+                guard let s = self else { return }
+                engine.master = s.settings.masterVolume
+                engine.onMediaReset = { [weak s] in
+                    DispatchQueue.main.async {
+                        guard let sc = s else { return }
+                        sc.audio = nil
+                        sc.buildAudio()
+                    }
+                }
+                s.audio = engine
+            }
+        }
+    }
+
+    /// «Графика»: auto = the web phone tier (med). Bug cap (gameplay), effect density, and 120 Hz for high.
+    private func applyQuality() {
+        let q = QualityTier(rawValue: settings.quality) ?? .med
+        game?.setQuality(q)
+        renderer?.fx.fxK = q == .low ? 0.4 : (q == .med ? 0.7 : 1.0)
+        applyFrameRate()
+    }
+
+    /// 60 Hz normally; 120 on ProMotion only with «Графика: высокая» while the device is cool and not in Low Power
+    /// Mode; 30 behind the menus (static screens over a paused world).
+    func applyFrameRate() {
+        guard let v = view else { return }
+        let menuUp = mode == .paused || mode == .ended || mode == .levelUp
+        var fps = 60
+        let pi = ProcessInfo.processInfo
+        let cool = pi.thermalState == .nominal || pi.thermalState == .fair
+        if settings.quality == "high" && UIScreen.main.maximumFramesPerSecond >= 120 && cool && !pi.isLowPowerModeEnabled { fps = 120 }
+        if menuUp { fps = 30 }
+        if v.preferredFramesPerSecond != fps {
+            v.preferredFramesPerSecond = fps
+            AppLog.info("frame rate \(fps) Hz (mode \(mode.rawValue))")
+        }
+    }
+
+    /// iOS Reduce Motion: shake and recoil kick at 35 %, longer banner (web prefers-reduced-motion).
+    func applyReduceMotion() {
+        let on = UIAccessibility.isReduceMotionEnabled
+        cameraCtl.reducedMotion = on
+        hud.reducedMotion = on
+    }
+
+    /// «Рекорд: N убито · лучшая эвакуация M:SS» (web tBest), nil before the first mission.
+    private var recordLine: String? {
+        if settings.bestKills == 0 && settings.bestWin == 0 { return nil }
+        var s = "Рекорд: \(settings.bestKills) убито"
+        if settings.bestWin > 0 { s += " · лучшая эвакуация " + formatTime(Float(settings.bestWin)) }
+        return s
+    }
+
+    private func layoutTitle() {
+        guard let v = view else { return }
+        titleScreen.layout(size: size, insets: v.safeAreaInsets, selected: selectedClass, soundOn: !settings.muted, record: recordLine)
+    }
 
     private func startAfterLoading() {
         guard let r = renderer, !started else { return }
@@ -200,7 +273,7 @@ final class GameScene: SKScene {
         let insets = view.safeAreaInsets
         input.viewSize = size
         hud.layout(size: size, insets: insets)
-        if mode == .title { titleScreen.layout(size: size, insets: insets, selected: selectedClass) }
+        if mode == .title { layoutTitle() }
     }
 
     override func didChangeSize(_ oldSize: CGSize) {
@@ -212,7 +285,7 @@ final class GameScene: SKScene {
     private func newGame(attract: Bool) -> Game? {
         guard let lv = level else { return nil }
         var cfg = GameConfig()
-        cfg.quality = .med
+        cfg.quality = QualityTier(rawValue: settings.quality) ?? .med
         cfg.attract = attract
         let seed: UInt32 = options.seed ?? UInt32(truncatingIfNeeded: Int(Date().timeIntervalSince1970 * 1000) & 0x7fff_ffff)
         return Game(seed: seed, playerClass: selectedClass, config: cfg, level: lv)
@@ -225,24 +298,29 @@ final class GameScene: SKScene {
         cameraCtl.reset()
         acc = 0
         mode = .title
+        input.reset()
+        taps.removeAll()
         hud.visible = false
         menu.hide()
         levelUpScreen.hide()
         titleScreen.root.isHidden = false
-        if let v = view { titleScreen.layout(size: size, insets: v.safeAreaInsets, selected: selectedClass) }
+        layoutTitle()
+        applyFrameRate()
         AppLog.info("mode title")
     }
 
     private func startMission(_ cls: MarineClass) {
         selectedClass = cls
+        if demo == nil { settings.setClass(cls.id) }
         guard let g = newGame(attract: false) else { return }
         game = g
         surrendered = false
-        endDelay = -1
         renderer?.reset()
         cameraCtl.reset()
         input.reset()
+        taps.removeAll()
         acc = 0
+        heartT = 0
         hitStopT = 0; hitStopK = 1; hitStopCd = 0
         titleScreen.root.isHidden = true
         menu.hide()
@@ -251,46 +329,78 @@ final class GameScene: SKScene {
         hud.setSquad(g.marines)
         relayout()
         mode = .playing
+        applyFrameRate()
         demo?.begin(game: g)
         AppLog.info("mode playing class=\(cls.id) seed=\(g.seed) demo=\(demo?.name ?? "-")")
     }
 
+    /// Thumbs held through a level-up or the pause menu keep steering afterwards (web showScreen): the sticks stay,
+    /// only one-shot presses are dropped.
     private func openLevelUp() {
         guard let g = game, let v = view else { return }
         if g.offer.isEmpty { g.rollUpgrades() }
-        levelUpScreen.show(level: g.xpLevel, offer: g.offer, cls: g.playerClass, size: size, insets: v.safeAreaInsets)
+        levelUpScreen.show(level: g.xpLevel - g.pendingLevels + 1, offer: g.offer, counts: g.upgradeCounts, cls: g.playerClass,
+                           size: size, insets: v.safeAreaInsets)
+        let first = mode != .levelUp
         mode = .levelUp
-        input.reset()
-        audio?.play(.levelup, pos: nil, listener: listener())
-        haptics.play(.success)
+        input.consumePresses()
+        if first {
+            audio?.play(.levelup, pos: nil, listener: listener())
+            haptics.play(.success)
+        }
+        applyFrameRate()
     }
 
     private func chooseCard(_ k: Int) {
-        guard let g = game else { return }
+        guard let g = game, mode == .levelUp, !levelUpScreen.locked else { return }
         if g.chooseUpgrade(k) != nil {
             audio?.play(.click, pos: nil, listener: listener())
             haptics.play(.select)
         }
-        if g.wantsLevelUp { openLevelUp() } else { levelUpScreen.hide(); mode = .playing }
+        if g.wantsLevelUp { openLevelUp() } else { levelUpScreen.hide(); mode = .playing; applyFrameRate() }
+    }
+
+    private var pauseState: MenuScreen.PauseState {
+        MenuScreen.PauseState(soundOn: !settings.muted, volume: settings.vol, quality: settings.quality, hapticsOn: settings.haptics)
     }
 
     private func pause() {
         guard mode == .playing else { return }
         mode = .paused
-        input.reset()
-        menu.showPause(size: size, soundOn: audio?.enabled ?? false)
+        input.consumePresses()
+        menu.showPause(size: size, state: pauseState)
+        audio?.play(.click, pos: nil, listener: listener())
+        applyFrameRate()
+    }
+
+    private func resume() {
+        guard mode == .paused else { return }
+        menu.hide()
+        mode = .playing
+        applyFrameRate()
     }
 
     private func showEnd() {
         guard let g = game else { return }
         mode = .ended
         input.reset()
-        menu.showEnd(size: size, stats: g.stats, surrendered: surrendered)
-        AppLog.info("mission over won=\(g.phase == .won) time=\(formatTime(g.time)) kills=\(g.kills)")
+        taps.removeAll()
+        var newRecord = false
+        if demo == nil {
+            newRecord = settings.recordMission(kills: g.kills, won: g.phase == .won, time: g.time)
+        } else if demo?.name == "end" {
+            newRecord = true   // CI screenshot of the record highlight
+        }
+        menu.showEnd(size: size, stats: g.stats, surrendered: surrendered, newRecord: newRecord)
+        applyFrameRate()
+        AppLog.info("mission over won=\(g.phase == .won) time=\(formatTime(g.time)) kills=\(g.kills) record=\(newRecord)")
     }
 
     /// App went to the background: pause like the web game.
     func appWillResignActive() { if mode == .playing { pause() } }
+
+    /// Back in the foreground: the audio session may have been taken over meanwhile.
+    func appDidBecomeActive() { audio?.restart("app active") }
 
     // ---------------------------------------------------------------- touches
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -298,26 +408,16 @@ final class GameScene: SKScene {
         for t in touches {
             let p = t.location(in: view)
             let h = hud.hp(p.x, p.y)
+            let id = ObjectIdentifier(t)
             switch mode {
             case .loading:
                 break
             case .title:
-                if let a = titleScreen.hit(h) {
-                    switch a {
-                    case .select(let c):
-                        selectedClass = c
-                        titleScreen.layout(size: size, insets: view.safeAreaInsets, selected: c)
-                        audio?.play(.click, pos: nil, listener: listener())
-                        haptics.play(.select)
-                    case .start:
-                        audio?.play(.click, pos: nil, listener: listener())
-                        startMission(selectedClass)
-                    }
-                }
+                if let a = titleScreen.hit(h) { taps[id] = .title(a) }
             case .levelUp:
-                if let k = levelUpScreen.hit(h) { chooseCard(k) }
+                if let k = levelUpScreen.hit(h) { taps[id] = .card(k) }
             case .paused, .ended:
-                if let a = menu.hit(h) { menuAction(a) }
+                if let a = menu.hit(h) { taps[id] = .menu(a) }
             case .playing:
                 if hud.pauseHit(viewPoint: p) { pause() } else { input.began(t, at: p) }
             }
@@ -330,11 +430,47 @@ final class GameScene: SKScene {
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        for t in touches { input.ended(t) }
+        guard let view = view else { return }
+        for t in touches {
+            input.ended(t)
+            guard let target = taps.removeValue(forKey: ObjectIdentifier(t)) else { continue }
+            let p = t.location(in: view)
+            let h = hud.hp(p.x, p.y)
+            switch target {
+            case .title(let a):
+                if mode == .title && titleScreen.hit(h) == a { titleAction(a) }
+            case .card(let k):
+                if mode == .levelUp && levelUpScreen.hit(h) == k { chooseCard(k) }
+            case .menu(let a):
+                if (mode == .paused || mode == .ended) && menu.hit(h) == a { menuAction(a) }
+            }
+        }
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        for t in touches { input.ended(t) }
+        for t in touches {
+            input.ended(t)
+            taps.removeValue(forKey: ObjectIdentifier(t))
+        }
+    }
+
+    private func titleAction(_ a: TitleScreen.Action) {
+        switch a {
+        case .select(let c):
+            selectedClass = c
+            settings.setClass(c.id)
+            layoutTitle()
+            audio?.play(.click, pos: nil, listener: listener())
+            haptics.play(.select)
+        case .start:
+            audio?.play(.click, pos: nil, listener: listener())
+            startMission(selectedClass)
+        case .sound:
+            settings.setMuted(!settings.muted)
+            audio?.master = settings.masterVolume
+            layoutTitle()
+            audio?.play(.click, pos: nil, listener: listener())
+        }
     }
 
     func keyDown(_ code: Int) {
@@ -342,6 +478,7 @@ final class GameScene: SKScene {
             if mode == .playing { pause() } else if mode == .paused { menuAction(.resume) }
             return
         }
+        if mode == .levelUp && levelUpScreen.locked { return }
         if mode == .title && (code == UIKeyboardHIDUsage.keyboardReturnOrEnter.rawValue) { startMission(selectedClass); return }
         if mode == .levelUp {
             if code == UIKeyboardHIDUsage.keyboard1.rawValue { chooseCard(0) }
@@ -356,22 +493,47 @@ final class GameScene: SKScene {
     func keyUp(_ code: Int) { input.keyUp(code) }
 
     private func menuAction(_ a: MenuScreen.Action) {
-        audio?.play(.click, pos: nil, listener: listener())
         switch a {
         case .resume:
-            menu.hide(); mode = .playing
+            audio?.play(.click, pos: nil, listener: listener())
+            resume()
         case .sound:
-            if let au = audio {
-                au.master = au.master > 0 ? 0 : 0.8
-                menu.showPause(size: size, soundOn: au.master > 0)
-            }
+            settings.setMuted(!settings.muted)
+            audio?.master = settings.masterVolume
+            audio?.play(.click, pos: nil, listener: listener())
+            menu.showPause(size: size, state: pauseState)
+        case .volume:
+            settings.cycleVolume()
+            if settings.muted { settings.setMuted(false) }
+            audio?.master = settings.masterVolume
+            audio?.play(.click, pos: nil, listener: listener())
+            menu.showPause(size: size, state: pauseState)
+        case .quality:
+            let order = ["auto", "low", "med", "high"]
+            let k = order.firstIndex(of: settings.quality) ?? 0
+            settings.setQuality(order[(k + 1) % order.count])
+            applyQuality()
+            audio?.play(.click, pos: nil, listener: listener())
+            menu.showPause(size: size, state: pauseState)
+            AppLog.info("quality \(settings.quality) bugCap=\(game?.bugCap ?? 0)")
+        case .haptics:
+            settings.setHaptics(!settings.haptics)
+            haptics.enabled = settings.haptics
+            audio?.play(.click, pos: nil, listener: listener())
+            haptics.play(.select)
+            menu.showPause(size: size, state: pauseState)
         case .quit:
+            // web endGame(false, true): the defeat sting, no error haptic
             surrendered = true
             menu.hide()
+            audio?.play(.click, pos: nil, listener: listener())
+            audio?.play(.defeat, pos: nil, listener: listener())
             showEnd()
         case .again:
+            audio?.play(.click, pos: nil, listener: listener())
             startMission(selectedClass)
         case .changeClass:
+            audio?.play(.click, pos: nil, listener: listener())
             showTitle()
         }
     }
@@ -383,11 +545,11 @@ final class GameScene: SKScene {
     }
 
     override func didFinishUpdate() {
-        finishT = ProcessInfo.processInfo.systemUptime
+        finishT = FrameTimer.now()
     }
 
     override func update(_ currentTime: TimeInterval) {
-        let nowUp = ProcessInfo.processInfo.systemUptime
+        let nowUp = FrameTimer.now()
         let prevUpdMs = (finishT - updStartT) * 1000
         let prevSkMs = (nowUp - finishT) * 1000
         updStartT = nowUp
@@ -401,7 +563,7 @@ final class GameScene: SKScene {
         // long frames with a wall-clock stamp (CI correlates them with its screenshot times)
         // upd = our update() + SpriteKit's update phase of the frame before; sk = SpriteKit render / present / wait
         // after it; new = sprites the pools had to create since the last hitch line (should stay 0 after loading)
-        if frameDt > 0.1 && readyTime > 0 && hitchLogs < 40 {
+        if AppLog.diagnostics && frameDt > 0.1 && readyTime > 0 && hitchLogs < 40 {
             hitchLogs += 1
             let made = SpritePool.created - createdSeen
             createdSeen = SpritePool.created
@@ -422,7 +584,7 @@ final class GameScene: SKScene {
         if hitStopCd > 0 { hitStopCd -= dt }
         if hitStopT > 0 { hitStopT -= dt; ts *= hitStopK; if hitStopT <= 0 { hitStopK = 1 } }
         let running = mode == .playing || mode == .title
-        let t0 = ProcessInfo.processInfo.systemUptime
+        let t0 = FrameTimer.now()
         if running {
             if mode == .playing {
                 let c = input.command()
@@ -431,13 +593,19 @@ final class GameScene: SKScene {
             }
             demo?.frame(game: g, dt: dt)
             if let pr = demo?.probe { runProbe(pr, g) }
+            if let rq = demo?.request {
+                switch rq {
+                case .pause: pause()
+                case .surrender: if mode == .playing { pause(); menuAction(.quit) }
+                }
+            }
             acc += Double(dt * ts)
             var steps = 0
             let step = Double(SIM_DT)
             while acc >= step && steps < 4 { g.tick(); acc -= step; steps += 1 }
             if acc > step { acc = step * 0.5 }
         }
-        let t1 = ProcessInfo.processInfo.systemUptime
+        let t1 = FrameTimer.now()
         simMs += ((t1 - t0) * 1000 - simMs) * 0.05
         sceneTimer.mark()
 
@@ -445,15 +613,14 @@ final class GameScene: SKScene {
         sceneTimer.mark()
 
         if mode == .playing && g.wantsLevelUp && !g.autoPickUpgrades { openLevelUp() }
-        if mode == .playing && g.phase != .playing {
-            if endDelay < 0 { endDelay = 1.6 }
-            endDelay -= dt
-            if endDelay <= 0 && demo == nil { showEnd() }
-        }
-        // low armour heartbeat (app side, like the web UI)
-        if mode == .playing && g.player.hp > 0 && g.player.hp < g.player.maxHp * 0.3 && !g.player.downed {
-            heartT -= dt
-            if heartT <= 0 { heartT = 0.9; audio?.play(.heart, pos: nil, listener: listener()) }
+        // the report comes up at once over the frozen world, like the web endGame()
+        if mode == .playing && g.phase != .playing && demo == nil { showEnd() }
+        // low armour heartbeat (app side, like the web audioUpdate): faster as the armour falls
+        heartT -= dt
+        let P0 = g.player
+        if mode == .playing && !P0.downed && P0.hp < P0.maxHp * 0.3 && heartT <= 0 {
+            heartT = 0.55 + 0.5 * P0.hp / (P0.maxHp * 0.3)
+            audio?.play(.heart, pos: nil, listener: listener())
         }
 
         let alpha: Float = running ? Float(max(0, min(1, acc / Double(SIM_DT)))) : 1
@@ -462,17 +629,17 @@ final class GameScene: SKScene {
         let P = g.player
         let feet = (P.px + (P.x - P.px) * alpha, g.level.groundY(P.x, P.z), P.pz + (P.z - P.pz) * alpha)
         cameraCtl.update(game: g, feet: feet, dt: max(dt, 0.0001), viewSize: size, title: mode == .title, liftRise: g.liftRise)
-        g.setVisibleArea(cameraCtl.visibleGround())
+        cameraCtl.setVisibleArea(of: g)
         sceneTimer.mark()
-        let t1r = ProcessInfo.processInfo.systemUptime
+        let t1r = FrameTimer.now()
         r.update(game: g, alpha: alpha, dt: vdt, time: renderTime, camera: cameraCtl)
         sceneTimer.mark()
         if mode != .title { hud.update(game: g, dt: dt, camera: cameraCtl, marines: r.marines, input: input) }
         sceneTimer.mark()
         let near = g.bugCountNear(Vec2(cameraCtl.tx, cameraCtl.tz))
-        audio?.update(dt: dt, game: g, bugsNear: near, listener: listener(), title: mode == .title)
+        audio?.update(dt: dt, game: g, bugsNear: near, listener: listener(), title: mode == .title, live: running)
         sceneTimer.mark()
-        let t2 = ProcessInfo.processInfo.systemUptime
+        let t2 = FrameTimer.now()
         renderMs += ((t2 - t1r) * 1000 - renderMs) * 0.05
         // debug text 4× a second (every new string renders a new label texture)
         if hud.showDebug && currentTime - lastDebugText >= 0.25 {
@@ -490,43 +657,47 @@ final class GameScene: SKScene {
         g.drainEvents { e in
             r.handle(e, game: g)
             switch e {
-            case .sound(let id, let pos, _):
-                audio?.play(id, pos: pos, listener: lis)
+            case .combo(let c):
+                comboForSound = c
+            case .sound(let id, let pos, let loud):
+                // the combo chime climbs with the counter (web: 520 Hz · 1.06^min(24, combo / 5))
+                let rate: Float = id == .combo ? powf(1.06, Float(min(24, comboForSound / 5))) : 1
+                audio?.play(id, pos: pos, listener: lis, loud: loud, rate: rate)
             case .shake(let a):
                 cameraCtl.addShake(a)
             case .hitStop(let d, let k):
                 if hitStopCd <= 0 { hitStopT = max(hitStopT, d); hitStopK = min(hitStopK, k); hitStopCd = d + 0.8 }
             case .screenFlash(let a):
                 if inMission { hud.screenFlash(a) }
-                noteFirst("screenFlash")
+                noteFirst(0, "screenFlash")
             case .damageFlash(let a):
                 if inMission { hud.damageFlash(a) }
             case .hordeFlash:
                 if inMission { hud.hordeFlash() }
             case .toast(let text, let kind):
                 if inMission { hud.toast(text, kind: kind) }
-                noteFirst("toast")
+                noteFirst(1, "toast")
             case .banner(let title, let sub, let teal):
                 if inMission { hud.showBanner(title: title, subtitle: sub, teal: teal) }
-                noteFirst("banner")
+                noteFirst(2, "banner")
             case .haptic(let k):
                 if inMission { haptics.play(k) }
             case .victory, .defeat:
                 AppLog.info("phase \(g.phase) at t=\(formatTime(g.time)) kills=\(g.kills)")
             case .explosion(let kind, _, _):
-                noteFirst("explosion.\(kind)")
+                noteFirst(10 + kind.rawValue, "explosion.\(kind)")
             case .ability(_, let kind, _, _):
-                noteFirst("ability.\(kind)")
+                noteFirst(20 + kind.rawValue, "ability.\(kind)")
             case .telegraph(_, let shape, _, _):
-                noteFirst("telegraph.\(shape)")
+                noteFirst(30 + shape.rawValue, "telegraph.\(shape)")
             case .acidLaunched:
-                noteFirst("acid")
+                noteFirst(3, "acid")
             case .levelUp:
-                noteFirst("levelUp")
+                noteFirst(4, "levelUp")
             case .hordeStarted:
-                noteFirst("horde")
+                noteFirst(5, "horde")
             case .downed:
-                noteFirst("downed")
+                noteFirst(6, "downed")
             default:
                 break
             }
@@ -549,13 +720,14 @@ final class GameScene: SKScene {
         }
     }
 
-    /// Diagnostics: the first time an event kind shows up (mid-game hitches are usually first uses).
-    private var firsts = Set<String>()
-    private func noteFirst(_ k: String) {
-        if firsts.contains(k) { return }
-        firsts.insert(k)
+    /// Diagnostics: the first time an event kind shows up (mid-game hitches are usually first uses). Keyed by a
+    /// small code; the name is only formatted that first time.
+    private var firstSeen = [Bool](repeating: false, count: 48)
+    private func noteFirst(_ code: Int, _ name: @autoclosure () -> String) {
+        guard AppLog.diagnostics, code >= 0, code < firstSeen.count, !firstSeen[code] else { return }
+        firstSeen[code] = true
         let td = readyTime > 0 ? lastTime - readyTime : -1
-        AppLog.info("first " + k + String(format: " td=%.2f", td))
+        AppLog.info("first " + name() + String(format: " td=%.2f", td))
     }
 
     /// Keep the cover up for a few frames after loading, then fade it out; its disappearance is "scene ready".
@@ -608,7 +780,7 @@ final class GameScene: SKScene {
             frameCount = 0
             fpsWindowStart = currentTime
         }
-        if currentTime - lastHeartbeat >= 1.0 {
+        if AppLog.diagnostics && currentTime - lastHeartbeat >= 1.0 {
             lastHeartbeat = currentTime
             let t = currentTime - startTime
             // demo time runs from "scene ready" (the end of loading); fps statistics skip its first second
@@ -620,7 +792,7 @@ final class GameScene: SKScene {
                 AppLog.info(String(format: "hb t=%.1f td=%.1f fps=%.1f worst=%.0fms sim=%.2fms draw=%.2fms ", t, td, fps, worst, simMs, renderMs)
                             + "mode=\(mode.rawValue) bugs=\(g.bugsAlive) vis=\(r.bugs.visibleCount) parts=\(r.fx.pa.visibleCount + r.fx.pn.visibleCount) "
                             + "chunks=\(r.levelLayer.visibleChunks) nodes=\(r.levelLayer.nodeCount + r.dynamicNodeCount) stage=\(g.stage.rawValue) "
-                            + "hp=\(Int(g.player.hp)) kills=\(g.kills) mem=\(Memory.footprintMB())MB demo=\(demo?.name ?? "-")")
+                            + "hp=\(Int(g.player.hp)) kills=\(g.kills) " + Memory.summary + " demo=\(demo?.name ?? "-")")
             } else {
                 AppLog.info(String(format: "hb t=%.1f fps=%.1f ", t, fps) + "mode=\(mode.rawValue) demo=\(demo?.name ?? "-")")
             }
@@ -632,33 +804,8 @@ final class GameScene: SKScene {
                 reportedDone = true
                 let avg = fpsSamples > 0 ? fpsSum / Double(fpsSamples) : fps
                 AppLog.info(String(format: "demo done after %.0fs avgFps=%.1f minFps=%.1f worstFrame=%.0fms", s, avg, fpsMin == 999 ? fps : fpsMin, worstMs)
-                            + " mem=\(Memory.footprintMB())MB")
+                            + " " + Memory.summary)
             }
-        }
-    }
-}
-
-/// Haptic feedback for HapticKind events.
-final class Haptics {
-    private let light = UIImpactFeedbackGenerator(style: .light)
-    private let medium = UIImpactFeedbackGenerator(style: .medium)
-    private let heavy = UIImpactFeedbackGenerator(style: .heavy)
-    private let note = UINotificationFeedbackGenerator()
-    private let sel = UISelectionFeedbackGenerator()
-    private var last: Double = 0
-
-    func play(_ k: HapticKind) {
-        let now = ProcessInfo.processInfo.systemUptime
-        if k == .light && now - last < 0.08 { return }
-        last = now
-        switch k {
-        case .select: sel.selectionChanged()
-        case .light: light.impactOccurred()
-        case .medium: medium.impactOccurred()
-        case .heavy: heavy.impactOccurred()
-        case .success: note.notificationOccurred(.success)
-        case .warning: note.notificationOccurred(.warning)
-        case .error: note.notificationOccurred(.error)
         }
     }
 }

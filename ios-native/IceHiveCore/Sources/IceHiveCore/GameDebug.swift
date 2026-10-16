@@ -98,6 +98,11 @@ extension Game {
         return stage
     }
 
+    /// Hold the extraction at `t` seconds (CI screenshots of the rising lift); no-op outside the extract stage.
+    public func debugPinExtract(_ t: Float) {
+        if stage == .extract { extractT = max(0, min(4.4, t)) }
+    }
+
     /// Force a level-up (the UI / autoPick handles the cards).
     @discardableResult
     public func debugLevelUp() -> Int {

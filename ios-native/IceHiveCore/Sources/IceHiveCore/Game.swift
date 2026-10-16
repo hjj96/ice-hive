@@ -410,8 +410,9 @@ public final class Game {
 
     // ---------- events ----------
     @inline(__always) func emit(_ e: GameEvent) { if !simOnly { events.append(e) } }
-    @inline(__always) func sound(_ id: SoundID, _ x: Float, _ z: Float, _ fromPlayer: Bool = false) {
-        if !simOnly { events.append(.sound(id, pos: Vec2(x, z), fromPlayer: fromPlayer)) }
+    /// `loud`: pass `m.isPlayer` exactly where the web passes it (nil = the web's undefined: full volume).
+    @inline(__always) func sound(_ id: SoundID, _ x: Float, _ z: Float, _ loud: Bool? = nil) {
+        if !simOnly { events.append(.sound(id, pos: Vec2(x, z), loud: loud)) }
     }
     @inline(__always) func haptic(_ k: HapticKind) { if !simOnly && !benchCombat && !attract { events.append(.haptic(k)) } }
     func toast(_ text: String, _ kind: ToastKind) { if !simOnly && !attract { events.append(.toast(text: text, kind: kind)) } }

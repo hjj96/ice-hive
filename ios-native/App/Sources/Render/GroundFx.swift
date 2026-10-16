@@ -2,7 +2,8 @@ import SpriteKit
 import IceHiveCore
 
 /// Procedural ring indicator (web ringIndMat): progress pie, dashed remainder, pulsing inner disc.
-/// Drawn on an untextured sprite so v_tex_coord spans 0…1 (atlas textures would not).
+/// Drawn on an untextured sprite so v_tex_coord spans 0…1 (atlas textures would not). Every ring shares one
+/// program; progress, colour and alpha are per-node attributes (the rings batch, one pipeline to warm up).
 final class RingIndicator {
     static let source = """
     void main() {
@@ -11,26 +12,31 @@ final class RingIndicator {
         float ang = fract(atan(p.x, p.y) / 6.2831853 + 1.0);
         float ring = smoothstep(0.84, 0.865, r) * (1.0 - smoothstep(0.955, 0.98, r));
         float seg = step(0.3, fract(ang * 40.0));
-        float prog = step(ang, u_prog);
+        float prog = step(ang, a_prog);
         float inner = (1.0 - smoothstep(0.0, 0.86, r)) * 0.05 * (0.6 + 0.4 * sin(u_time * 3.0 - r * 8.0));
         float sw = 1.0 - smoothstep(0.0, 0.86, abs(r - fract(u_time * 0.5) * 0.86));
-        float sweep = sw * 0.12 * step(r, 0.86) * (1.0 - step(0.999, u_prog));
-        vec3 c = u_col.rgb * (ring * (prog * 1.7 + (1.0 - prog) * 0.35 * seg) + inner + sweep);
+        float sweep = sw * 0.12 * step(r, 0.86) * (1.0 - step(0.999, a_prog));
+        vec3 c = a_col.rgb * (ring * (prog * 1.7 + (1.0 - prog) * 0.35 * seg) + inner + sweep);
         c = vec3(1.0) - exp(-c * 1.3);
-        gl_FragColor = vec4(c * u_alpha, 1.0);
+        gl_FragColor = vec4(c * a_alpha, 1.0);
     }
     """
 
+    static let shader: SKShader = {
+        let sh = SKShader(source: RingIndicator.source)
+        sh.attributes = [SKAttribute(name: "a_prog", type: .float), SKAttribute(name: "a_col", type: .vectorFloat4),
+                         SKAttribute(name: "a_alpha", type: .float)]
+        return sh
+    }()
+
     let node: SKSpriteNode
-    private let uProg = SKUniform(name: "u_prog", float: 0)
-    private let uCol = SKUniform(name: "u_col", vectorFloat4: SIMD4<Float>(0.25, 0.9, 0.85, 1))
-    private let uAlpha = SKUniform(name: "u_alpha", float: 1)
+    private var prog: Float = -1, alpha: Float = -1, col = SIMD4<Float>(-1, -1, -1, 1)
 
     init(radius: Float) {
         let d = CGFloat(radius * 2) * Iso.ppm
         node = SKSpriteNode(color: .white, size: CGSize(width: d, height: d))
-        let sh = SKShader(source: RingIndicator.source, uniforms: [uProg, uCol, uAlpha])
-        node.shader = sh
+        node.shader = RingIndicator.shader
+        set(progress: 0, color: SIMD4<Float>(0.25, 0.9, 0.85, 1), alpha: 1)
         node.blendMode = .add
         node.zRotation = Iso.groundRotation(0)
         node.zPosition = ZBand.floorGlow + 2
@@ -40,10 +46,14 @@ final class RingIndicator {
     func show(x: Float, y: Float, z: Float, progress: Float, r: Float, g: Float, b: Float, alpha: Float) {
         let p = Iso.point(x, y, z)
         node.position = CGPoint(x: p.x, y: p.y / Iso.groundSquash)
-        uProg.floatValue = progress
-        uCol.vectorFloat4Value = SIMD4<Float>(r, g, b, 1)
-        uAlpha.floatValue = alpha
+        set(progress: progress, color: SIMD4<Float>(r, g, b, 1), alpha: alpha)
         if node.isHidden { node.isHidden = false }
+    }
+
+    private func set(progress p: Float, color c: SIMD4<Float>, alpha a: Float) {
+        if p != prog { prog = p; node.setValue(SKAttributeValue(float: p), forAttribute: "a_prog") }
+        if c != col { col = c; node.setValue(SKAttributeValue(vectorFloat4: c), forAttribute: "a_col") }
+        if a != alpha { alpha = a; node.setValue(SKAttributeValue(float: a), forAttribute: "a_alpha") }
     }
 
     func hide() { if !node.isHidden { node.isHidden = true } }
@@ -70,6 +80,15 @@ final class GroundFx {
     private let worldRoot: SKNode
     private let decals: SpriteRing
     private let corpses: SpriteRing
+    /// Brutes have their own small ring (web: max(20, corpses >> 3)), so the many runners never recycle them first.
+    private let bruteCorpses: SpriteRing
+    /// World (x, z) of each ring slot, to find the gore lying on the lift when the extraction starts.
+    private var decalXZ: [Vec2]
+    private var corpseXZ: [Vec2]
+    private var bruteXZ: [Vec2]
+    /// Gore riding up with the lift: (sprite, its resting y), built at the first frame of the rise.
+    private var liftGore: [(SKSpriteNode, CGFloat)]? = nil
+    private var liftRiseLast: Float = 0
     private let splashPool: SpritePool
     private let telePool: SpritePool
     private var rng = SeededRNG(seed: 4242)
@@ -83,7 +102,7 @@ final class GroundFx {
     let liftInd: RingIndicator
     let reviveInd: [RingIndicator]
 
-    init(assets: SpriteAssets, level: Level, groundRoot: SKNode, worldRoot: SKNode, decalCap: Int, corpseCap: Int) {
+    init(assets: SpriteAssets, level: Level, groundRoot: SKNode, worldRoot: SKNode, decalCap: Int, corpseCap: Int, bruteCap: Int) {
         self.assets = assets
         self.level = level
         self.groundRoot = groundRoot
@@ -97,6 +116,13 @@ final class GroundFx {
             n.zPosition = ZBand.corpse
             n.colorBlendFactor = 1
         }
+        bruteCorpses = SpriteRing(parent: worldRoot, capacity: bruteCap) { n in
+            n.zPosition = ZBand.corpse
+            n.colorBlendFactor = 1
+        }
+        decalXZ = [Vec2](repeating: Vec2(0, 0), count: decalCap)
+        corpseXZ = [Vec2](repeating: Vec2(0, 0), count: corpseCap)
+        bruteXZ = [Vec2](repeating: Vec2(0, 0), count: bruteCap)
         splashPool = SpritePool(parent: groundRoot, capacity: 48) { n in
             n.blendMode = .add
             n.zPosition = ZBand.floorGlow
@@ -130,8 +156,8 @@ final class GroundFx {
     }
 
     // ---------------------------------------------------------------- stains
-    /// A multiply stain from the Ground atlas (pre-tinted name), size = full texture width in metres.
-    func addDecal(_ name: String, x: Float, z: Float, size s0: Float, rot: Float? = nil) {
+    /// A multiply stain from the Ground atlas (pre-tinted texture), size = full texture width in metres.
+    func addDecal(_ tex: SKTexture, x: Float, z: Float, size s0: Float, rot: Float? = nil) {
         if !walkable2(x, z) { return }
         var size = s0
         var k = 0
@@ -142,7 +168,7 @@ final class GroundFx {
             k += 1
         }
         let n = decals.next()
-        let tex = assets.texture(name)
+        decalXZ[decals.lastIndex] = Vec2(x, z)
         if n.texture !== tex { n.texture = tex }
         let d = CGFloat(size) * Iso.ppm
         n.size = CGSize(width: d, height: d)
@@ -154,13 +180,49 @@ final class GroundFx {
     func addCorpse(type: BugType, x: Float, z: Float, scale: Float) {
         if !walkable2(x, z) { return }
         let t = type.rawValue
-        let n = corpses.next()
+        let brute = type == .brute
+        let n = brute ? bruteCorpses.next() : corpses.next()
+        if brute { bruteXZ[bruteCorpses.lastIndex] = Vec2(x, z) } else { corpseXZ[corpses.lastIndex] = Vec2(x, z) }
         let info = assets.corpseInfo[t]
         let k = CGFloat(scale / assets.bugBakedScale[t])
         n.show(assets.corpse(t, Int(rng.next() * 6)), size: CGSize(width: info.size.width * k, height: info.size.height * k), anchor: info.anchor)
         n.position = Iso.point(x, level.groundY(x, z), z)
-        let v = CGFloat(0.75 + rng.next() * 0.25)
-        n.color = SKColor(red: v, green: v * 0.92, blue: v * 0.9, alpha: 1)
+        n.color = GroundFx.corpseTints[Int(rng.next() * 8) & 7]
+    }
+
+    private static let corpseTints: [SKColor] = (0..<8).map { k in
+        let v = CGFloat(0.75 + Float(k) / 7 * 0.25)
+        return SKColor(red: v, green: v * 0.92, blue: v * 0.9, alpha: 1)
+    }
+
+    /// Extraction: stains and corpses lying on the lift deck ride up with it (web fxLiftRise).
+    func liftRise(_ rise: Float) {
+        if rise == liftRiseLast { return }
+        liftRiseLast = rise
+        if rise <= 0 {
+            if let list = liftGore { for (n, y) in list { n.position.y = y } }
+            liftGore = nil
+            return
+        }
+        if liftGore == nil {
+            var list: [(SKSpriteNode, CGFloat)] = []
+            func collect(_ ring: SpriteRing, _ xz: [Vec2]) {
+                for k in 0..<min(ring.count, xz.count) {
+                    guard let n = ring.node(at: k), !n.isHidden else { continue }
+                    if level.isLiftCell(level.cellOf(xz[k].x, xz[k].y)) { list.append((n, n.position.y)) }
+                }
+            }
+            collect(decals, decalXZ)
+            collect(corpses, corpseXZ)
+            collect(bruteCorpses, bruteXZ)
+            liftGore = list
+            AppLog.info("lift gore: \(list.count) stains / corpses ride up")
+        }
+        let world = CGFloat(rise * Iso.cosPitch) * Iso.ppm
+        for (n, y) in liftGore ?? [] {
+            // stains live in the squashed ground container
+            n.position.y = y + (n.parent === groundRoot ? world / Iso.groundSquash : world)
+        }
     }
 
     // ---------------------------------------------------------------- light splashes
@@ -184,7 +246,7 @@ final class GroundFx {
         let d = CGFloat(size) * Iso.ppm
         n.size = CGSize(width: d, height: d)
         n.position = gpos(x, level.groundY(x, z), z)
-        n.color = Tone.color(r, g, b)
+        n.color = ColorCache.color(r, g, b)
     }
 
     func updateSplashes(dt: Float) {
@@ -236,7 +298,7 @@ final class GroundFx {
                 n.zRotation = 0
             }
             inten = max(0, inten)
-            n.color = Tone.color(e.r * inten, e.g * inten, e.b * inten)
+            n.color = ColorCache.color(e.r * inten, e.g * inten, e.b * inten)
         }
     }
 
@@ -254,16 +316,19 @@ final class GroundFx {
     func endFrame() { splashPool.end(); telePool.end() }
 
     /// Pre-create the decal / corpse rings and the per-frame pools behind the loading cover.
-    func reserve() { decals.reserve(); corpses.reserve(); splashPool.reserve(48); telePool.reserve(112) }
+    func reserve() { decals.reserve(); corpses.reserve(); bruteCorpses.reserve(); splashPool.reserve(48); telePool.reserve(112) }
 
     func clear() {
+        liftGore = nil
+        liftRiseLast = 0
         decals.clear()
         corpses.clear()
+        bruteCorpses.clear()
         splashes.removeAll()
         for ind in beaconInd { ind.hide() }
         liftInd.hide()
         for ind in reviveInd { ind.hide() }
     }
 
-    var nodeCount: Int { decals.count + corpses.count + splashPool.used + telePool.used }
+    var nodeCount: Int { decals.count + corpses.count + bruteCorpses.count + splashPool.used + telePool.used }
 }

@@ -13,6 +13,11 @@ import IceHiveCore
 //    -demo smoke    alias of combat (the original CI scenario name)
 //    -demo probe    combat, plus one horde ingredient every 4 s (overlay, banner, shake, sounds,
 //                   haptic, then a real horde) — CI hitch attribution
+//    -demo hold     beacons skipped, the squad on the lift holding out against a crowd
+//    -demo extract  like hold, then the lift rises and stays at extract + 2 s (gore rides along)
+//    -demo levelup  a forced level-up after 1.5 s: the upgrade cards
+//    -demo pause    the pause menu after 1.5 s
+//    -demo end      surrender after 1.5 s: the mission report (record highlight on)
 // ================================================================
 final class DemoScript {
     let name: String
@@ -26,7 +31,7 @@ final class DemoScript {
         guard let d = options.demo else { return nil }
         switch d {
         case "combat", "smoke", "default": return DemoScript(name: d == "default" ? "combat" : d)
-        case "beacon", "title", "calm", "probe": return DemoScript(name: d)
+        case "beacon", "title", "calm", "probe", "hold", "extract", "levelup", "pause", "end": return DemoScript(name: d)
         default:
             AppLog.error("unknown demo \(d), using combat")
             return DemoScript(name: "combat")
@@ -46,6 +51,18 @@ final class DemoScript {
             game.directorEnabled = false
             target = 0
             AppLog.info("demo calm: director off, squad idle")
+        case "hold", "extract":
+            var guardN = 0
+            while game.stage == .beacons && guardN < 6 { game.debugSkip(); guardN += 1 }
+            if game.stage == .toLift { game.debugSkip() }
+            target = 260
+            let n = game.debugSpawn(target, type: nil, minRadius: 5, maxRadius: 18)
+            AppLog.info("demo \(name): stage \(game.stage.rawValue), spawned \(n) bugs around the lift")
+        case "levelup", "pause", "end":
+            if name == "levelup" { game.autoPickUpgrades = false }
+            target = 300
+            let n = game.debugSpawn(target, type: nil, minRadius: 6, maxRadius: 24)
+            AppLog.info("demo \(name): spawned \(n) bugs")
         case "beacon":
             if let b = game.beacons.first {
                 game.debugTeleport(b.x + 3, b.z - 3.5)
@@ -62,6 +79,10 @@ final class DemoScript {
 
     /// Probe steps due this frame (executed by the scene: HUD / audio / haptics live there).
     enum Probe: String { case overlay, banner, shake, sounds, haptic, horde }
+    /// Screen changes the scene performs for a demo (one frame).
+    enum Request { case pause, surrender }
+    private(set) var request: Request? = nil
+    private var requested = false
     private let probeSteps: [Probe] = [.overlay, .banner, .shake, .sounds, .haptic, .horde]
     private var probeIndex = 0
     private(set) var probe: Probe? = nil
@@ -72,6 +93,19 @@ final class DemoScript {
         if !startsMission || target == 0 { return }
         t += dt
         probe = nil
+        request = nil
+        if !requested && t >= 1.5 {
+            switch name {
+            case "levelup": requested = true; game.debugLevelUp()
+            case "pause": requested = true; request = .pause
+            case "end": requested = true; request = .surrender
+            default: break
+            }
+        }
+        if name == "extract" {
+            if game.stage == .hold && t >= 6 { game.debugSkip() }
+            if game.stage == .extract { game.debugPinExtract(2.0) }
+        }
         if name == "probe" && probeIndex < probeSteps.count && t >= Float(4 * (probeIndex + 1)) {
             probe = probeSteps[probeIndex]
             probeIndex += 1

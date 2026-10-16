@@ -8,6 +8,15 @@ import IceHiveCore
 //  layer above the darkness and a contact shadow on the floor.
 //  Status: brightness spread + burn / frost via color + colorBlendFactor;
 //  the hit flash / frost sheen re-uses the glow sprite with the body frame.
+//
+//  Calibrated against the web swarm (store 2-swarm.png): the baked bodies
+//  are lit for full light, and under the darkness multiply (ambient ≈ 0.3)
+//  they went near-black — the web bugs keep maroon bodies with readable
+//  legs and a carpet of pink / white glints. Bodies therefore draw through
+//  one shared shader that lifts them past 1 (gain · per-type palette, the
+//  web 0.55…1.3 instance spread), and the glint layer through another that
+//  grows each speckle by a texel and brightens it (glints of bright bugs
+//  burn to white, like the web emissive under ACES).
 // ================================================================
 final class BugLayer {
     let root = SKNode()
@@ -19,23 +28,71 @@ final class BugLayer {
     /// Ember emitter for burning bugs (world x, height, z, scale).
     var onBurning: ((Float, Float, Float, Float) -> Void)?
     private var emberRng = SeededRNG(seed: 77)
-    /// Brightness spread of healthy bugs, quantised (no colour allocation per bug per frame).
     private static let frostTint = SKColor(red: 0.25, green: 0.5, blue: 0.85, alpha: 1)
     private static let burnTint = SKColor(red: 1, green: 0.42, blue: 0.08, alpha: 1)
-    private let palette: [SKColor] = (0..<32).map { k in
-        let vr = Float(k) / 31
-        let v = 0.478 + vr * 0.652
-        return SKColor(red: CGFloat(min(1, v)), green: CGFloat(min(1, v * (0.92 + vr * 0.1))), blue: CGFloat(min(1, v)), alpha: 1)
+
+    /// Body gain of the shader (colours are passed as value / bodyGain so they stay ≤ 1).
+    static let bodyGain: Float = 4.5
+    /// Effective body brightness per type over the baked frame at the mean spread (runners / spitters / brutes are
+    /// baked dark, boomers glow orange already).
+    static let typeGain: [Float] = [3.4, 3.4, 3.0, 1.3]
+    static let bodyShader = SKShader(source: """
+    void main() {
+        vec4 c = texture2D(u_texture, v_tex_coord) * v_color_mix;
+        gl_FragColor = vec4(c.rgb * 4.5, c.a);
+    }
+    """)
+    /// Glint layer: max over the texel cross (each 1–2 px speckle grows to a small blob, like the web glints at
+    /// 3× resolution), times a gain; the per-bug colour carries the web brightness spread.
+    private let glowShader: SKShader
+    static let glintGain: Float = 2.0
+
+    /// Healthy bodies: [type][spread 0…31]; burning / frozen: lazily filled [type][spread][burn 0…7][frost 0…7].
+    private let palette: [[SKColor]]
+    private var tinted = [SKColor?](repeating: nil, count: 4 * 32 * 8 * 8)
+    /// Glint colour by spread (web instance colour 0.55…1.3, / 1.3).
+    private let glintPalette: [SKColor]
+
+    private static func spread(_ vr: Float) -> (Float, Float, Float) {
+        let v = 0.55 + vr * 0.75
+        return (v, v * (0.92 + vr * 0.1), v)
     }
 
     init(assets: SpriteAssets, capacity: Int) {
         self.assets = assets
+        let gs = assets.sheets.pageSize(assets.sheets.sheetIndex("glow"))
+        let texel = SIMD2<Float>(gs.width > 0 ? Float(1 / gs.width) : 1.0 / 4096, gs.height > 0 ? Float(1 / gs.height) : 1.0 / 2768)
+        glowShader = SKShader(source: """
+        void main() {
+            vec2 t = v_tex_coord;
+            vec4 c = texture2D(u_texture, t);
+            c = max(c, texture2D(u_texture, t + vec2(u_texel.x, 0.0)));
+            c = max(c, texture2D(u_texture, t - vec2(u_texel.x, 0.0)));
+            c = max(c, texture2D(u_texture, t + vec2(0.0, u_texel.y)));
+            c = max(c, texture2D(u_texture, t - vec2(0.0, u_texel.y)));
+            c = c * v_color_mix;
+            gl_FragColor = vec4(c.rgb * u_glint, c.a);
+        }
+        """, uniforms: [SKUniform(name: "u_texel", vectorFloat2: texel), SKUniform(name: "u_glint", float: BugLayer.glintGain)])
+        palette = (0..<4).map { t in
+            (0..<32).map { k in
+                let c = BugLayer.spread(Float(k) / 31)
+                let g = BugLayer.typeGain[t] / 0.925 / BugLayer.bodyGain
+                return SKColor(red: CGFloat(min(1, c.0 * g)), green: CGFloat(min(1, c.1 * g)), blue: CGFloat(min(1, c.2 * g)), alpha: 1)
+            }
+        }
+        glintPalette = (0..<32).map { k in
+            let c = BugLayer.spread(Float(k) / 31)
+            return SKColor(red: CGFloat(c.0 / 1.3), green: CGFloat(c.1 / 1.3), blue: CGFloat(c.2 / 1.3), alpha: 1)
+        }
         bodies = SpritePool(parent: root, capacity: capacity) { n in
             n.colorBlendFactor = 1
+            n.shader = BugLayer.bodyShader
         }
         glows = SpritePool(parent: root, capacity: capacity) { n in
             n.blendMode = .add
             n.zPosition = ZBand.glow
+            n.colorBlendFactor = 1
         }
         shadows = SpritePool(parent: root, capacity: capacity) { n in
             n.alpha = 0.9
@@ -110,24 +167,18 @@ final class BugLayer {
             // depth slice shared with the deck objects: every bug of a slice is one draw call (one sheet)
             body.zPosition = ZBand.slice(Iso.nearness(x, y, z))
 
-            // body colour: per-bug brightness, charred while burning, icy while frozen / chilled
-            let v = 0.478 + vr * 0.652
-            var r = v, g = v * (0.92 + vr * 0.1), b = v
+            // body colour: per-bug brightness, charred while burning, icy while frozen / chilled (quantised tables)
+            let vq = max(0, min(31, Int(vr * 31 + 0.5)))
             var burnK: Float = 0
             if burns[i] > 0 {
                 burnK = 0.55 + 0.45 * sinf(time * 23 + Float(i) * 1.7)
-                let c = 1 - burnK * 0.6
-                r *= c; g *= c; b *= c
                 if emberRng.next() < emberChance { onBurning?(x, y + 0.35 * scs[i], z, scs[i]) }
             }
             let frost: Float = frzs[i] > 0 ? 1 : chills[i] * 0.55
-            if frost > 0 {
-                r *= 1 - 0.5 * frost; g *= 1 - 0.25 * frost
-            }
             if burnK == 0 && frost <= 0 {
-                body.color = palette[max(0, min(31, Int(vr * 31 + 0.5)))]
+                body.color = palette[t][vq]
             } else {
-                body.color = SKColor(red: CGFloat(min(1, r)), green: CGFloat(min(1, g)), blue: CGFloat(min(1, b)), alpha: 1)
+                body.color = tint(t, vq, burnK, frost)
             }
 
             // glow layer / hit flash / frost sheen
@@ -140,24 +191,27 @@ final class BugLayer {
                 glow.position = p
                 if flash > 0.04 {
                     glow.show(tex, size: size, anchor: anchor)
+                    if glow.shader != nil { glow.shader = nil }
                     glow.zPosition = ZBand.glowLit
                     glow.colorBlendFactor = 0
                     glow.alpha = CGFloat(min(1, flash * 1.4))
                 } else if frost > 0.05 {
                     glow.show(tex, size: size, anchor: anchor)
+                    if glow.shader != nil { glow.shader = nil }
                     glow.zPosition = ZBand.glowLit
                     glow.color = BugLayer.frostTint
                     glow.colorBlendFactor = 1
                     glow.alpha = CGFloat(frost * 0.45)
                 } else if let gt = set.glow(dir, frame) {
                     glow.show(gt, size: size, anchor: anchor)
+                    if glow.shader !== glowShader { glow.shader = glowShader }
                     glow.zPosition = ZBand.glow
+                    glow.colorBlendFactor = 1
                     if burnK > 0 {
                         glow.color = BugLayer.burnTint
-                        glow.colorBlendFactor = 1
                         glow.alpha = CGFloat(0.7 + 0.3 * burnK)
                     } else {
-                        glow.colorBlendFactor = 0
+                        glow.color = glintPalette[vq]
                         glow.alpha = 1
                     }
                 } else {
@@ -179,4 +233,19 @@ final class BugLayer {
     }
 
     var nodeCount: Int { bodies.used + glows.used + shadows.used }
+
+    /// Charred (burn 0…1) / icy (frost 0…1) body colour, quantised to 8 × 8 steps and cached.
+    private func tint(_ t: Int, _ vq: Int, _ burn: Float, _ frost: Float) -> SKColor {
+        let bq = max(0, min(7, Int(burn * 7 + 0.5))), fq = max(0, min(7, Int(frost * 7 + 0.5)))
+        let k = ((t * 32 + vq) * 8 + bq) * 8 + fq
+        if let c = tinted[k] { return c }
+        let s = BugLayer.spread(Float(vq) / 31)
+        let g = BugLayer.typeGain[t] / 0.925 / BugLayer.bodyGain
+        let b = Float(bq) / 7, f = Float(fq) / 7
+        let ch = 1 - b * 0.6
+        let r = s.0 * g * ch * (1 - 0.5 * f), gg = s.1 * g * ch * (1 - 0.25 * f), bb = s.2 * g * ch
+        let c = SKColor(red: CGFloat(min(1, r)), green: CGFloat(min(1, gg)), blue: CGFloat(min(1, bb)), alpha: 1)
+        tinted[k] = c
+        return c
+    }
 }

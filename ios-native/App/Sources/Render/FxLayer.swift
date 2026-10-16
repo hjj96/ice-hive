@@ -34,6 +34,17 @@ final class FxLayer {
     private let propInfo: (glob: SpriteSetInfo, grenade: SpriteSetInfo, medkit: SpriteSetInfo, base: SpriteSetInfo, head: SpriteSetInfo, top: SpriteSetInfo)
 
     private struct Flash { var x: Float, y: Float, z: Float, r: Float, g: Float, b: Float, peak: Float, t: Float, dur: Float }
+    /// Stain textures by kind (no name formatting / dictionary lookup per kill): ichor[type][streak][variant].
+    private let ichorTex: [[[SKTexture]]]
+    private let burnTex: [SKTexture], frostTex: [SKTexture], acidTex: [SKTexture]
+    /// Beacon top tint per state (off / charging / done).
+    private static let beaconTint: [SKColor] = [
+        SKColor(red: 1, green: 0.325, blue: 0.195, alpha: 1),
+        SKColor(red: 1, green: 0.91, blue: 0.195, alpha: 1),
+        SKColor(red: 0.325, green: 1, blue: 1, alpha: 1)]
+    /// Budgets of the web phone tier (QUALITY.med): 2600 particles split additive / alpha, 1000 stains, 320 corpses
+    /// plus a 40-slot brute ring.
+    static let additiveCap = 1600, alphaCap = 1000, decalCap = 1000, corpseCap = 320, bruteCap = 40
     private var flashes: [Flash] = []
     /// Lights collected this frame for the lighting layer.
     private(set) var lights: [PointLight] = []
@@ -42,9 +53,16 @@ final class FxLayer {
     init(assets: SpriteAssets, level: Level, worldRoot: SKNode, groundRoot: SKNode) {
         self.assets = assets
         self.level = level
-        pa = ParticleSystem(parent: root, assets: assets, level: level, additive: true, capacity: 900)
-        pn = ParticleSystem(parent: root, assets: assets, level: level, additive: false, capacity: 520)
-        ground = GroundFx(assets: assets, level: level, groundRoot: groundRoot, worldRoot: worldRoot, decalCap: 420, corpseCap: 300)
+        pa = ParticleSystem(parent: root, assets: assets, level: level, additive: true, capacity: FxLayer.additiveCap)
+        pn = ParticleSystem(parent: root, assets: assets, level: level, additive: false, capacity: FxLayer.alphaCap)
+        ground = GroundFx(assets: assets, level: level, groundRoot: groundRoot, worldRoot: worldRoot,
+                          decalCap: FxLayer.decalCap, corpseCap: FxLayer.corpseCap, bruteCap: FxLayer.bruteCap)
+        ichorTex = BugType.allCases.map { t in
+            ["splat", "streak"].map { k in (0..<2).map { v in assets.texture("decal_ichor_\(t.id)_\(k)_\(v)") } }
+        }
+        burnTex = (0..<2).map { assets.texture("decal_burn_\($0)") }
+        frostTex = (0..<2).map { assets.texture("decal_frost_\($0)") }
+        acidTex = (0..<2).map { assets.texture("decal_acid_\($0)") }
         tracers = SpritePool(parent: root, capacity: 420) { n in
             n.blendMode = .add
             n.anchorPoint = CGPoint(x: 1, y: 0.5)
@@ -128,6 +146,16 @@ final class FxLayer {
             pa.emit(pos.x + ax * 0.75, 1.05, pos.y + az * 0.75, ax * 2, 0, az * 2, 0.05, 0.7, 0.3, 0.5, 1, 0.5, 1, 0, 0, 0, tex: .flash)
         case .bugFrozen(let pos):
             for _ in 0..<num(3) { pa.emit(pos.x, 0.4, pos.y, rr(-1, 1), rr(0.5, 1.5), rr(-1, 1), rr(0.2, 0.4), 0.2, 0.05, 0.45, 0.75, 1, 0.8, 2, 1, 3) }
+        case .beaconCompleted(let k):
+            // web completeBeacon: flashLight(b.x, 3, b.z, 0x40ffe0, 600, 1.0) — the pool light plus the phone-tier
+            // floor splash that carries it on the deck
+            if k >= 0 && k < game.beacons.count {
+                let b = game.beacons[k]
+                flashLight(b.x, 3, b.z, 0x40ffe0, 600, 1.0)
+                ground.splash(b.x, b.z, 5 + Float(600).squareRoot() * 0.25, 64 / 640, 255 / 640, 224 / 640, 1.0)
+            }
+        case .turretExpired(let pos):
+            turretDrop(pos.x, pos.y)
         default:
             break
         }
@@ -140,7 +168,7 @@ final class FxLayer {
         let ty = type.rawValue
         if frozen {
             for _ in 0..<num(8) { pa.emit(x, 0.4, z, rr(-3, 3), rr(1, 4), rr(-3, 3), rr(0.25, 0.5), 0.2, 0.04, 0.35, 0.6, 0.8, 1, 9, 1, 3, tex: .shard) }
-            ground.addDecal("decal_frost_\(Int(rnd() * 2) & 1)", x: x, z: z, size: sc * 0.8)
+            ground.addDecal(frostTex[Int(rnd() * 2) & 1], x: x, z: z, size: sc * 0.8)
             return
         }
         let cp = FxLayer.ichorP[ty]
@@ -150,11 +178,11 @@ final class FxLayer {
         }
         if type == .brute { ground.splash(x, z, 4, 0.3, 0.06, 0.16, 0.35) }
         let streak = rnd() < 0.5
-        ground.addDecal("decal_ichor_\(type.id)_\(streak ? "streak" : "splat")_\(Int(rnd() * 2) & 1)", x: x, z: z, size: sc * rr(1.0, 1.5))
+        ground.addDecal(ichorTex[ty][streak ? 1 : 0][Int(rnd() * 2) & 1], x: x, z: z, size: sc * rr(1.0, 1.5))
         if type != .boomer {
             ground.addCorpse(type: type, x: x, z: z, scale: sc)
         } else {
-            ground.addDecal("decal_burn_\(Int(rnd() * 2) & 1)", x: x, z: z, size: 2.6)
+            ground.addDecal(burnTex[Int(rnd() * 2) & 1], x: x, z: z, size: 2.6)
         }
         for _ in 0..<num(type == .brute ? 14 : 5) {
             pn.emit(x, 0.35, z, rr(-2.5, 2.5), rr(1.5, 4), rr(-2.5, 2.5), rr(0.4, 0.8), rr(0.12, 0.22), 0.06, cp.0 * 1.6, cp.1 * 1.6, cp.2 * 1.6, 0.95, 12, 0.5, 0)
@@ -200,7 +228,7 @@ final class FxLayer {
         for _ in 0..<num(big ? 16 : 4) {
             pn.emit(x + rr(-1, 1), rr(0.5, 1.5), z + rr(-1, 1), rr(-1.2, 1.2), rr(1, 2.5), rr(-1.2, 1.2), rr(1.6, 2.6), 1.6, 4.2, 0.06, 0.055, 0.06, 0.75, -0.3, 0.8, 2)
         }
-        ground.addDecal("decal_burn_\(Int(rnd() * 2) & 1)", x: x, z: z, size: r * (big ? 1.1 : 0.8))
+        ground.addDecal(burnTex[Int(rnd() * 2) & 1], x: x, z: z, size: r * (big ? 1.1 : 0.8))
         flashLight(x, 1.6, z, kind == .boomer ? 0xff5a20 : 0xff7a30, big ? 220 : 90, big ? 0.5 : 0.25)
         ground.splash(x, z, r * (big ? 2.4 : 2.0), 0.4, 0.14, 0.03, big ? 0.6 : 0.3)
     }
@@ -208,7 +236,7 @@ final class FxLayer {
     private func acid(_ x: Float, _ z: Float) {
         for _ in 0..<num(9) { pa.emit(x, 0.2, z, rr(-2.5, 2.5), rr(1, 3.5), rr(-2.5, 2.5), rr(0.3, 0.6), 0.2, 0.05, 0.7, 1.0, 0.15, 1, 8, 1, 3) }
         for _ in 0..<num(4) { pn.emit(x + rr(-0.6, 0.6), 0.2, z + rr(-0.6, 0.6), 0, rr(0.4, 1), 0, rr(0.8, 1.4), 0.5, 1.4, 0.4, 0.55, 0.15, 0.35, -0.2, 1, 2) }
-        ground.addDecal("decal_acid_\(Int(rnd() * 2) & 1)", x: x, z: z, size: rr(1.6, 2.1))
+        ground.addDecal(acidTex[Int(rnd() * 2) & 1], x: x, z: z, size: rr(1.6, 2.1))
     }
 
     private func bulletHit(_ x: Float, _ z: Float, _ dx: Float, _ dz: Float, _ killed: Bool) {
@@ -231,7 +259,7 @@ final class FxLayer {
         }
         flashLight(x, 1.5, z, 0xff6a20, 200, 0.6)
         ground.splash(x, z, r * 2.4, 0.38, 0.14, 0.03, 0.7)
-        ground.addDecal("decal_burn_\(Int(rnd() * 2) & 1)", x: x, z: z, size: r * 1.8)
+        ground.addDecal(burnTex[Int(rnd() * 2) & 1], x: x, z: z, size: r * 1.8)
     }
 
     private func nova(_ x: Float, _ z: Float, _ r: Float) {
@@ -288,6 +316,7 @@ final class FxLayer {
     func reserve() {
         pa.reserve(); pn.reserve()
         tracers.reserve(420); props.reserve(64)
+        _ = ColorCache.id(1, 1, 1)
         ground.reserve()
     }
 
@@ -301,6 +330,7 @@ final class FxLayer {
 
     func update(game: Game, dt: Float, time: Float, visible: CGRect, liftRise: Float, feet: [(Float, Float, Float)]) {
         let lv = level
+        ground.liftRise(liftRise)
         // continuous emitters tied to the marines
         for (k, m) in game.marines.enumerated() where !m.downed && k < feet.count {
             let f = feet[k]
@@ -495,13 +525,13 @@ final class FxLayer {
             let fi = Iso.wrap(Int(spin / (Float.pi / 2) * 4), 4)
             top.show(beaconTops[fi], size: propInfo.top.size, anchor: propInfo.top.anchor)
             top.position = Iso.point(b.x, gy + 2.9 + sinf(time * 2 + Float(k)) * 0.12, b.z)
-            top.color = SKColor(red: CGFloat(min(1, col.0 * 1.3)), green: CGFloat(min(1, col.1 * 1.3)), blue: CGFloat(min(1, col.2 * 1.3)), alpha: 1)
+            top.color = FxLayer.beaconTint[max(0, min(2, b.state))]
             let beamNode = beaconBeamNodes[k]
             if b.state > 0 {
                 beamNode.isHidden = false
                 beamNode.position = Iso.point(b.x, gy + 2.2, b.z)
                 let i: Float = b.state == 2 ? 0.6 : 0.25 + 0.2 * sinf(time * 10)
-                beamNode.color = Tone.color(col.0 * i * 2, col.1 * i * 2, col.2 * i * 2)
+                beamNode.color = ColorCache.color(col.0 * i * 2, col.1 * i * 2, col.2 * i * 2)
             } else {
                 beamNode.isHidden = true
             }

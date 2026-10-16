@@ -43,6 +43,17 @@ extension Game {
     /// grenade auto-target never pick a bug outside it. nil = no restriction.
     public func setVisibleArea(_ polygon: [Vec2]?) { viewQuad = polygon }
 
+    /// Same as `setVisibleArea([a, b, c, d])`, updating the stored quad in place (no array per frame).
+    public func setVisibleQuad(_ a: Vec2, _ b: Vec2, _ c: Vec2, _ d: Vec2) {
+        if var q = viewQuad, q.count == 4 {
+            viewQuad = nil          // keep the buffer uniquely referenced while it is written
+            q[0] = a; q[1] = b; q[2] = c; q[3] = d
+            viewQuad = q
+        } else {
+            viewQuad = [a, b, c, d]
+        }
+    }
+
     func isVisible(_ x: Float, _ z: Float) -> Bool {
         guard let q = viewQuad, q.count >= 3 else { return true }
         var sign: Float = 0

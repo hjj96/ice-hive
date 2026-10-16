@@ -20,6 +20,8 @@ final class WorldRenderer {
     let weather: WeatherLayer
     private var emberRng = SeededRNG(seed: 31337)
     let timer = FrameTimer(["lvl", "mar", "bug", "fx", "wx", "light"])
+    /// Flashlights of this frame (stored: no array allocation per frame).
+    private var flashlights: [LightingLayer.Flashlight] = []
 
     init(level: Level, assets: SpriteAssets, bugCapacity: Int) {
         self.assets = assets
@@ -35,7 +37,8 @@ final class WorldRenderer {
         fx = FxLayer(assets: assets, level: level, worldRoot: world, groundRoot: groundRoot)
         world.addChild(fx.root)
         motes = MotesLayer(texture: assets.texture("bg_motes"))
-        weather = WeatherLayer(assets: assets, snow: 420, mist: 9)
+        weather = WeatherLayer(assets: assets, snow: 700, mist: 9)
+        flashlights.reserveCapacity(4)
         world.addChild(weather.root)
         let pa = fx.pa
         bugs.onBurning = { [weak pa] x, y, z, s in
@@ -56,13 +59,13 @@ final class WorldRenderer {
     /// Every pool filled up front (loading screen): ~5k hidden sprites, so neither a horde reaching the screen nor
     /// a burst of corpses / particles creates nodes during play.
     func reservePools(bugs n: Int) {
-        let t0 = ProcessInfo.processInfo.systemUptime
+        let t0 = FrameTimer.now()
         let before = SpritePool.created
         bugs.reserve(n)
         fx.reserve()
         weather.reserve()
         AppLog.info(String(format: "pools reserved: %d sprites in %.0f ms", SpritePool.created - before,
-                           (ProcessInfo.processInfo.systemUptime - t0) * 1000))
+                           (FrameTimer.now() - t0) * 1000))
     }
 
     func handle(_ e: GameEvent, game: Game) { fx.handle(e, game: game) }
@@ -86,7 +89,7 @@ final class WorldRenderer {
         timer.mark()
 
         // flashlights: the player's beam is the strongest (web spots: 62 player / 42 bots, 12 flickering when downed)
-        var fl: [LightingLayer.Flashlight] = []
+        flashlights.removeAll(keepingCapacity: true)
         let toShader: Float = 1 / Float.pi
         for (k, m) in game.marines.enumerated() where k < 4 {
             let f = marines.feet[k]
@@ -96,10 +99,10 @@ final class WorldRenderer {
             } else {
                 i = (m.isPlayer ? 62 : 42) * (m.firing ? 1.12 : 1) * (m.hurtT > 0 ? 0.6 + 0.4 * sinf(time * 60) : 1)
             }
-            fl.append(LightingLayer.Flashlight(x: f.0, y: f.1, z: f.2, ax: m.ax, az: m.az, intensity: i * toShader))
+            flashlights.append(LightingLayer.Flashlight(x: f.0, y: f.1, z: f.2, ax: m.ax, az: m.az, intensity: i * toShader))
         }
         lighting.update(viewSize: camera.viewSize, ppm: camera.screenPPM, camera: camera.node.position, scale: camera.scale,
-                        liftRise: rise, toScreen: { camera.toScreen($0) }, flashlights: fl, points: fx.lights)
+                        liftRise: rise, toScreen: { camera.toScreen($0) }, flashlights: flashlights, points: fx.lights)
         timer.mark()
     }
 

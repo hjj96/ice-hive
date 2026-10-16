@@ -22,8 +22,10 @@ final class MarineLayer {
 
     /// Interpolated foot positions this frame (world metres), used by the HUD, camera and lights.
     private(set) var feet: [(Float, Float, Float)] = [(0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0)]
-    /// Ring colour per marine (display colour of the laser).
-    private(set) var laserColors: [SKColor] = []
+    /// Team ring colour per class: [class][player 0 / bot 1] (laser colour at 0.55 / 0.32).
+    private var ringColors: [[SKColor]] = []
+    private let hurtTint = SKColor(red: 1, green: 0.15, blue: 0.1, alpha: 1)
+    private let invulnTint = SKColor(red: 0.2, green: 0.5, blue: 1, alpha: 1)
 
     init(assets: SpriteAssets) {
         self.assets = assets
@@ -54,7 +56,7 @@ final class MarineLayer {
         for c in MarineClass.allCases { laserTex.append(assets.texture("laser_\(c.id)")) }
         for c in MarineClass.allCases {
             let l = Tone.linear(c.spec.laser)
-            laserColors.append(Tone.color(l.0, l.1, l.2))
+            ringColors.append([Tone.color(l.0 * 0.55, l.1 * 0.55, l.2 * 0.55), Tone.color(l.0 * 0.32, l.1 * 0.32, l.2 * 0.32)])
         }
     }
 
@@ -120,13 +122,13 @@ final class MarineLayer {
             if m.hurtT > 0 {
                 glow.show(tex, size: set.info.size, anchor: set.info.anchor)
                 glow.zPosition = ZBand.glowLit
-                glow.color = SKColor(red: 1, green: 0.15, blue: 0.1, alpha: 1)
+                glow.color = hurtTint
                 glow.colorBlendFactor = 1
                 glow.alpha = 0.55
             } else if m.invulnerable {
                 glow.show(tex, size: set.info.size, anchor: set.info.anchor)
                 glow.zPosition = ZBand.glowLit
-                glow.color = SKColor(red: 0.2, green: 0.5, blue: 1, alpha: 1)
+                glow.color = invulnTint
                 glow.colorBlendFactor = 1
                 glow.alpha = CGFloat(0.15 + 0.12 * sinf(time * 20))
             } else if let gt = set.glow(dir, frame) {
@@ -140,10 +142,7 @@ final class MarineLayer {
 
             // team ring
             if !m.downed {
-                let l = Tone.linear(m.spec.laser)
-                let kk: Float = m.isPlayer ? 0.55 : 0.32
-                ground.teamRing(x: x, y: y, z: z, diameter: m.isPlayer ? 1.9 : 1.5,
-                                color: Tone.color(l.0 * kk, l.1 * kk, l.2 * kk))
+                ground.teamRing(x: x, y: y, z: z, diameter: m.isPlayer ? 1.9 : 1.5, color: ringColors[ci][m.isPlayer ? 0 : 1])
             }
 
             // laser sight

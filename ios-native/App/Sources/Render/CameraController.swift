@@ -18,6 +18,10 @@ final class CameraController {
     private var shake: Float = 0
     private var rng = SeededRNG(seed: 555)
     var reducedMotion = false
+    /// Shake offset, re-rolled at the 60 Hz simulation rate (not every 120 Hz frame) so its jitter does not
+    /// depend on the display rate.
+    private var shakeOff: (Float, Float, Float) = (0, 0, 0)
+    private var shakeAcc: Float = 0
 
     func addShake(_ a: Float) {
         shake = min(1.4, shake + a * (reducedMotion ? 0.35 : 1))
@@ -50,7 +54,12 @@ final class CameraController {
         let sk = shake * 0.35
         let kick: Float = (title || P.downed) ? 0 : max(0, P.muzzle) * (P.cls == .gunner ? 0.045 : 0.07) * (reducedMotion ? 0.35 : 1)
         let kx = -P.ax * kick, kz = -P.az * kick
-        let sx = (rng.next() - 0.5) * sk, sy = (rng.next() - 0.5) * sk, sz = (rng.next() - 0.5) * sk
+        shakeAcc += dt
+        if shakeAcc >= 1 / 60 {
+            shakeAcc = min(shakeAcc - 1 / 60, 1 / 60)
+            shakeOff = ((rng.next() - 0.5), (rng.next() - 0.5), (rng.next() - 0.5))
+        }
+        let sx = shakeOff.0 * sk, sy = shakeOff.1 * sk, sz = shakeOff.2 * sk
         node.position = Iso.point(tx + kx + sx, ty + sy, tz + kz + sz)
 
         // field of view of the web camera
@@ -86,9 +95,9 @@ final class CameraController {
     }
 
     /// Ground quad under the screen corners (aim assist only picks visible bugs).
-    func visibleGround() -> [Vec2] {
+    func setVisibleArea(of game: Game) {
         let r = visibleRect
-        return [Iso.ground(from: CGPoint(x: r.minX, y: r.minY), height: ty), Iso.ground(from: CGPoint(x: r.maxX, y: r.minY), height: ty),
-                Iso.ground(from: CGPoint(x: r.maxX, y: r.maxY), height: ty), Iso.ground(from: CGPoint(x: r.minX, y: r.maxY), height: ty)]
+        game.setVisibleQuad(Iso.ground(from: CGPoint(x: r.minX, y: r.minY), height: ty), Iso.ground(from: CGPoint(x: r.maxX, y: r.minY), height: ty),
+                            Iso.ground(from: CGPoint(x: r.maxX, y: r.maxY), height: ty), Iso.ground(from: CGPoint(x: r.minX, y: r.maxY), height: ty))
     }
 }

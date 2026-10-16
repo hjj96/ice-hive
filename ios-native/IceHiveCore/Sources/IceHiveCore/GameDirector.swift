@@ -123,8 +123,8 @@ extension Game {
             emit(.hordeStarted(size: size0, title: t, subtitle: s))
             banner(t, s, false)
             emit(.hordeFlash)
-            events.append(.sound(.siren, pos: nil, fromPlayer: false))
-            events.append(.sound(.hordeRoar, pos: nil, fromPlayer: false))
+            events.append(.sound(.siren, pos: nil, loud: nil))
+            events.append(.sound(.hordeRoar, pos: nil, loud: nil))
             shake(0.25)
             haptic(.warning)
         }
@@ -171,7 +171,7 @@ extension Game {
                             beacons[k].state = 1; activeBeacon = k; waveT = 2
                             startHorde(Int(((270 + D.beaconHordeStep * Float(beaconsDone)) * hordeScale()).rounded()), "Защищайте маяк",
                                        "Маяк «" + b.name + "» запускается — держите кольцо")
-                            if !simOnly { emit(.beaconStarted(index: k)); events.append(.sound(.beacon, pos: nil, fromPlayer: false)) }
+                            if !simOnly { emit(.beaconStarted(index: k)); events.append(.sound(.beacon, pos: nil, loud: nil)) }
                             break
                         }
                     }
@@ -222,7 +222,7 @@ extension Game {
                         if !simOnly {
                             emit(.extractStarted)
                             banner("Эвакуация", "Лифт поднимается", true)
-                            events.append(.sound(.lift, pos: nil, fromPlayer: false))
+                            events.append(.sound(.lift, pos: nil, loud: nil))
                         }
                     }
                 }
@@ -271,7 +271,7 @@ extension Game {
         hordeT = max(hordeT, 28 + rng.next() * 10)   // breather before the next push
         if !simOnly {
             emit(.beaconCompleted(index: k))
-            events.append(.sound(.beaconDone, pos: nil, fromPlayer: false))
+            events.append(.sound(.beaconDone, pos: nil, loud: nil))
             haptic(.success)
         }
         if beaconsDone >= beacons.count {
@@ -288,7 +288,7 @@ extension Game {
         if !simOnly {
             emit(.holdStarted)
             banner("Держитесь", sub, false)
-            events.append(.sound(.beacon, pos: nil, fromPlayer: false))
+            events.append(.sound(.beacon, pos: nil, loud: nil))
         }
         startHorde(Int((480 * hordeScale()).rounded()), "Держитесь", sub, 70)
     }
@@ -298,7 +298,7 @@ extension Game {
         phase = won ? .won : .lost
         if !simOnly {
             emit(won ? .victory : .defeat)
-            events.append(.sound(won ? .victory : .defeat, pos: nil, fromPlayer: false))
+            events.append(.sound(won ? .victory : .defeat, pos: nil, loud: nil))
             haptic(won ? .success : .error)
         }
     }
@@ -312,8 +312,8 @@ extension Game {
             playerKills += 1; combo += 1; comboT = 1.0   // a real streak: a second without a kill (or a hit taken) ends it
             if combo > bestCombo { bestCombo = combo }
             if !benchCombat {
-                events.append(.sound(.kill, pos: nil, fromPlayer: true))
-                if combo % 25 == 0 { emit(.combo(count: combo)); events.append(.sound(.combo, pos: nil, fromPlayer: true)) }
+                events.append(.sound(.kill, pos: nil, loud: nil))
+                if combo % 25 == 0 { emit(.combo(count: combo)); events.append(.sound(.combo, pos: nil, loud: nil)) }
             }
         }
         while xp >= xpNext {

@@ -149,6 +149,46 @@ final class Bar {
     }
 }
 
+/// Dotted ammo / heat bar of the player's nameplate (web .ps: 4 pt on / 2 pt off, clipped from the right by the value).
+final class DashBar {
+    let node = SKNode()
+    private var segs: [SKSpriteNode] = []
+    private let width: CGFloat
+    private let height: CGFloat
+    private var value: CGFloat = -1
+
+    init(width: CGFloat, height: CGFloat, color: SKColor) {
+        self.width = width
+        self.height = height
+        var x: CGFloat = 0
+        while x < width {
+            let s = SKSpriteNode(color: color, size: CGSize(width: 4, height: height))
+            s.anchorPoint = CGPoint(x: 0, y: 0.5)
+            s.position = CGPoint(x: x, y: 0)
+            node.addChild(s)
+            segs.append(s)
+            x += 6
+        }
+    }
+
+    func set(_ f: CGFloat) {
+        let v = max(0, min(1, f.isFinite ? f : 0))
+        if abs(v - value) < 0.005 { return }
+        value = v
+        let c = v * width
+        for (k, s) in segs.enumerated() {
+            let x0 = CGFloat(k) * 6
+            let w = min(4, c - x0)
+            if w <= 0.05 {
+                if !s.isHidden { s.isHidden = true }
+            } else {
+                if s.isHidden { s.isHidden = false }
+                s.size = CGSize(width: w, height: height)
+            }
+        }
+    }
+}
+
 enum Shapes {
     /// CSS clip-path --cut-s: top-left origin, extends right / down (y negative).
     static func cutPanel(width w: CGFloat, height h: CGFloat, cut c: CGFloat = 7) -> CGPath {
@@ -242,23 +282,71 @@ enum Shapes {
         return n
     }
 
-    /// Pie (cooldown sweep) from 12 o'clock clockwise, fraction 0…1.
-    static func pie(radius r: CGFloat, fraction f: CGFloat) -> CGPath {
-        let p = CGMutablePath()
-        if f <= 0.001 { return p }
-        p.move(to: .zero)
-        let start = CGFloat.pi / 2
-        p.addArc(center: .zero, radius: r, startAngle: start, endAngle: start - 2 * .pi * min(1, f), clockwise: true)
-        p.closeSubpath()
-        return p
+    /// Cooldown sweep resolution (7.5° steps).
+    static let pieSteps = 48
+
+    /// Pre-rendered cooldown pies, sweep from 12 o'clock clockwise: element k covers (k + 1) / pieSteps.
+    /// Rendered once per radius at start-up (the HUD buttons only swap textures while abilities cool down).
+    static func pies(radius r: CGFloat, color: SKColor) -> [SKTexture] {
+        let side = (r * 2).rounded(.up)
+        var out: [SKTexture] = []
+        out.reserveCapacity(pieSteps)
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: side, height: side))
+        for k in 1...pieSteps {
+            let f = CGFloat(k) / CGFloat(pieSteps)
+            let image = renderer.image { ctx in
+                let cg = ctx.cgContext
+                let c = CGPoint(x: side / 2, y: side / 2)
+                let p = CGMutablePath()
+                p.move(to: c)
+                // UIKit y points down: clockwise on screen from 12 o'clock = increasing angle from −π/2
+                let start = -CGFloat.pi / 2
+                p.addArc(center: c, radius: r, startAngle: start, endAngle: start + 2 * .pi * f, clockwise: false)
+                p.closeSubpath()
+                cg.addPath(p)
+                cg.setFillColor(color.cgColor)
+                cg.fillPath()
+            }
+            out.append(SKTexture(image: image))
+        }
+        return out
+    }
+
+    /// Objective marker chevron (points up), amber stroke with a soft glow, as one cached texture.
+    static func chevron(color: SKColor) -> SKTexture {
+        let w: CGFloat = 26, h: CGFloat = 20
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: w, height: h))
+        let image = renderer.image { ctx in
+            let cg = ctx.cgContext
+            let p = CGMutablePath()
+            p.move(to: CGPoint(x: w / 2 - 7, y: h / 2 + 5))
+            p.addLine(to: CGPoint(x: w / 2, y: h / 2 - 4))
+            p.addLine(to: CGPoint(x: w / 2 + 7, y: h / 2 + 5))
+            for (lw, a) in [(CGFloat(7), CGFloat(0.18)), (CGFloat(5), CGFloat(0.3)), (CGFloat(3), CGFloat(1))] {
+                cg.addPath(p)
+                cg.setStrokeColor(color.withAlphaComponent(a).cgColor)
+                cg.setLineWidth(lw)
+                cg.strokePath()
+            }
+        }
+        return SKTexture(image: image)
     }
 }
 
 enum GeneratedTextures {
+    /// Renderer for smooth, blurred full-screen gradients: 1× scale and the standard 8-bit range (a 256-pt texture
+    /// at 3× with an extended-range format would be 768² × 8 bytes for a soft vignette).
+    private static func lowResRenderer(_ size: CGSize) -> UIGraphicsImageRenderer {
+        let f = UIGraphicsImageRendererFormat()
+        f.scale = 1
+        f.preferredRange = .standard
+        return UIGraphicsImageRenderer(size: size, format: f)
+    }
+
     /// Radial vignette: transparent centre → `edge` colour at the corners.
     static func vignette(edge: UIColor, inner: CGFloat = 0.35) -> SKTexture {
         let side: CGFloat = 256
-        let renderer = UIGraphicsImageRenderer(size: CGSize(width: side, height: side))
+        let renderer = lowResRenderer(CGSize(width: side, height: side))
         let image = renderer.image { ctx in
             let cg = ctx.cgContext
             let colors = [edge.withAlphaComponent(0).cgColor, edge.cgColor] as CFArray
@@ -271,11 +359,27 @@ enum GeneratedTextures {
         return SKTexture(image: image)
     }
 
-    /// Amber / black hazard stripes (CSS --hazard), width × height points.
-    static func hazard(width: CGFloat, height: CGFloat) -> SKTexture {
+    private static var hazardCache: [String: SKTexture] = [:]
+
+    /// Amber / black hazard stripes (CSS --hazard), width × height points; `cutRight` clips the right end at 45°
+    /// like the web .hz band. Cached per size (layout runs on every rotation / safe-area change).
+    static func hazard(width w0: CGFloat, height: CGFloat, cutRight: Bool = false) -> SKTexture {
+        let width = max(2, w0.rounded())
+        let key = "\(Int(width))x\(Int(height * 10))" + (cutRight ? "c" : "")
+        if let t = hazardCache[key] { return t }
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: width, height: height))
         let image = renderer.image { ctx in
             let cg = ctx.cgContext
+            if cutRight {
+                let clip = CGMutablePath()
+                clip.move(to: CGPoint(x: 0, y: 0))
+                clip.addLine(to: CGPoint(x: width, y: 0))
+                clip.addLine(to: CGPoint(x: width - height, y: height))
+                clip.addLine(to: CGPoint(x: 0, y: height))
+                clip.closeSubpath()
+                cg.addPath(clip)
+                cg.clip()
+            }
             cg.setFillColor(UIPalette.bg.cgColor)
             cg.fill(CGRect(x: 0, y: 0, width: width, height: height))
             cg.setFillColor(UIPalette.amber.cgColor)
@@ -292,7 +396,9 @@ enum GeneratedTextures {
                 x += 18
             }
         }
-        return SKTexture(image: image)
+        let t = SKTexture(image: image)
+        hazardCache[key] = t
+        return t
     }
 
     /// Soft disc (stick fills).

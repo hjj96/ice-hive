@@ -3,7 +3,7 @@ import Foundation
 /// Launch arguments, e.g. `-demo combat -seconds 40 -debugHUD`.
 /// Used by the CI simulator smoke test (`xcrun simctl launch … -demo combat`).
 struct LaunchOptions {
-    /// Demo / scripted scenario name (`-demo combat|beacon|title|smoke`), nil for a normal start.
+    /// Demo / scripted scenario name (`-demo combat|beacon|title|calm|probe|hold|extract|levelup|pause|end`), nil for a normal start.
     var demo: String?
     /// Optional scenario duration in seconds (`-seconds N`): logs "demo done" with the fps summary.
     var seconds: Double?
@@ -19,6 +19,8 @@ struct LaunchOptions {
     var orientation: String?
     /// Hide the darkness / flashlight overlay (`-nolight`), to measure its GPU cost.
     var noLighting: Bool = false
+    /// SpriteKit's own node culling (`-cull`, off by default: the pools and level chunks cull themselves).
+    var cull: Bool = false
     /// Arguments that were not recognised (kept for logging).
     var unknown: [String] = []
 
@@ -49,6 +51,7 @@ struct LaunchOptions {
             case "-mute", "--mute": result.mute = flag()
             case "-orient", "--orient": result.orientation = value()
             case "-nolight", "--nolight": result.noLighting = flag()
+            case "-cull", "--cull": result.cull = flag()
             default: result.unknown.append(arg)
             }
         }
@@ -65,6 +68,7 @@ struct LaunchOptions {
         if mute { parts.append("mute") }
         if let o = orientation { parts.append("orient=\(o)") }
         if noLighting { parts.append("nolight") }
+        if cull { parts.append("cull") }
         return parts.joined(separator: " ")
     }
 }

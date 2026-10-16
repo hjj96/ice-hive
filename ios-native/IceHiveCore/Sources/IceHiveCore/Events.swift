@@ -98,8 +98,9 @@ public enum GameEvent {
     case toast(text: String, kind: ToastKind)
     /// Big centred banner (teal = good news, otherwise red/amber).
     case banner(title: String, subtitle: String, teal: Bool)
-    /// Play a sound; pos nil = non-positional; fromPlayer = the player's own weapon/ability.
-    case sound(SoundID, pos: Vec2?, fromPlayer: Bool)
+    /// Play a sound; pos nil = non-positional. `loud` is the web sfx() 4th argument: nil = not given (full volume),
+    /// true = the player's own weapon / ability, false = a bot's (played at half volume).
+    case sound(SoundID, pos: Vec2?, loud: Bool?)
     case haptic(HapticKind)
     /// Add camera shake (web addShake amount, before reduced-motion scaling).
     case shake(amount: Float)

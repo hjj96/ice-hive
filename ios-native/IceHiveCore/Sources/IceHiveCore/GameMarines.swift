@@ -102,7 +102,7 @@ extension Game {
             if m.isPlayer {
                 emit(.damageFlash(amount: min(1, dmg / 28)))
                 shake(0.12 + dmg * 0.012)
-                events.append(.sound(.hurt, pos: nil, fromPlayer: true))
+                events.append(.sound(.hurt, pos: nil, loud: nil))
                 haptic(dmg >= 12 ? .heavy : .light)
             }
         }

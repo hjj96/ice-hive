@@ -99,7 +99,7 @@ final class SpriteSheets {
     private let placeholder: Sprite
 
     init() {
-        let t0 = ProcessInfo.processInfo.systemUptime
+        let t0 = FrameTimer.now()
         let empty = SKTexture()
         placeholder = Sprite(tex: empty, rx: 0, ry: 0, rw: 1, rh: 1, sheet: -1)
         guard let url = Bundle.main.url(forResource: "sheets", withExtension: "json"),
@@ -111,7 +111,7 @@ final class SpriteSheets {
             AppLog.error("sheets.json missing or unreadable")
             return
         }
-        let tJson = ProcessInfo.processInfo.systemUptime
+        let tJson = FrameTimer.now()
         for sh in sheets {
             let file = (sh["file"] as? String) ?? "missing.png"
             let base = file.hasSuffix(".png") ? String(file.dropLast(4)) : file
@@ -128,15 +128,18 @@ final class SpriteSheets {
             pageNames.append((sh["name"] as? String) ?? base)
             sizes.append(CGSize(width: SpriteSheets.number(sh["w"]), height: SpriteSheets.number(sh["h"])))
         }
-        let tPages = ProcessInfo.processInfo.systemUptime
+        let tPages = FrameTimer.now()
         raw.reserveCapacity(frames.count)
         for (name, v) in frames {
             guard let arr = v as? [Any], arr.count >= 9 else { continue }
             raw[name] = arr.map { Int(SpriteSheets.number($0)) }
         }
-        let t1 = ProcessInfo.processInfo.systemUptime
-        AppLog.info(String(format: "sheets.json %.0f ms, page textures %.0f ms, frame index %.0f ms",
-                           (tJson - t0) * 1000, (tPages - tJson) * 1000, (t1 - tPages) * 1000))
+        let t1 = FrameTimer.now()
+        // RGBA8 once uploaded: on a device (unified memory) this counts toward the jetsam footprint even though the
+        // simulator's phys_footprint stops showing it after the upload (the textures live in the host GPU process)
+        let texMB = sizes.reduce(0) { $0 + Int($1.width) * Int($1.height) * 4 } / 1_048_576
+        AppLog.info(String(format: "sheets.json %.0f ms, page textures %.0f ms, frame index %.0f ms, sheet textures %d MB decoded",
+                           (tJson - t0) * 1000, (tPages - tJson) * 1000, (t1 - tPages) * 1000, texMB))
     }
 
     private var sizes: [CGSize] = []
@@ -176,6 +179,9 @@ final class SpriteSheets {
 
     /// Texture of an untrimmed frame (flat ground textures, particles: sized in metres by the caller).
     func texture(_ name: String) -> SKTexture { sprite(name).tex }
+
+    /// Pixel size of sheet `i` (sheets.json), zero if absent.
+    func pageSize(_ i: Int) -> CGSize { i >= 0 && i < sizes.count ? sizes[i] : .zero }
 
     /// Index of a sheet by name (bugs, squad, glow, level, fx), -1 if absent.
     func sheetIndex(_ name: String) -> Int { pageNames.firstIndex(of: name) ?? -1 }
@@ -239,11 +245,11 @@ final class SpriteAssets {
     private(set) var marineDowned: [FrameSet] = []
 
     init() {
-        let t0 = ProcessInfo.processInfo.systemUptime
+        let t0 = FrameTimer.now()
         manifest = SpriteManifest()
         sheets = SpriteSheets()
         let S = sheets
-        let tSheets = ProcessInfo.processInfo.systemUptime
+        let tSheets = FrameTimer.now()
         bruteCharge = FrameSet(S, "brute_charge", frames: 4, glow: true, info: manifest.info("brute_charge"))
         boomerSwell = FrameSet(S, "boomer_swell", frames: 3, glow: true, info: manifest.info("boomer_swell"))
         for t in BugType.allCases {
@@ -263,7 +269,7 @@ final class SpriteAssets {
             marineDash.append(FrameSet(S, "\(id)_dash", frames: 1, glow: true, info: manifest.info("\(id)_dash")))
             marineDowned.append(FrameSet(S, "\(id)_downed", frames: 1, glow: true, info: manifest.info("\(id)_downed")))
         }
-        let t1 = ProcessInfo.processInfo.systemUptime
+        let t1 = FrameTimer.now()
         AppLog.info("sheets: \(sheets.pages.count) pages (\(sheets.pageNames.joined(separator: ","))), \(sheets.frameCount) frames"
                     + String(format: "; index %.0f ms, frame tables %.0f ms", (tSheets - t0) * 1000, (t1 - tSheets) * 1000))
     }

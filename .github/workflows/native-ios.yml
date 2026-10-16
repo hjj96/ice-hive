@@ -46,6 +46,19 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/results"
           swift --version 2>&1 | tee "$GITHUB_WORKSPACE/results/core-tests.full.log"
           swift test 2>&1 | tee -a "$GITHUB_WORKSPACE/results/core-tests.full.log"
+      # whole-module optimised build of the core: the [perf] budgets (mission throughput, swarm ticks) are only
+      # meaningful in release, and `#if DEBUG`-free code paths get compiled the way they ship
+      # (informational: its outcome is written to core-perf.log and does not gate the job)
+      - name: swift test -c release (performance)
+        working-directory: ios-native/IceHiveCore
+        continue-on-error: true
+        run: |
+          set +e -o pipefail
+          swift test -c release -Xswiftc -enable-testing --filter PerformanceTests 2>&1 | tee "$GITHUB_WORKSPACE/results/core-perf.full.log"
+          rc=$?
+          { grep -E '\[perf\]|Test Case .*(passed|failed|skipped)|error:' "$GITHUB_WORKSPACE/results/core-perf.full.log" || true
+            echo "release perf tests exit code: $rc"; } > "$GITHUB_WORKSPACE/results/core-perf.log"
+          exit $rc
       - name: Collect log
         if: always()
         run: |
@@ -53,6 +66,7 @@ jobs:
           if [ -f results/core-tests.full.log ]; then
             { grep -E 'error:' results/core-tests.full.log | head -100 || true; echo '--- tail ---'; tail -n 300 results/core-tests.full.log; } > results/core-tests.log
             rm results/core-tests.full.log
+            if [ -f results/core-perf.full.log ]; then tail -n 80 results/core-perf.full.log >> results/core-perf.log; rm results/core-perf.full.log; fi
           else
             echo "swift test did not run" > results/core-tests.log
           fi
@@ -87,6 +101,23 @@ jobs:
       - name: Generate project
         working-directory: ios-native
         run: xcodegen generate
+      # App Store privacy manifest: valid plist, and every required-reason API the code calls is declared
+      - name: Privacy manifest check
+        working-directory: ios-native
+        run: |
+          set -e
+          plutil -lint App/Resources/PrivacyInfo.xcprivacy
+          check() {
+            local pattern=$1 category=$2
+            if grep -rqE "$pattern" App/Sources IceHiveCore/Sources; then
+              grep -q "$category" App/Resources/PrivacyInfo.xcprivacy || { echo "::error::code uses $pattern but PrivacyInfo.xcprivacy lacks $category"; exit 1; }
+              echo "ok: $pattern -> $category"
+            fi
+          }
+          check 'systemUptime|mach_absolute_time' NSPrivacyAccessedAPICategorySystemBootTime
+          check 'UserDefaults' NSPrivacyAccessedAPICategoryUserDefaults
+          check 'creationDate|modificationDate|NSFileModificationDate|attributesOfItem' NSPrivacyAccessedAPICategoryFileTimestamp
+          check 'volumeAvailableCapacity|systemFreeSize' NSPrivacyAccessedAPICategoryDiskSpace
       # Debug configuration (DEBUG flag, SpriteKit counters) but optimised Swift and arm64 only:
       # the simulator smoke test measures fps, and -Onone code is 5–10× slower than what ships.
       - name: xcodebuild (iOS Simulator)
@@ -113,6 +144,27 @@ jobs:
           echo "--- tail ---"; tail -n 40 "$GITHUB_WORKSPACE/xcodebuild.full.log"
           echo "xcodebuild exit code: $rc"
           exit $rc
+      # Release for a device (generic iOS, unsigned): the configuration that ships — whole-module optimisation,
+      # no DEBUG flag. Only errors fail the job; the simulator Debug build above is what the smoke test runs.
+      - name: xcodebuild Release (iOS device, unsigned)
+        working-directory: ios-native
+        run: |
+          set +e
+          xcodebuild build \
+            -project IceHive.xcodeproj \
+            -scheme IceHive \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DDR \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            > "$GITHUB_WORKSPACE/xcodebuild-release.full.log" 2>&1
+          rc=$?
+          grep -E '(error|warning):|\*\* BUILD' "$GITHUB_WORKSPACE/xcodebuild-release.full.log" | awk '!seen[$0]++' | head -200
+          echo "xcodebuild Release exit code: $rc"
+          exit $rc
       - name: Extract build log
         if: always()
         run: |
@@ -132,6 +184,20 @@ jobs:
             tail -n 150 "$log" > results/xcodebuild-tail.log
           else
             echo "xcodebuild did not run" > results/build.log
+          fi
+          rlog=xcodebuild-release.full.log
+          if [ -f "$rlog" ]; then
+            {
+              echo
+              echo "== Release (iphoneos) errors =="
+              grep -E '(^|[^a-zA-Z])error:' "$rlog" | awk '!seen[$0]++' | head -100 || true
+              echo "== Release (iphoneos) warnings =="
+              grep -E 'warning:' "$rlog" | awk '!seen[$0]++' | head -60 || true
+              echo "== Release result =="
+              grep -E '\*\* BUILD (SUCCEEDED|FAILED)' "$rlog" || echo "no BUILD SUCCEEDED/FAILED marker"
+              app=$(find ios-native/build/DDR/Build/Products -name IceHive.app -maxdepth 3 2>/dev/null | head -1)
+              if [ -n "$app" ]; then echo "Release app bundle: $(du -sh "$app" | cut -f1)"; fi
+            } >> results/build.log
           fi
       - name: Package .app
         run: |
@@ -247,20 +313,38 @@ jobs:
           run_demo nolight 15 "-demo combat -nolight -seed 7" 0
           # horde ingredients one by one (overlay, banner, shake, sounds, haptic, horde) every 4 s: hitch attribution
           run_demo probe 26 "-demo probe -seed 7"
+          # A/B: SpriteKit's own node culling back on (off by default; compare fps / sk ms with the combat run)
+          run_demo cull 15 "-demo combat -cull -seed 7"
+          # lift: holding out on the platform, then the extraction pinned at +2 s (gore rides up with the deck)
+          run_demo hold 8 "-demo hold -seed 3" 0
+          run_demo extract 10 "-demo extract -seed 3" 0
+          # menus: upgrade cards, pause menu, mission report
+          run_demo levelup 4 "-demo levelup -seed 5" 0
+          run_demo pause 4 "-demo pause -seed 5" 0
+          run_demo end 4 "-demo end -seed 5" 0
           xcrun simctl spawn "$UDID" launchctl list | grep -i icehive | tee results/launchctl.txt || true
           cp results/app-combat.log results/app-stdout.log
           cp results/app-combat-stderr.log results/app-stderr.log
-          for f in results/app-firstlaunch.log results/app-combat.log results/app-beacon.log results/app-title.log results/app-calm.log results/app-landscape.log results/app-nolight.log results/app-probe.log; do
+          demos="firstlaunch combat beacon title calm landscape nolight probe cull hold extract levelup pause end"
+          for d in $demos; do
+            f=results/app-$d.log
             { echo "== $f"; grep -h -E 'loading took|sheets decoded|demo done' "$f" || true; } >> results/fps.txt
           done
-          grep -H 'hitch' results/app-firstlaunch.log results/app-combat.log results/app-beacon.log results/app-title.log results/app-calm.log results/app-landscape.log results/app-nolight.log results/app-probe.log > results/hitches.txt || true
+          for d in $demos; do grep -H 'hitch' "results/app-$d.log" >> results/hitches.txt || true; done
           grep -H 'probe ' results/app-probe.log >> results/hitches.txt || true
+          # drawable starvation (SpriteKit skipped a frame): correlate with the 'sk' stalls of the hitch lines
+          echo "== SKView 'no drawables' (stderr, per demo)" >> results/hitches.txt
+          for d in $demos; do
+            n=$(grep -c 'no drawables' "results/app-$d-stderr.log" 2>/dev/null || true)
+            echo "$d: ${n:-0}" >> results/hitches.txt
+          done
+          { echo "== stderr samples"; for d in $demos; do grep -H -m 3 'no drawables' "results/app-$d-stderr.log" 2>/dev/null || true; done; } >> results/hitches.txt
           cat results/alive.txt results/loading.txt results/fps.txt results/shots.txt results/hitches.txt
       - name: Verify app is alive and rendered
         run: |
           echo "--- combat stdout ---"; cat results/app-combat.log || true
           echo "--- combat stderr ---"; tail -n 50 results/app-combat-stderr.log || true
-          for f in results/app-beacon.log results/app-title.log results/app-calm.log results/app-landscape.log; do echo "--- $f ---"; tail -n 25 "$f" || true; done
+          for f in results/app-beacon.log results/app-title.log results/app-calm.log results/app-landscape.log results/app-extract.log results/app-end.log; do echo "--- $f ---"; tail -n 25 "$f" || true; done
           if grep -q DEAD results/alive.txt; then echo "::error::app died during a demo: $(grep DEAD results/alive.txt | tr '\n' ' ')"; exit 1; fi
           grep -q 'scene ready' results/app-stdout.log || { echo "::error::no 'scene ready' line in app stdout"; exit 1; }
           grep -q 'hb t=' results/app-stdout.log || { echo "::error::no heartbeat lines in app stdout"; exit 1; }

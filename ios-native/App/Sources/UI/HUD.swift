@@ -7,7 +7,9 @@ final class RoundButton {
     let node = SKNode()
     private let discIdle: SKSpriteNode
     private let discReady: SKSpriteNode
-    private let cooldown = SKShapeNode()
+    /// Cooldown sweep: one of `Shapes.pieSteps` pre-rendered pie textures (no path re-tessellation per change).
+    private let cooldown = SKSpriteNode(texture: nil)
+    private let pies: [SKTexture]
     let label: Label
     private(set) var radius: CGFloat
     private var lastFraction: CGFloat = -1
@@ -17,9 +19,9 @@ final class RoundButton {
         self.radius = radius
         discIdle = Shapes.circle(radius: radius, fill: UIPalette.panel, stroke: UIPalette.lineStrong, lineWidth: 2)
         discReady = Shapes.circle(radius: radius, fill: UIPalette.panel, stroke: UIPalette.amber, lineWidth: 3)
-        cooldown.fillColor = UIPalette.rgba(0, 0, 0, 0.6)
-        cooldown.strokeColor = .clear
-        cooldown.lineWidth = 0
+        pies = Shapes.pies(radius: radius - 1, color: UIPalette.rgba(0, 0, 0, 0.6))
+        cooldown.size = CGSize(width: (radius - 1) * 2, height: (radius - 1) * 2)
+        cooldown.isHidden = true
         label = Label(text, font: Fonts.semibold, size: 12, color: UIPalette.ink, kern: 0.5)
         node.addChild(discIdle)
         node.addChild(discReady)
@@ -36,10 +38,16 @@ final class RoundButton {
             label.color = ready ? UIPalette.white : UIPalette.inkDim
         }
         let f = ready ? 0 : max(0, min(1, fraction))
-        if abs(f - lastFraction) > 0.01 || (f == 0 && lastFraction != 0) {
-            lastFraction = f
-            cooldown.path = Shapes.pie(radius: radius - 1, fraction: f)
-            cooldown.isHidden = f <= 0
+        let step = Int((f * CGFloat(Shapes.pieSteps)).rounded(.up))
+        if CGFloat(step) != lastFraction {
+            lastFraction = CGFloat(step)
+            if step <= 0 {
+                cooldown.isHidden = true
+            } else {
+                let t = pies[min(pies.count - 1, step - 1)]
+                if cooldown.texture !== t { cooldown.texture = t }
+                cooldown.isHidden = false
+            }
         }
     }
 
@@ -100,6 +108,8 @@ final class HUD {
     private let killsVal = Label("0", font: Fonts.monoBold, size: 17, color: UIPalette.ink, align: .left)
     private let timeVal = Label("0:00", font: Fonts.monoBold, size: 17, color: UIPalette.ink, align: .left)
     private let comboVal = Label("", font: Fonts.monoBold, size: 16, color: UIPalette.amber, align: .left)
+    private var comboLast = 0
+    private var comboBumpT: Double = 0
     private var tealEdge = SKSpriteNode(color: UIPalette.teal, size: CGSize(width: 3, height: 44))
     private var pausePanel = SKSpriteNode(texture: nil)
     private let pauseBars = SKNode()
@@ -176,13 +186,20 @@ final class HUD {
     // nameplates + objective marker
     let plates = Nameplates()
     private let marker = SKNode()
-    private let markerArrow = SKShapeNode()
+    private let markerArrow = SKSpriteNode(texture: Shapes.chevron(color: UIPalette.amber))
     private let markerLabel = Label("", font: Fonts.monoBold, size: 12, color: UIPalette.amber)
     // debug
     /// -debugHUD text: two compact lines in the bottom-left corner (the SKView's own stats sit bottom-right).
     let debugLabel = Label("", font: Fonts.mono, size: 9, color: UIPalette.teal, align: .left, valign: .bottom)
     var showDebug = false
     var visible = true { didSet { root.isHidden = !visible } }
+    /// iOS Reduce Motion: banner shown longer (web 3.4 s instead of 2.4 s), no combo bump.
+    var reducedMotion = false
+    private var overlays: [SKSpriteNode] = []
+    // per-frame text only rebuilt when its source changes (every new string renders a label texture)
+    private var objKey = Int.min
+    private var hintRaw = "\u{1}"
+    private var timeSec = -1
 
     init() {
         root.zPosition = ZBand.hud
@@ -221,14 +238,9 @@ final class HUD {
         flash.zPosition = -17; flash.alpha = 0
         flash.blendMode = .add
         for n in [vignette, damage, horde, flash] { root.addChild(n) }
+        overlays = [damage, flash, horde]
         plates.root.zPosition = -10
         root.addChild(plates.root)
-        markerArrow.strokeColor = UIPalette.amber
-        markerArrow.lineWidth = 3
-        markerArrow.glowWidth = 2
-        let ap = CGMutablePath()
-        ap.move(to: CGPoint(x: -7, y: -5)); ap.addLine(to: CGPoint(x: 0, y: 4)); ap.addLine(to: CGPoint(x: 7, y: -5))
-        markerArrow.path = ap
         marker.addChild(markerArrow)
         markerLabel.node.position = CGPoint(x: 0, y: -22)
         marker.addChild(markerLabel.node)
@@ -269,13 +281,12 @@ final class HUD {
         let sl = max(16, insets.left), sr = max(16, insets.right), st = insets.top, sb = insets.bottom
         let top = 10 + st
 
-        // stats panel (top-left); the time column moves right when the kill count gets wide (web: flex row)
+        // stats panel (top-left); the time column moves right when the kill count gets wide and the combo counter
+        // sits inside the panel (web .hud-tl flex row)
         let statsH: CGFloat = landscape ? 40 : 44
         statsTop = top
         statsLeft = sl
         statsKillsW = -1
-        fitStats()
-        let statsW: CGFloat = landscape ? 124 : 130
         tealEdge.size = CGSize(width: 3, height: statsH)
         tealEdge.anchorPoint = CGPoint(x: 0, y: 1)
         tealEdge.position = hp(sl, top)
@@ -292,28 +303,9 @@ final class HUD {
         pauseRect = CGRect(x: W - sr - 52, y: top - 8, width: 60, height: 60)
 
         // objective box: own row in portrait, between the stats and the pause button in landscape
-        let objW: CGFloat, objX: CGFloat, objY: CGFloat
-        if landscape {
-            objW = min(480, W - sl - sr - statsW - 44 - 40)
-            objX = (W - objW) / 2
-            objY = top
-        } else {
-            objW = W - sl - sr
-            objX = sl
-            objY = top + statsH + 8
-        }
-        let objH: CGFloat = 46
-        objPanel.removeFromParent()
-        objPanel = Shapes.panel(width: objW, height: objH)
-        objPanel.position = hp(objX, objY)
-        objPanel.zPosition = -1
-        root.addChild(objPanel)
-        objCap.node.position = hp(objX + objW / 2, objY + 11)
         objText.size = W <= 600 ? 14 : 16
-        objText.node.position = hp(objX + objW / 2, objY + 27)
-        objBar.resize(width: objW - 32)
-        objBar.node.position = hp(objX + 16, objY + objH - 5)
-        objBottom = objY + objH
+        objLayoutStatsRight = -1
+        fitStats()
 
         // squad list
         let rowW: CGFloat = 117, rowH: CGFloat = 22
@@ -384,17 +376,22 @@ final class HUD {
         plates.topLimit = hp(0, objBottom + 4).y
     }
 
-    private var statsTop: CGFloat = 0, statsLeft: CGFloat = 0, statsKillsW: CGFloat = -1
+    private var statsTop: CGFloat = 0, statsLeft: CGFloat = 0, statsKillsW: CGFloat = -1, statsComboW: CGFloat = -1
+    private var objLayoutStatsRight: CGFloat = -1
 
-    /// Stats panel width / time column from the current kill-count width (re-built only when the column moves).
+    /// Stats panel from the current kill-count and combo widths (web .hud-tl: kills, time, combo in one flex row;
+    /// re-built only when a column moves by a 10 pt step).
     private func fitStats() {
         let landscape = size.width > size.height
         let kw = max(38, (killsVal.width / 10).rounded(.up) * 10)
-        if kw == statsKillsW { return }
+        let cwid: CGFloat = comboLast >= 5 ? max(30, (comboVal.width / 10).rounded(.up) * 10) : 0
+        if kw == statsKillsW && cwid == statsComboW { return }
         statsKillsW = kw
+        statsComboW = cwid
         let statsH: CGFloat = landscape ? 40 : 44
         let timeX = 13 + kw + 13
-        let statsW = max(landscape ? 124 : 130, timeX + max(48, timeVal.width) + 14)
+        let timeW = max(48, timeVal.width)
+        let statsW = max(landscape ? 124 : 130, timeX + timeW + (cwid > 0 ? 14 + cwid : 0) + 14)
         statsPanel.removeFromParent()
         statsPanel = Shapes.panel(width: statsW, height: statsH)
         statsPanel.position = hp(statsLeft, statsTop)
@@ -402,7 +399,46 @@ final class HUD {
         root.addChild(statsPanel)
         timeCap.node.position = hp(statsLeft + timeX, statsTop + 12)
         timeVal.node.position = hp(statsLeft + timeX, statsTop + (landscape ? 29 : 31))
-        comboVal.node.position = hp(statsLeft + statsW + 10, statsTop + statsH / 2)
+        comboVal.node.position = hp(statsLeft + timeX + timeW + 14, statsTop + statsH / 2 + 1)
+        layoutObjective(statsRight: statsLeft + statsW)
+    }
+
+    /// Objective box: its own row in portrait; in landscape centred between the stats panel and the pause button,
+    /// pushed right / narrowed so it never overlaps either (web .hud-obj flex item).
+    private func layoutObjective(statsRight: CGFloat) {
+        let W = size.width
+        let landscape = W > size.height
+        let sl = max(16, insets.left), sr = max(16, insets.right)
+        let top = 10 + insets.top
+        let statsH: CGFloat = landscape ? 40 : 44
+        var objW: CGFloat, objX: CGFloat
+        let objY: CGFloat
+        if landscape {
+            if statsRight == objLayoutStatsRight { return }
+            objLayoutStatsRight = statsRight
+            objW = min(480, W - sl - sr - 124 - 44 - 40)
+            objX = max((W - objW) / 2, statsRight + 10)
+            objW = max(160, min(objW, W - sr - 44 - 10 - objX))
+            objY = top
+        } else {
+            if objLayoutStatsRight == 0 { return }
+            objLayoutStatsRight = 0
+            objW = W - sl - sr
+            objX = sl
+            objY = top + statsH + 8
+        }
+        let objH: CGFloat = 46
+        objPanel.removeFromParent()
+        objPanel = Shapes.panel(width: objW, height: objH)
+        objPanel.position = hp(objX, objY)
+        objPanel.zPosition = -1
+        root.addChild(objPanel)
+        objCap.node.position = hp(objX + objW / 2, objY + 11)
+        objText.node.position = hp(objX + objW / 2, objY + 27)
+        objBar.resize(width: objW - 32)
+        objBar.node.position = hp(objX + 16, objY + objH - 5)
+        objBottom = objY + objH
+        plates.topLimit = hp(0, objBottom + 4).y
     }
 
     // ---------------------------------------------------------------- events
@@ -412,7 +448,8 @@ final class HUD {
         let tf = t.label.frame
         let w = min(maxW, max(80, tf.width + 22))
         t.height = max(26, tf.height + 12)
-        t.panel = Shapes.panel(width: w, height: t.height, cut: 0)
+        t.panel = SKSpriteNode(color: UIPalette.panel, size: CGSize(width: w, height: t.height))
+        t.panel.anchorPoint = CGPoint(x: 0, y: 1)
         t.panel.position = CGPoint(x: -w, y: 0)
         t.node.addChild(t.panel)
         let edge = SKSpriteNode(color: kind == .warn ? UIPalette.red : (kind == .gold ? UIPalette.amber : UIPalette.teal), size: CGSize(width: 3, height: t.height))
@@ -472,14 +509,30 @@ final class HUD {
         if textT <= 0 {
             textT = 0.1
             killsVal.set("\(game.kills)")
-            hpVal.set("\(Int(max(0, P.hp).rounded()))")
+            hpVal.set("\(Int(max(0, P.hp).rounded(.up)))")
+            let combo = game.comboShown
+            if combo != comboLast {
+                comboVal.set(combo > 0 ? "×\(combo)" : "")
+                // web .combo.hot (≥ 25) / .blaze (≥ 60), and a short scale bump per new combo kill
+                comboVal.color = combo >= 60 ? UIPalette.white : (combo >= 25 ? UIPalette.red : UIPalette.amber)
+                let now = FrameTimer.now()
+                if combo >= 5 && !reducedMotion && now - comboBumpT > 0.07 {
+                    comboBumpT = now
+                    let big = combo / 25 != comboLast / 25
+                    comboVal.node.removeAction(forKey: "bump")
+                    comboVal.node.setScale(big ? 1.9 : 1.35)
+                    let a = SKAction.scale(to: 1, duration: big ? 0.38 : 0.16)
+                    a.timingMode = .easeOut
+                    comboVal.node.run(a, withKey: "bump")
+                }
+                comboLast = combo
+            }
             fitStats()
         }
-        timeVal.set(formatTime(game.time))
-        let combo = game.comboShown
-        comboVal.set(combo > 0 ? "×\(combo)" : "")
-        comboVal.color = combo >= 100 ? UIPalette.white : (combo >= 50 ? UIPalette.red : UIPalette.amber)
-        objText.set(game.objectiveText.uppercased())
+        let sec = Int(max(0, game.time))
+        if sec != timeSec { timeSec = sec; timeVal.set(formatTime(game.time)) }
+        let ok = objectiveKey(game)
+        if ok != objKey { objKey = ok; objText.set(game.objectiveText.uppercased()) }
         let prog = game.objectiveProgress
         objBar.node.isHidden = prog < 0
         objBar.set(CGFloat(max(0, prog)))
@@ -487,7 +540,7 @@ final class HUD {
         var h = ""
         var urgent = false
         if let c = game.contextHint { h = c.text; urgent = c.urgent } else if game.time < 7 && !P.downed { h = "Левый палец — бег · правый — прицел и огонь" }
-        hint.set(h.uppercased())
+        if h != hintRaw { hintRaw = h; hint.set(h.uppercased()) }
         if urgent != hintUrgent { hintUrgent = urgent; hint.color = urgent ? UIPalette.red : UIPalette.amber }
         hint.node.alpha = urgent ? (sinf(game.time * 7.85) > 0 ? 1 : 0.35) : 1
 
@@ -529,10 +582,11 @@ final class HUD {
             y -= t.height + 4
             k += 1
         }
-        // banner (2.4 s)
+        // banner (2.4 s, 3.4 s with Reduce Motion)
         bannerT += dt
-        if bannerT < 2.4 {
-            let u = bannerT / 2.4
+        let bannerDur: Float = reducedMotion ? 3.4 : 2.4
+        if bannerT < bannerDur {
+            let u = bannerT / bannerDur
             var a: Float = 1
             if u < 0.08 { a = u / 0.08 } else if u < 0.15 { a = 1 - (u - 0.08) / 0.07 * 0.25 } else if u < 0.22 { a = 0.75 + (u - 0.15) / 0.07 * 0.25 } else if u > 0.8 { a = (1 - u) / 0.2 }
             banner.alpha = CGFloat(a)
@@ -540,20 +594,35 @@ final class HUD {
         } else if banner.alpha > 0 {
             banner.alpha = 0
         }
-        // overlays
+        // overlays (web updateHUD: the red vignette = max(damage flash, low armour pulse, 0.5 while downed))
         damageA = max(0, damageA - dt * 1.6)
         flashA = max(0, flashA - dt * 3)
-        hordeA = max(0, hordeA - dt * 0.9)
-        let low = P.hp > 0 && P.hp < P.maxHp * 0.3 && !P.downed ? 0.25 + 0.15 * sinf(game.time * 6) : 0
-        damage.alpha = CGFloat(min(1, damageA * 0.8 + low))
+        hordeA = max(0, hordeA - dt * 0.4)
+        let wall = Float(FrameTimer.now().truncatingRemainder(dividingBy: 1000))
+        let low: Float = !P.downed && P.hp < P.maxHp * 0.3 ? 0.35 + 0.15 * sinf(wall * 6.25) : 0
+        damage.alpha = CGFloat(min(1, max(damageA, low, P.downed ? 0.5 : 0)))
         flash.alpha = CGFloat(flashA * 0.45)
-        horde.alpha = CGFloat(hordeA * (0.6 + 0.4 * sinf(game.time * 18)))
+        horde.alpha = CGFloat(hordeA * (0.6 + 0.4 * sinf(wall * 11.1)))
         // full-screen quads: skip the fill entirely while invisible
-        for n in [damage, flash, horde] { n.isHidden = n.alpha < 0.004 }
+        for n in overlays { n.isHidden = n.alpha < 0.004 }
         banner.isHidden = banner.alpha < 0.004
 
         plates.update(game: game, camera: camera, marines: marines, size: size)
         updateMarker(game: game, camera: camera)
+    }
+
+    /// Changes whenever objectiveText would (stage, active beacon, beacons done, lift countdown second).
+    private func objectiveKey(_ g: Game) -> Int {
+        if g.attract { return -1 }
+        let st: Int
+        switch g.stage {
+        case .beacons: st = 1
+        case .toLift: st = 2
+        case .hold: st = 3
+        case .extract: st = 4
+        }
+        let lift = st == 3 ? Int(g.liftT.rounded(.up)) : 0
+        return ((st * 16 + (g.activeBeacon + 1)) * 16 + g.beaconsDone) * 100_000 + lift
     }
 
     private func updateMarker(game: Game, camera: CameraController) {
@@ -600,13 +669,13 @@ final class Nameplates {
         let node = SKNode()
         let name: Label
         let bar: Bar
-        let seg: Bar?
+        let seg: DashBar?
         let revive = SKSpriteNode(color: UIPalette.teal, size: CGSize(width: 76, height: 2))
         init(name text: String, player: Bool) {
             let w: CGFloat = player ? 96 : 76
             name = Label(text, font: player ? Fonts.semibold : Fonts.medium, size: 12, color: player ? UIPalette.white : UIPalette.ink, kern: 1.2)
             bar = Bar(width: w, height: 4, fill: UIPalette.hp, track: UIPalette.hpBg, topLine: UIPalette.teal)
-            seg = player ? Bar(width: w, height: 3, fill: UIPalette.rgba(219, 230, 238, 0.8), track: .clear) : nil
+            seg = player ? DashBar(width: w, height: 3, color: UIPalette.rgba(219, 230, 238, 0.8)) : nil
             name.node.position = CGPoint(x: 0, y: -6)
             bar.node.position = CGPoint(x: -w / 2, y: -17)
             node.addChild(name.node)
@@ -657,9 +726,21 @@ final class Nameplates {
             }
         }
         let halfW = size.width / 2
+        // a bot plate drawn over the player's own marine fades so the player stays visible (web .plate.dim)
+        var meX: CGFloat = -1e4, meY: CGFloat = -1e4
+        if n > 0 {
+            let f = marines.feet[0]
+            let me = camera.toHUD(Iso.point(f.0, f.1 + 1.0, f.2))
+            meX = me.x; meY = me.y
+        }
         for k in 0..<n {
             let m = game.marines[k], p = plates[k]
-            p.node.position = CGPoint(x: max(-halfW + 40, min(halfW - 40, px[k])), y: py[k])
+            let x = max(-halfW + 40, min(halfW - 40, px[k]))
+            p.node.position = CGPoint(x: x, y: py[k])
+            // HUD y is up: the plate spans py − 28 … py + 4 around its anchor in web terms (top-down)
+            let dim = k > 0 && abs(meX - x) < 40 && meY < py[k] + 4 && meY > py[k] - 28
+            let a: CGFloat = dim ? 0.7 : 1
+            if p.node.alpha != a { p.node.alpha = a }
             p.bar.set(CGFloat(m.hp / max(1, m.maxHp)))
             p.seg?.set(CGFloat(m.bar))
             if let s = p.seg { s.node.alpha = (m.overheated || m.reloading) ? (sinf(game.time * 18) > 0 ? 1 : 0.2) : 0.8 }

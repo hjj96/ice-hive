@@ -1,9 +1,12 @@
 import Foundation
+import os
 #if canImport(Darwin)
 import Darwin
 #endif
 
-/// Process memory footprint (the figure jetsam uses), for the heartbeat log.
+/// Process memory for the heartbeat log: the footprint jetsam uses, and what the OS still grants the app.
+/// On the simulator the Metal textures live in the host's GPU process, so the footprint stops counting the sprite
+/// sheets once they are uploaded; on a device (unified memory) they count. `avail` is 0 on the simulator.
 enum Memory {
     static func footprintMB() -> Int {
         #if canImport(Darwin)
@@ -20,4 +23,11 @@ enum Memory {
         return -1
         #endif
     }
+
+    /// os_proc_available_memory() in MB (iOS 13+; 0 where the call does not apply).
+    static func availableMB() -> Int {
+        return Int(os_proc_available_memory() / 1_048_576)
+    }
+
+    static var summary: String { "mem=\(footprintMB())MB avail=\(availableMB())MB" }
 }

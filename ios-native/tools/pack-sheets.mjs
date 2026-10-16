@@ -17,7 +17,8 @@
 //   glow   — every additive emissive layer (*Glow atlases): drawn above the darkness in one band
 //   level  — floor / ramp / stair tiles, skirts, walls, supports, pipes, lift deck + the background towers / haze
 //   fx     — flat ground textures (decals, telegraphs, lasers, beams) and particles (not trimmed: sized in metres)
-// sheets.json: { scale: 2, sheets: [{ name, file, w, h }], frames: { name: [sheet, x, y, w, h, ox, oy, fw, fh] } }
+// sheets.json: { scale: 2, sheets: [{ name, file, w, h, scale }], frames: { name: [sheet, x, y, w, h, ox, oy, fw, fh] } }
+// (the glow sheet is packed at @1x — sheet "scale": 1 — the app only uses the frame ratios, not the pixel density)
 // x, y, w, h = trimmed rect in the sheet (px, top-left origin); ox, oy = its offset inside the full frame;
 // fw, fh = full frame size (px). The app derives the sprite's anchor / size from the full frame (sprites-manifest.json).
 import fs from 'node:fs';
@@ -46,11 +47,36 @@ function kneeRim(img) {
 }
 const ADJUST = { BugsGlow: kneeRim };
 
+// Half resolution (@1x) with a "brightest of 2 × 2" filter: the additive emissive layers are soft light, drawn at
+// 2× they look the same, and the brightest-sample pick keeps every 1-px glint of the swarm instead of averaging it
+// away (the app grows glints by a texel in its glint shader anyway). Saves ~33 MB of the glow sheet's 45 MB.
+function halfBrightest(img) {
+  const { w, h, data } = img;
+  const W = Math.ceil(w / 2), H = Math.ceil(h / 2);
+  const out = Buffer.alloc(W * H * 4);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      let best = -1, bi = 0;
+      for (let dy = 0; dy < 2; dy++) {
+        const sy = Math.min(h - 1, y * 2 + dy);
+        for (let dx = 0; dx < 2; dx++) {
+          const sx = Math.min(w - 1, x * 2 + dx), i = (sy * w + sx) * 4;
+          const v = data[i + 3] * (data[i] * 0.3 + data[i + 1] * 0.59 + data[i + 2] * 0.11 + 1);
+          if (v > best) { best = v; bi = i; }
+        }
+      }
+      const o = (y * W + x) * 4;
+      out[o] = data[bi]; out[o + 1] = data[bi + 1]; out[o + 2] = data[bi + 2]; out[o + 3] = data[bi + 3];
+    }
+  }
+  return { w: W, h: H, data: out };
+}
+
 const isLevelObject = (n) => /^(crate_|pillar$|beacon_base$|lamp_|rail_|lift_center$|lift_rail_)/.test(n);
 const GROUPS = [
   { name: 'bugs', parts: [['Bugs'], ['Corpses']] },
   { name: 'squad', parts: [['Marines'], ['Props'], ['Level', isLevelObject]] },
-  { name: 'glow', parts: [['BugsGlow'], ['MarinesGlow'], ['LevelGlow'], ['BackgroundGlow']] },
+  { name: 'glow', parts: [['BugsGlow'], ['MarinesGlow'], ['LevelGlow'], ['BackgroundGlow']], half: true },
   { name: 'level', parts: [['Level', (n) => !isLevelObject(n)], ['Background']], noTrim: (n) => n === 'bg_haze' || n === 'bg_motes' },
   { name: 'fx', parts: [['Ground'], ['Particles']], noTrim: () => true },
 ];
@@ -152,6 +178,7 @@ for (const g of GROUPS) {
   const items = [];
   for (const [atlas, filter] of g.parts) {
     for (const f of loadFrames(atlas, filter)) {
+      if (g.half) f.png = halfBrightest(f.png);
       const b = trimBox(f.png, g.noTrim ? g.noTrim(f.name) : false);
       items.push({ ...f, box: b });
     }
@@ -178,7 +205,7 @@ for (const g of GROUPS) {
     const H = Math.ceil(p.used / 8) * 8;
     const file = pages.length === 1 ? `sheet_${g.name}.png` : `sheet_${g.name}_${k}.png`;
     const idx = sheetsOut.length;
-    sheetsOut.push({ name: pages.length === 1 ? g.name : `${g.name}_${k}`, file, w: W, h: H });
+    sheetsOut.push({ name: pages.length === 1 ? g.name : `${g.name}_${k}`, file, w: W, h: H, scale: g.half ? 1 : 2 });
     const pix = Buffer.alloc(W * H * 4);
     for (const it of items.filter((i) => i.page === k)) {
       const { box, png, pos } = it;
