@@ -299,11 +299,14 @@ final class LevelUpScreen {
         let landscape = W > H
         let cw = min(W - 40 - insets.left - insets.right, landscape ? 900 : 420)
         var y = landscape ? H / 2 - insets.top - 34 : H * 0.28
-        let tag = Label("НОВЫЙ УРОВЕНЬ", font: Fonts.bold, size: 30, color: UIPalette.amber, kern: 3.5, align: .right)
-        tag.node.position = CGPoint(x: 8, y: y)
+        // web .lv-head: «НОВЫЙ УРОВЕНЬ» + the number, centred together (clamp(26px, 7vw, 40px))
+        let hs = max(24, min(40, W * 0.07))
+        let tag = Label("НОВЫЙ УРОВЕНЬ", font: Fonts.bold, size: hs, color: UIPalette.amber, kern: hs * 0.12, align: .left)
+        let num = Label("\(level)", font: Fonts.monoBold, size: hs, color: UIPalette.ink, align: .left)
+        let x0 = -(tag.width + 12 + num.width) / 2
+        tag.node.position = CGPoint(x: x0, y: y)
+        num.node.position = CGPoint(x: x0 + tag.width + 12, y: y)
         content.addChild(tag.node)
-        let num = Label("\(level)", font: Fonts.monoBold, size: 30, color: UIPalette.ink, align: .left)
-        num.node.position = CGPoint(x: 20, y: y)
         content.addChild(num.node)
         y -= 30
         let sub = Label("ВЫБЕРИТЕ УЛУЧШЕНИЕ", font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 3.6)
@@ -485,8 +488,8 @@ final class MenuScreen {
             b.node.position = CGPoint(x: cx + 10, y: cy - (compact ? 29 : 36))
             content.addChild(b.node)
             if rec {
-                let star = Label("РЕКОРД", font: Fonts.medium, size: 9, color: UIPalette.amber, kern: 1.2, align: .right)
-                star.node.position = CGPoint(x: cx + cellW - 8, y: cy - (compact ? 11 : 14))
+                let star = Label("РЕКОРД", font: Fonts.medium, size: 10, color: UIPalette.amber, kern: 1.2, align: .left)
+                star.node.position = CGPoint(x: cx + 10 + b.width + 6, y: cy - (compact ? 29 : 36))
                 content.addChild(star.node)
             }
         }
