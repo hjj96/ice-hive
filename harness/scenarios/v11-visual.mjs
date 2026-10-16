@@ -189,6 +189,38 @@ function installLib() {
   return true;
 }
 
+// Canvas-only colour statistics without a screenshot: after the game's own rAF callback has rendered (same task, so
+// the drawing buffer is still valid), read the WebGL canvas back and count the hue.py 'magenta/pink' share in a crop
+// given in CSS px. Works on any build (no internals needed).
+function installGrab() {
+  if (window.__grab) return;
+  const raf = window.requestAnimationFrame.bind(window);
+  window.__grab = { want: null, res: null, detail: false, cells: new Array(48).fill(0), samples: [] };
+  window.requestAnimationFrame = (cb) => raf((ts) => {
+    cb(ts);
+    const g = window.__grab;
+    if (!g.want) return;
+    const cv = document.querySelector('#stage canvas'), gl = cv.getContext('webgl2');
+    const k = cv.width / cv.clientWidth, [x0, y0, x1, y1] = g.want.map((v) => Math.round(v * k)), w = x1 - x0, hh = y1 - y0;
+    const px = new Uint8Array(w * hh * 4);
+    gl.readPixels(x0, cv.height - y1, w, hh, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    let n = 0, lit = 0, mag = 0;
+    for (let i = 0; i < px.length; i += 4) {
+      const r = px[i] / 255, gg = px[i + 1] / 255, b = px[i + 2] / 255, mx = Math.max(r, gg, b), mn = Math.min(r, gg, b), d = mx - mn;
+      n++;
+      if (mx <= 0.22) continue;
+      lit++;
+      if (!d || d / mx <= 0.35) continue;
+      let hu = mx === r ? (gg - b) / d : mx === gg ? 2 + (b - r) / d : 4 + (r - gg) / d;
+      hu = ((hu / 6) % 1 + 1) % 1 * 360;
+      if (hu >= 285 && hu <= 352) { mag++; if (g.detail) { const q = i / 4, cx = Math.floor((q % w) / w * 8), cy = 5 - Math.floor(Math.floor(q / w) / hh * 6); g.cells[cy * 8 + cx]++; if (g.samples.length < 12 && Math.random() < 0.01) g.samples.push([px[i], px[i + 1], px[i + 2]]); } }
+    }
+    g.res = { px: n, bright: +(lit / n).toFixed(3), magentaPink: +(mag / n).toFixed(4) };
+    if (g.detail) { g.res.cells = g.cells.join(','); g.res.samples = g.samples; g.cells = new Array(48).fill(0); g.samples = []; }
+    g.want = null;
+  });
+}
+
 export default async (page, h) => {
   const phase = h.args.phase || 'check';
   const cls = h.args.cls || (phase === 'pool' ? 'pyro' : 'assault');
@@ -196,6 +228,9 @@ export default async (page, h) => {
   const lvl = async () => { for (let k = 0; k < 6 && (await h.stats()).screen === 'levelup'; k++) { await page.keyboard.press('Digit1'); await h.sleep(300); } };
   const info = async (tag) => { const s = await h.stats(); h.log('[' + tag + ']', JSON.stringify({ alive: s.bugsAlive, dc: s.drawCalls, q: s.quality, screen: s.screen })); return s; };
   const W = h.width, H = h.height;
+  // CSS-pixel captures (same as the design lens' scen-pool / scen-vx), so hue.py crops are in CSS px at any dpr
+  let sn = 0;
+  h.shot = async (name) => { const p = `${h.args.out || 'harness/out/v11-visual'}-${String(++sn).padStart(2, '0')}-${name}.png`; await page.screenshot({ path: p, timeout: 240000, scale: 'css' }); h.log('[shot]', p); return p; };
   const aimStick = async (dx, dy) => {
     if (h.mobile) { const R = { x: W * 0.78, y: H * 0.78, id: 2 }; await h.touch.start([R]); await h.touch.move([{ x: R.x + dx, y: R.y + dy, id: 2 }]); }
     else { await page.mouse.move(W * 0.5 + dx * 4, H * 0.5 + dy * 4); await page.mouse.down(); }
@@ -243,42 +278,96 @@ export default async (page, h) => {
     const mx = Math.max(...dc), mean = dc.reduce((a, b) => a + b, 0) / dc.length;
     h.log('[perf] alive', s.bugsAlive, '| drawCalls max', mx, 'mean', mean.toFixed(1), 'min', Math.min(...dc), '| GL programs used', progs,
       hasVx ? '| renderer.info.programs ' + (await ev(() => window.__vx.programs())) : '');
-    for (let k = 0; k < (+h.args.benchN || 2); k++) h.log('[bench]', JSON.stringify(await ev(() => window.__dbg.bench([500, 1500, 3000]))));
+    // __dbg.bench is CPU-only and noisy on a shared box: report the per-field minimum over benchN runs
+    const runs = [];
+    for (let k = 0; k < (+h.args.benchN || 2); k++) runs.push(await ev(() => window.__dbg.bench([500, 1500, 3000])));
+    const keys = ['msPerTick', 'denseMsPerTick', 'combatMsPerTick', 'renderPrepMs'];
+    h.log('[bench-min of ' + runs.length + ']', JSON.stringify(runs[0].map((r, c) => Object.fromEntries([['count', r.count], ...keys.map((k) => [k, Math.min(...runs.map((x) => x[c][k]))])]))));
     return;
   }
 
+  // --seed S: seeded Math.random and simulated (not wall-clock) time, so two builds get the same scene
+  const seed = +h.args.seed || 0;
+  if (seed) await ev((sd) => { let a = sd >>> 0; Math.random = () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }, seed);
+  const live = async (ms) => { if (seed) await ev((t) => window.__dbg.fast(t), ms / 1000); else { await ev(() => window.__dbg.timeScale(1)); await h.sleep(ms); } await ev(() => window.__dbg.timeScale(0.05)); };
+
+  // --grab N: N canvas-only measurements (no screenshot) instead of the single capture; --crop x0,y0,x1,y1 in CSS px
+  const grabN = +h.args.grab || 0;
+  const defCrop = phase === 'pool' ? (W > H ? [250, 40, 650, 330] : [20, 280, 370, 560]) : [0, 230, 390, 640];
+  const crop = h.args.crop ? String(h.args.crop).split(',').map(Number) : defCrop;
+  const finish = async (name) => {
+    if (!grabN) { await h.shot(name); await info(name); return; }
+    await ev(installGrab);
+    if (h.args.detail) await ev(() => { window.__grab.detail = true; });
+    if (h.args.attrib && hasVx) {
+      // attribution: magenta share with one group of scene objects hidden at a time (same frame state, timeScale 0.05)
+      const groups = String(h.args.groups || 'none,bugs,corpses,decals,particles,beams,telegraphs,marines,splash,pl0').split(','), acc = {};
+      for (let rep = 0; rep < +h.args.attrib; rep++) for (const gname of groups) {
+        await ev(([g, c]) => {
+          const X = window.__dbg.vx(), hide = [];
+          if (g === 'bugs') hide.push(...X.bugMeshes);
+          if (g === 'corpses') hide.push(...X.corpseMeshes.map((o) => o.mesh));
+          if (g === 'decals') hide.push(X.decals);
+          if (g === 'particles') hide.push(X.PA.points, X.PN.points);
+          if (g === 'beams') hide.push(X.laserMesh, X.trMesh);
+          if (g === 'telegraphs') hide.push(X.teleRingMesh, X.teleFillMesh, X.teleLaneMesh, X.splashMesh, ...X.teleUnders.map((u) => u[1]), ...X.beaconFx.map((f) => f.ind));
+          if (g === 'marines') hide.push(...X.M.map((m) => m.mesh));
+          if (g === 'splash') hide.push(X.splashMesh);
+          if (g === 'pl0') { const l = X.plights[0].light; Object.defineProperty(l, 'intensity', { configurable: true, get: () => 0, set: () => {} }); window.__unpl = () => { delete l.intensity; l.intensity = 0; }; }
+          window.__hidden = hide; for (const o of hide) o.visible = false;
+          window.__grab.res = null; window.__grab.want = c;
+        }, [gname, crop]);
+        for (let t = 0; t < 100 && !(await ev(() => window.__grab.res)); t++) await h.sleep(50);
+        const r = await ev(() => { for (const o of window.__hidden) o.visible = true; if (window.__unpl) { window.__unpl(); window.__unpl = null; } return window.__grab.res; });
+        (acc[gname] = acc[gname] || []).push(r.magentaPink);
+        if (h.args.detail) h.log('[detail ' + gname + ']', r.cells, JSON.stringify(r.samples));
+      }
+      for (const g of groups) h.log('[attrib hide ' + g + '] mean', (acc[g].reduce((a, b) => a + b, 0) / acc[g].length).toFixed(4), JSON.stringify(acc[g]));
+      return;
+    }
+    const res = [];
+    for (let k = 0; k < grabN; k++) {
+      if (k) { await live(250); await lvl(); await h.sleep(200); }
+      await ev((c) => { window.__grab.res = null; window.__grab.want = c; }, crop);
+      for (let t = 0; t < 100 && !(await ev(() => window.__grab.res)); t++) await h.sleep(50);
+      res.push(await ev(() => window.__grab.res));
+    }
+    const m = res.map((r) => r.magentaPink);
+    h.log('[grab ' + name + ' crop ' + crop.join(',') + ']', JSON.stringify(res), '| mean magentaPink', (m.reduce((a, b) => a + b, 0) / m.length).toFixed(4));
+    await info(name);
+  };
+
   if (phase === 'pool') {
     // same staging as the design lens' scen-pool.mjs 'pool' capture: the swarm closes in, aim held up-left
-    await ev((c) => { const d = window.__dbg; d.start(c); d.setQuality('med'); d.god(true); }, cls);
+    await ev(([c, sd]) => { const d = window.__dbg; d.start(c); d.setQuality('med'); d.god(true); if (sd) d.timeScale(0.05); }, [cls, seed]);
     await h.sleep(1000);
     await ev(() => { const d = window.__dbg; d.tp(30, -8); d.fast(0.5); d.timeScale(0.05); });
-    await h.sleep(600);
-    await ev(() => { const d = window.__dbg; d.timeScale(1); d.spawn(650); d.fast(1.6); });
+    await h.sleep(1200);
+    await ev(() => { const d = window.__dbg; d.spawn(650); d.fast(1.6); });
     await aimStick(-40, -34);
-    await ev(() => window.__dbg.timeScale(1));
-    await h.sleep(1600);
-    await ev(() => window.__dbg.timeScale(0.05));
+    await live(1600);
     await lvl();
     await h.sleep(1200);
-    await h.shot('pool');
-    await info('pool');
+    await finish('pool');
     await release();
     return;
   }
 
   if (phase === 'horde') {
-    // same staging as the design lens' scen-vx.mjs 'horde' capture (portrait, assault, 700-bug horde)
-    await ev((c) => { const d = window.__dbg; d.start(c); d.setQuality('med'); d.god(true); }, cls);
-    await h.sleep(1000);
-    await ev(() => { const d = window.__dbg; d.fast(8.5); d.tp(30, -8); d.fast(0.4); d.horde(700); });
+    // same staging as the design lens' scen-vx.mjs 'horde' capture (700-bug horde in the flashlight)
+    await ev(([c, sd]) => { const d = window.__dbg; d.start(c); d.setQuality('med'); d.god(true); if (sd) d.timeScale(0.05); }, [cls, seed]);
+    await h.sleep(1200);
+    await ev(() => { const d = window.__dbg; d.fast(8.5); d.timeScale(0.05); });
+    await h.sleep(1500);
+    await ev(() => { const d = window.__dbg; d.tp(30, -8); d.fast(0.4); });
+    await h.sleep(1500);
+    await ev(() => window.__dbg.horde(700));
     await aimStick(-40, -30);
-    await ev(() => { window.__dbg.fast(4); window.__dbg.timeScale(1); });
-    await h.sleep(1800);
-    await ev(() => window.__dbg.timeScale(0.05));
+    await ev(() => window.__dbg.fast(4));
+    await live(1800);
     await lvl();
     await h.sleep(1500);
-    await h.shot('horde');
-    await info('horde');
+    await finish('horde');
     await release();
     return;
   }

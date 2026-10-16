@@ -180,10 +180,10 @@ function addCorpse(x, z, hd, sc, type) {
   const a = C.mesh.instanceMatrix.array, o = i * 16, rot = hd + (rnd() - 0.5) * 1.2, c = Math.cos(rot) * sc, s = Math.sin(rot) * sc;
   a[o] = c; a[o + 1] = -s * gz; a[o + 2] = -s; a[o + 3] = 0; a[o + 4] = 0; a[o + 5] = sc; a[o + 6] = 0; a[o + 7] = 0;
   a[o + 8] = s; a[o + 9] = c * gz; a[o + 10] = c; a[o + 11] = 0; a[o + 12] = x; a[o + 13] = gy + 0.01; a[o + 14] = z; a[o + 15] = 1;
-  // the body colours are near-black purple: lift them and pull the blue out so remains read as maroon-brown
-  // chunks under the lights (not ink blots, not pale pink candy)
+  // the body colours are near-black purple: lift them and pull the blue below the green so remains read as
+  // oxblood / umber chunks under the lights (not ink blots, not a pink carpet: pink means alive)
   const v = 1.6 + rnd() * 0.7, col = C.mesh.instanceColor.array;
-  col[i * 3] = v * (type === SPIT ? 0.85 : 1); col[i * 3 + 1] = v * (type === SPIT ? 0.95 : 0.72); col[i * 3 + 2] = v * 0.58;
+  col[i * 3] = v * (type === SPIT ? 0.85 : 1); col[i * 3 + 1] = v * (type === SPIT ? 0.95 : 0.74); col[i * 3 + 2] = v * (type === SPIT ? 0.58 : 0.36);
   C.dirty = true;
 }
 function flushCorpses() {
@@ -945,7 +945,8 @@ function fxReset() {
 // package B debug handle: live references for harness/scenarios/v11-visual.mjs (its staging and checks run there)
 window.__dbgExt = Object.assign(window.__dbgExt || {}, {
   vx() {
-    return { THREE, B, M, DIR, LV, TELE, NAP, MAT, RUN, BRUTE, FWD_X, FWD_Z, RIGHT_X, RIGHT_Z, IS_MOBILE, renderer, camera, walk,
+    return { THREE, B, M, DIR, LV, TELE, NAP, MAT, RUN, BRUTE, FWD_X, FWD_Z, RIGHT_X, RIGHT_Z, IS_MOBILE, renderer, camera, scene, walk,
+      decals, PA, PN, laserMesh, trMesh, plights,
       bugMeshes, corpseMeshes, teleUnders, teleRingMesh, teleFillMesh, teleLaneMesh, splashMesh, beaconFx, MARINE_RIM,
       get splN() { return splN; }, set splN(v) { splN = v; }, get renderTime() { return renderTime; }, get decFill() { return decFill; },
       fn: { teleRing, teleFill, teleLane, updateTelegraphs, splashNow, renderFx, writeBugInstances, renderMarines, spawnBug, killBug,
