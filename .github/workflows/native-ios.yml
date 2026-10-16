@@ -314,7 +314,10 @@ jobs:
           # heavy swarm (the med tier's cap of 1400 live bugs) with both renderers
           run_demo swarm-spritekit 15 "-demo combat -seed 7 -bugs 1400 -renderer spritekit" 0
           run_demo swarm-metal 15 "-demo combat -seed 7 -bugs 1400 -renderer metal" 0
+          # Metal at the screen's native 3x (SKView's scale) instead of the default 2x drawable
+          run_demo swarm-metal3x 15 "-demo combat -seed 7 -bugs 1400 -renderer metal -mscale 3" 0
           run_demo calm-metal 5 "-demo calm -renderer metal" 0
+          run_demo title-metal 6 "-demo title -renderer metal" 0
           run_demo landscape-metal 10 "-demo combat -orient landscape -seed 7 -renderer metal" 0
           run_demo extract-metal 10 "-demo extract -seed 3 -renderer metal" 0
           run_demo combat 25 "-demo combat -seed 7" 0 6 12
@@ -340,7 +343,7 @@ jobs:
           xcrun simctl spawn "$UDID" launchctl list | grep -i icehive | tee results/launchctl.txt || true
           cp results/app-combat.log results/app-stdout.log
           cp results/app-combat-stderr.log results/app-stderr.log
-          demos="firstlaunch combat-spritekit combat-metal beacon-spritekit beacon-metal swarm-spritekit swarm-metal calm-metal landscape-metal extract-metal combat beacon title calm landscape nolight probe cull plainglint hold extract levelup pause end"
+          demos="firstlaunch combat-spritekit combat-metal beacon-spritekit beacon-metal swarm-spritekit swarm-metal swarm-metal3x calm-metal title-metal landscape-metal extract-metal combat beacon title calm landscape nolight probe cull plainglint hold extract levelup pause end"
           for d in $demos; do
             f=results/app-$d.log
             { echo "== $f"; grep -h -E 'loading took|sheets decoded|demo done' "$f" || true; } >> results/fps.txt

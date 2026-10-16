@@ -430,14 +430,14 @@ vertex QuadOut vs_glint(uint vid [[vertex_id]], uint iid [[instance_id]],
     // pulled a little toward the camera so the dot is not buried in the body it sits on
     w += normalize(F.camPos.xyz - w) * 0.06;
     float z = max(0.05, -(F.view * float4(w, 1.0)).z);
-    float px = max(g.pos.w * s * 2.2 * F.misc.x / z, 3.2);
+    float px = max(g.pos.w * s * 2.6 * F.misc.x / z, 6.0);
     float hs = 0.5 * px * z / F.misc.x;
     float2 q = QUAD[vid];
     float3 v = w + (F.camRight.xyz * q.x + F.camUp.xyz * q.y) * hs;
     float frz = b.anim.w, burn = b.anim.z;
-    float3 col = g.color.rgb * b.color.rgb * (1.0 - frz) * 1.6 + float3(1.0, 0.3, 0.04) * burn * 0.8;
-    // bright bugs (tint above ~0.85) get a white-hot core
-    float white = saturate((b.color.r - 0.85) * 2.0) * (1.0 - frz);
+    float3 col = g.color.rgb * b.color.rgb * (1.0 - frz) * 2.4 + float3(1.0, 0.3, 0.04) * burn * 0.8;
+    // bright bugs (tint above ~0.75) get a white-hot core
+    float white = saturate((b.color.r - 0.75) * 1.6) * (1.0 - frz);
     return quadOut(F, v, float4(col, white), q * 0.5, float4(0.0));
 }
 
@@ -445,9 +445,10 @@ fragment float4 fs_glint(QuadOut in [[stage_in]],
                          constant Frame& F [[buffer(1)]]) {
     float d = length(in.uv) * 2.0;
     float a = 1.0 - smoothstep(0.0, 1.0, d);
-    a *= a;
-    float3 c = in.color.rgb + float3(in.color.a * 1.5 * a);
-    return float4(encodeColor(F, c, in.depth, true), a);
+    float halo = a * a;
+    float core = halo * halo;
+    float3 c = in.color.rgb * (0.45 + core) + float3(in.color.a * 2.5 * core);
+    return float4(encodeColor(F, c, in.depth, true), halo);
 }
 
 // persistent floor stains: multiply blend over the lit floor (07-fx.js decalMat)

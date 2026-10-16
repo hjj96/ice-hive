@@ -103,8 +103,9 @@ final class MeshStore {
         let ms = (FrameTimer.now() - t0) * 1000
         var tris = 0
         for m in meshes.values { tris += m.indexCount / 3 }
+        let gl = ["bug_runner", "bug_spitter", "bug_brute", "bug_boomer"].map { String((meshes[$0]?.glints.count ?? 0) / 2) }.joined(separator: "/")
         return String(format: "meshes %d (%d triangles, %.1f MB) textures %d in %.0f ms", meshes.count, tris,
-                      Double(bytesLoaded) / 1_048_576, textures.count, ms)
+                      Double(bytesLoaded) / 1_048_576, textures.count, ms) + " glints " + gl
             + (missing.isEmpty ? "" : " MISSING: " + missing.joined(separator: ", "))
     }
 
@@ -166,33 +167,46 @@ final class MeshStore {
             bytesLoaded += verts.count * 4 + idx.count * 4
             var mesh = GPUMesh(name: name, vertices: vb, indices: ib, vertexCount: vc, indexCount: ic, flags: flags,
                                boundsMin: lo, boundsMax: hi, placeholder: false)
-            if name.hasPrefix("bug_") { mesh.glints = MeshStore.glints(verts, vc) }
+            if name.hasPrefix("bug_") { mesh.glints = MeshStore.glints(verts, vc, idx) }
             return mesh
         }
     }
 
-    /// Cluster the full-glow, leg-free vertices of a bug mesh into speckles: centre, size and colour of each.
-    static func glints(_ v: [Float], _ n: Int) -> [F4] {
-        var sumP: [F3] = [], sumC: [F3] = [], cnt: [Float] = [], pts: [[F3]] = []
-        for i in 0..<n {
-            let o = i * 13
-            if v[o + 9] < 0.99 || v[o + 10] != 0 || v[o + 12] > 0.5 { continue }
-            let p = F3(v[o], v[o + 1], v[o + 2]), c = F3(v[o + 6], v[o + 7], v[o + 8])
-            var hit = -1
-            for k in 0..<sumP.count {
-                let d = sumP[k] / cnt[k] - p
-                if (d * d).sum() < 0.06 * 0.06 { hit = k; break }
-            }
-            if hit < 0 { sumP.append(.zero); sumC.append(.zero); cnt.append(0); pts.append([]); hit = sumP.count - 1 }
-            sumP[hit] += p; sumC[hit] += c; cnt[hit] += 1; pts[hit].append(p)
+    /// Group the full-glow, leg-free vertices of a bug mesh into speckles (connected through their triangles and
+    /// shared positions): centre, size and colour of each.
+    static func glints(_ v: [Float], _ n: Int, _ idx: [UInt32]) -> [F4] {
+        var parent = [Int](0..<n)
+        func find(_ a0: Int) -> Int {
+            var a = a0
+            while parent[a] != a { parent[a] = parent[parent[a]]; a = parent[a] }
+            return a
         }
+        func union(_ a: Int, _ b: Int) { parent[find(a)] = find(b) }
+        func isGlint(_ i: Int) -> Bool { v[i * 13 + 9] >= 0.99 && v[i * 13 + 10] == 0 && v[i * 13 + 12] <= 0.5 }
+        var byPos: [SIMD3<Int32>: Int] = [:]
+        for i in 0..<n where isGlint(i) {
+            let k = SIMD3<Int32>(Int32((v[i * 13] * 1e4).rounded()), Int32((v[i * 13 + 1] * 1e4).rounded()), Int32((v[i * 13 + 2] * 1e4).rounded()))
+            if let j = byPos[k] { union(i, j) } else { byPos[k] = i }
+        }
+        var t = 0
+        while t + 2 < idx.count {
+            let a = Int(idx[t]), b = Int(idx[t + 1]), c = Int(idx[t + 2])
+            if isGlint(a) && isGlint(b) && isGlint(c) { union(a, b); union(b, c) }
+            t += 3
+        }
+        var groups: [Int: [Int]] = [:]
+        for i in 0..<n where isGlint(i) { groups[find(i), default: []].append(i) }
         var out: [F4] = []
-        for k in 0..<min(8, sumP.count) {
-            let c = sumP[k] / cnt[k], col = sumC[k] / cnt[k]
+        for key in groups.keys.sorted() {
+            guard let l = groups[key], out.count < 16 else { continue }
+            var c = F3.zero
+            for i in l { c += F3(v[i * 13], v[i * 13 + 1], v[i * 13 + 2]) }
+            c /= Float(l.count)
             var r: Float = 0.01
-            for p in pts[k] { let d = p - c; r = max(r, (d * d).sum().squareRoot()) }
+            for i in l { let d = F3(v[i * 13], v[i * 13 + 1], v[i * 13 + 2]) - c; r = max(r, (d * d).sum().squareRoot()) }
+            let i0 = l[0]
             out.append(F4(c.x, c.y, c.z, 2 * r))
-            out.append(F4(col.x, col.y, col.z, 1))
+            out.append(F4(v[i0 * 13 + 6], v[i0 * 13 + 7], v[i0 * 13 + 8], 1))
         }
         return out
     }
