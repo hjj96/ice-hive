@@ -1,8 +1,9 @@
 name: native-ios
 
-# Native Swift + SpriteKit build of «Ледяной Улей» (ios-native/).
-# Results of every run are committed to branch `ci-results` under <branch>/<short-sha>/:
-#   status.json, core-tests.log, build.log, xcodebuild-tail.log, sim-*.png, app.log, app-stdout.log
+# Native build of «Ледяной Улей» 2.0 (ios-native/): Swift, the world drawn with Metal, HUD / menus as a SpriteKit
+# scene in the same Metal pass. Results of every run are committed to branch `ci-results` under <branch>/<short-sha>/:
+#   status.json, core-tests.log, build.log, release-check.txt, metrics.txt, fps.txt, hitches.txt, <demo>-<s>s.png,
+#   app-<demo>.log, app.log
 on:
   push:
     branches: ['native*']
@@ -144,9 +145,57 @@ jobs:
           echo "--- tail ---"; tail -n 40 "$GITHUB_WORKSPACE/xcodebuild.full.log"
           echo "xcodebuild exit code: $rc"
           exit $rc
-      # Release for a device (generic iOS, unsigned): the configuration that ships — whole-module optimisation,
-      # no DEBUG flag. Only errors fail the job; the simulator Debug build above is what the smoke test runs.
-      - name: xcodebuild Release (iOS device, unsigned)
+      # Release for a device (generic iOS, unsigned archive): the configuration that ships — whole-module optimisation,
+      # no DEBUG flag. Only errors fail the job; the archived .app is then checked (version, plist keys, arm64, icon,
+      # privacy manifest, no leftover sprite sheets) into release-check.txt.
+      - name: xcodebuild archive Release (iOS device, unsigned)
+        working-directory: ios-native
+        run: |
+          set +e
+          xcodebuild archive \
+            -project IceHive.xcodeproj \
+            -scheme IceHive \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/IceHive.xcarchive \
+            -derivedDataPath build/DDR \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            > "$GITHUB_WORKSPACE/xcodebuild-release.full.log" 2>&1
+          rc=$?
+          grep -E '(error|warning):|\*\* ARCHIVE' "$GITHUB_WORKSPACE/xcodebuild-release.full.log" | awk '!seen[$0]++' | head -200
+          echo "xcodebuild archive exit code: $rc"
+          exit $rc
+      - name: Check the Release archive
+        working-directory: ios-native
+        run: |
+          set -e
+          mkdir -p "$GITHUB_WORKSPACE/results"
+          out="$GITHUB_WORKSPACE/results/release-check.txt"
+          app=build/IceHive.xcarchive/Products/Applications/IceHive.app
+          test -d "$app"
+          fail=0
+          check() { if [ "$2" = "$3" ]; then echo "ok   $1 = $2" >> "$out"; else echo "FAIL $1 = '$2' (want '$3')" >> "$out"; fail=1; fi; }
+          pl="$app/Info.plist"
+          check CFBundleShortVersionString "$(plutil -extract CFBundleShortVersionString raw "$pl")" 2.0.0
+          check CFBundleDisplayName "$(plutil -extract CFBundleDisplayName raw "$pl")" "Ледяной Улей"
+          check CFBundleIdentifier "$(plutil -extract CFBundleIdentifier raw "$pl")" "$BUNDLE_ID"
+          check ITSAppUsesNonExemptEncryption "$(plutil -extract ITSAppUsesNonExemptEncryption raw "$pl")" false
+          check UIRequiredDeviceCapabilities "$(plutil -extract UIRequiredDeviceCapabilities json -o - "$pl" | tr -d ' \n')" '["arm64"]'
+          check MinimumOSVersion "$(plutil -extract MinimumOSVersion raw "$pl")" 16.0
+          check executable-archs "$(lipo -archs "$app/IceHive")" arm64
+          check privacy-manifest "$(test -f "$app/PrivacyInfo.xcprivacy" && echo present)" present
+          check metallib "$(test -f "$app/default.metallib" && echo present)" present
+          check sprite-sheets "$(find "$app" -name 'sheet_*.png' -o -name 'sprites-manifest.json' -o -name 'sheets.json' | wc -l | tr -d ' ')" 0
+          icons=$(xcrun --sdk iphoneos assetutil --info "$app/Assets.car" 2>/dev/null | grep -c '"Name" : "AppIcon"' || true)
+          if [ "${icons:-0}" -gt 0 ]; then echo "ok   AppIcon renditions in Assets.car: $icons" >> "$out"; else echo "FAIL no AppIcon in Assets.car" >> "$out"; fail=1; fi
+          { echo "Release app bundle: $(du -sh "$app" | cut -f1)"; echo "largest files:"; find "$app" -type f -exec du -k {} + | sort -rn | head -12; } >> "$out"
+          cat "$out"
+          exit $fail
+      # Release for the simulator: the sim-smoke job runs it once (-O / whole-module-only problems, and a plain
+      # Release launch must write nothing to stdout)
+      - name: xcodebuild Release (iOS Simulator)
         working-directory: ios-native
         run: |
           set +e
@@ -154,16 +203,18 @@ jobs:
             -project IceHive.xcodeproj \
             -scheme IceHive \
             -configuration Release \
-            -sdk iphoneos \
-            -destination 'generic/platform=iOS' \
-            -derivedDataPath build/DDR \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/DDRS \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=NO \
             COMPILER_INDEX_STORE_ENABLE=NO \
-            > "$GITHUB_WORKSPACE/xcodebuild-release.full.log" 2>&1
+            > "$GITHUB_WORKSPACE/xcodebuild-release-sim.full.log" 2>&1
           rc=$?
-          grep -E '(error|warning):|\*\* BUILD' "$GITHUB_WORKSPACE/xcodebuild-release.full.log" | awk '!seen[$0]++' | head -200
-          echo "xcodebuild Release exit code: $rc"
+          grep -E '(^|[^a-zA-Z])error:|\*\* BUILD' "$GITHUB_WORKSPACE/xcodebuild-release-sim.full.log" | awk '!seen[$0]++' | head -100
+          echo "xcodebuild Release (simulator) exit code: $rc"
           exit $rc
       - name: Extract build log
         if: always()
@@ -189,14 +240,14 @@ jobs:
           if [ -f "$rlog" ]; then
             {
               echo
-              echo "== Release (iphoneos) errors =="
+              echo "== Release archive (iphoneos) errors =="
               grep -E '(^|[^a-zA-Z])error:' "$rlog" | awk '!seen[$0]++' | head -100 || true
-              echo "== Release (iphoneos) warnings =="
+              echo "== Release archive (iphoneos) warnings =="
               grep -E 'warning:' "$rlog" | awk '!seen[$0]++' | head -60 || true
-              echo "== Release result =="
-              grep -E '\*\* BUILD (SUCCEEDED|FAILED)' "$rlog" || echo "no BUILD SUCCEEDED/FAILED marker"
-              app=$(find ios-native/build/DDR/Build/Products -name IceHive.app -maxdepth 3 2>/dev/null | head -1)
-              if [ -n "$app" ]; then echo "Release app bundle: $(du -sh "$app" | cut -f1)"; fi
+              echo "== Release archive result =="
+              grep -E '\*\* ARCHIVE (SUCCEEDED|FAILED)' "$rlog" || echo "no ARCHIVE SUCCEEDED/FAILED marker"
+              app=ios-native/build/IceHive.xcarchive/Products/Applications/IceHive.app
+              if [ -d "$app" ]; then echo "Release app bundle: $(du -sh "$app" | cut -f1)"; fi
             } >> results/build.log
           fi
       - name: Package .app
@@ -205,13 +256,21 @@ jobs:
           test -d "$app"
           /usr/libexec/PlistBuddy -c 'Print' "$app/Info.plist" | head -80
           tar -czf IceHive-app.tgz -C "$(dirname "$app")" IceHive.app
-          ls -la IceHive-app.tgz
+          rapp=ios-native/build/DDRS/Build/Products/Release-iphonesimulator/IceHive.app
+          test -d "$rapp"
+          mkdir -p release-sim && tar -czf release-sim/IceHive-release-sim.tgz -C "$(dirname "$rapp")" IceHive.app
+          ls -la IceHive-app.tgz release-sim
           mkdir -p results
           { echo "app bundle: $(du -sh "$app" | cut -f1)"; echo "largest files:"; find "$app" -type f -exec du -k {} + | sort -rn | head -15; } | tee results/bundle.txt
       - uses: actions/upload-artifact@v4
         with:
           name: app
           path: IceHive-app.tgz
+          retention-days: 3
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-release-sim
+          path: release-sim/IceHive-release-sim.tgz
           retention-days: 3
       - uses: actions/upload-artifact@v4
         if: always()
@@ -234,6 +293,10 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: app
+      - uses: actions/download-artifact@v4
+        with:
+          name: app-release-sim
+          path: release-sim
       - name: Boot simulator
         id: sim
         run: |
@@ -301,87 +364,91 @@ jobs:
             done
             sleep 1
           }
-          # first launch after install: the simulator's Metal shader cache is cold (pipeline compiles show up as
-          # 100-500 ms hitches in the first ~20 s); measured separately, the other runs start with a warm cache
+          # first launch after install: the simulator's Metal shader cache is cold (20 world pipelines + SpriteKit's
+          # own for the HUD); measured separately, the other runs start with a warm cache
           run_demo firstlaunch 20 "-demo combat -seed 7"
-          # the Metal renderer's own first launch (its 20 pipelines are not in the shader cache yet): measured apart
-          # like the SpriteKit one above, so the A/B runs below start with a warm cache for both renderers
-          run_demo firstlaunch-metal 20 "-demo combat -seed 7 -renderer metal"
-          # renderer A/B (branch native-metal): the same demo, seed and length with the SpriteKit renderer and the
-          # Metal spike (3D meshes exported from the web game, instanced swarm, spotlights); screenshots
-          # <demo>-<renderer>-<offset>s.png, fps / frame breakdown in app-<demo>-<renderer>.log
-          run_demo combat-spritekit 18 "-demo combat -seed 7 -renderer spritekit" 0
-          run_demo combat-metal 18 "-demo combat -seed 7 -renderer metal" 0 6
-          run_demo beacon-spritekit 15 "-demo beacon -seed 7 -renderer spritekit" 0
-          run_demo beacon-metal 15 "-demo beacon -seed 7 -renderer metal" 0
+          run_demo combat 18 "-demo combat -seed 7" 0 6
+          run_demo beacon 15 "-demo beacon -seed 7" 0
           # the App Store 2-swarm moment staged in the app (gunner at the crossing, 600 bugs, firing, time ~frozen):
-          # look A/B against store/screenshots/6.3/2-swarm.png (same 402x874 @3x size as this simulator)
-          run_demo swarmshot-spritekit 4 "-demo swarmshot -seed 7 -renderer spritekit" 0
-          run_demo swarmshot-metal 4 "-demo swarmshot -seed 7 -renderer metal" 0
+          # look against store/screenshots/6.3/2-swarm.png (same 402x874 @3x size as this simulator)
+          run_demo swarmshot 4 "-demo swarmshot -seed 7" 0
           # the same with every speckle drawn again as an anti-aliased dot (-glintDots; default off, like the web)
-          run_demo swarmshot-metal-dots 4 "-demo swarmshot -seed 7 -renderer metal -glintDots" 0
-          # heavy swarm (the med tier's cap of 1400 live bugs) with both renderers
-          run_demo swarm-spritekit 15 "-demo combat -seed 7 -bugs 1400 -renderer spritekit" 0
-          run_demo swarm-metal 15 "-demo combat -seed 7 -bugs 1400 -renderer metal" 0
-          # Metal at the screen's native 3x (SKView's scale) instead of the default 2x drawable
-          run_demo swarm-metal3x 15 "-demo combat -seed 7 -bugs 1400 -renderer metal -mscale 3" 0
-          run_demo calm-metal 5 "-demo calm -renderer metal" 0
-          run_demo title-metal 6 "-demo title -renderer metal" 0
-          run_demo landscape-metal 10 "-demo combat -orient landscape -seed 7 -renderer metal" 0
-          run_demo extract-metal 10 "-demo extract -seed 3 -renderer metal" 0
-          run_demo combat 25 "-demo combat -seed 7" 0 6 12
-          run_demo beacon 15 "-demo beacon" 0
+          run_demo swarmshot-dots 4 "-demo swarmshot -seed 7 -glintDots" 0
+          # heavy swarm (the med tier's cap of 1400 live bugs), at the default 2x world target and at the native 3x
+          run_demo swarm 15 "-demo combat -seed 7 -bugs 1400" 0
+          run_demo swarm3x 15 "-demo combat -seed 7 -bugs 1400 -mscale 3" 0
+          # baseline: no swarm, no events — what is left is the simulator host (its GPU stalls show up here too)
+          run_demo calm 8 "-demo calm" 0
           run_demo title 6 "-demo title" 0
-          run_demo calm 5 "-demo calm" 0
-          run_demo landscape 10 "-demo combat -orient landscape" 0
-          # same swarm without the darkness pass: separates the lighting shader's GPU cost from the rest
-          run_demo nolight 15 "-demo combat -nolight -seed 7" 0
+          run_demo landscape 10 "-demo combat -orient landscape -seed 7" 0
           # horde ingredients one by one (overlay, banner, shake, sounds, haptic, horde) every 4 s: hitch attribution
           run_demo probe 26 "-demo probe -seed 7"
-          # A/B: SpriteKit's own node culling back on (off by default; compare fps / sk ms with the combat run)
-          run_demo cull 15 "-demo combat -cull -seed 7"
-          # A/B: swarm glints without their shader (compare the 'bug' ms of hb ms lines with the combat run)
-          run_demo plainglint 15 "-demo combat -plainGlints -seed 7"
           # lift: holding out on the platform, then the extraction pinned at +2 s (gore rides up with the deck)
           run_demo hold 8 "-demo hold -seed 3" 0
           run_demo extract 10 "-demo extract -seed 3" 0
-          # menus: upgrade cards, pause menu, mission report
+          # menus: upgrade cards, pause menu, mission report (30 Hz over the frozen world)
           run_demo levelup 4 "-demo levelup -seed 5" 0
           run_demo pause 4 "-demo pause -seed 5" 0
           run_demo end 4 "-demo end -seed 5" 0
+          # Metal unusable (-failMetal): a readable message instead of an endless loading screen
+          xcrun simctl launch --terminate-running-process \
+            --stdout="$PWD/results/app-failmetal.log" --stderr="$PWD/results/app-failmetal-stderr.log" \
+            "$UDID" "$BUNDLE_ID" -demo title -failMetal
+          for _ in $(seq 1 40); do grep -q 'failure screen shown' results/app-failmetal.log 2>/dev/null && break; sleep 1; done
+          sleep 2
+          xcrun simctl io "$UDID" screenshot results/failmetal-0s.png || true
+          xcrun simctl terminate "$UDID" "$BUNDLE_ID" || true
+          sleep 2
+          # the Release build (simulator): a plain launch writes nothing to stdout; then one measured demo
+          tar -xzf release-sim/IceHive-release-sim.tgz -C release-sim
+          xcrun simctl install "$UDID" release-sim/IceHive.app
+          xcrun simctl launch --terminate-running-process \
+            --stdout="$PWD/results/app-release-quiet.log" --stderr="$PWD/results/app-release-quiet-stderr.log" \
+            "$UDID" "$BUNDLE_ID"
+          sleep 10
+          if xcrun simctl spawn "$UDID" launchctl list | grep -q 'UIKitApplication:com.hjj96.icehive'; then
+            echo "release-quiet alive" >> results/alive.txt
+          else
+            echo "release-quiet DEAD" >> results/alive.txt
+          fi
+          xcrun simctl io "$UDID" screenshot results/release-title-0s.png || true
+          xcrun simctl terminate "$UDID" "$BUNDLE_ID" || true
+          sleep 2
+          run_demo release-combat 10 "-demo combat -seed 7" 0
           xcrun simctl spawn "$UDID" launchctl list | grep -i icehive | tee results/launchctl.txt || true
-          cp results/app-combat.log results/app-stdout.log
-          cp results/app-combat-stderr.log results/app-stderr.log
-          demos="firstlaunch firstlaunch-metal combat-spritekit combat-metal beacon-spritekit beacon-metal swarmshot-spritekit swarmshot-metal swarmshot-metal-dots swarm-spritekit swarm-metal swarm-metal3x calm-metal title-metal landscape-metal extract-metal combat beacon title calm landscape nolight probe cull plainglint hold extract levelup pause end"
+          demos="firstlaunch combat beacon swarmshot swarmshot-dots swarm swarm3x calm title landscape probe hold extract levelup pause end release-combat"
           for d in $demos; do
             f=results/app-$d.log
-            { echo "== $f"; grep -h -E 'loading took|sheets decoded|demo done' "$f" || true; } >> results/fps.txt
+            { echo "== $f"; grep -h -E 'loading took|pipelines built|metal world ready|demo done' "$f" || true; } >> results/fps.txt
           done
           for d in $demos; do grep -H 'hitch' "results/app-$d.log" >> results/hitches.txt || true; done
           grep -H 'probe ' results/app-probe.log >> results/hitches.txt || true
-          # drawable starvation (SpriteKit skipped a frame): correlate with the 'sk' stalls of the hitch lines
-          echo "== SKView 'no drawables' (stderr, per demo)" >> results/hitches.txt
-          for d in $demos; do
-            n=$(grep -c 'no drawables' "results/app-$d-stderr.log" 2>/dev/null || true)
-            echo "$d: ${n:-0}" >> results/hitches.txt
-          done
-          { echo "== stderr samples"; for d in $demos; do grep -H -m 3 'no drawables' "results/app-$d-stderr.log" 2>/dev/null || true; done; } >> results/hitches.txt
-          cat results/alive.txt results/loading.txt results/fps.txt results/shots.txt results/hitches.txt
+          # GPU-side seconds: frames completed, longest gap between two, slowest command buffer (commit -> done)
+          echo "== GPU-side stalls (hb lines with gap > 50 ms)" >> results/hitches.txt
+          for d in $demos; do grep -H -E 'hb t=.* gap=([5-9][0-9]|[0-9]{3,})ms' "results/app-$d.log" | sed -E 's/ (mode|bugs|vis|parts|stage|hp|kills|mem|avail|demo|rend|cpu|main|dc|inst|tris)=[^ ]*//g' >> results/hitches.txt || true; done
+          python3 ios-native/ci/frame_metrics.py --cold firstlaunch --menus levelup,pause,end results $demos > results/metrics.txt || true
+          cat results/alive.txt results/loading.txt results/fps.txt results/shots.txt results/hitches.txt results/metrics.txt
       - name: Verify app is alive and rendered
         run: |
           echo "--- combat stdout ---"; cat results/app-combat.log || true
           echo "--- combat stderr ---"; tail -n 50 results/app-combat-stderr.log || true
-          for f in results/app-beacon.log results/app-title.log results/app-calm.log results/app-landscape.log results/app-extract.log results/app-end.log; do echo "--- $f ---"; tail -n 25 "$f" || true; done
+          for f in results/app-beacon.log results/app-title.log results/app-calm.log results/app-landscape.log results/app-extract.log results/app-end.log results/app-failmetal.log; do echo "--- $f ---"; tail -n 25 "$f" || true; done
           if grep -q DEAD results/alive.txt; then echo "::error::app died during a demo: $(grep DEAD results/alive.txt | tr '\n' ' ')"; exit 1; fi
+          cp results/app-combat.log results/app-stdout.log
+          cp results/app-combat-stderr.log results/app-stderr.log
           grep -q 'scene ready' results/app-stdout.log || { echo "::error::no 'scene ready' line in app stdout"; exit 1; }
           grep -q 'hb t=' results/app-stdout.log || { echo "::error::no heartbeat lines in app stdout"; exit 1; }
           grep -q 'mode=playing' results/app-stdout.log || { echo "::error::combat demo never reached the mission"; exit 1; }
-          # the Metal renderer ran the mission and logged its frame breakdown
-          for d in combat-metal beacon-metal swarmshot-metal; do
-            echo "--- app-$d.log ---"; grep -E 'metal|scene ready|demo done|ERROR' "results/app-$d.log" | head -20 || true
+          for d in combat beacon swarmshot title extract levelup pause end release-combat; do
             grep -q 'scene ready' "results/app-$d.log" || { echo "::error::$d: no 'scene ready'"; exit 1; }
             grep -q 'rend=metal' "results/app-$d.log" || { echo "::error::$d: no Metal heartbeat lines"; exit 1; }
+            if grep -q 'ERROR' "results/app-$d.log"; then echo "::error::$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; exit 1; fi
           done
+          grep -q 'failure screen shown' results/app-failmetal.log || { echo "::error::-failMetal: no failure screen"; exit 1; }
+          if [ -s results/app-release-quiet.log ]; then echo "::error::plain Release launch wrote to stdout: $(head -3 results/app-release-quiet.log)"; exit 1; fi
+      # warm demos: minFps >= 55 on the game loop and no loop hitch > 50 ms after the first second (metrics.txt)
+      - name: Frame metrics gate
+        run: python3 ios-native/ci/frame_metrics.py --gate --cold firstlaunch --menus levelup,pause,end results firstlaunch combat beacon swarmshot swarmshot-dots swarm swarm3x calm title landscape probe hold extract levelup pause end release-combat
       - name: Collect crash logs and stop
         if: always()
         env:
