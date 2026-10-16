@@ -6,18 +6,24 @@ const BEACON_TIME = 60, LIFT_TIME = 100, BEACON_R = 4.6;
 const GS = {
   screen: 'title', time: 0, kills: 0, playerKills: 0, shots: 0, hits: 0, combo: 0, comboT: 0, bestCombo: 0,
   level: 1, xp: 0, xpNext: 20, pendingLevels: 0, dmgFlash: 0, flash: 0, hordeFx: 0, cls: 'assault', attract: true, upg: {}, seen: [true, true, true, true],
+  downs: 0, lastHit: -1, downBy: -1, afkT: 0,
 };
 const DIR = {
   stage: 'beacons', beacons: LV.beacons.map(b => ({ x: b.x, z: b.z, name: b.name, state: 0, progress: 0, contested: false })),
   active: -1, done: 0, liftT: LIFT_TIME, liftDur: LIFT_TIME, hordeT: 45, waveT: 0, trickle: 0, hpMul: 1, dmgMul: 1,
   queue: [], extractT: 0, hordes: 0, pulseT: 5,
+  calm: false, beaconHordeMul: 1, press: 0, idleMul: 1, q: { uid: 0, alive: false, spawned: false, done: false, t0: 0, killT: 0 },
 };
 function xpFor(level) { return Math.round(40 * Math.pow(1.4, level - 1) + 12 * (level - 1)); }
 
 function resetDirector(attract) {
   DIR.stage = 'beacons'; DIR.active = -1; DIR.done = 0; DIR.liftT = LIFT_TIME; DIR.hordeT = attract ? 1e9 : 50; DIR.waveT = 0;
   DIR.trickle = 0; DIR.hpMul = 1; DIR.dmgMul = 1; DIR.queue.length = 0; DIR.extractT = 0; DIR.hordes = 0;
-  for (const b of DIR.beacons) { b.state = 0; b.progress = 0; }
+  // rebuilt in place from LV (stations may change the layout between missions)
+  DIR.beacons.length = 0;
+  for (const b of LV.beacons) DIR.beacons.push({ x: b.x, z: b.z, name: b.name, state: 0, progress: 0, contested: false });
+  DIR.calm = false; DIR.beaconHordeMul = 1; DIR.press = 0; DIR.idleMul = 1;
+  const q = DIR.q; q.uid = 0; q.alive = false; q.spawned = false; q.done = false; q.t0 = 0; q.killT = 0;
   liftGroup.position.y = 0;
 }
 function nextBeacon() {

@@ -593,6 +593,7 @@ function botThink(m, dt) {
   } else if (Math.abs(mx) + Math.abs(mz) > 0.2) {
     m.aim += clamp(angDiff(m.aim, Math.atan2(mx, mz)), -6 * dt, 6 * dt);
   }
+  if (coachHoldFire(m)) fire = false;
   _bot.mx = mx; _bot.mz = mz; _bot.fire = fire;
   return _bot;
 }

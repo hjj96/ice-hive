@@ -211,6 +211,7 @@ function updateHUD(rdt) {
   setStyle(UI.flash, 'fl', 'opacity', q05(GS.flash));
   updatePlates();
   updateMarker();
+  updateThreatHUD();
 }
 
 // ---------- screens ----------

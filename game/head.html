@@ -354,6 +354,7 @@ body.touch #touchUI { display: block; }
 .end.won h2 { color: var(--teal); text-shadow: 0 0 24px var(--teal-glow); }
 .end.lost h2 { color: var(--red); text-shadow: 0 0 24px var(--red-glow-2); }
 .end p { margin-top: 0; margin-bottom: 4px; font: 400 14px/1.4 var(--font-display); color: var(--ink-dim); }
+#eRep:empty { display: none; }   /* v1.1 report slot (package D): no extra flex gap while empty */
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); }
 .stats div { background: var(--panel-2); padding: 10px 10px 9px; }
 .stats span { display: block; font: 500 12px/1.1 var(--font-display); letter-spacing: .1em; color: var(--ink-dim); text-transform: uppercase; }
@@ -430,6 +431,16 @@ body.touch #touchUI { display: block; }
   .m-box { gap: 5px; }
   .m-box .btn { min-height: 34px; padding: 7px 18px 6px; }
 }
+/* ==== v1.1 A threat · begin ==== */
+/* ==== v1.1 A threat · end ==== */
+/* ==== v1.1 B visuals · begin ==== */
+/* ==== v1.1 B visuals · end ==== */
+/* ==== v1.1 C hud+coach · begin ==== */
+/* ==== v1.1 C hud+coach · end ==== */
+/* ==== v1.1 D meta · begin ==== */
+/* ==== v1.1 D meta · end ==== */
+/* ==== v1.1 E stations · begin ==== */
+/* ==== v1.1 E stations · end ==== */
 @media (prefers-reduced-motion: reduce) {
   #fx .grain { animation: none; }
   #banner.show { animation-duration: 3.4s; }
@@ -469,6 +480,7 @@ body.touch #touchUI { display: block; }
   <div id="hSquad"></div>
   <div id="toasts"></div>
   <div id="hHint"></div>
+  <div id="coach" hidden></div>
   <div class="hud-bot">
     <div class="dashpips"><span class="dl">РЫВОК</span><div class="pip"><i id="hDash"></i></div></div>
     <div class="hpbox">
@@ -485,11 +497,12 @@ body.touch #touchUI { display: block; }
 <div class="screen on" id="sTitle">
   <div class="t-wrap">
     <div class="hz"></div>
-    <div class="t-meta"><span>Операция «Холодный свет»</span><span>Станция Кельвин-9 · −94 °C</span></div>
+    <div class="t-meta"><span>Операция «Холодный свет»</span><span id="tStation">Станция Кельвин-9 · −94 °C</span></div>
     <h1 class="t-title"><span>Ледяной</span><span class="acc">Улей</span></h1>
     <p class="t-premise">Станция замолчала шесть часов назад. Под решётками шевелится рой. Запустите три маяка, вызовите грузовой лифт и продержитесь до эвакуации.</p>
     <div class="t-label">Выберите класс</div>
     <div class="classes" id="classes"></div>
+    <div class="t-tier" id="tTier"></div>
     <div class="t-actions">
       <button class="btn btn-go" id="btnGo">В бой</button>
       <button class="btn btn-ghost" id="btnSound">Звук: вкл</button>
@@ -523,11 +536,12 @@ body.touch #touchUI { display: block; }
 <div class="screen" id="sEnd">
   <div class="m-box end" id="eBox">
     <div class="hz"></div>
-    <div class="end-tag">Отчёт миссии · Кельвин-9</div>
+    <div class="end-tag" id="eTag">Отчёт миссии · Кельвин-9</div>
     <h2 id="eTitle">Эвакуация успешна</h2>
     <p id="eSub"></p>
+    <div id="eRep"></div>
     <div class="stats" id="eStats"></div>
-    <div class="row"><button class="btn btn-go" id="eAgain">Ещё раз</button><button class="btn btn-ghost" id="eMenu">Сменить класс</button></div>
+    <div class="row"><button class="btn btn-go" id="eAgain">Ещё раз</button><button class="btn btn-ghost" id="eNew" hidden>Новая станция</button><button class="btn btn-ghost" id="eMenu">Сменить класс</button></div>
   </div>
 </div>
 

@@ -23,7 +23,7 @@ function tick(dt) {
   updateGlobs(dt);
   updateAbilities(dt);
   updateMedkits(dt);
-  if (!simOnly && !benchCombat) tickDirector(dt);
+  if (!simOnly && !benchCombat) { tickCoach(dt); tickDirector(dt); }
 }
 
 // ---------- game flow ----------
@@ -38,7 +38,7 @@ function resetWorld(cls, attract) {
   GS.attract = attract; autoPlayer = attract; godMode = attract || dbgGod;
   setupSquad(cls);
   resetDirector(attract);
-  Object.assign(GS, { time: 0, kills: 0, playerKills: 0, shots: 0, hits: 0, combo: 0, comboT: 0, bestCombo: 0, level: 1, xp: 0, xpNext: xpFor(1), pendingLevels: 0, dmgFlash: 0, flash: 0, hordeFx: 0, upg: {}, newRecord: false, seen: [true, false, false, false] });
+  Object.assign(GS, { time: 0, kills: 0, playerKills: 0, shots: 0, hits: 0, combo: 0, comboT: 0, bestCombo: 0, level: 1, xp: 0, xpNext: xpFor(1), pendingLevels: 0, dmgFlash: 0, flash: 0, hordeFx: 0, upg: {}, newRecord: false, seen: [true, false, false, false], downs: 0, lastHit: -1, downBy: -1, afkT: 0 });
   simTime = 0; flowTimer = 0; acc = 0;
   updateFlows(); rebuildHash();
   camTarget.set(M[0].x, groundY(M[0].x, M[0].z), M[0].z);
@@ -46,13 +46,17 @@ function resetWorld(cls, attract) {
   buildSquadUI();
   if (attract) for (let k = 0; k < 160; k++) { const e = pickEdge(M[0].x, M[0].z, 8, 30); if (e >= 0) spawnBug(RUN, LV.edgeX[e] - LV.edgeNX[e] * 1.5, LV.edgeZ[e] - LV.edgeNZ[e] * 1.5); }
 }
-function startMission(cls) {
+// opts (all optional): { tier, seed, coach } — read by tierPrepare (11c), stationPrepare (04b) and coachBegin (11b)
+function startMission(cls, opts) {
+  opts = opts || {};
   audioInit(); sfx('click');
   GS.cls = CLASSES[cls] ? cls : 'assault';
   store.set('cls', GS.cls);
+  tierPrepare(opts);
+  stationPrepare(opts);
   resetWorld(GS.cls, false);
   showScreen('playing');
-  banner('Высадка', 'Кельвин-9 · запустите три маяка', true);
+  if (!coachBegin(opts)) banner('Высадка', stationLabel() + ' · запустите три маяка', true);
 }
 function goTitle() {
   resetWorld(GS.cls, true);
@@ -254,9 +258,10 @@ window.__dbg = {
       beacons: DIR.done, liftT: +DIR.liftT.toFixed(1), particles: PA.n + PN.n, decals: decFill, projectiles: PR.n,
       audio: AU.ctx ? AU.ctx.state : 'off', input: IN.mode, hordes: DIR.hordes, volume: AU.vol, muted: AU.muted,
       cooldowns: { ability: +Math.max(0, P.abCd).toFixed(2), dash: +Math.max(0, P.dashCd).toFixed(2) },
+      tier: TH.id, station: stationLabel(),
     };
   },
-  start(cls) { startMission(cls); return this.state(); },
+  start(cls, opts) { startMission(cls, Object.assign({ coach: false }, opts)); return this.state(); },
   spawn(n = 100, type) { const t = type ? BUG_TYPE_IDS.indexOf(type) : -1; return spawnRing(n | 0, t); },
   god(on = true) { dbgGod = !!on; godMode = dbgGod || GS.attract; return godMode; },
   skip() {
@@ -334,6 +339,8 @@ window.__dbg = {
     return this.state();
   },
 };
+// per-package debug helpers (window.__dbgExt, filled by the v1.1 files that load before this one)
+Object.assign(window.__dbg, window.__dbgExt || {});
 
 // ---------- boot ----------
 // Compile every material up front (hidden effects included) so the first explosion / beam does not hitch.
@@ -367,9 +374,11 @@ function boot(data) {
   if (!CLASSES[GS.cls]) GS.cls = 'assault';
   if (typeof data.muted === 'boolean') AU.muted = data.muted;
   GS.best = data.best || store.get('best', null);
+  metaBoot(data);
   qPref = store.get('quality', 'auto');
   if (QUALITY[qPref]) applyQuality(qPref, true); else { qPref = 'auto'; applyQuality(qName, false); }
   document.body.classList.toggle('touch', IN.mode === 'touch');
+  stationBoot();
   resetWorld(GS.cls, true);
   buildTitle();
   showScreen('title');
