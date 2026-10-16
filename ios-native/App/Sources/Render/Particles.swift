@@ -97,6 +97,9 @@ final class ParticleSystem {
 
     func clear() { count = 0; pool.hideAll() }
 
+    /// Pre-create every particle sprite behind the loading cover.
+    func reserve() { pool.reserve(capacity) }
+
     func update(dt: Float, visible: CGRect) {
         let minX = visible.minX - 40, maxX = visible.maxX + 40, minY = visible.minY - 40, maxY = visible.maxY + 40
         pool.begin()

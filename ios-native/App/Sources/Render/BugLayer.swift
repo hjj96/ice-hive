@@ -43,6 +43,9 @@ final class BugLayer {
         }
     }
 
+    /// Pre-create `n` sprites per pool behind the loading cover (a swarm reaching the screen never allocates).
+    func reserve(_ n: Int) { bodies.reserve(n); glows.reserve(n); shadows.reserve(n) }
+
     func update(game: Game, alpha: Float, time: Float, dt: Float, visible: CGRect) {
         let S = game.bugs
         let lv = game.level

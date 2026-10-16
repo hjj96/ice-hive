@@ -284,6 +284,13 @@ final class FxLayer {
 
     func endFrame() { ground.endFrame() }
 
+    /// Pre-create every pooled sprite behind the loading cover (no node allocation once the mission runs).
+    func reserve() {
+        pa.reserve(); pn.reserve()
+        tracers.reserve(200); props.reserve(64)
+        ground.reserve()
+    }
+
     /// New mission: drop every stain, corpse, particle and light.
     func reset() {
         pa.clear(); pn.clear()

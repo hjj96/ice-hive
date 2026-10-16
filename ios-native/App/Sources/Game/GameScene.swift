@@ -67,6 +67,12 @@ final class GameScene: SKScene {
     private var lastFrameTime: Double = 0
     private var worstMs: Double = 0
     private var hitchLogs = 0
+    /// Hitch attribution: when our update() of the previous frame started / SpriteKit finished its update phase
+    /// (the gap from there to the next update() is SpriteKit's render + present + vsync wait).
+    private var updStartT: Double = 0
+    private var finishT: Double = 0
+    private var createdSeen = 0
+    private var warmGrid: PipelineWarmup?
 
     init(size: CGSize, options: LaunchOptions) {
         self.options = options
@@ -127,6 +133,8 @@ final class GameScene: SKScene {
         level = lv
         let r = WorldRenderer(level: lv, assets: a, bugCapacity: QualityTier.med.bugCap)
         renderer = r
+        r.reservePools(bugs: 640)
+        createdSeen = SpritePool.created
         r.world.isHidden = true
         addChild(r.world)
         r.attach(to: cameraCtl)
@@ -374,7 +382,15 @@ final class GameScene: SKScene {
         return Vec2(g.player.x, g.player.z)
     }
 
+    override func didFinishUpdate() {
+        finishT = ProcessInfo.processInfo.systemUptime
+    }
+
     override func update(_ currentTime: TimeInterval) {
+        let nowUp = ProcessInfo.processInfo.systemUptime
+        let prevUpdMs = (finishT - updStartT) * 1000
+        let prevSkMs = (nowUp - finishT) * 1000
+        updStartT = nowUp
         if startTime < 0 { startTime = currentTime; lastTime = currentTime; lastFrameTime = currentTime; fpsWindowStart = currentTime; lastHeartbeat = currentTime }
         let dt = Float(min(0.1, max(0, currentTime - lastTime)))
         lastTime = currentTime
@@ -383,9 +399,15 @@ final class GameScene: SKScene {
         worstDt = max(worstDt, frameDt)
         lastFrameTime = currentTime
         // long frames with a wall-clock stamp (CI correlates them with its screenshot times)
+        // upd = our update() + SpriteKit's update phase of the frame before; sk = SpriteKit render / present / wait
+        // after it; new = sprites the pools had to create since the last hitch line (should stay 0 after loading)
         if frameDt > 0.1 && readyTime > 0 && hitchLogs < 40 {
             hitchLogs += 1
-            AppLog.info(String(format: "hitch %.0f ms td=%.2f wall=%.3f", frameDt * 1000, currentTime - readyTime, Date().timeIntervalSince1970))
+            let made = SpritePool.created - createdSeen
+            createdSeen = SpritePool.created
+            AppLog.info(String(format: "hitch %.0f ms td=%.2f wall=%.3f upd=%.0fms sk=%.0fms", frameDt * 1000, currentTime - readyTime,
+                               Date().timeIntervalSince1970, prevUpdMs, prevSkMs)
+                        + " vis=\(renderer?.bugs.visibleCount ?? 0) parts=\((renderer?.fx.pa.visibleCount ?? 0) + (renderer?.fx.pn.visibleCount ?? 0)) new=\(made)")
         }
         guard let g = game, let r = renderer, mode != .loading else {
             advanceLoading()
@@ -547,11 +569,21 @@ final class GameScene: SKScene {
             hud.visible = true
             hud.warmUp(true)
             r.fx.warmUp(cameraCtl.tx, cameraCtl.tz)
+            if let a = assets {
+                // every blend / colour-blend / alpha combination on every sheet page: Metal pipelines built now
+                let w = PipelineWarmup(textures: a.sheets.pages, viewSize: size, z: ZBand.hud + 899)
+                cameraCtl.node.addChild(w.root)
+                warmGrid = w
+                AppLog.info("pipeline warm-up: \(w.count) sprites behind the cover")
+            }
         }
         if coverFrames == hold - 5, let r = renderer {
             r.fx.reset()
             hud.warmUp(false)
             hud.visible = hudWasVisible
+            warmGrid?.root.removeFromParent()
+            warmGrid = nil
+            createdSeen = SpritePool.created
         }
         if coverFrames == hold {
             loadingLabel?.node.removeFromParent()

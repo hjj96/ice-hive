@@ -253,6 +253,9 @@ final class GroundFx {
 
     func endFrame() { splashPool.end(); telePool.end() }
 
+    /// Pre-create the decal / corpse rings and the per-frame pools behind the loading cover.
+    func reserve() { decals.reserve(); corpses.reserve(); splashPool.reserve(48); telePool.reserve(112) }
+
     func clear() {
         decals.clear()
         corpses.clear()

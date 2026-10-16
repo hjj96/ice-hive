@@ -53,6 +53,17 @@ final class WorldRenderer {
 
     func reset() { fx.reset() }
 
+    /// Every pool filled up front (loading screen): ~5k hidden sprites, so neither a horde reaching the screen nor
+    /// a burst of corpses / particles creates nodes during play.
+    func reservePools(bugs n: Int) {
+        let t0 = ProcessInfo.processInfo.systemUptime
+        let before = SpritePool.created
+        bugs.reserve(n)
+        fx.reserve()
+        AppLog.info(String(format: "pools reserved: %d sprites in %.0f ms", SpritePool.created - before,
+                           (ProcessInfo.processInfo.systemUptime - t0) * 1000))
+    }
+
     func handle(_ e: GameEvent, game: Game) { fx.handle(e, game: game) }
 
     func update(game: Game, alpha: Float, dt: Float, time: Float, camera: CameraController) {

@@ -16,7 +16,23 @@ final class SpritePool {
         self.configure = configure
     }
 
+    /// Nodes created by every pool and ring so far (hitch attribution: growth during play).
+    static var created = 0
+
     func begin() { used = 0 }
+
+    /// Create hidden nodes up front (behind the loading cover), so a bigger swarm later never allocates mid-game.
+    func reserve(_ n: Int) {
+        let target = min(n, capacity)
+        while nodes.count < target {
+            let s = SKSpriteNode(texture: nil)
+            configure(s)
+            s.isHidden = true
+            parent.addChild(s)
+            nodes.append(s)
+            SpritePool.created += 1
+        }
+    }
 
     /// Next free sprite (nil when the pool is exhausted).
     func next() -> SKSpriteNode? {
@@ -26,6 +42,7 @@ final class SpritePool {
             configure(n)
             parent.addChild(n)
             nodes.append(n)
+            SpritePool.created += 1
         }
         let n = nodes[used]
         used += 1
@@ -49,6 +66,8 @@ final class SpriteRing {
     let capacity: Int
     private(set) var nodes: [SKSpriteNode] = []
     private var head = 0
+    /// Sprites handed out since the last clear (at most `capacity`).
+    private(set) var live = 0
     private let configure: (SKSpriteNode) -> Void
 
     init(parent: SKNode, capacity: Int, configure: @escaping (SKSpriteNode) -> Void) {
@@ -58,11 +77,14 @@ final class SpriteRing {
     }
 
     func next() -> SKSpriteNode {
-        if nodes.count < capacity {
+        if live < capacity { live += 1 }
+        if head == nodes.count && nodes.count < capacity {
             let n = SKSpriteNode(texture: nil)
             configure(n)
             parent.addChild(n)
             nodes.append(n)
+            SpritePool.created += 1
+            head = (head + 1) % capacity
             return n
         }
         let n = nodes[head]
@@ -71,11 +93,24 @@ final class SpriteRing {
         return n
     }
 
-    var count: Int { nodes.count }
+    /// Create every node of the ring up front (hidden), so filling it during play never allocates.
+    func reserve() {
+        while nodes.count < capacity {
+            let n = SKSpriteNode(texture: nil)
+            configure(n)
+            n.isHidden = true
+            parent.addChild(n)
+            nodes.append(n)
+            SpritePool.created += 1
+        }
+    }
 
+    var count: Int { live }
+
+    /// Hide everything and start over from the first node (the nodes stay in the tree for reuse).
     func clear() {
-        for n in nodes { n.removeFromParent() }
-        nodes.removeAll()
+        for n in nodes { n.isHidden = true }
+        live = 0
         head = 0
     }
 }
