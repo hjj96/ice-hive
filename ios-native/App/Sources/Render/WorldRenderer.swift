@@ -60,6 +60,7 @@ final class WorldRenderer {
         let before = SpritePool.created
         bugs.reserve(n)
         fx.reserve()
+        weather.reserve()
         AppLog.info(String(format: "pools reserved: %d sprites in %.0f ms", SpritePool.created - before,
                            (ProcessInfo.processInfo.systemUptime - t0) * 1000))
     }

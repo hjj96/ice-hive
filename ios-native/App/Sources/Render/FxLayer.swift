@@ -287,7 +287,7 @@ final class FxLayer {
     /// Pre-create every pooled sprite behind the loading cover (no node allocation once the mission runs).
     func reserve() {
         pa.reserve(); pn.reserve()
-        tracers.reserve(200); props.reserve(64)
+        tracers.reserve(420); props.reserve(64)
         ground.reserve()
     }
 

@@ -35,6 +35,9 @@ final class WeatherLayer {
         for _ in 0..<mist { mists.append(Flake(x: m.next() * 60 - 30, y: 0.4 + m.next() * 1.4, z: m.next() * 60 - 30, seed: m.next())) }
     }
 
+    /// Pre-create every flake / mist sprite behind the loading cover.
+    func reserve() { snowPool.reserve(snowPool.capacity); mistPool.reserve(mistPool.capacity) }
+
     @inline(__always) private func wrap(_ v: Float, _ c: Float, _ half: Float) -> Float {
         let w = half * 2
         var d = (v - c + half).truncatingRemainder(dividingBy: w)
