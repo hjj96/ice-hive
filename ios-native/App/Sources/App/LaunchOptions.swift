@@ -25,6 +25,8 @@ struct LaunchOptions {
     var plainGlints: Bool = false
     /// World renderer (`-renderer metal|spritekit`, default spritekit): the Metal spike draws the web game's 3D meshes.
     var renderer: String = "spritekit"
+    /// Demo swarm size override (`-bugs N`, combat / beacon demos; capped by the quality tier's bug cap).
+    var bugs: Int?
     /// Metal drawable scale (`-mscale N`, points → pixels; default 2, the screen's native scale is 3 on most iPhones).
     var metalScale: Double?
     /// Arguments that were not recognised (kept for logging).
@@ -62,6 +64,7 @@ struct LaunchOptions {
             case "-cull", "--cull": result.cull = flag()
             case "-plainGlints", "--plainGlints": result.plainGlints = flag()
             case "-renderer", "--renderer": result.renderer = (value() ?? "spritekit").lowercased()
+            case "-bugs", "--bugs": if let v = value(), let n = Int(v), n >= 0 { result.bugs = n }
             case "-mscale", "--mscale": if let v = value(), let n = Double(v), n > 0.4, n <= 4 { result.metalScale = n }
             default: result.unknown.append(arg)
             }
@@ -82,6 +85,7 @@ struct LaunchOptions {
         if cull { parts.append("cull") }
         if plainGlints { parts.append("plainGlints") }
         parts.append("renderer=\(renderer)")
+        if let b = bugs { parts.append("bugs=\(b)") }
         if let m = metalScale { parts.append("mscale=\(m)") }
         return parts.joined(separator: " ")
     }

@@ -79,6 +79,8 @@ final class GameScene: SKScene {
     private var lastFrameTime: Double = 0
     private var worstMs: Double = 0
     private var hitchLogs = 0
+    private var cpuProcLast: Double = 0
+    private var cpuMainLast: Double = 0
     /// Hitch attribution: when our update() of the previous frame started / SpriteKit finished its update phase
     /// (the gap from there to the next update() is SpriteKit's render + present + vsync wait).
     private var updStartT: Double = 0
@@ -856,7 +858,14 @@ final class GameScene: SKScene {
             fpsWindowStart = currentTime
         }
         if AppLog.diagnostics && currentTime - lastHeartbeat >= 1.0 {
+            let span = max(0.001, currentTime - lastHeartbeat)
             lastHeartbeat = currentTime
+            // CPU utilisation since the last heartbeat (% of one core): whole process / main thread
+            let cp = CPUTime.process(), cm = CPUTime.thread()
+            let cpuPct = cpuProcLast > 0 ? (cp - cpuProcLast) / span * 100 : 0
+            let mainPct = cpuMainLast > 0 ? (cm - cpuMainLast) / span * 100 : 0
+            cpuProcLast = cp
+            cpuMainLast = cm
             let t = currentTime - startTime
             // demo time runs from "scene ready" (the end of loading); fps statistics skip its first second
             let td = readyTime > 0 ? currentTime - readyTime : -1
@@ -867,7 +876,7 @@ final class GameScene: SKScene {
                 let st = r.stats
                 // same keys for both renderers (chunks = level chunks / Metal draw calls, nodes = SpriteKit nodes / Metal
                 // instances); rend=… plus the Metal frame breakdown: enc = CPU encode, gpu = GPU time, wait = frame slot
-                var tail = " rend=\(r.rendererName)"
+                var tail = " rend=\(r.rendererName)" + String(format: " cpu=%.0f main=%.0f", cpuPct, mainPct)
                 if renderer == nil {
                     tail += String(format: " dc=%d inst=%d tris=%d enc=%.2fms gpu=%.2fms wait=%.2fms", st.drawCalls, st.instances, st.triangles,
                                    st.encodeMs, st.gpuMs, st.waitMs)

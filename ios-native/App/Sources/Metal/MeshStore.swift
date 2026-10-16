@@ -22,6 +22,9 @@ struct GPUMesh {
     let boundsMin: F3
     let boundsMax: F3
     let placeholder: Bool
+    /// Bug meshes: the glow speckles (aGlow = 1, no leg weight) as (centre xyz, size) / (colour) pairs, drawn again as
+    /// soft additive dots so a 3 cm glint never drops below a pixel (the web gets this from MSAA / bloom).
+    var glints: [F4] = []
 }
 
 final class MeshStore {
@@ -161,9 +164,37 @@ final class MeshStore {
             vb.label = name + ".v"
             ib.label = name + ".i"
             bytesLoaded += verts.count * 4 + idx.count * 4
-            return GPUMesh(name: name, vertices: vb, indices: ib, vertexCount: vc, indexCount: ic, flags: flags,
-                           boundsMin: lo, boundsMax: hi, placeholder: false)
+            var mesh = GPUMesh(name: name, vertices: vb, indices: ib, vertexCount: vc, indexCount: ic, flags: flags,
+                               boundsMin: lo, boundsMax: hi, placeholder: false)
+            if name.hasPrefix("bug_") { mesh.glints = MeshStore.glints(verts, vc) }
+            return mesh
         }
+    }
+
+    /// Cluster the full-glow, leg-free vertices of a bug mesh into speckles: centre, size and colour of each.
+    static func glints(_ v: [Float], _ n: Int) -> [F4] {
+        var sumP: [F3] = [], sumC: [F3] = [], cnt: [Float] = [], pts: [[F3]] = []
+        for i in 0..<n {
+            let o = i * 13
+            if v[o + 9] < 0.99 || v[o + 10] != 0 || v[o + 12] > 0.5 { continue }
+            let p = F3(v[o], v[o + 1], v[o + 2]), c = F3(v[o + 6], v[o + 7], v[o + 8])
+            var hit = -1
+            for k in 0..<sumP.count {
+                let d = sumP[k] / cnt[k] - p
+                if (d * d).sum() < 0.06 * 0.06 { hit = k; break }
+            }
+            if hit < 0 { sumP.append(.zero); sumC.append(.zero); cnt.append(0); pts.append([]); hit = sumP.count - 1 }
+            sumP[hit] += p; sumC[hit] += c; cnt[hit] += 1; pts[hit].append(p)
+        }
+        var out: [F4] = []
+        for k in 0..<min(8, sumP.count) {
+            let c = sumP[k] / cnt[k], col = sumC[k] / cnt[k]
+            var r: Float = 0.01
+            for p in pts[k] { let d = p - c; r = max(r, (d * d).sum().squareRoot()) }
+            out.append(F4(c.x, c.y, c.z, 2 * r))
+            out.append(F4(col.x, col.y, col.z, 1))
+        }
+        return out
     }
 
     /// 20 cm grey cube (colour 0.5, no glow / legs) standing in for a missing mesh.

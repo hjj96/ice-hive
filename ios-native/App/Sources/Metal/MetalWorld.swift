@@ -20,8 +20,9 @@ final class MetalWorld: WorldPresenter {
     let renderer: MetalRenderer
     let camera = MetalCamera()
     let fx: MetalEffects
-    /// mar = squad poses, bug = swarm instances, fx = effects, up = uploads + lights, draw = encode + commit
-    let timer = FrameTimer(["mar", "bug", "fx", "up", "draw"])
+    /// wait = free frame slot (GPU back-pressure), mar = squad poses, bug = swarm instances, fx = effects,
+    /// up = uploads + lights, draw = drawable + encode + commit
+    let timer = FrameTimer(["wait", "mar", "bug", "fx", "up", "draw"])
 
     private var poses = [MetalEffects.MarinePose](repeating: MetalEffects.MarinePose(x: 0, y: 0, z: 0), count: 4)
     private var walkPh: [Float] = [0, 0, 0, 0]
@@ -36,8 +37,13 @@ final class MetalWorld: WorldPresenter {
     private var propBatches: [MeshBatch] = []
     private var tailBatches: [MeshBatch] = []
     private var typeCounts = [Int](repeating: 0, count: 4)
+    private var bugPtr = [UnsafeMutablePointer<BugInstance>?](repeating: nil, count: 4)
+    private var bugCnt = [Int](repeating: 0, count: 4)
+    private var spotPos = [F4](repeating: .zero, count: 4), spotDir = [F4](repeating: .zero, count: 4)
+    private var pointPos = [F4](repeating: .zero, count: 3), pointCol = [F4](repeating: .zero, count: 3)
     private var visibleBugs = 0
     private var lastStats = WorldStats()
+    private var loggedDrawable = CGSize.zero
 
     var fxK: Float {
         get { fx.fxK }
@@ -102,8 +108,14 @@ final class MetalWorld: WorldPresenter {
     func update(game: Game, alpha: Float, dt: Float, time: Float, camera cam: CameraController) {
         timer.begin()
         renderer.beginFrame()
+        timer.mark()
         let size = view.bounds.size
-        camera.resize(width: Float(size.width), height: Float(size.height), drawableHeight: Float(view.drawableSize.height))
+        let ds = view.drawableSize
+        if ds != loggedDrawable {
+            loggedDrawable = ds
+            AppLog.info("metal: view \(Int(size.width))x\(Int(size.height)) pt, drawable \(Int(ds.width))x\(Int(ds.height)) px (scale \(view.contentScaleFactor))")
+        }
+        camera.resize(width: Float(size.width), height: Float(size.height), drawableHeight: Float(ds.height))
         let ex: Float = game.stage == .extract ? smooth01f(game.extractT / 4.5) : 0
         camera.update(focus: F3(cam.focus.0, cam.focus.1, cam.focus.2), shake: F3(cam.shakeOffset.0, cam.shakeOffset.1, cam.shakeOffset.2),
                       title: game.attract, time: time, extract: ex)
@@ -199,13 +211,13 @@ final class MetalWorld: WorldPresenter {
         let types = S.types, dead = S.deadFlags
         for t in 0..<4 { typeCounts[t] = 0 }
         for i in 0..<n where dead[i] == 0 { typeCounts[Int(min(3, types[i]))] += 1 }
-        var ptr: [UnsafeMutablePointer<BugInstance>?] = [nil, nil, nil, nil]
-        var cnt = [0, 0, 0, 0]
         let list = renderer.list
         for t in 0..<4 {
             list.bugs[t] = Region()
+            bugPtr[t] = nil
+            bugCnt[t] = 0
             if typeCounts[t] > 0, let a = renderer.alloc(BugInstance.self, typeCounts[t]) {
-                ptr[t] = a.0
+                bugPtr[t] = a.0
                 list.bugs[t].offset = a.1
             }
         }
@@ -217,7 +229,7 @@ final class MetalWorld: WorldPresenter {
         var vis = 0
         for i in 0..<n where dead[i] == 0 {
             let t = Int(min(3, types[i]))
-            guard let out = ptr[t] else { continue }
+            guard let out = bugPtr[t] else { continue }
             let bx = PX[i] + (X[i] - PX[i]) * alpha, bz = PZ[i] + (Z[i] - PZ[i]) * alpha
             let gy = level.groundY(bx, bz) + Y[i]
             let sc = SC[i]
@@ -246,13 +258,13 @@ final class MetalWorld: WorldPresenter {
                 if dt > 0 { fx.burningBug(bx, bz, sc, dt: dt) }
             }
             let frz: Float = FR[i] > 0 ? 1 : CH[i] * 0.55
-            let k = cnt[t]
+            let k = bugCnt[t]
             out[k] = BugInstance(pos: F4(bx, gy, bz, s), rot: F4(cosf(HD[i]), sinf(HD[i]), sp, cp),
                                  color: F4(v, v * (0.92 + vr * 0.1), v, sy), anim: F4(PH[i], flash, burn, frz))
-            cnt[t] = k + 1
+            bugCnt[t] = k + 1
             vis += 1
         }
-        for t in 0..<4 { list.bugs[t].count = ptr[t] == nil ? 0 : cnt[t] }
+        for t in 0..<4 { list.bugs[t].count = bugPtr[t] == nil ? 0 : bugCnt[t] }
         visibleBugs = vis
     }
 
@@ -350,7 +362,7 @@ final class MetalWorld: WorldPresenter {
         let mc = linearRGB(0x8eaade) * (0.5 * invPi)
         F.moonColor = F4(mc.x, mc.y, mc.z, 0)
         // flashlights follow the aim
-        var sp: [F4] = [.zero, .zero, .zero, .zero], sd: [F4] = [.zero, .zero, .zero, .zero]
+        for k in 0..<4 { spotPos[k] = .zero; spotDir[k] = .zero }
         for (k, m) in game.marines.enumerated() where k < 4 {
             let p = poses[k]
             var pos: F3, target: F3, i: Float
@@ -364,22 +376,23 @@ final class MetalWorld: WorldPresenter {
                 i = (m.isPlayer ? 62 : 42) * (m.firing ? 1.12 : 1) * (m.hurtT > 0 ? 0.6 + 0.4 * sinf(time * 60) : 1)
             }
             let dir = (target - pos) / max(1e-4, (target - pos).magnitude)
-            sp[k] = F4(pos.x, pos.y, pos.z, i * invPi)
-            sd[k] = F4(dir.x, dir.y, dir.z, 0)
+            spotPos[k] = F4(pos.x, pos.y, pos.z, i * invPi)
+            spotDir[k] = F4(dir.x, dir.y, dir.z, 0)
         }
-        F.spotPos = (sp[0], sp[1], sp[2], sp[3])
-        F.spotDir = (sd[0], sd[1], sd[2], sd[3])
-        var pp: [F4] = [.zero, .zero, .zero], pc: [F4] = [.zero, .zero, .zero]
+        F.spotPos = (spotPos[0], spotPos[1], spotPos[2], spotPos[3])
+        F.spotDir = (spotDir[0], spotDir[1], spotDir[2], spotDir[3])
         for k in 0..<3 {
             let l = fx.lights[k]
+            pointPos[k] = .zero
+            pointCol[k] = .zero
             if l.intensity > 0.01 {
-                pp[k] = F4(l.pos.x, l.pos.y, l.pos.z, 18)
+                pointPos[k] = F4(l.pos.x, l.pos.y, l.pos.z, 18)
                 let c = l.color * (l.intensity * invPi)
-                pc[k] = F4(c.x, c.y, c.z, 0)
+                pointCol[k] = F4(c.x, c.y, c.z, 0)
             }
         }
-        F.pointPos = (pp[0], pp[1], pp[2])
-        F.pointColor = (pc[0], pc[1], pc[2])
+        F.pointPos = (pointPos[0], pointPos[1], pointPos[2])
+        F.pointColor = (pointCol[0], pointCol[1], pointCol[2])
         F.misc = F4(camera.pxScale, Float(view.drawableSize.height), renderer.list.liftRise, 1)
         F.camRight = F4(camera.right.x, camera.right.y, camera.right.z, 0)
         F.camUp = F4(camera.up.x, camera.up.y, camera.up.z, 0)

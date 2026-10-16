@@ -85,6 +85,7 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
     private var psMeshLambert: MTLRenderPipelineState?
     private var psMeshUnlit: MTLRenderPipelineState?
     private var psBug: MTLRenderPipelineState?
+    private var psGlint: MTLRenderPipelineState?
     private var psDecal: MTLRenderPipelineState?
     private var psSprite: MTLRenderPipelineState?
     private var psParticleAdd: MTLRenderPipelineState?
@@ -110,6 +111,7 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
 
     // static level meshes and their materials
     private var levelDraws: [(GPUMesh, MaterialUniforms, Int)] = []   // kind: 0 props, 1 floor grating, 2 floor slab, 3 lift floor, 4 lift props
+    private var bugMeshes: [GPUMesh] = []
     private let matProps = MaterialUniforms(pbr: F4(0.62, 0.45, 1, 2.2), floor: F4(0, 0, 0, 0))
 
     // stats (smoothed)
@@ -157,9 +159,10 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
         vd.layouts[BufferIndex.vertices].stepFunction = .perVertex
 
         enum Blend { case none, alpha, add, multiply }
+        let errLock = NSLock()
         func make(_ label: String, _ vs: String, _ fs: String, _ blend: Blend, vertexDescriptor: Bool) -> MTLRenderPipelineState? {
             guard let v = lib.makeFunction(name: vs), let f = lib.makeFunction(name: fs) else {
-                pipelineErrors.append("\(label): missing function \(vs) / \(fs)")
+                errLock.lock(); pipelineErrors.append("\(label): missing function \(vs) / \(fs)"); errLock.unlock()
                 return nil
             }
             let d = MTLRenderPipelineDescriptor()
@@ -195,27 +198,34 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
             do {
                 return try device.makeRenderPipelineState(descriptor: d)
             } catch {
-                pipelineErrors.append("\(label): \(error.localizedDescription)")
+                errLock.lock(); pipelineErrors.append("\(label): \(error.localizedDescription)"); errLock.unlock()
                 return nil
             }
         }
-        psProps = make("props", "vs_static", "fs_props", .none, vertexDescriptor: true)
-        psFloor = make("floor", "vs_static", "fs_floor", .none, vertexDescriptor: true)
-        psTexturedOpaque = make("hazard", "vs_static", "fs_textured", .none, vertexDescriptor: true)
-        psTexturedAlpha = make("pad", "vs_static", "fs_textured", .alpha, vertexDescriptor: true)
-        psGlowQuads = make("glowQuads", "vs_static", "fs_basic_textured", .add, vertexDescriptor: true)
-        psHaze = make("haze", "vs_static", "fs_basic_textured", .alpha, vertexDescriptor: true)
-        psMeshProps = make("meshProps", "vs_mesh", "fs_props", .none, vertexDescriptor: true)
-        psMeshLambert = make("meshLambert", "vs_mesh", "fs_lambert", .none, vertexDescriptor: true)
-        psMeshUnlit = make("meshUnlit", "vs_mesh", "fs_unlit", .none, vertexDescriptor: true)
-        psBug = make("bug", "vs_bug", "fs_bug", .none, vertexDescriptor: true)
-        psDecal = make("decal", "vs_decal", "fs_decal", .multiply, vertexDescriptor: false)
-        psSprite = make("sprite", "vs_sprite", "fs_sprite", .add, vertexDescriptor: false)
-        psParticleAdd = make("particleAdd", "vs_particle", "fs_particle_add", .add, vertexDescriptor: false)
-        psParticleAlpha = make("particleAlpha", "vs_particle", "fs_particle_alpha", .alpha, vertexDescriptor: false)
-        psRibbon = make("ribbon", "vs_ribbon", "fs_ribbon", .add, vertexDescriptor: false)
-        psWeatherAlpha = make("weatherAlpha", "vs_weather", "fs_weather", .alpha, vertexDescriptor: false)
-        psWeatherAdd = make("weatherAdd", "vs_weather", "fs_weather", .add, vertexDescriptor: false)
+        // the 18 pipelines compile in parallel (device-specific compilation dominates a cold first launch)
+        let specs: [(String, String, String, Blend, Bool)] = [
+            ("props", "vs_static", "fs_props", .none, true), ("floor", "vs_static", "fs_floor", .none, true),
+            ("hazard", "vs_static", "fs_textured", .none, true), ("pad", "vs_static", "fs_textured", .alpha, true),
+            ("glowQuads", "vs_static", "fs_basic_textured", .add, true), ("haze", "vs_static", "fs_basic_textured", .alpha, true),
+            ("meshProps", "vs_mesh", "fs_props", .none, true), ("meshLambert", "vs_mesh", "fs_lambert", .none, true),
+            ("meshUnlit", "vs_mesh", "fs_unlit", .none, true), ("bug", "vs_bug", "fs_bug", .none, true),
+            ("glint", "vs_glint", "fs_glint", .add, false), ("decal", "vs_decal", "fs_decal", .multiply, false),
+            ("sprite", "vs_sprite", "fs_sprite", .add, false), ("particleAdd", "vs_particle", "fs_particle_add", .add, false),
+            ("particleAlpha", "vs_particle", "fs_particle_alpha", .alpha, false), ("ribbon", "vs_ribbon", "fs_ribbon", .add, false),
+            ("weatherAlpha", "vs_weather", "fs_weather", .alpha, false), ("weatherAdd", "vs_weather", "fs_weather", .add, false),
+        ]
+        var states = [MTLRenderPipelineState?](repeating: nil, count: specs.count)
+        let lock = NSLock()
+        DispatchQueue.concurrentPerform(iterations: specs.count) { i in
+            let sp = specs[i]
+            let st = make(sp.0, sp.1, sp.2, sp.3, vertexDescriptor: sp.4)
+            lock.lock(); states[i] = st; lock.unlock()
+        }
+        psProps = states[0]; psFloor = states[1]; psTexturedOpaque = states[2]; psTexturedAlpha = states[3]
+        psGlowQuads = states[4]; psHaze = states[5]; psMeshProps = states[6]; psMeshLambert = states[7]
+        psMeshUnlit = states[8]; psBug = states[9]; psGlint = states[10]; psDecal = states[11]
+        psSprite = states[12]; psParticleAdd = states[13]; psParticleAlpha = states[14]; psRibbon = states[15]
+        psWeatherAlpha = states[16]; psWeatherAdd = states[17]
 
         let od = MTLDepthStencilDescriptor()
         od.depthCompareFunction = .less
@@ -235,6 +245,7 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
             (store.mesh("level_props"), matProps, 0),
             (store.mesh("lift_props"), matProps, 4),
         ]
+        bugMeshes = ["bug_runner", "bug_spitter", "bug_brute", "bug_boomer"].map { store.mesh($0) }
         ready = psProps != nil && psBug != nil && dsOpaque != nil
         return String(format: "pipelines built in %.0f ms", (FrameTimer.now() - t0) * 1000)
             + (pipelineErrors.isEmpty ? "" : " ERRORS: " + pipelineErrors.joined(separator: "; "))
@@ -384,10 +395,9 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
         // ---- swarm: one instanced draw per bug type
         if let ps = psBug {
             enc.setRenderPipelineState(ps)
-            let names = ["bug_runner", "bug_spitter", "bug_brute", "bug_boomer"]
             for t in 0..<4 where list.bugs[t].count > 0 {
                 enc.setVertexBuffer(arena, offset: list.bugs[t].offset, index: BufferIndex.instances)
-                drawMesh(enc, store.mesh(names[t]), instances: list.bugs[t].count)
+                drawMesh(enc, bugMeshes[t], instances: list.bugs[t].count)
             }
         }
 
@@ -424,12 +434,22 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
         }
         if let ps = psSprite {
             enc.setRenderPipelineState(ps)
-            let sets: [(Region, String)] = [(list.glowSprites, "glow"), (list.ringSprites, "ring"), (list.fillSprites, "fill"),
-                                            (list.laneSprites, "lane"), (list.indicators, "glow")]
-            for (r, tex) in sets where r.count > 0 {
-                enc.setVertexBuffer(arena, offset: r.offset, index: BufferIndex.instances)
-                enc.setFragmentTexture(store.texture(tex), index: TextureIndex.main)
-                drawQuads(enc, r.count)
+            sprites(enc, arena, list.glowSprites, "glow")
+            sprites(enc, arena, list.ringSprites, "ring")
+            sprites(enc, arena, list.fillSprites, "fill")
+            sprites(enc, arena, list.laneSprites, "lane")
+            sprites(enc, arena, list.indicators, "glow")
+        }
+        // swarm glints: one soft additive dot per speckle of every visible bug (instance = bug × speckle)
+        if let ps = psGlint {
+            enc.setRenderPipelineState(ps)
+            for t in 0..<4 where list.bugs[t].count > 0 && !bugMeshes[t].glints.isEmpty {
+                let g = bugMeshes[t].glints
+                var n = UInt32(g.count / 2)
+                enc.setVertexBuffer(arena, offset: list.bugs[t].offset, index: BufferIndex.instances)
+                g.withUnsafeBytes { enc.setVertexBytes($0.baseAddress!, length: $0.count, index: BufferIndex.material) }
+                enc.setVertexBytes(&n, length: 4, index: 4)
+                drawQuads(enc, list.bugs[t].count * Int(n))
             }
         }
         let noise = store.noise
@@ -464,6 +484,13 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
             enc.setRenderPipelineState(ps)
             weather(enc, kind: 1, count: list.motes)
         }
+    }
+
+    private func sprites(_ enc: MTLRenderCommandEncoder, _ arena: MTLBuffer, _ r: Region, _ tex: String) {
+        if r.count == 0 { return }
+        enc.setVertexBuffer(arena, offset: r.offset, index: BufferIndex.instances)
+        enc.setFragmentTexture(store.texture(tex), index: TextureIndex.main)
+        drawQuads(enc, r.count)
     }
 
     private func drawStatic(_ enc: MTLRenderCommandEncoder, _ mesh: GPUMesh, _ mat: inout MaterialUniforms) {

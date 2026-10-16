@@ -24,14 +24,17 @@ final class DemoScript {
     private var t: Float = 0
     private var topUpT: Float = 0
     private var target = 600
+    /// `-bugs N`: swarm size of the combat / beacon demos (renderer stress runs).
+    private var override: Int?
 
-    private init(name: String) { self.name = name }
+    private init(name: String, bugs: Int? = nil) { self.name = name; override = bugs }
 
     static func make(options: LaunchOptions) -> DemoScript? {
         guard let d = options.demo else { return nil }
         switch d {
-        case "combat", "smoke", "default": return DemoScript(name: d == "default" ? "combat" : d)
-        case "beacon", "title", "calm", "probe", "hold", "extract", "levelup", "pause", "end": return DemoScript(name: d)
+        case "combat", "smoke", "default": return DemoScript(name: d == "default" ? "combat" : d, bugs: options.bugs)
+        case "beacon": return DemoScript(name: d, bugs: options.bugs)
+        case "title", "calm", "probe", "hold", "extract", "levelup", "pause", "end": return DemoScript(name: d)
         default:
             AppLog.error("unknown demo \(d), using combat")
             return DemoScript(name: "combat")
@@ -67,12 +70,12 @@ final class DemoScript {
             if let b = game.beacons.first {
                 game.debugTeleport(b.x + 3, b.z - 3.5)
             }
-            target = 350
-            let n = game.debugSpawn(target, type: nil, minRadius: 7, maxRadius: 24)
+            target = override ?? 350
+            let n = game.debugSpawn(min(target, 600), type: nil, minRadius: 7, maxRadius: 24)
             AppLog.info("demo beacon: squad at beacon \(game.beacons.first?.name ?? "?"), spawned \(n) bugs")
         default:
-            target = 600
-            let n = game.debugSpawn(target, type: nil, minRadius: 6, maxRadius: 26)
+            target = override ?? 600
+            let n = game.debugSpawn(min(target, 900), type: nil, minRadius: 6, maxRadius: 26)
             AppLog.info("demo \(name): spawned \(n) bugs around the squad")
         }
     }
