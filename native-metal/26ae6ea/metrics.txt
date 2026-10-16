@@ -1,0 +1,20 @@
+firstlaunch     load 2.80 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 57.8 min 38.0 gap 333 ms stall-s 3 cbmax 371 ms | cold (report only)
+combat          load 1.18 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 58.4 min 50.0 gap 158 ms stall-s 2 cbmax 137 ms | ok
+beacon          load 1.23 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 55.6 min 27.0 gap 276 ms stall-s 4 cbmax 261 ms | ok
+swarmshot       load 1.23 s | loop avg 54.0 min 36.0 worst 406 ms hitches 1 | gpu drawn avg 51.0 min 31.0 gap 420 ms stall-s 2 cbmax 100 ms | FAIL: minFps 36.0 < 55; 1 loop hitch(es) > 50 ms after 1 s, worst 406 ms
+swarmshot-dots  load 1.25 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 55.5 min 45.0 gap 104 ms stall-s 2 cbmax 90 ms | ok
+swarm           load 1.48 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 59.5 min 58.0 gap 41 ms stall-s 0 cbmax 58 ms | ok
+swarm3x         load 1.37 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 59.9 min 59.0 gap 38 ms stall-s 0 cbmax 33 ms | ok
+calm            load 1.03 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 59.9 min 59.0 gap 36 ms stall-s 0 cbmax 38 ms | ok
+title           load 1.57 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 60.0 min 60.0 gap 30 ms stall-s 0 cbmax 25 ms | ok
+landscape       load 1.30 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 58.9 min 55.0 gap 45 ms stall-s 0 cbmax 46 ms | ok
+probe           load 1.37 s | loop avg 59.9 min 58.0 worst 42 ms hitches 0 | gpu drawn avg 58.3 min 48.0 gap 96 ms stall-s 6 cbmax 84 ms | ok
+hold            load 1.28 s | loop avg 59.9 min 59.0 worst 35 ms hitches 0 | gpu drawn avg 55.9 min 50.0 gap 82 ms stall-s 4 cbmax 78 ms | ok
+extract         load 1.33 s | loop avg 59.7 min 59.0 worst 35 ms hitches 0 | gpu drawn avg 55.5 min 50.0 gap 85 ms stall-s 7 cbmax 84 ms | ok
+levelup         load 1.80 s | loop avg 30.0 min 30.0 worst 33 ms hitches 0 | gpu drawn avg 30.0 min 30.0 gap 53 ms stall-s 1 cbmax 21 ms | ok
+pause           load 1.32 s | loop avg 30.0 min 30.0 worst 33 ms hitches 0 | gpu drawn avg 30.0 min 30.0 gap 48 ms stall-s 0 cbmax 16 ms | ok
+end             load 1.30 s | loop avg 30.0 min 30.0 worst 33 ms hitches 0 | gpu drawn avg 30.0 min 30.0 gap 48 ms stall-s 0 cbmax 15 ms | ok
+release-combat  load 1.16 s | loop avg 59.9 min 59.0 worst 33 ms hitches 0 | gpu drawn avg 58.9 min 57.0 gap 46 ms stall-s 0 cbmax 56 ms | ok
+
+GATE: would fail
+  swarmshot: minFps 36.0 < 55; 1 loop hitch(es) > 50 ms after 1 s, worst 406 ms
