@@ -23,12 +23,15 @@ final class MetalEffects {
     private var rng = SeededRNG(seed: 9001)
 
     // persistent ground stains / corpses (ring buffers, web QUALITY.med budgets by default)
-    private(set) var decals: [DecalInstance] = []
+    /// (`decalVersion` / `corpseVersion` move on every change: MetalWorld re-copies them only then)
+    private(set) var decals: [DecalInstance] = [] { didSet { decalVersion &+= 1 } }
+    private(set) var decalVersion = 0
     private var decalXZ: [Vec2] = []
     private var decRing = 1000
     private var decHead = 0
     private var decY = 0
-    private(set) var corpses: [[MeshInstance]] = [[], []]
+    private(set) var corpses: [[MeshInstance]] = [[], []] { didSet { corpseVersion &+= 1 } }
+    private(set) var corpseVersion = 0
     private var corpseXZ: [[Vec2]] = [[], []]
     private var corpseRing = [320, 40]
     private var corpseHead = [0, 0]

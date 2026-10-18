@@ -55,6 +55,8 @@ enum VertexLayout {
 struct Region {
     var offset: Int = 0
     var count: Int = 0
+    /// nil: this frame's arena; otherwise a persistent buffer (`EventPool`).
+    var buffer: MTLBuffer? = nil
 }
 
 /// Which pipeline draws a mesh batch.
@@ -461,6 +463,9 @@ final class MetalRenderer {
         return Region(offset: a.1, count: values.count)
     }
 
+    /// The arena slot this frame fills (EventPool keeps one copy per slot).
+    var arenaSlot: Int { arenaIndex }
+
     // ---------------------------------------------------------------- frame
     /// Passes 1–3 of the frame (header) for the world MetalWorld built this tick. No-op when nothing was built (a
     /// frozen world keeps its last image).
@@ -515,7 +520,7 @@ final class MetalRenderer {
         enc.setCullMode(.front)
         enc.setRenderPipelineState(psM)
         for b in list.batches where b.castsShadow && b.region.count > 0 {
-            enc.setVertexBuffer(arena, offset: b.region.offset, index: BufferIndex.instances)
+            enc.setVertexBuffer(b.region.buffer ?? arena, offset: b.region.offset, index: BufferIndex.instances)
             drawMesh(enc, b.mesh, instances: b.region.count)
         }
         if list.proxies.count > 0, let vb = proxyVB, let ib = proxyIB {
@@ -599,7 +604,7 @@ final class MetalRenderer {
             for b in list.batches where b.pass == pass && b.region.count > 0 {
                 use(enc, p)
                 var mat = b.material
-                enc.setVertexBuffer(arena, offset: b.region.offset, index: BufferIndex.instances)
+                enc.setVertexBuffer(b.region.buffer ?? arena, offset: b.region.offset, index: BufferIndex.instances)
                 enc.setFragmentBytes(&mat, length: MemoryLayout<MaterialUniforms>.stride, index: BufferIndex.material)
                 drawMesh(enc, b.mesh, instances: b.region.count)
             }
@@ -644,7 +649,7 @@ final class MetalRenderer {
         if let ps = psDecal, list.decals.count > 0 {
             use(enc, ps)
             enc.setDepthBias(-4, slopeScale: -2, clamp: 0)
-            enc.setVertexBuffer(arena, offset: list.decals.offset, index: BufferIndex.instances)
+            enc.setVertexBuffer(list.decals.buffer ?? arena, offset: list.decals.offset, index: BufferIndex.instances)
             bindMain(enc, texDecals)
             drawQuads(enc, list.decals.count)
             enc.setDepthBias(0, slopeScale: 0, clamp: 0)
@@ -736,5 +741,43 @@ final class MetalRenderer {
         var w = (F4(list.weather.x, list.weather.y, list.weather.z, kind), F4(Float(count), 0, 0, 0))
         enc.setVertexBytes(&w, length: MemoryLayout<F4>.stride * 2, index: BufferIndex.instances)
         drawQuads(enc, count)
+    }
+}
+
+/// Instances that change only on events (ground stains, corpses, gore riding the lift): kept in persistent buffers,
+/// one per arena slot, and copied into a slot again only when the data changed since that slot's last copy — not
+/// ~250 KB through the arena every frame. A slot's buffer is written only by the frame that fills the same arena
+/// slot, so the GPU is done with it (same guarantee as the arena).
+final class EventPool<T> {
+    private var buffers: [MTLBuffer?] = Array(repeating: nil, count: MetalRenderer.arenaSlots)
+    private var copied = [Int](repeating: -1, count: MetalRenderer.arenaSlots)
+    private let label: String
+    /// Capacity to allocate up front (instances): the tier's ring size, so a buffer is made once.
+    var capacity: Int
+
+    init(_ label: String, capacity: Int) {
+        self.label = label
+        self.capacity = capacity
+    }
+
+    /// `version` changes whenever `values` does.
+    func region(_ values: [T], version: Int, renderer r: MetalRenderer) -> Region {
+        if values.isEmpty { return Region() }
+        let s = r.arenaSlot
+        let need = MemoryLayout<T>.stride * values.count
+        if (buffers[s]?.length ?? 0) < need {
+            let n = max(values.count, capacity)
+            buffers[s] = r.device.makeBuffer(length: MemoryLayout<T>.stride * n, options: [.storageModeShared, .cpuCacheModeWriteCombined])
+            buffers[s]?.label = label
+            copied[s] = -1
+        }
+        guard let b = buffers[s] else { return r.upload(values) }
+        if copied[s] != version {
+            values.withUnsafeBufferPointer { src in
+                b.contents().bindMemory(to: T.self, capacity: values.count).update(from: src.baseAddress!, count: values.count)
+            }
+            copied[s] = version
+        }
+        return Region(offset: 0, count: values.count, buffer: b)
     }
 }

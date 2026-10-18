@@ -63,6 +63,8 @@ final class MetalWorld: HUDProjection {
     private let turretBase: MeshBatch, turretHead: MeshBatch, medkit: MeshBatch
     private let glob: MeshBatch, grenade: MeshBatch, beaconTop: MeshBatch
     private let corpseGeneric: MeshBatch, corpseBrute: MeshBatch
+    private let corpsePools = [EventPool<MeshInstance>("corpses", capacity: 520), EventPool<MeshInstance>("brute corpses", capacity: 65)]
+    private let decalPool = EventPool<DecalInstance>("stains", capacity: 1500)
     private var propBatches: [MeshBatch] = []
     private var tailBatches: [MeshBatch] = []
     private var typeCounts = [Int](repeating: 0, count: 4)
@@ -394,17 +396,17 @@ final class MetalWorld: HUDProjection {
     // ---------------------------------------------------------------- uploads
     private func upload(game: Game, dt: Float) {
         let r = renderer, list = r.list
-        // instanced meshes (the corpse rings go straight from the effects into the arena)
-        corpseGeneric.region = r.upload(fx.corpses[0])
+        // instanced meshes (the corpse rings and stains live in persistent buffers, copied only after a change)
+        corpseGeneric.region = corpsePools[0].region(fx.corpses[0], version: fx.corpseVersion, renderer: r)
         if corpseGeneric.region.count > 0 { list.batches.append(corpseGeneric) }
-        corpseBrute.region = r.upload(fx.corpses[1])
+        corpseBrute.region = corpsePools[1].region(fx.corpses[1], version: fx.corpseVersion, renderer: r)
         if corpseBrute.region.count > 0 { list.batches.append(corpseBrute) }
         for b in marineBatches { for x in b where !x.instances.isEmpty { x.region = r.upload(x.instances); list.batches.append(x) } }
         for b in tailBatches where !b.instances.isEmpty {
             b.region = r.upload(b.instances)
             list.batches.append(b)
         }
-        list.decals = r.upload(fx.decals)
+        list.decals = decalPool.region(fx.decals, version: fx.decalVersion, renderer: r)
         list.glowSprites = r.upload(fx.glowSprites)
         list.ringSprites = r.upload(fx.ringSprites)
         list.fillSprites = r.upload(fx.fillSprites)
