@@ -40,6 +40,8 @@ final class GameViewController: UIViewController {
         gv.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         loop = FrameLoop(device: device, queue: queue, view: gv, worldScale: CGFloat(options.metalScale ?? 2))
         metalPreload = MetalPreload(device: device, queue: queue, fail: options.failMetal)
+        // first wrapped text layout of the process stalls for seconds: paid here, off the main thread
+        TextWarmup.start()
         gv.onLayout = { [weak self] in self?.loop?.layout() }
         view = gv
     }

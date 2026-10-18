@@ -422,7 +422,7 @@ jobs:
             { echo "== $f"; grep -h -E 'loading took|pipelines built|metal world ready|demo done' "$f" || true; } >> results/fps.txt
           done
           for d in $demos; do grep -H 'hitch' "results/app-$d.log" >> results/hitches.txt || true; done
-          grep -H 'probe ' results/app-probe.log >> results/hitches.txt || true
+          grep -H -E '\] probe [a-z]+ td=' results/app-probe.log >> results/hitches.txt || true
           # GPU-side seconds: frames completed, longest gap between two, slowest command buffer (commit -> done)
           echo "== GPU-side stalls (hb lines with gap > 50 ms)" >> results/hitches.txt
           for d in $demos; do grep -H -E 'hb t=.* gap=([5-9][0-9]|[0-9]{3,})ms' "results/app-$d.log" | sed -E 's/ (mode|bugs|vis|parts|stage|hp|kills|mem|avail|demo|rend|cpu|main|dc|inst|tris)=[^ ]*//g' >> results/hitches.txt || true; done

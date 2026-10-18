@@ -396,6 +396,10 @@ final class MenuScreen {
         shade.size = size
     }
 
+    /// The report's line under the title: won / surrendered / lost (TextWarmup lays them out at launch).
+    static let endSubtitles = ["Отряд поднялся над бездной. Кельвин-9 остаётся рою — но вы живы.",
+                               "Отряд отозван. Маяки погасли один за другим.", "Последний фонарь погас. Связь с отрядом потеряна."]
+
     /// Web qualityLabel(): «Графика: авто (средняя)» / «Графика: низкая» …
     static func qualityLabel(_ q: String) -> String {
         if q == "auto" { return "Графика: авто (" + QualityTier.med.label.lowercased() + ")" }
@@ -453,8 +457,7 @@ final class MenuScreen {
         let rows: [(String, String)] = [("Время", formatTime(stats.time)), ("Убито отрядом", "\(stats.kills)"), ("Ваши убийства", "\(stats.playerKills)"),
                                         ("Точность", "\(stats.accuracy)%"), ("Лучшее комбо", "×\(stats.bestCombo)"), ("Уровень", "\(stats.level)")]
         let cols = 3
-        let subText = won ? "Отряд поднялся над бездной. Кельвин-9 остаётся рою — но вы живы."
-            : (surrendered ? "Отряд отозван. Маяки погасли один за другим." : "Последний фонарь погас. Связь с отрядом потеряна.")
+        let subText = MenuScreen.endSubtitles[won ? 0 : (surrendered ? 1 : 2)]
         let sub = paragraph(subText, font: Fonts.regular, size: compact ? 13 : 14, color: UIPalette.inkDim, width: w)
         let gridH = CGFloat((rows.count + cols - 1) / cols) * cellH
         let btnH: CGFloat = compact ? 40 : 52, btn2H: CGFloat = compact ? 34 : 46

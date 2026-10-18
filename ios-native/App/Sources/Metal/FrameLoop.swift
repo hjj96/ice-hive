@@ -6,8 +6,8 @@ import SpriteKit
 // ================================================================
 //  FRAME LOOP — the app's one CAMetalLayer and its display link.
 //  Every tick: take a frame slot and a drawable without waiting (at
-//  most two frames on the GPU; drawables are requested ahead on a
-//  background queue), run the scene through SKRenderer.update
+//  most two frames on the GPU; a drawable only when DrawablePool
+//  counts one free), run the scene through SKRenderer.update
 //  (simulation, events, HUD, audio; MetalWorld builds a world frame
 //  only when the tick draws), then in ONE command buffer: the world
 //  into its offscreen target (world scale, 2x by default), the
@@ -139,87 +139,110 @@ final class GPUTimeline {
     }
 }
 
-/// Drawables come from a background queue: CAMetalLayer.nextDrawable() blocks (up to a second) while the compositor
-/// still holds every drawable, and the main thread must never wait for that. One drawable is kept ready; a tick takes
-/// it, or draws nothing if none came back yet. Size changes go through here too: they wait for the queue to be outside
-/// nextDrawable() (retried on the next tick, never blocking) and drop a drawable fetched at the old size.
-final class DrawableQueue {
+/// Drawables without waiting. CAMetalLayer.nextDrawable() blocks (up to a second) while every drawable is still with
+/// the GPU or the compositor, and the main thread must never wait for that; a drawable held in reserve on another
+/// thread costs a frame of pipelining instead (and that thread, parked inside nextDrawable(), held up the main
+/// thread's present: CI a108d1d). So the pool counts where the layer's drawables are: presented by a committed frame
+/// and not shown yet (`pending`), and the one on screen. A drawable comes back to the layer when the next one is
+/// shown, or at once when it is dropped unshown (both seen through its presented handler). The main thread calls
+/// nextDrawable() only while the count says one is free (three drawables: one on screen, at most two in flight), so
+/// that call returns at once. Should the count ever be wrong (no presented handler for half a second while all look
+/// taken), one nextDrawable() goes to a background queue, where it may wait, and the next tick draws with what it
+/// returns.
+final class DrawablePool {
     private let layer: CAMetalLayer
-    private let queue = DispatchQueue(label: "icehive.drawables", qos: .userInteractive)
-    /// ready / fetching / generation / waitMax
     private let lock = NSLock()
-    /// held around nextDrawable() and drawableSize changes
-    private let layerLock = NSLock()
-    private var ready: CAMetalDrawable?
-    private var fetching = false
-    /// Bumped by a resize: a drawable fetched before it is dropped.
-    private var generation = 0
+    /// Presented by a committed command buffer, presented handler not called yet.
+    private var pending = 0
+    /// One drawable is on screen (it goes back when the next one is shown).
+    private var onScreen = false
+    /// Last presented handler (or start).
+    private var lastBack: Double = CACurrentMediaTime()
     private var waitMaxMs: Double = 0
-    /// Main thread: a size change not applied yet (the queue was inside nextDrawable()).
-    private var pending: (size: CGSize, scale: CGFloat)?
+    // background fallback
+    private let queue = DispatchQueue(label: "icehive.drawables", qos: .userInteractive)
+    private var fetching = false
+    private var fetched: CAMetalDrawable?
+    private(set) var fallbacks = 0
+    /// Main thread: the last nextDrawable() on the main thread (ms).
+    private(set) var lastWaitMs: Double = 0
 
     init(layer: CAMetalLayer) { self.layer = layer }
 
-    /// Main thread: the ready drawable, if any (and the next one is requested).
-    func take() -> CAMetalDrawable? {
+    /// Drawables with the GPU / compositor (pending + on screen).
+    var held: Int {
+        lock.lock(); defer { lock.unlock() }
+        return pending + (onScreen ? 1 : 0)
+    }
+
+    /// Main thread: a drawable of `size` (pixels) if one is free now, else nil. Never waits.
+    func take(size: CGSize) -> CAMetalDrawable? {
+        lastWaitMs = 0
         lock.lock()
-        let d = ready
-        ready = nil
+        if let d = fetched {
+            fetched = nil
+            lock.unlock()
+            // fetched before a resize: drop it (it goes back to the layer unshown)
+            if d.texture.width == Int(size.width) && d.texture.height == Int(size.height) { return d }
+            return nil
+        }
+        let out = pending + (onScreen ? 1 : 0)
+        let quiet = CACurrentMediaTime() - lastBack
+        let busy = fetching
         lock.unlock()
-        request()
+        if busy { return nil }
+        if out >= layer.maximumDrawableCount {
+            if quiet > 0.5 { fetchInBackground() }
+            return nil
+        }
+        let t0 = CACurrentMediaTime()
+        let d = layer.nextDrawable()
+        let ms = (CACurrentMediaTime() - t0) * 1000
+        lastWaitMs = ms
+        lock.lock()
+        waitMaxMs = max(waitMaxMs, ms)
+        lock.unlock()
         return d
     }
 
-    /// Ask the queue for the next drawable unless one is ready or on its way.
-    func request() {
+    /// Main thread, before the commit: the frame's command buffer presents `d`.
+    func willPresent(_ d: CAMetalDrawable) {
         lock.lock()
-        if fetching || ready != nil { lock.unlock(); return }
+        pending += 1
+        lock.unlock()
+        d.addPresentedHandler { [weak self] p in self?.presented(p.presentedTime > 0) }
+    }
+
+    /// Presented handler (any thread): a shown drawable replaces the one on screen (which goes back to the layer); one
+    /// dropped unshown goes back itself.
+    private func presented(_ shown: Bool) {
+        lock.lock()
+        pending = max(0, pending - 1)
+        if shown { onScreen = true }
+        lastBack = CACurrentMediaTime()
+        lock.unlock()
+    }
+
+    private func fetchInBackground() {
+        lock.lock()
+        if fetching { lock.unlock(); return }
         fetching = true
-        let gen = generation
+        fallbacks += 1
+        let n = fallbacks
         lock.unlock()
-        queue.async { [weak self] in self?.fetch(gen) }
-    }
-
-    private func fetch(_ gen: Int) {
-        let t0 = CACurrentMediaTime()
-        layerLock.lock()
-        let d = layer.nextDrawable()
-        layerLock.unlock()
-        let ms = (CACurrentMediaTime() - t0) * 1000
-        lock.lock()
-        fetching = false
-        waitMaxMs = max(waitMaxMs, ms)
-        let current = gen == generation
-        if current { ready = d }
-        lock.unlock()
-        if d == nil {
-            // timed out / no size yet: try again a frame later
-            queue.asyncAfter(deadline: .now() + .milliseconds(16)) { [weak self] in self?.request() }
-        } else if !current {
-            request()
+        if n <= 3 { AppLog.info("drawables: none came back for 0.5 s with \(held) out — fetching one in the background (\(n))") }
+        queue.async { [weak self] in
+            guard let s = self else { return }
+            let t0 = CACurrentMediaTime()
+            let d = s.layer.nextDrawable()
+            let ms = (CACurrentMediaTime() - t0) * 1000
+            s.lock.lock()
+            s.fetching = false
+            s.fetched = d
+            s.waitMaxMs = max(s.waitMaxMs, ms)
+            s.lastBack = CACurrentMediaTime()
+            s.lock.unlock()
         }
-    }
-
-    /// Main thread: new drawable size (applied now, or on a later tick if the queue is inside nextDrawable()).
-    func resize(_ size: CGSize, scale: CGFloat) {
-        pending = (size, scale)
-        applyPendingResize()
-    }
-
-    /// Main thread, every tick: apply a pending size change if the layer is free. true = applied now.
-    @discardableResult
-    func applyPendingResize() -> Bool {
-        guard let p = pending, layerLock.try() else { return false }
-        layer.contentsScale = p.scale
-        layer.drawableSize = p.size
-        layerLock.unlock()
-        pending = nil
-        lock.lock()
-        ready = nil
-        generation += 1
-        lock.unlock()
-        request()
-        return true
     }
 
     /// Slowest nextDrawable() since the last call (ms).
@@ -232,9 +255,26 @@ final class DrawableQueue {
 }
 
 final class FrameLoop: GameHost {
+    /// Where the main thread's time went in one tick (ms).
     struct Tick {
+        /// Scene update (simulation, events, HUD, audio) + the world build.
         var updateMs: Double = 0
+        /// Everything after the update: the parts below.
         var drawMs: Double = 0
+        /// nextDrawable() (only called when the pool has one free, so ≈ 0).
+        var drawableMs: Double = 0
+        /// Passes 1–3 (world encode).
+        var worldMs: Double = 0
+        /// Composite + SKRenderer.render (HUD).
+        var hudMs: Double = 0
+        /// Present + commit.
+        var commitMs: Double = 0
+
+        /// For a hitch line: "draw=55ms (drawable 0 world 1 hud 50 commit 4)".
+        var summary: String {
+            String(format: "upd=%.0fms draw=%.0fms (drawable %.0f world %.0f hud %.0f commit %.0f)", updateMs, drawMs,
+                   drawableMs, worldMs, hudMs, commitMs)
+        }
     }
 
     /// Frames on the GPU at most (the upload arena has one slot more).
@@ -245,7 +285,7 @@ final class FrameLoop: GameHost {
     let view: GameView
     let sk: SKRenderer
     let timeline = GPUTimeline()
-    let drawables: DrawableQueue
+    let drawables: DrawablePool
     private(set) var scene: GameScene?
     private var link: CADisplayLink?
     private var linkTarget: DisplayLinkTarget?
@@ -283,7 +323,7 @@ final class FrameLoop: GameHost {
         layer.framebufferOnly = true
         layer.isOpaque = true
         layer.maximumDrawableCount = 3
-        drawables = DrawableQueue(layer: layer)
+        drawables = DrawablePool(layer: layer)
         let bg = Palette.backgroundUI
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         _ = bg.getRed(&r, green: &g, blue: &b, alpha: &a)
@@ -329,7 +369,9 @@ final class FrameLoop: GameHost {
         let want = CGSize(width: (b.width * s).rounded(), height: (b.height * s).rounded())
         if want != drawableSize {
             drawableSize = want
-            drawables.resize(want, scale: s)
+            let layer = view.metalLayer
+            layer.contentsScale = s
+            layer.drawableSize = want
             AppLog.info("metal: view \(Int(b.width))x\(Int(b.height)) pt, drawable \(Int(want.width))x\(Int(want.height)) px (scale \(s))")
         }
         if let sc = scene, sc.size != b { sc.size = b }
@@ -379,12 +421,13 @@ final class FrameLoop: GameHost {
     func tick(_ link: CADisplayLink) {
         guard !inBackground, let scene = scene else { return }
         let t0 = FrameTimer.now()
-        drawables.applyPendingResize()
-        // never wait for the GPU or the compositor: no free slot or no drawable back yet = this tick simulates
-        // without drawing
+        var tk = Tick()
+        // never wait for the GPU or the compositor: no free slot or no free drawable = this tick simulates without
+        // drawing (the screen keeps its last image)
         var drawable: CAMetalDrawable?
         if slots.wait(timeout: .now()) == .success {
-            drawable = drawables.take()
+            drawable = drawables.take(size: drawableSize)
+            tk.drawableMs = drawables.lastWaitMs
             if drawable == nil { slots.signal(); noDrawable += 1; noDrawableTotal += 1 }
         } else {
             slotMisses += 1
@@ -401,21 +444,27 @@ final class FrameLoop: GameHost {
         targetTime = link.targetTimestamp
         sk.update(atTime: link.timestamp)
         let t1 = FrameTimer.now()
-        if let d = drawable, !draw(r, d) {
+        if let d = drawable, !draw(r, d, &tk) {
             r?.frameOpen = false
             slots.signal()
         }
         let t2 = FrameTimer.now()
-        lastTick.updateMs = (t1 - t0) * 1000
-        lastTick.drawMs = (t2 - t1) * 1000
+        tk.updateMs = (t1 - t0) * 1000 - tk.drawableMs
+        tk.drawMs = (t2 - t1) * 1000
+        lastTick = tk
         frameOpen = false
     }
 
-    /// Encode world + composite + HUD into one command buffer and present it. false = nothing was committed.
-    private func draw(_ r: MetalRenderer?, _ d: CAMetalDrawable) -> Bool {
+    /// Encode world + composite + HUD into one command buffer and present it. false = nothing was committed (the
+    /// drawable goes back to the layer unshown).
+    private func draw(_ r: MetalRenderer?, _ d: CAMetalDrawable, _ tk: inout Tick) -> Bool {
+        let t0 = FrameTimer.now()
         guard let cb = queue.makeCommandBuffer() else { return false }
         cb.label = "frame"
+        // passes 1–3: shadow, world (opaque + transparent), post
         r?.encodeWorld(cb)
+        let t1 = FrameTimer.now()
+        // passes 4–5 in one encoder: composite into the drawable, HUD on top
         let tex = d.texture
         finalPass.colorAttachments[0].texture = tex
         guard let enc = cb.makeRenderCommandEncoder(descriptor: finalPass) else { return false }
@@ -425,6 +474,8 @@ final class FrameLoop: GameHost {
                   renderPassDescriptor: finalPass, commandQueue: queue)
         enc.endEncoding()
         finalPass.colorAttachments[0].texture = nil
+        let t2 = FrameTimer.now()
+        drawables.willPresent(d)
         if pacedPresent && targetTime > 0 { cb.present(d, atTime: targetTime) } else { cb.present(d) }
         let id = frameID
         frameID += 1
@@ -436,6 +487,10 @@ final class FrameLoop: GameHost {
             sem.signal()
         }
         cb.commit()
+        let t3 = FrameTimer.now()
+        tk.worldMs = (t1 - t0) * 1000
+        tk.hudMs = (t2 - t1) * 1000
+        tk.commitMs = (t3 - t2) * 1000
         return true
     }
 

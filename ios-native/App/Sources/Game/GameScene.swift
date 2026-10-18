@@ -594,8 +594,8 @@ final class GameScene: SKScene {
         worstDt = max(worstDt, frameDt)
         lastFrameTime = currentTime
         // long ticks (> 50 ms) with a wall-clock stamp (CI correlates them with its screenshot times): upd / draw = the
-        // tick before: scene update (+ world build), encode + HUD + commit; skip = ticks that did not draw since the last
-        // such line (no free frame slot / no drawable back from the compositor); cb = the slowest recent command buffer,
+        // tick before: scene update (+ world build), then nextDrawable / world encode / composite + HUD / commit; skip =
+        // ticks that did not draw since the last such line (no free frame slot / no free drawable); cb = the slowest recent command buffer,
         // commit → done (waiting to be scheduled, GPU time): far more than its GPU time = the GPU was held up outside
         // the app
         if AppLog.diagnostics && frameDt > 0.05 && readyTime > 0 && hitchLogs < 60, let h = host {
@@ -603,8 +603,8 @@ final class GameScene: SKScene {
             let lt = h.lastTick
             let slots = h.slotMissTotal - skipsSeen.0, draws = h.noDrawableTotal - skipsSeen.1
             skipsSeen = (h.slotMissTotal, h.noDrawableTotal)
-            AppLog.info(String(format: "hitch %.0f ms td=%.2f wall=%.3f upd=%.0fms draw=%.0fms skip=%d/%d ", frameDt * 1000,
-                               currentTime - readyTime, Date().timeIntervalSince1970, lt.updateMs, lt.drawMs, slots, draws)
+            AppLog.info(String(format: "hitch %.0f ms td=%.2f wall=%.3f ", frameDt * 1000, currentTime - readyTime,
+                               Date().timeIntervalSince1970) + lt.summary + String(format: " skip=%d/%d ", slots, draws)
                         + h.timeline.worstRecent() + " vis=\(world?.stats.visibleBugs ?? 0) parts=\(world?.stats.particles ?? 0)")
         }
         guard let g = game, let r = world, mode != .loading else {
@@ -780,6 +780,8 @@ final class GameScene: SKScene {
     /// Keep the cover up after loading while the HUD's overlays and the first effects are drawn once behind it and until
     /// the GPU has finished a few world frames, then fade it out; its disappearance is "scene ready".
     private var coverStage = 0
+    /// Menu warm-up step behind the cover: 1 pause, 2 report, 3 level-up cards.
+    private var menuWarm = 0
     private var coverFadeFrom = 0
     private func updateCover(_ currentTime: TimeInterval) {
         guard cover.parent != nil else { return }
@@ -795,11 +797,30 @@ final class GameScene: SKScene {
             hud.visible = true
             hud.warmUp(true)
             if let g = game { world?.warmUp(game: g, at: Vec2(cameraCtl.tx, cameraCtl.tz)) }
+            // the menus too (their first build + first draw cost 40–80 ms: CI pause / end): pause, then the report,
+            // then level-up cards, each drawn a few frames under the cover
+            if mode == .playing || mode == .title { menu.showPause(size: size, state: pauseState) }
+            menuWarm = 1
+        }
+        // (a menu the game itself opened meanwhile — a slow first launch, a demo — is left alone)
+        let menuUp = mode == .levelUp || mode == .paused || mode == .ended
+        if coverStage == 1 && menuWarm == 1 && coverFrames >= 6, let g = game {
+            if !menuUp { menu.showEnd(size: size, stats: g.stats, surrendered: false, newRecord: true) }
+            menuWarm = 2
+        }
+        if coverStage == 1 && menuWarm == 2 && coverFrames >= 10 {
+            if !menuUp {
+                menu.hide()
+                levelUpScreen.show(level: 2, offer: Array(UPGRADES.prefix(3)), counts: [:], cls: selectedClass, size: size, insets: insets)
+            }
+            menuWarm = 3
         }
         if coverStage == 1 && coverFrames >= hold - 5 {
             coverStage = 2
             hud.warmUp(false)
             hud.visible = hudWasVisible
+            if mode != .paused && mode != .ended { menu.hide() }
+            if mode != .levelUp { levelUpScreen.hide() }
             world?.reset()
         }
         if coverStage == 2 && coverFrames >= hold {
