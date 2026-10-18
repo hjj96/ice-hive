@@ -626,6 +626,9 @@ final class HUD {
         return ((st * 16 + (g.activeBeacon + 1)) * 16 + g.beaconsDone) * 100_000 + lift
     }
 
+    /// Metres last written into the marker label (the string is only formatted when it changes).
+    private var markerDist = -1
+
     private func updateMarker(game: Game, projection: HUDProjection) {
         guard let t = game.objectiveMarker else { marker.isHidden = true; return }
         marker.isHidden = false
@@ -633,7 +636,8 @@ final class HUD {
         let s = projection.hudPoint(t.x, gy + 1.2, t.y)
         let P = game.player
         let dist = hypotf(t.x - P.x, t.y - P.z)
-        markerLabel.set("\(Int(dist.rounded())) м")
+        let dm = Int(dist.rounded())
+        if dm != markerDist { markerDist = dm; markerLabel.set("\(dm) м") }
         let mx = size.width / 2 - 40, myTop = size.height / 2 - objBottom - 30, myBot = -size.height / 2 + 150
         let inside = abs(s.x) < mx && s.y < myTop && s.y > myBot
         if inside {
