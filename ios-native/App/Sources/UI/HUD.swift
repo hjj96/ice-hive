@@ -105,9 +105,10 @@ final class HUD {
     private var statsPanel = SKSpriteNode(texture: nil)
     private let killsCap = Label("УБИТО", font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 1.4, align: .left)
     private let timeCap = Label("ВРЕМЯ", font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 1.4, align: .left)
-    private let killsVal = Label("0", font: Fonts.monoBold, size: 17, color: UIPalette.ink, align: .left)
-    private let timeVal = Label("0:00", font: Fonts.monoBold, size: 17, color: UIPalette.ink, align: .left)
-    private let comboVal = Label("", font: Fonts.monoBold, size: 16, color: UIPalette.amber, align: .left)
+    // numbers that change every few frames: glyph-atlas labels (no text texture per new value)
+    private let killsVal = GlyphLabel("0", font: Fonts.monoBold, size: 17, color: UIPalette.ink, charset: GlyphLabel.digits, align: .left)
+    private let timeVal = GlyphLabel("0:00", font: Fonts.monoBold, size: 17, color: UIPalette.ink, charset: GlyphLabel.digits + ":", align: .left)
+    private let comboVal = GlyphLabel("", font: Fonts.monoBold, size: 16, color: UIPalette.amber, charset: GlyphLabel.digits + "×", align: .left)
     private var comboLast = 0
     private var comboBumpT: Double = 0
     private var tealEdge = SKSpriteNode(color: UIPalette.teal, size: CGSize(width: 3, height: 44))
@@ -135,12 +136,28 @@ final class HUD {
     // toasts / hint / banner
     private final class Toast {
         let node = SKNode()
-        let label = SKLabelNode()
+        let label: SKLabelNode
+        /// label.frame when the label was made (asking a wrapped label for its frame lays it out again)
+        let labelFrame: CGRect
         var panel: SKSpriteNode
         var t: Float = 0
         var life: Float
         var height: CGFloat = 26
-        init(text: String, kind: ToastKind, maxWidth: CGFloat) {
+        init(label: SKLabelNode, frame: CGRect, kind: ToastKind) {
+            self.label = label
+            labelFrame = frame
+            life = kind == .warn ? 4.5 : 3.2
+            panel = SKSpriteNode(texture: nil)
+        }
+
+        /// Off screen; the label is let go too (a cached one is reused by a later toast).
+        func discard() {
+            node.removeFromParent()
+            label.removeFromParent()
+        }
+
+        static func makeLabel(_ text: String, maxWidth: CGFloat) -> SKLabelNode {
+            let label = SKLabelNode()
             let style = NSMutableParagraphStyle()
             style.alignment = .right
             label.numberOfLines = 0
@@ -150,10 +167,12 @@ final class HUD {
             label.attributedText = NSAttributedString(string: text.uppercased(), attributes: [
                 .font: Fonts.font(Fonts.medium, 12), .foregroundColor: UIPalette.ink, .kern: CGFloat(1.0), .paragraphStyle: style])
             LabelStats.textsSet += 1
-            life = kind == .warn ? 4.5 : 3.2
-            panel = SKSpriteNode(texture: nil)
+            return label
         }
     }
+    /// Wrapped (two-line) toast labels, made once behind the loading cover and reused: making one mid-mission renders
+    /// its text there and then, and CI saw that wait 1.5–9 s for the GPU during host stalls. Keyed by text and width.
+    private var toastLabels: [String: (SKLabelNode, CGRect)] = [:]
     private var toasts: [Toast] = []
     private let toastRoot = SKNode()
     private let hint = Label("", font: Fonts.semibold, size: 14, color: UIPalette.amber, kern: 1.1)
@@ -167,9 +186,9 @@ final class HUD {
     private var textT: Float = 0
     // bottom
     private let hpCap = Label("БРОНЯ", font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 1.4, align: .left)
-    private let hpVal = Label("100", font: Fonts.monoBold, size: 13, color: UIPalette.ink, align: .right)
+    private let hpVal = GlyphLabel("100", font: Fonts.monoBold, size: 13, color: UIPalette.ink, charset: GlyphLabel.digits, align: .right)
     private let hpBar = Bar(width: 228, height: 9, fill: UIPalette.hp, track: UIPalette.hpBg, topLine: UIPalette.teal, topHeight: 2)
-    private let lvl = Label("УР 1", font: Fonts.monoBold, size: 12, color: UIPalette.amber, align: .left)
+    private let lvl = GlyphLabel("УР 1", font: Fonts.monoBold, size: 12, color: UIPalette.amber, charset: GlyphLabel.digits + "УР", align: .left)
     private let xpBar = Bar(width: 190, height: 3, fill: UIPalette.amber, track: UIPalette.amberTrack)
     // touch controls
     let abilityButton = RoundButton(radius: 39, text: "ГРАНАТА")
@@ -188,10 +207,10 @@ final class HUD {
     let plates = Nameplates()
     private let marker = SKNode()
     private let markerArrow = SKSpriteNode(texture: Shapes.chevron(color: UIPalette.amber))
-    private let markerLabel = Label("", font: Fonts.monoBold, size: 12, color: UIPalette.amber)
+    private let markerLabel = GlyphLabel("", font: Fonts.monoBold, size: 12, color: UIPalette.amber, charset: GlyphLabel.digits + "м")
     // debug
     /// -debugHUD text: two compact lines in the bottom-left corner.
-    let debugLabel = Label("", font: Fonts.mono, size: 9, color: UIPalette.teal, align: .left, valign: .bottom)
+    let debugLabel = GlyphLabel("", font: Fonts.mono, size: 9, color: UIPalette.teal, charset: GlyphLabel.debugCharset, align: .left, valign: .bottom)
     var showDebug = false
     var visible = true { didSet { root.isHidden = !visible } }
     /// iOS Reduce Motion: banner shown longer (web 3.4 s instead of 2.4 s), no combo bump.
@@ -248,7 +267,6 @@ final class HUD {
         marker.addChild(markerLabel.node)
         marker.isHidden = true
         root.addChild(marker)
-        debugLabel.node.numberOfLines = 0
         debugLabel.node.isHidden = true
         root.addChild(debugLabel.node)
     }
@@ -446,8 +464,18 @@ final class HUD {
     // ---------------------------------------------------------------- events
     func toast(_ text: String, kind: ToastKind) {
         let maxW = min(320, size.width * 0.6)
-        let t = Toast(text: text, kind: kind, maxWidth: maxW - 22)
-        let tf = t.label.frame
+        let key = "\(Int(maxW))|" + text
+        let label: SKLabelNode, lf: CGRect
+        if let c = toastLabels[key], c.0.parent == nil {
+            (label, lf) = c
+        } else {
+            label = Toast.makeLabel(text, maxWidth: maxW - 22)
+            lf = label.frame
+            // only wrapped ones are kept (single-line labels are cheap to make)
+            if toastLabels[key] == nil && lf.height > 20 { toastLabels[key] = (label, lf) }
+        }
+        let t = Toast(label: label, frame: lf, kind: kind)
+        let tf = t.labelFrame
         let w = min(maxW, max(80, tf.width + 22))
         t.height = max(26, tf.height + 12)
         t.panel = SKSpriteNode(color: UIPalette.panel, size: CGSize(width: w, height: t.height))
@@ -462,7 +490,8 @@ final class HUD {
         t.node.alpha = 0
         toastRoot.addChild(t.node)
         toasts.append(t)
-        if toasts.count > 4 { toasts[0].node.removeFromParent(); toasts.removeFirst() }
+        // (not while warming up: every wrapped toast has to be drawn once behind the cover)
+        if toasts.count > 4 && !warming { toasts[0].discard(); toasts.removeFirst() }
     }
 
     func showBanner(title: String, subtitle: String, teal: Bool) {
@@ -475,12 +504,18 @@ final class HUD {
 
     /// Loading-cover warm-up: every overlay, a banner, a toast and both cooldown pies on screen for a few frames
     /// (first use of each would otherwise build its pipeline / textures mid-game), then back to normal.
+    private var warming = false
     func warmUp(_ on: Bool) {
+        warming = on
         if on {
             screenFlash(0.6); damageFlash(0.8); hordeFlash()
             showBanner(title: "ОРДА!", subtitle: "РОЙ ПРОРЫВАЕТСЯ ИЗ БЕЗДНЫ", teal: false)
             toast("Связь установлена", kind: .info)
-            toast("Плевун: плюётся кислотой", kind: .warn)
+            // every wrapped toast of a mission, so its label exists before the mission needs it
+            for (k, spec) in BUG_SPECS.enumerated() where k < BUG_TIPS.count && !BUG_TIPS[k].isEmpty {
+                toast(spec.name + ": " + BUG_TIPS[k], kind: .warn)
+            }
+            toast("Вы ранены — ждите помощи", kind: .warn)
             abilityButton.update(ready: false, fraction: 0.5)
             dashButton.update(ready: false, fraction: 0.5)
             marker.isHidden = false
@@ -489,7 +524,7 @@ final class HUD {
             damageA = 0; flashA = 0; hordeA = 0
             damage.alpha = 0; flash.alpha = 0; horde.alpha = 0
             bannerT = 99; banner.alpha = 0
-            for t in toasts { t.node.removeFromParent() }
+            for t in toasts { t.discard() }
             toasts.removeAll()
             abilityButton.update(ready: true, fraction: 0)
             dashButton.update(ready: true, fraction: 0)
@@ -577,7 +612,7 @@ final class HUD {
         while k < toasts.count {
             let t = toasts[k]
             t.t += dt
-            if t.t >= t.life { t.node.removeFromParent(); toasts.remove(at: k); continue }
+            if t.t >= t.life { t.discard(); toasts.remove(at: k); continue }
             let u = t.t / t.life
             t.node.alpha = CGFloat(u < 0.08 ? u / 0.08 : (u > 0.85 ? (1 - u) / 0.15 : 1))
             t.node.position = CGPoint(x: u < 0.08 ? CGFloat((1 - u / 0.08) * 20) : 0, y: y)
