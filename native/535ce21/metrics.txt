@@ -1,0 +1,22 @@
+firstlaunch     load 2.73 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 45.5 min 10.0 gap 755 ms stall-s 12 cbmax 740 ms | cold
+combat          load 0.99 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 59.6 min 57.0 gap 54 ms stall-s 1 cbmax 60 ms | ok
+beacon          load 0.93 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 60.0 min 60.0 gap 30 ms stall-s 0 cbmax 18 ms | ok
+swarmshot       load 1.18 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 59.0 min 57.0 gap 44 ms stall-s 0 cbmax 39 ms | ok
+swarmshot-dots  load 1.08 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 58.8 min 58.0 gap 78 ms stall-s 1 cbmax 65 ms | ok
+swarm           load 0.97 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 57.0 min 40.0 gap 247 ms stall-s 3 cbmax 387 ms | ok
+swarm3x         load 1.37 s | loop avg 59.9 min 58.0 worst 40 ms hitches 0 | gpu drawn avg 59.4 min 58.0 gap 49 ms stall-s 0 cbmax 61 ms | ok
+calm            load 1.23 s | loop avg 59.9 min 59.0 worst 33 ms hitches 0 | gpu drawn avg 59.2 min 57.0 gap 51 ms stall-s 1 cbmax 46 ms | ok
+title           load 1.44 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 59.3 min 59.0 gap 60 ms stall-s 1 cbmax 70 ms | ok
+landscape       load 1.42 s | loop avg 59.9 min 59.0 worst 34 ms hitches 0 | gpu drawn avg 56.1 min 34.0 gap 326 ms stall-s 3 cbmax 325 ms | ok
+probe           load 0.95 s | loop avg 59.9 min 58.0 worst 43 ms hitches 0 | gpu drawn avg 58.5 min 49.0 gap 66 ms stall-s 2 cbmax 76 ms | ok
+hold            load 1.57 s | loop avg 59.5 min 56.0 worst 71 ms hitches 1 | gpu drawn avg 58.4 min 54.0 gap 86 ms stall-s 2 cbmax 81 ms | FAIL: 1 loop hitch(es) > 50 ms after 1 s, worst 71 ms
+extract         load 1.30 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 59.8 min 59.0 gap 48 ms stall-s 0 cbmax 39 ms | ok
+levelup         load 1.62 s | loop avg 30.0 min 30.0 worst 33 ms hitches 0 | gpu drawn avg 29.2 min 27.0 gap 65 ms stall-s 1 cbmax 17 ms | ok
+pause           load 1.28 s | loop avg 30.0 min 30.0 worst 33 ms hitches 0 | gpu drawn avg 29.5 min 28.0 gap 135 ms stall-s 2 cbmax 71 ms | ok
+end             load 1.20 s | loop avg 30.0 min 30.0 worst 33 ms hitches 0 | gpu drawn avg 30.0 min 30.0 gap 61 ms stall-s 2 cbmax 28 ms | ok
+release-combat  load 1.07 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 58.3 min 52.0 gap 158 ms stall-s 2 cbmax 147 ms | ok
+
+GPU side (report only): drawn avg < 55/s in none (calm baseline 59.2)
+
+GATE: would fail
+  hold: 1 loop hitch(es) > 50 ms after 1 s, worst 71 ms
