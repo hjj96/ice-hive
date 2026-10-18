@@ -30,6 +30,23 @@ final class RoundButton {
         label.node.zPosition = 1
     }
 
+    /// Loading-cover warm-up: every pie texture on screen once (a texture is uploaded on its first draw — mid-mission
+    /// that was up to 48 uploads per button over the first cooldowns), then gone.
+    private var pieWarm: SKNode?
+    func warmPies(_ on: Bool) {
+        pieWarm?.removeFromParent()
+        pieWarm = nil
+        guard on else { return }
+        let n = SKNode()
+        for t in pies {
+            let s = SKSpriteNode(texture: t)
+            s.size = cooldown.size
+            n.addChild(s)
+        }
+        node.addChild(n)
+        pieWarm = n
+    }
+
     func update(ready: Bool, fraction: CGFloat) {
         if lastReady != ready {
             lastReady = ready
@@ -414,7 +431,7 @@ final class HUD {
         let timeW = max(48, timeVal.width)
         let statsW = max(landscape ? 124 : 130, timeX + timeW + (cwid > 0 ? 14 + cwid : 0) + 14)
         statsPanel.removeFromParent()
-        statsPanel = Shapes.panel(width: statsW, height: statsH)
+        statsPanel = Shapes.stretchedPanel(width: statsW, height: statsH, baseWidth: landscape ? 124 : 130)
         statsPanel.position = hp(statsLeft, statsTop)
         statsPanel.zPosition = -1
         root.addChild(statsPanel)
@@ -450,7 +467,7 @@ final class HUD {
         }
         let objH: CGFloat = 46
         objPanel.removeFromParent()
-        objPanel = Shapes.panel(width: objW, height: objH)
+        objPanel = Shapes.stretchedPanel(width: objW, height: objH, baseWidth: 160)
         objPanel.position = hp(objX, objY)
         objPanel.zPosition = -1
         root.addChild(objPanel)
@@ -525,6 +542,8 @@ final class HUD {
             toast("Вы ранены — ждите помощи", kind: .warn)
             abilityButton.update(ready: false, fraction: 0.5)
             dashButton.update(ready: false, fraction: 0.5)
+            abilityButton.warmPies(true)
+            dashButton.warmPies(true)
             marker.isHidden = false
             damage.alpha = 0.5; flash.alpha = 0.3; horde.alpha = 0.5; banner.alpha = 1
         } else {
@@ -537,6 +556,8 @@ final class HUD {
             markerLabel.set(warmTexts.1)
             abilityButton.update(ready: true, fraction: 0)
             dashButton.update(ready: true, fraction: 0)
+            abilityButton.warmPies(false)
+            dashButton.warmPies(false)
         }
     }
 
@@ -550,7 +571,7 @@ final class HUD {
     // ---------------------------------------------------------------- per frame
     func update(game: Game, dt: Float, projection: HUDProjection, input: InputController) {
         let P = game.player
-        // fast-changing numbers at 10 Hz (each new string is a new label texture)
+        // fast-changing numbers at 10 Hz (glyph labels: a new value only re-points sprites)
         textT -= dt
         if textT <= 0 {
             textT = 0.1

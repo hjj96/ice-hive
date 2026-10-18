@@ -307,6 +307,19 @@ enum Shapes {
         return out
     }
 
+    /// A plain panel of any width from one texture per height: the `baseWidth` panel stretched across its uniform
+    /// middle with a nine-part centerRect (the cut corners keep their pixels, the middle columns are all the same), so
+    /// a panel that follows a growing number gets no new texture per width. Same image as panel(width:height:).
+    static func stretchedPanel(width w0: CGFloat, height h: CGFloat, baseWidth: CGFloat, cut c: CGFloat = 7) -> SKSpriteNode {
+        let w = max(2, w0.rounded()), bw = max(2, min(baseWidth.rounded(), w))
+        let n = panel(width: bw, height: h, cut: c)
+        let edge = c + 2
+        guard w > bw, bw > 2 * edge else { return bw == w ? n : panel(width: w, height: h, cut: c) }
+        n.centerRect = CGRect(x: edge / bw, y: 0, width: (bw - 2 * edge) / bw, height: 1)
+        n.xScale = w / bw
+        return n
+    }
+
     /// Objective marker chevron (points up), amber stroke with a soft glow, as one cached texture.
     static func chevron(color: SKColor) -> SKTexture {
         let w: CGFloat = 26, h: CGFloat = 20
