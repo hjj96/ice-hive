@@ -63,6 +63,7 @@ private func paragraph(_ text: String, font: String, size: CGFloat, color: SKCol
     style.alignment = align
     style.lineSpacing = 2
     l.attributedText = NSAttributedString(string: text, attributes: [.font: Fonts.font(font, size), .foregroundColor: color, .paragraphStyle: style])
+    LabelStats.textsSet += 1
     return l
 }
 
@@ -85,6 +86,7 @@ private func richParagraph(_ parts: [String], size: CGFloat, width: CGFloat, ali
             .kern: CGFloat(0.5), .paragraphStyle: style]))
     }
     l.attributedText = s
+    LabelStats.textsSet += 1
     return l
 }
 
@@ -338,6 +340,7 @@ final class LevelUpScreen {
             d.horizontalAlignmentMode = .left
             d.verticalAlignmentMode = .top
             d.attributedText = NSAttributedString(string: u.desc, attributes: [.font: Fonts.font(Fonts.regular, 13), .foregroundColor: UIPalette.inkDim])
+            LabelStats.textsSet += 1
             d.position = CGPoint(x: x + 14, y: top - 52)
             cardsNode.addChild(d)
             let taken = counts[u.id] ?? 0

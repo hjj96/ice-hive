@@ -869,6 +869,7 @@ final class GameScene: SKScene {
             // command buffer (commit → done), GPU time; loop side: ticks without a free slot, drawable waits
             let tw = host?.timeline.takeWindow() ?? GPUTimeline.Window()
             let cn = host?.takeCounters() ?? (slotMisses: 0, noDrawable: 0, drawableMaxMs: 0)
+            let hs = host?.takeHUDStats() ?? FrameLoop.HUDStats()
             let drawn = Double(tw.completed) / span
             if let g = game, let r = world, readyTime > 0 {
                 if td > 1.2 {
@@ -882,7 +883,8 @@ final class GameScene: SKScene {
                             + "hp=\(Int(g.player.hp)) kills=\(g.kills) " + Memory.summary + " demo=\(demo?.name ?? "-") rend=metal"
                             + String(format: " cpu=%.0f main=%.0f dc=%d inst=%d tris=%d enc=%.2fms gpu=%.2fms gpumax=%.1fms skip=%d nodraw=%d drw=%.0fms cbmax=%.0fms",
                                      cpuPct, mainPct, st.drawCalls, st.instances, st.triangles, st.encodeMs, host?.timeline.gpuEmaMs ?? 0,
-                                     tw.gpuMaxMs, cn.slotMisses, cn.noDrawable, cn.drawableMaxMs, tw.worst.latencyMs))
+                                     tw.gpuMaxMs, cn.slotMisses, cn.noDrawable, cn.drawableMaxMs, tw.worst.latencyMs)
+                            + String(format: " sk=%.0fms/%d skslow=%d/%d", hs.maxMs, hs.labelsAtMax, hs.slowWithText, hs.slowNoText))
                 AppLog.info("hb ms " + sceneTimer.summary + " | " + r.timer.summary + " | sfx \(audio?.played ?? 0)"
                             + " | max " + sceneTimer.takeMax() + " / " + r.timer.takeMax())
             } else {

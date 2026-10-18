@@ -39,6 +39,8 @@ protocol GameHost: AnyObject {
     /// Heartbeat counters since the last call: ticks without a free slot, ticks without a drawable, the slowest
     /// nextDrawable() on the drawable queue (ms; it waits there, never on the main thread).
     func takeCounters() -> (slotMisses: Int, noDrawable: Int, drawableMaxMs: Double)
+    /// HUD render (SKRenderer) stats since the last call.
+    func takeHUDStats() -> FrameLoop.HUDStats
     /// Ticks without a free frame slot / without a drawable since launch.
     var slotMissTotal: Int { get }
     var noDrawableTotal: Int { get }
@@ -255,11 +257,13 @@ final class FrameLoop: GameHost {
         var hudMs: Double = 0
         /// Present + commit.
         var commitMs: Double = 0
+        /// Label texts set since the previous HUD render.
+        var labels = 0
 
         /// For a hitch line: "draw=55ms (drawable 0 world 1 hud 50 commit 4)".
         var summary: String {
-            String(format: "upd=%.0fms draw=%.0fms (drawable %.0f world %.0f hud %.0f commit %.0f)", updateMs, drawMs,
-                   drawableMs, worldMs, hudMs, commitMs)
+            String(format: "upd=%.0fms draw=%.0fms (drawable %.0f world %.0f hud %.0f commit %.0f) labels=%d", updateMs, drawMs,
+                   drawableMs, worldMs, hudMs, commitMs, labels)
         }
     }
 
@@ -454,6 +458,8 @@ final class FrameLoop: GameHost {
         guard let enc = cb.makeRenderCommandEncoder(descriptor: finalPass) else { return false }
         enc.label = "composite + HUD"
         r?.encodeComposite(enc)
+        let labels = LabelStats.textsSet - labelsRendered
+        labelsRendered = LabelStats.textsSet
         sk.render(withViewport: CGRect(x: 0, y: 0, width: tex.width, height: tex.height), renderCommandEncoder: enc,
                   renderPassDescriptor: finalPass, commandQueue: queue)
         enc.endEncoding()
@@ -474,7 +480,27 @@ final class FrameLoop: GameHost {
         tk.worldMs = (t1 - t0) * 1000
         tk.hudMs = (t2 - t1) * 1000
         tk.commitMs = (t3 - t2) * 1000
+        tk.labels = labels
+        // heartbeat: the slowest HUD render, and slow ones (> 20 ms) after text changes / without any
+        if tk.hudMs > hudStats.maxMs { hudStats.maxMs = tk.hudMs; hudStats.labelsAtMax = labels }
+        if tk.hudMs > 20 { if labels > 0 { hudStats.slowWithText += 1 } else { hudStats.slowNoText += 1 } }
         return true
+    }
+
+    /// HUD renders (SKRenderer) since the last heartbeat.
+    struct HUDStats {
+        var maxMs: Double = 0
+        var labelsAtMax = 0
+        var slowWithText = 0
+        var slowNoText = 0
+    }
+    private var hudStats = HUDStats()
+    private var labelsRendered = 0
+
+    func takeHUDStats() -> HUDStats {
+        let h = hudStats
+        hudStats = HUDStats()
+        return h
     }
 
     func takeCounters() -> (slotMisses: Int, noDrawable: Int, drawableMaxMs: Double) {

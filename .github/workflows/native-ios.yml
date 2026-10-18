@@ -426,7 +426,7 @@ jobs:
           # GPU-side seconds: frames completed, longest gap between two, slowest command buffer (commit -> done)
           echo "== GPU-side stalls (hb lines with gap > 50 ms)" >> results/hitches.txt
           for d in $demos; do grep -H -E 'hb t=.* gap=([5-9][0-9]|[0-9]{3,})ms' "results/app-$d.log" | sed -E 's/ (mode|bugs|vis|parts|stage|hp|kills|mem|avail|demo|rend|cpu|main|dc|inst|tris)=[^ ]*//g' >> results/hitches.txt || true; done
-          python3 ios-native/ci/frame_metrics.py --cold firstlaunch --menus levelup,pause,end results $demos > results/metrics.txt || true
+          python3 ios-native/ci/frame_metrics.py --cold firstlaunch --cold-max-ms 150 --menus levelup,pause,end results $demos > results/metrics.txt || true
           cat results/alive.txt results/loading.txt results/fps.txt results/shots.txt results/hitches.txt results/metrics.txt
       - name: Verify app is alive and rendered
         run: |
@@ -448,7 +448,7 @@ jobs:
           if [ -s results/app-release-quiet.log ]; then echo "::error::plain Release launch wrote to stdout: $(head -3 results/app-release-quiet.log)"; exit 1; fi
       # warm demos: minFps >= 55 on the game loop and no loop hitch > 50 ms after the first second (metrics.txt)
       - name: Frame metrics gate
-        run: python3 ios-native/ci/frame_metrics.py --gate --cold firstlaunch --menus levelup,pause,end results firstlaunch combat beacon swarmshot swarmshot-dots swarm swarm3x calm title landscape probe hold extract levelup pause end release-combat
+        run: python3 ios-native/ci/frame_metrics.py --gate --cold firstlaunch --cold-max-ms 150 --menus levelup,pause,end results firstlaunch combat beacon swarmshot swarmshot-dots swarm swarm3x calm title landscape probe hold extract levelup pause end release-combat
       - name: Collect crash logs and stop
         if: always()
         env:

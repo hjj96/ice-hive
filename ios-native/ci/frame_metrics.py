@@ -9,8 +9,9 @@ Reads results/app-<demo>.log for every demo named on the command line and prints
     drawn avg / min per second, the longest time one image stayed up, the slowest command buffer (commit -> done)
 
 Gate (exit 1 with --gate): every warm demo needs minFps >= 55 and no loop hitch > 50 ms after the first second;
-menu demos (30 Hz by design) only the hitch rule; cold first launches are reported, not gated.
-Usage: frame_metrics.py [--gate] [--menus a,b] [--cold a,b] <results dir> <demo> [<demo> ...]
+menu demos (30 Hz by design) only the hitch rule; cold first launches only their worst loop tick (--cold-max-ms).
+The GPU side is reported, not gated (the simulator host's GPU stalls on its own: see the calm baseline).
+Usage: frame_metrics.py [--gate] [--menus a,b] [--cold a,b] [--cold-max-ms N] <results dir> <demo> [<demo> ...]
 """
 import re
 import sys
@@ -18,6 +19,7 @@ import sys
 args = sys.argv[1:]
 gate = False
 menus, cold = set(), set()
+cold_max = None
 while args and args[0].startswith('--'):
     a = args.pop(0)
     if a == '--gate':
@@ -26,6 +28,8 @@ while args and args[0].startswith('--'):
         menus = set(args.pop(0).split(','))
     elif a == '--cold':
         cold = set(args.pop(0).split(','))
+    elif a == '--cold-max-ms':
+        cold_max = float(args.pop(0))
 results, demos = args[0], args[1:]
 
 num = r'(-?[0-9.]+)'
@@ -37,6 +41,7 @@ rx_cb = re.compile(r'cb=(\d+)ms')
 rx_hb = re.compile(r'hb t=.* td=' + num + r' .*gap=' + num + r'ms.* cbmax=' + num + 'ms')
 
 rows, failed = [], []
+gpu_avg = []
 for d in demos:
     try:
         text = open(f'{results}/app-{d}.log', encoding='utf-8', errors='replace').read()
@@ -70,9 +75,15 @@ for d in demos:
                 stalls += 1
             cbmax = max(cbmax, float(b.group(3)))
     worst_h = max((h[0] for h in hitches), default=0)
+    if drawn_avg != '-' and d not in menus and d not in cold:
+        gpu_avg.append((d, float(drawn_avg)))
     verdict = 'ok'
     if d in cold:
-        verdict = 'cold (report only)'
+        verdict = 'cold'
+        # a cold first launch: only its worst loop tick after the first second is held to a (looser) limit
+        if cold_max is not None and worst > cold_max:
+            verdict = f'FAIL: cold worstFrame {worst:.0f} ms > {cold_max:.0f}'
+            failed.append(f'{d}: cold worstFrame {worst:.0f} ms > {cold_max:.0f}')
     else:
         bad = []
         if d not in menus and mn < 55:
@@ -89,6 +100,10 @@ for d in demos:
 w = max(len(r[0]) for r in rows) if rows else 10
 for d, s in rows:
     print(f'{d:<{w}}  {s}')
+# GPU side (report only: the simulator host's GPU stalls on its own, see the calm baseline)
+low = [f'{d} {a:.1f}' for d, a in gpu_avg if a < 55]
+print('\nGPU side (report only): drawn avg < 55/s in ' + (', '.join(low) if low else 'none')
+      + (f' (calm baseline {dict(gpu_avg)["calm"]:.1f})' if 'calm' in dict(gpu_avg) else ''))
 if failed:
     print('\nGATE: ' + ('FAILED' if gate else 'would fail') + '\n  ' + '\n  '.join(failed))
     sys.exit(1 if gate else 0)

@@ -149,6 +149,7 @@ final class HUD {
             label.verticalAlignmentMode = .top
             label.attributedText = NSAttributedString(string: text.uppercased(), attributes: [
                 .font: Fonts.font(Fonts.medium, 12), .foregroundColor: UIPalette.ink, .kern: CGFloat(1.0), .paragraphStyle: style])
+            LabelStats.textsSet += 1
             life = kind == .warn ? 4.5 : 3.2
             panel = SKSpriteNode(texture: nil)
         }

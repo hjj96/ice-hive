@@ -60,6 +60,12 @@ enum Fonts {
     }
 }
 
+/// Label texts set since launch (each one makes SpriteKit render a new text texture). FrameLoop reads it around
+/// SKRenderer.render: CI attributes slow HUD renders to text changes (or not).
+enum LabelStats {
+    static var textsSet = 0
+}
+
 /// SKLabelNode with letter spacing (attributed text), re-built only when the text changes.
 final class Label {
     let node = SKLabelNode()
@@ -96,6 +102,7 @@ final class Label {
             attrs[.foregroundColor] = SKColor.clear
         }
         node.attributedText = NSAttributedString(string: text, attributes: attrs)
+        LabelStats.textsSet += 1
     }
 
     /// Width of the rendered text (points).
