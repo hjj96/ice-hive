@@ -884,7 +884,7 @@ final class GameScene: SKScene {
                             + String(format: " cpu=%.0f main=%.0f dc=%d inst=%d tris=%d enc=%.2fms gpu=%.2fms gpumax=%.1fms skip=%d nodraw=%d drw=%.0fms cbmax=%.0fms",
                                      cpuPct, mainPct, st.drawCalls, st.instances, st.triangles, st.encodeMs, host?.timeline.gpuEmaMs ?? 0,
                                      tw.gpuMaxMs, cn.slotMisses, cn.noDrawable, cn.drawableMaxMs, tw.worst.latencyMs)
-                            + String(format: " sk=%.0fms/%d skslow=%d/%d", hs.maxMs, hs.labelsAtMax, hs.slowWithText, hs.slowNoText))
+                            + String(format: " sk=%.0fms/%d skcpu=%.0fms skslow=%d/%d", hs.maxMs, hs.labelsAtMax, hs.cpuAtMax, hs.slowWithText, hs.slowNoText))
                 AppLog.info("hb ms " + sceneTimer.summary + " | " + r.timer.summary + " | sfx \(audio?.played ?? 0)"
                             + " | max " + sceneTimer.takeMax() + " / " + r.timer.takeMax())
             } else {

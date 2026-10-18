@@ -6,9 +6,10 @@ import IceHiveCore
 //  resize, 12-main.js updateCamera): fov 40° landscape / 50° portrait,
 //  pitch 57°, yaw 45°, distance fitted so ~11 m of world stay visible
 //  on the short axis; the follow target, lead, floor-height follow,
-//  shake and recoil kick come from CameraController (shared with the
-//  SpriteKit renderer), the title sway and the extraction pull-back
-//  are applied here. Also projects world points into HUD space.
+//  shake and recoil kick come from CameraController (whose SpriteKit
+//  camera node also parents the HUD), the title sway and the
+//  extraction pull-back are applied here. Also projects world points
+//  into HUD space.
 // ================================================================
 final class MetalCamera {
     static let pitch: Float = 57 * Float.pi / 180

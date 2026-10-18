@@ -255,6 +255,9 @@ final class FrameLoop: GameHost {
         var worldMs: Double = 0
         /// Composite + SKRenderer.render (HUD).
         var hudMs: Double = 0
+        /// Main-thread CPU time inside the HUD part (diagnostics runs): close to hudMs = SpriteKit computing; far
+        /// below it = the thread waited (blocked inside SpriteKit / Metal, or not scheduled by the host).
+        var hudCpuMs: Double = 0
         /// Present + commit.
         var commitMs: Double = 0
         /// Label texts set since the previous HUD render.
@@ -262,8 +265,8 @@ final class FrameLoop: GameHost {
 
         /// For a hitch line: "draw=55ms (drawable 0 world 1 hud 50 commit 4)".
         var summary: String {
-            String(format: "upd=%.0fms draw=%.0fms (drawable %.0f world %.0f hud %.0f commit %.0f) labels=%d", updateMs, drawMs,
-                   drawableMs, worldMs, hudMs, commitMs, labels)
+            String(format: "upd=%.0fms draw=%.0fms (drawable %.0f world %.0f hud %.0f (cpu %.0f) commit %.0f) labels=%d", updateMs,
+                   drawMs, drawableMs, worldMs, hudMs, hudCpuMs, commitMs, labels)
         }
     }
 
@@ -340,6 +343,8 @@ final class FrameLoop: GameHost {
         self.scene = scene
         sk.scene = scene
         view.touchTarget = scene
+        // the HUD numbers exactly where SpriteKit's labels would be (one small offscreen render, before the first frame)
+        AppLog.info(GlyphCalibration.run(device: device, queue: queue))
         layout()
         let t = DisplayLinkTarget(self)
         let l = t.makeLink()
@@ -460,11 +465,13 @@ final class FrameLoop: GameHost {
         r?.encodeComposite(enc)
         let labels = LabelStats.textsSet - labelsRendered
         labelsRendered = LabelStats.textsSet
+        let cpu0 = AppLog.diagnostics ? CPUTime.thread() : 0
         sk.render(withViewport: CGRect(x: 0, y: 0, width: tex.width, height: tex.height), renderCommandEncoder: enc,
                   renderPassDescriptor: finalPass, commandQueue: queue)
         enc.endEncoding()
         finalPass.colorAttachments[0].texture = nil
         let t2 = FrameTimer.now()
+        if AppLog.diagnostics { tk.hudCpuMs = (CPUTime.thread() - cpu0) * 1000 }
         if pacedPresent && targetTime > 0 { cb.present(d, atTime: targetTime) } else { cb.present(d) }
         let id = frameID
         frameID += 1
@@ -482,7 +489,7 @@ final class FrameLoop: GameHost {
         tk.commitMs = (t3 - t2) * 1000
         tk.labels = labels
         // heartbeat: the slowest HUD render, and slow ones (> 20 ms) after text changes / without any
-        if tk.hudMs > hudStats.maxMs { hudStats.maxMs = tk.hudMs; hudStats.labelsAtMax = labels }
+        if tk.hudMs > hudStats.maxMs { hudStats.maxMs = tk.hudMs; hudStats.labelsAtMax = labels; hudStats.cpuAtMax = tk.hudCpuMs }
         if tk.hudMs > 20 { if labels > 0 { hudStats.slowWithText += 1 } else { hudStats.slowNoText += 1 } }
         return true
     }
@@ -491,6 +498,8 @@ final class FrameLoop: GameHost {
     struct HUDStats {
         var maxMs: Double = 0
         var labelsAtMax = 0
+        /// Main-thread CPU time of that slowest render (diagnostics).
+        var cpuAtMax: Double = 0
         var slowWithText = 0
         var slowNoText = 0
     }

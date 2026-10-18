@@ -210,7 +210,8 @@ final class HUD {
     private let markerLabel = GlyphLabel("", font: Fonts.monoBold, size: 12, color: UIPalette.amber, charset: GlyphLabel.digits + "м")
     // debug
     /// -debugHUD text: two compact lines in the bottom-left corner.
-    let debugLabel = GlyphLabel("", font: Fonts.mono, size: 9, color: UIPalette.teal, charset: GlyphLabel.debugCharset, align: .left, valign: .bottom)
+    let debugLabel = GlyphLabel("", font: Fonts.mono, size: 9, color: UIPalette.teal, charset: GlyphLabel.debugCharset, align: .left, valign: .bottom,
+                                multiline: true)
     var showDebug = false
     var visible = true { didSet { root.isHidden = !visible } }
     /// iOS Reduce Motion: banner shown longer (web 3.4 s instead of 2.4 s), no combo bump.
@@ -505,9 +506,15 @@ final class HUD {
     /// Loading-cover warm-up: every overlay, a banner, a toast and both cooldown pies on screen for a few frames
     /// (first use of each would otherwise build its pipeline / textures mid-game), then back to normal.
     private var warming = false
+    /// Texts of the glyph labels that start empty (combo, marker distance), kept while the warm-up shows every glyph.
+    private var warmTexts = ("", "")
     func warmUp(_ on: Bool) {
         warming = on
         if on {
+            // every glyph atlas drawn once (an atlas texture is uploaded on its first draw; these two start empty)
+            warmTexts = (comboVal.text, markerLabel.text)
+            comboVal.set("×" + GlyphLabel.digits)
+            markerLabel.set(GlyphLabel.digits + " м")
             screenFlash(0.6); damageFlash(0.8); hordeFlash()
             showBanner(title: "ОРДА!", subtitle: "РОЙ ПРОРЫВАЕТСЯ ИЗ БЕЗДНЫ", teal: false)
             toast("Связь установлена", kind: .info)
@@ -526,6 +533,8 @@ final class HUD {
             bannerT = 99; banner.alpha = 0
             for t in toasts { t.discard() }
             toasts.removeAll()
+            comboVal.set(warmTexts.0)
+            markerLabel.set(warmTexts.1)
             abilityButton.update(ready: true, fraction: 0)
             dashButton.update(ready: true, fraction: 0)
         }
