@@ -167,6 +167,8 @@ window.__dbgExt = Object.assign(window.__dbgExt || {}, {
   // tests: set a squad member's armour (0 or less downs them)
   // tests: move one marine (and optionally set its aim, radians); plate layout state; updatePlates cost
   place(k = 0, x = 0, z = 0, aim) { const m = M[k | 0]; if (!m) return null; m.x = m.px = x; m.z = m.pz = z; if (aim != null) { m.aim = m.aimVis = +aim; m.ax = Math.sin(m.aim); m.az = Math.cos(m.aim); } if (!k) camTarget.set(x, groundY(x, z), z); return [m.x, m.z]; },
+  spots(n = 16, r0 = 8, r1 = 30) { const P = M[0], out = []; for (let t = 0; t < n * 40 && out.length < n; t++) { const a = rnd() * TAU, r = rr(r0, r1), x = P.x + Math.cos(a) * r, z = P.z + Math.sin(a) * r; if (canStand(x, z)) out.push([+x.toFixed(2), +z.toFixed(2)]); } return out; },
+  beacons() { return DIR.beacons.map(b => ({ x: b.x, z: b.z, name: b.name })); },
   nextBeacon() { const b = nextBeacon(); return b ? { x: b.x, z: b.z, name: b.name } : null; },
   plates() { return M.map((m, k) => ({ name: m.isPlayer ? 'ВЫ' : m.name, mini: plMini[k], hold: +plHold[k].toFixed(3), x: +plX[k].toFixed(1), y: +plY[k].toFixed(1), off: plOff[k], top: plateTop })); },
   platesBench(n = 10000, move = false) {

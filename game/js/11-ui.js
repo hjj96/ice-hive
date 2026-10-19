@@ -224,7 +224,12 @@ function updateMarker() {
     const cx = viewW / 2, cy = (top + bot) / 2, dx = x - cx, dy = y - cy;
     let k = Math.min((dx > 0 ? right - cx : cx - left) / Math.max(1e-3, Math.abs(dx)), (dy > 0 ? bot - cy : cy - top) / Math.max(1e-3, Math.abs(dy)));
     // VX-5: touch — an edge arrow that would land on РЫВОК / the ability button stops where its ray enters that block
-    if (cx + dx * k > mkBlockX && cy + dy * k > mkBlockY && dx > 0 && dy > 0) k = Math.max((mkBlockX - cx) / dx, (mkBlockY - cy) / dy);
+    if (cx + dx * k > mkBlockX && cy + dy * k > mkBlockY) {
+      let ke = 0;
+      if (cx < mkBlockX) ke = (mkBlockX - cx) / dx;
+      if (cy < mkBlockY) ke = Math.max(ke, (mkBlockY - cy) / dy);
+      k = ke;
+    }
     x = cx + dx * k; y = cy + dy * k;
     ang = Math.atan2(dy, dx) + Math.PI / 2;
   }

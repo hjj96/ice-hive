@@ -150,7 +150,7 @@ export default async (page, h) => {
   h.log('[M2 downed]', JSON.stringify(pl3.map((p) => [p.name, p.mini ? 'mini' : 'full', p.down ? 'down' : '', p.rv])));
   if (pl3[2].mini || !pl3[2].down) fail('the downed squadmate has no full plate');
   if (!/scaleX\(0\.[0-9]*[1-9]|scaleX\(1/.test(pl3[2].rv)) fail('no revive bar progress on the downed plate: ' + pl3[2].rv);
-  // walking away: the squad spreads out (bots held 5 m apart, the player walks off); names come back within
+  // walking away: the squad spreads out (bots held 8 m apart, the player walks off); names come back within
   // 0.35 s of the overlap clearing, without flicker
   await ev(([x, z]) => { window.__dbg.tp(x, z); window.__dbg.hurt(2, 100); window.__dbg.fast(0.3); window.__dbg.timeScale(1); }, [bx, bz]);
   await h.sleep(300); await frames(3);
@@ -160,7 +160,7 @@ export default async (page, h) => {
     const step = () => {
       const t = performance.now() - t0;
       d.place(0, x, z + Math.min(6, t / 1000 * 4));
-      for (let j = 1; j < 4; j++) d.place(j, x + (j - 2) * 5, z - 3);
+      for (let j = 1; j < 4; j++) d.place(j, x + (j - 2) * 8, z - 3);
       const p = d.plates();
       log.push([Math.round(t), p.map((q) => q.mini).join(''), p.map((q) => q.hold).join(',')]);
       if (t < 3000) requestAnimationFrame(step); else res(log);
@@ -193,27 +193,40 @@ export default async (page, h) => {
   if (h.mobile && !portrait) await markerSweep();
 
   async function markerSweep() {
+    // 16 standable spots 12-30 m around each beacon x 2 aims (toward / away from the next beacon): wherever the beacon
+    // lands off screen, its edge arrow must not sit on the buttons
+    await ev(() => { window.__dbg.start('assault'); window.__dbg.god(true); window.__dbg.timeScale(0.05); });
+    await h.sleep(300);
+    // spots around every beacon (so the arrows point in many directions)
+    const spots = await ev(() => { const d = window.__dbg, s = d.state().player, out = []; for (const b of d.beacons()) { d.place(0, b.x, b.z); for (const p of d.spots(16, 12, 30)) out.push(p); } d.place(0, s.x, s.z); return out; });
     const res = [];
-    for (let a = 0; a < 8; a++) {
-      const ang = a * Math.PI / 4;
-      await ev((ang) => {
-        const d = window.__dbg, b = d.nextBeacon();
-        d.place(0, b.x - Math.sin(ang) * 26, b.z - Math.cos(ang) * 26, ang);
-        for (let j = 1; j < 4; j++) d.place(j, b.x - Math.sin(ang) * 26 + j * 0.8, b.z - Math.cos(ang) * 26);
-      }, ang);
-      await h.sleep(250); await frames(4);
-      const m = await ev(() => {
-        const mk = document.querySelector('#marker .mk').getBoundingClientRect(), A = document.getElementById('tAbility').getBoundingClientRect(), D = document.getElementById('tDash').getBoundingClientRect();
-        const cx = (mk.left + mk.right) / 2, cy = (mk.top + mk.bottom) / 2;
-        const inR = (R) => cx > R.left && cx < R.right && cy > R.top && cy < R.bottom;
-        const hit = (R) => mk.left < R.right && mk.right > R.left && mk.top < R.bottom && mk.bottom > R.top;
-        return { shown: getComputedStyle(document.getElementById('marker')).display !== 'none', x: Math.round(cx), y: Math.round(cy), inAbility: inR(A), inDash: inR(D), touch: hit(A) || hit(D) };
-      });
-      res.push(m);
+    for (const [sx, sz] of spots) {
+      for (const flip of [0, 1]) {
+        await ev(([sx, sz, flip]) => {
+          const d = window.__dbg, b = d.nextBeacon(), ang = Math.atan2(b.x - sx, b.z - sz) + flip * Math.PI;
+          d.place(0, sx, sz, ang);
+          for (let j = 1; j < 4; j++) d.place(j, sx + j * 0.8, sz);
+        }, [sx, sz, flip]);
+        await frames(3);
+        await unblock();
+        res.push(await ev(() => {
+          const mk = document.querySelector('#marker .mk').getBoundingClientRect(), A = document.getElementById('tAbility').getBoundingClientRect(), D = document.getElementById('tDash').getBoundingClientRect();
+          const cx = (mk.left + mk.right) / 2, cy = (mk.top + mk.bottom) / 2;
+          const inR = (R) => cx > R.left && cx < R.right && cy > R.top && cy < R.bottom;
+          const hit = (R) => mk.left < R.right && mk.right > R.left && mk.top < R.bottom && mk.bottom > R.top;
+          const el = document.getElementById('marker');
+          const st = window.__dbg.state();
+          return { p: [st.player.x, st.player.z], b: window.__dbg.nextBeacon(), shown: getComputedStyle(el).display !== 'none', edge: !el.classList.contains('on-screen'), x: Math.round(cx), y: Math.round(cy), inBtn: inR(A) || inR(D), touch: hit(A) || hit(D) };
+        }));
+      }
     }
-    h.log('[marker sweep]', JSON.stringify(res));
-    if (res.some((m) => m.shown && (m.inAbility || m.inDash))) fail('the marker sits inside РЫВОК / the ability button');
-    if (res.some((m) => m.shown && m.touch)) h.log('[marker sweep] note: a marker box touches a button edge');
+    const shown = res.filter((m) => m.shown);
+    const bad = shown.filter((m) => m.inBtn), touching = shown.filter((m) => m.touch);
+    // sectors of the edge arrows (8 directions around the screen centre) actually covered by the sweep
+    const sect = new Set(shown.filter((m) => m.edge).map((m) => Math.round(Math.atan2(m.y - h.height / 2, m.x - h.width / 2) / (Math.PI / 4)) & 7));
+    if (h.args.verbose) h.log('[marker samples]', JSON.stringify(res));
+    h.log('[marker sweep]', JSON.stringify({ samples: res.length, shown: shown.length, edge: shown.filter((m) => m.edge).length, sectors: [...sect].sort(), insideButton: bad.length, touchingButton: touching.length, rightmost: Math.max(...shown.map((m) => m.x)), lowRight: shown.filter((m) => m.x > h.width - 200).map((m) => [m.x, m.y]) }));
+    if (bad.length) fail('the marker sits inside РЫВОК / the ability button in ' + bad.length + ' samples: ' + JSON.stringify(bad));
     await ev(() => { window.__dbg.timeScale(1); window.__dbg.god(false); });
   }
 
