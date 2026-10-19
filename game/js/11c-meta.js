@@ -27,7 +27,7 @@ function sanitizeProfile(p) {
     if (!s || typeof s !== 'object') continue;
     const r = d.cls[c];
     for (const k of ['xp', 'runs', 'wins', 'best', 'bestWin', 'lastT', 'lossEarly']) r[k] = numOr(s[k], 0);
-    if (Array.isArray(s.ev)) for (let i = 0; i < 3; i++) r.ev[i] = s.ev[i] ? 1 : 0;
+    if (Array.isArray(s.ev)) for (let i = 0; i < 3; i++) r.ev[i] = numOr(s.ev[i], 0) > 0 ? 1 : 0;
   }
   return d;
 }
@@ -84,7 +84,7 @@ function commitRun(won, surrendered) {
   const medal = won && tier >= 0 && !c.ev[tier];
   if (won) { c.wins++; if (tier >= 0) c.ev[tier] = 1; if (!c.bestWin || GS.time < c.bestWin) c.bestWin = Math.round(GS.time); }
   c.best = Math.max(c.best, sc.total);
-  c.lastT = Math.round(GS.time);
+  c.lastT = won ? 0 : Math.round(GS.time);   // «дольше прошлой попытки» compares a loss with the previous loss only
   // two losses in a row before beacon 2 on Ветеран → a one-time «Попробуйте «Новобранец»» chip
   if (!won && TH.id === 'vet' && DIR.done < 2) c.lossEarly = Math.min(9, c.lossEarly + 1); else c.lossEarly = 0;
   PROF.runs++; if (won) PROF.wins++;
