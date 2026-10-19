@@ -26,7 +26,10 @@ extension Game {
             }
             var mx: Float = 0, mz: Float = 0, fire = false
             if m.isPlayer && !autopilot {
+                let act = inAbility || inDash   // (playerCommands consumes the one-shot presses)
                 (mx, mz, fire) = playerCommands(m)
+                // AFK clock: no move, no fire, no ability, no dash (pause, menus and backgrounding stop ticks anyway)
+                afkTime = (abs(mx) + abs(mz) < 0.05 && !fire && !act) ? afkTime + dt : 0
             } else {
                 (mx, mz, fire) = botThink(m, dt)
             }
@@ -91,10 +94,15 @@ extension Game {
     }
 
     // ---------- damage to marines ----------
-    func hurtMarine(_ m: Marine, _ dmg: Float, _ kx: Float, _ kz: Float) {
+    /// `src`: the bug type that dealt the hit, the Матка, or anything else; the player's last one explains a down.
+    func hurtMarine(_ m: Marine, _ dmg: Float, _ kx: Float, _ kz: Float, _ src: DamageSource = .environment) {
         if m.downed { return }
         if godMode || m.inv > 0 || m.dashT > 0 { m.kx += kx * 0.3; m.kz += kz * 0.3; return }
         m.hp -= dmg; m.hurtT = 0.22; m.kx += kx; m.kz += kz; m.calm = 0
+        if m.isPlayer { lastHit = src }
+        // calibration ledger
+        hurtBy[src.rawValue + 1] += dmg
+        marineLastSrc[m.index] = src.rawValue
         // taking a hit breaks the combo: it rewards clean play, not just standing in a horde
         if m.isPlayer { combo = 0; comboT = 0 }
         if !simOnly {
@@ -111,6 +119,8 @@ extension Game {
 
     func downMarine(_ m: Marine) {
         m.hp = 0; m.downed = true; m.revive = 0; m.firing = false; m.dashT = 0
+        if m.isPlayer { downs += 1; downBy = lastHit }
+        squadDownBy[marineLastSrc[m.index] + 1] += 1
         if !simOnly {
             emit(.downed(marine: m.index))
             toast(m.isPlayer ? "Вы ранены — ждите помощи" : m.name + " ранен", .warn)
@@ -295,7 +305,7 @@ extension Game {
                 let perp = abs(dx * m.az - dz * m.ax), w = 0.42 + t / len * 0.75
                 if perp > w + S.r[b] { continue }
                 hitAny = true
-                if S.frz[b] <= 0 {
+                if S.frz[b] <= 0 && S.uid[b] != queen.uid {   // the Матка never freezes
                     S.chill[b] += C.chill * md.chill * dt
                     if S.chill[b] >= 1 {
                         S.chill[b] = 1; S.frz[b] = S.type[b] == T_BRUTE ? 1.3 : 2.6
@@ -360,7 +370,7 @@ extension Game {
                 while q < cnt {
                     defer { q += 1 }
                     let b = hash.qb[q]
-                    S.frz[b] = S.type[b] == T_BRUTE ? 1.6 : 3.2; S.chill[b] = 1; S.vx[b] = 0; S.vz[b] = 0
+                    if S.uid[b] != queen.uid { S.frz[b] = S.type[b] == T_BRUTE ? 1.6 : 3.2; S.chill[b] = 1; S.vx[b] = 0; S.vz[b] = 0 }
                     hitBug(b, 30 * md.dmg, m.index)
                 }
             }

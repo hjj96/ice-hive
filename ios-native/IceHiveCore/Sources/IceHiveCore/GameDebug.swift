@@ -36,12 +36,58 @@ public struct DebugState: CustomStringConvertible {
     public let playerHp: Float
     public let playerPos: Vec2
     public let downed: [Bool]
+    // v1.1
+    /// Tier id (rec / vet / nm / v10), station name.
+    public let tier: String
+    public let station: String
+    public let threat: ThreatState
+    public let pressure: Float
+    public let queenSpawned: Bool
+    public let queenAlive: Bool
+    /// Her current health (0 when not alive).
+    public let queenHp: Float
 
     public var description: String {
-        let nums = String(format: "t=%6.1f bugs=%d kills=%d beacons=%d liftT=%.1f lvl=%d hordes=%d hp=%.0f pos=(%.1f,%.1f)",
-                          time, bugsAlive, kills, beaconsDone, liftT, level, hordes, playerHp, playerPos.x, playerPos.y)
-        return nums + " \(phase) stage=\(stage) downed=" + downed.map { $0 ? "1" : "0" }.joined() + " obj=«" + objective + "»"
+        let nums = String(format: "t=%6.1f bugs=%d kills=%d beacons=%d liftT=%.1f lvl=%d hordes=%d hp=%.0f pos=(%.1f,%.1f) press=%.1f",
+                          time, bugsAlive, kills, beaconsDone, liftT, level, hordes, playerHp, playerPos.x, playerPos.y, pressure)
+        let q = queenSpawned ? (queenAlive ? String(format: " queen=%.0f", queenHp) : " queen=dead") : ""
+        return nums + q + " \(phase) stage=\(stage) tier=\(tier) threat=\(threat.rawValue) downed=" + downed.map { $0 ? "1" : "0" }.joined() + " obj=«" + objective + "»"
     }
+}
+
+/// Everything the threat tests check (web `__dbgExt.threat()`).
+public struct ThreatDebug {
+    public let tier: String
+    public let stage: MissionStage
+    public let liftT: Float
+    public let pressure: Float
+    public let idleMul: Float
+    public let afkTime: Float
+    public let state: ThreatState
+    public let downs: Int
+    public let downBy: DamageSource
+    public let runners: Int
+    public let runnerHpMax: Float
+    public let brutes: Int
+    public let queen: QueenState
+    /// Her slot values (0 / -1 when she is not alive).
+    public let queenHp: Float, queenHpMax: Float, queenFreeze: Float, queenChill: Float
+    public let queenBugState: Int
+    public let queenSlot: Int
+}
+
+/// The coach as the tests see it (web `tut()`).
+public struct CoachDebug {
+    public let active: Bool
+    public let step: Int
+    public let stepTime: Float
+    public let calm: Bool
+    public let beaconHordeMul: Float
+    public let hordes: Int
+    public let time: Float
+    public let activeBeacon: Int
+    public let reviveTime: Float
+    public let groups: Int
 }
 
 extension Game {
@@ -50,10 +96,101 @@ extension Game {
 
     public var debugState: DebugState {
         let P = marines[0]
+        let qs = queenSlotNow()
         return DebugState(phase: phase, time: time, stage: stage, objective: objectiveText, bugsAlive: bugs.aliveCount, kills: kills,
                           beaconsDone: beaconsDone, liftT: liftT, level: xpLevel, hordes: hordes, playerHp: P.hp,
-                          playerPos: Vec2(P.x, P.z), downed: marines.map { $0.downed })
+                          playerPos: Vec2(P.x, P.z), downed: marines.map { $0.downed },
+                          tier: difficulty.id, station: stationName, threat: threatState, pressure: pressure,
+                          queenSpawned: queen.spawned, queenAlive: queen.alive, queenHp: qs >= 0 ? bugs.hp[qs] : 0)
     }
+
+    /// Her live slot, -1 when she is not alive.
+    func queenSlotNow() -> Int {
+        if !queen.alive { return -1 }
+        let S = bugs
+        if qSlot >= 0 && qSlot < S.count && S.uid[qSlot] == queen.uid && S.dead[qSlot] == 0 { return qSlot }
+        var i = 0
+        while i < S.count { if S.uid[i] == queen.uid && S.dead[i] == 0 { return i }; i += 1 }
+        return -1
+    }
+
+    public var threatDebug: ThreatDebug {
+        let S = bugs
+        var runners = 0, brutes = 0
+        var rmax: Float = 0
+        var i = 0
+        while i < S.count {
+            if S.dead[i] == 0 {
+                if S.type[i] == T_RUN { runners += 1; rmax = max(rmax, S.hpMax[i]) } else if S.type[i] == T_BRUTE { brutes += 1 }
+            }
+            i += 1
+        }
+        let q = queenSlotNow()
+        return ThreatDebug(tier: difficulty.id, stage: stage, liftT: liftT, pressure: pressure, idleMul: idleMul, afkTime: afkTime,
+                           state: threatState, downs: downs, downBy: downBy, runners: runners, runnerHpMax: rmax, brutes: brutes, queen: queen,
+                           queenHp: q >= 0 ? S.hp[q] : 0, queenHpMax: q >= 0 ? S.hpMax[q] : 0, queenFreeze: q >= 0 ? S.frz[q] : 0,
+                           queenChill: q >= 0 ? S.chill[q] : 0, queenBugState: q >= 0 ? Int(S.st[q]) : -1, queenSlot: q)
+    }
+
+    public var coachDebug: CoachDebug {
+        CoachDebug(active: coach.active, step: coach.step, stepTime: coach.stepTime, calm: calm, beaconHordeMul: beaconHordeMul, hordes: hordes,
+                   time: time, activeBeacon: activeBeacon, reviveTime: coach.reviveTime, groups: coachGroupCount)
+    }
+
+    /// The Матка climbs up right now (lift hold only, before she came). `hp` overrides her health. Returns her uid or 0.
+    @discardableResult
+    public func debugQueen(hp: Float? = nil) -> Int32 {
+        if stage != .hold || queen.spawned { return 0 }
+        qEdge = -1
+        queenSpawn()
+        if let h = hp, h > 0, qSlot >= 0 { bugs.hp[qSlot] = h; bugs.hpMax[qSlot] = h }
+        return queen.spawned ? queen.uid : 0
+    }
+
+    /// Set the hive pressure clock (s).
+    public func debugSetPressure(_ s: Float) { pressure = max(0, s) }
+
+    /// Set the lift countdown (hold only).
+    public func debugSetLiftTime(_ t: Float) { if stage == .hold { liftT = max(0, min(liftDur, t)) } }
+
+    /// Set a squad member's armour; ≤ 0 downs it (web `__dbgExt.hurt`).
+    public func debugHurt(marine k: Int, hp: Float) {
+        guard k >= 0 && k < marines.count else { return }
+        let m = marines[k]
+        if hp <= 0 { if !m.downed { downMarine(m) } } else { m.hp = min(m.maxHp, hp); m.downed = false }
+    }
+
+    /// Jump the coach to step k (demo `-coachStep`); starts it if it was off.
+    public func debugCoachStep(_ k: Int) {
+        if attract { return }
+        let s = max(0, min(4, k))
+        if !coach.active { coach.active = true; beaconHordeMul = 0.65 }
+        coachStep(s)
+    }
+
+    /// Force report inputs (web `__dbgExt.meta`): player downs, what downed the player, the pressure clock.
+    public func debugSetOutcome(downs d: Int? = nil, downBy b: DamageSource? = nil, pressure p: Float? = nil, idleMul im: Float? = nil) {
+        if let d = d { downs = max(0, d) }
+        if let b = b { downBy = b; lastHit = b }
+        if let p = p { pressure = max(0, p) }
+        if let im = im { idleMul = max(1, im) }
+    }
+
+    /// Force report fixture fields (mission time, own kills, beacons done, the Матка's fate).
+    public func debugSetRun(time t: Float? = nil, playerKills pk: Int? = nil, beaconsDone bd: Int? = nil, queenKilled qk: Bool? = nil, stage st: MissionStage? = nil) {
+        if let t = t { time = max(0, t) }
+        if let pk = pk { playerKills = max(0, pk) }
+        if let bd = bd {
+            beaconsDone = max(0, min(beacons.count, bd))
+            for k in beacons.indices { beacons[k].state = k < beaconsDone ? 2 : 0; beacons[k].progress = k < beaconsDone ? 1 : 0 }
+            activeBeacon = -1
+        }
+        if let qk = qk { queen.spawned = true; queen.alive = false; queen.done = qk }
+        if let st = st { stage = st }
+    }
+
+    /// End the mission now (report fixtures; `won` = evacuation).
+    public func debugEnd(won: Bool) { endGame(won) }
 
     /// Spawn `n` bugs (type nil = director mix) on walkable floor in a ring around the player. Returns how many were made.
     @discardableResult
@@ -91,6 +228,7 @@ extension Game {
             }
             startHold()
         case .hold:
+            queenSkip()   // the Матка dies (or never comes) first
             liftT = 0.01
         case .extract:
             extractT = 4.5

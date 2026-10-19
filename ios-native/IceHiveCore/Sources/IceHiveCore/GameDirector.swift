@@ -10,6 +10,10 @@ extension Game {
         stage = .beacons; activeBeacon = -1; beaconsDone = 0; liftT = LIFT_TIME; hordeT = attract ? 1e9 : 50; waveT = 0
         trickle = 0; hpMul = difficulty.hp; dmgMul = difficulty.dmg; queue.removeAll(); extractT = 0; hordes = 0
         beacons = level.layout.beacons.map { BeaconState(name: $0.name, x: $0.x, z: $0.z) }
+        // v1.1 (web resetDirector + queenReset): a pressure clock, a warning or a fight never carries over
+        calm = false; beaconHordeMul = 1; pressure = 0; idleMul = 1; huntPressure = false; huntAfk = false; heartAt = -9
+        queen = QueenState()
+        qWarn = -1; qEdge = -1; qSlot = -1; qBrood = 0; qVolley = 0; qRam = 0; qMeleeCd = 0; qArmed = false
     }
 
     /// Index of the beacon the squad should go to (the active one, else the nearest unfinished), -1 none.
@@ -65,12 +69,13 @@ extension Game {
         let t = time, d = Float(beaconsDone), k: Float = stage == .hold ? 0.5 : 1
         let D = difficulty
         // specials follow objective progress (not wall time): the first beacon already brings spitters and boomers,
-        // brutes join halfway through it, and later beacons add only a little on top
+        // brutes join halfway through it, and later beacons add only a little on top — or the tier's stall clock:
+        // a squad that never touches an objective still meets brutes
         let prog = d + (activeBeacon >= 0 ? beacons[activeBeacon].progress : 0)
-        let pBrute: Float = (beaconsDone >= 1 || prog > 0.5) ? (0.012 + 0.004 * d) * k * D.specials : 0
-        let pSpit: Float = t > 15 ? ((horde ? 0.05 : 0.07) + 0.008 * d) * k * D.specials : 0
-        let pBoom: Float = t > 25 ? ((horde ? 0.03 : 0.045) + 0.004 * d) * k * D.specials : 0
-        var r = rng.next()
+        let pBrute: Float = (beaconsDone >= 1 || prog > 0.5 || (t > D.stallTime && !attract)) ? (0.012 + 0.004 * d) * k : 0
+        let pSpit: Float = t > 15 ? ((horde ? 0.05 : 0.07) + 0.008 * d) * k : 0
+        let pBoom: Float = t > 25 ? ((horde ? 0.03 : 0.045) + 0.004 * d) * k : 0
+        var r = rng.next() / D.specials
         var ty = T_RUN
         if r < pBrute { ty = T_BRUTE }
         else {
@@ -82,10 +87,14 @@ extension Game {
             }
         }
         if ty != T_RUN {
-            let cap = Int((Float(SPECIAL_CAP[Int(ty)]) * D.specialCap).rounded()) + (ty == T_BRUTE ? 2 * beaconsDone : 0)
-            if typeAlive[Int(ty)] >= cap { ty = T_RUN } else { typeAlive[Int(ty)] += 1 }
+            if Float(typeAlive[Int(ty)]) >= specialCapFor(ty) { ty = T_RUN } else { typeAlive[Int(ty)] += 1 }
         }
         return ty
+    }
+
+    /// Live cap of a special type: (SPECIAL_CAP + 2·done for brutes) · specCap, compared as a float (web; not rounded).
+    func specialCapFor(_ ty: UInt8) -> Float {
+        Float(SPECIAL_CAP[Int(ty)] + (ty == T_BRUTE ? 2 * beaconsDone : 0)) * difficulty.specialCap
     }
 
     /// The gameplay cap only changes with an explicit quality choice.
@@ -102,7 +111,9 @@ extension Game {
         queue.append(Burst(edge: e, n: n, rate: rate, acc: 0, vent: vent))
     }
 
-    func startHorde(_ size0: Int, _ title: String? = nil, _ sub: String? = nil, _ rate: Float = 40) {
+    func startHorde(_ size00: Int, _ title: String? = nil, _ sub: String? = nil, _ rate: Float = 40) {
+        // every horde is scaled by the tier here (web startHorde's first line; callers already rounded once)
+        let size0 = attract ? size00 : Int((Float(size00) * difficulty.horde).rounded())
         var size = Float(size0)
         let c = squadCenter()
         let k = size > 300 ? 3 : 2
@@ -149,7 +160,8 @@ extension Game {
         }
     }
 
-    func hordeScale() -> Float { min(1, Float(bugCap) / 1400) * difficulty.horde }
+    /// Horde sizes follow the gameplay cap (the tier's horde multiplier is applied inside startHorde, as on the web).
+    func hordeScale() -> Float { min(1, Float(bugCap) / 1400) }
 
     // ---------- per-tick ----------
     func tickDirector(_ dt: Float) {
@@ -169,8 +181,9 @@ extension Game {
                         let b = beacons[k]
                         if b.state == 0 && standingIn(b.x, b.z, BEACON_R) > 0 {
                             beacons[k].state = 1; activeBeacon = k; waveT = 2
-                            startHorde(Int(((270 + D.beaconHordeStep * Float(beaconsDone)) * hordeScale()).rounded()), "Защищайте маяк",
+                            startHorde(Int(((270 + D.beaconHordeStep * Float(beaconsDone)) * hordeScale() * beaconHordeMul).rounded()), "Защищайте маяк",
                                        "Маяк «" + b.name + "» запускается — держите кольцо")
+                            beaconHordeMul = 1
                             if !simOnly { emit(.beaconStarted(index: k)); events.append(.sound(.beacon, pos: nil, loud: nil)) }
                             break
                         }
@@ -190,10 +203,10 @@ extension Game {
                         let vents = L.layout.vents.filter { hypotf2($0.x - b.x, $0.y - b.z) < 14 }
                         if !vents.isEmpty {
                             let v = vents[rng.int(vents.count)]
-                            queueBurst(-1, Int(((38 + 8 * Float(beaconsDone)) * hordeScale()).rounded()), 22, v)
+                            queueBurst(-1, Int(((38 + 8 * Float(beaconsDone)) * hordeScale() * D.horde).rounded()), 22, v)
                         } else {
                             let e = pickEdge(b.x, b.z, 8, 22)
-                            if e >= 0 { queueBurst(e, Int((30 * hordeScale()).rounded()), 24, nil) }
+                            if e >= 0 { queueBurst(e, Int((30 * hordeScale() * D.horde).rounded()), 24, nil) }
                         }
                     }
                     if beacons[k].progress >= 1 { completeBeacon(k) }
@@ -203,17 +216,24 @@ extension Game {
                 if !P.downed && L.onLift(P.x, P.z) { startHold() }
             case .hold:
                 stageMul = 3.2
+                // the Матка climbs onto the deck queen.at s into the hold; while she lives the trickle thins out (she is the horde)
+                queenTick(dt)
+                if queen.alive { stageMul *= D.queen.trickle }
                 var on = false
                 for m in marines where !m.downed && L.onLift(m.x, m.z) { on = true }
                 if on {
                     liftT -= dt
-                    // lift defence circuit: periodic shock pulse across the deck
+                    // lift defence circuit: periodic shock pulse across the deck (weaker toward the rim on the harder tiers)
                     pulseT -= dt
                     if pulseT <= 0 {
-                        pulseT = D.pulseInterval
-                        queueBoom(L.lift.x, L.lift.z, L.lift.r + 0.6, 48 * hpMul * D.pulseDamage, -1, .pulse)
+                        if D.pulseDamage > 0 {
+                            pulseT = D.pulseInterval
+                            queueBoom(L.lift.x, L.lift.z, L.lift.r + 0.6, 48 * hpMul * D.pulseDamage, -1, .pulse)
+                        } else { pulseT = 0.5 }
                     }
                 }
+                // the lift waits for the Матка: it cannot leave before she has climbed up and died
+                if liftT <= 0 && (queen.alive || (!queen.spawned && queenExpected)) { liftT = 0.01 }
                 if liftT <= 0 {
                     liftT = 0
                     // the lift only leaves with the player on it (a downed player is carried back by the squad first)
@@ -234,9 +254,29 @@ extension Game {
         } else {
             stageMul = bugs.count < 220 ? 1.5 : 0
         }
+        // hive pressure: loitering with no beacon running (or dawdling on the way to the lift) wakes the hive — past
+        // the tier's grace the trickle and the horde clock speed up and part of the swarm starts hunting the player
+        if !attract {
+            let loiter = (stage == .beacons && activeBeacon < 0) || stage == .toLift
+            if !calm { pressure = loiter ? pressure + dt : max(0, pressure - 3 * dt) }
+            let over = max(0, pressure - D.pressureGrace)
+            idleMul = 1 + min(3, 0.05 * over)
+            stageMul *= idleMul
+            if over > 0 { hordeT -= dt * (idleMul - 1) }
+            huntPressure = idleMul >= 1.5
+            // (the legacy v1.0 row has no pressure and no AFK hunt)
+            huntAfk = afkTime > 12 && D.pressureGrace.isFinite
+            // heartbeat while the swarm converges (game time: silent in pause and menus)
+            if !simOnly && time - heartAt >= 1.2 && threatState == .converging {
+                heartAt = time
+                events.append(.sound(.heart, pos: nil, loud: nil))
+            }
+        }
+        // the first-run coach holds the swarm back (no trickle, no hordes)
+        if calm { stageMul = 0; hordeT = max(hordeT, 25) }
         // continuous trickle from the abyss edges
         if stageMul > 0 {
-            let rate = (1.8 + 0.5 * minutes + 0.5 * Float(beaconsDone)) * stageMul * (attract ? 3 : 1) * D.trickle
+            let rate = (1.8 + 0.5 * minutes + 0.5 * Float(beaconsDone)) * stageMul * (attract ? 3 : D.trickle)
             trickle += rate * dt
             if trickle >= 1 {
                 let c = squadCenter()
@@ -247,8 +287,8 @@ extension Game {
                     if e >= 0 { spawnBug(pickType(false), L.edgeX[e], L.edgeZ[e], mode: 1, nx: L.edgeNX[e], nz: L.edgeNZ[e]) }
                 }
             }
-            // periodic hordes (the timer pauses while a beacon defence is running)
-            if activeBeacon < 0 { hordeT -= dt }
+            // periodic hordes (the timer pauses while a beacon defence is running, and while the Матка lives)
+            if activeBeacon < 0 && !queen.alive { hordeT -= dt }
             if hordeT <= 0 {
                 if stage == .hold {
                     hordeT = 13 + rng.next() * 4

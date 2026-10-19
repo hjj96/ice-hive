@@ -99,6 +99,18 @@ public struct LevelLayout {
     public var pipes: [PipeRun]
     /// Stair tread depth (visual).
     public var stepDepth: Float = 0.5
+    /// Landing-pad rect x0, z0, x1, z1 (pad mark and edge lights; «Кельвин-9»: 22, 22, 38, 38).
+    public var pad = SIMD4<Float>(22, 22, 38, 38)
+    /// Generator attempts it took (0 for the hand-made level).
+    public var attempts: Int = 0
+    /// Built by the seeded station generator (v1.1).
+    public var isGenerated: Bool = false
+
+    public init(name: String, seed: UInt32, rects: [FloorRect], crates: [CrateSpec], pillars: [Vec2], start: Vec2, lift: LiftSpec,
+                beacons: [BeaconSite], vents: [Vec2], pipes: [PipeRun]) {
+        self.name = name; self.seed = seed; self.rects = rects; self.crates = crates; self.pillars = pillars; self.start = start
+        self.lift = lift; self.beacons = beacons; self.vents = vents; self.pipes = pipes
+    }
 }
 
 /// Source of a station layout. v1.0 ships the fixed «Кельвин-9»; v1.1 adds a seeded generator.
@@ -146,7 +158,7 @@ public struct KelvinStation: LevelSource {
         let pipes: [PipeRun] = [PipeRun(-8, 38.3, 6, 38.3, 0), PipeRun(-12, -12.3, -6, -12.3, -3), PipeRun(22, -16.3, 38, -16.3, -3),
                                 PipeRun(-42, -18.3, -26, -18.3, -3), PipeRun(38.3, 22, 38.3, 38, 0)]
         return LevelLayout(
-            name: "Станция Кельвин-9", seed: seed, rects: rects, crates: crates, pillars: pillars,
+            name: "Кельвин-9", seed: seed, rects: rects, crates: crates, pillars: pillars,
             start: Vec2(30, 30), lift: LiftSpec(x: -3, z: -42, r: 10, y: LY),
             beacons: [BeaconSite(x: -32, z: 27, name: "Альфа"), BeaconSite(x: 30, z: -8, name: "Бета"), BeaconSite(x: -34, z: -9, name: "Гамма")],
             vents: vents, pipes: pipes)

@@ -46,14 +46,16 @@ final class GameTests: XCTestCase {
         XCTAssertEqual(g.marines.map { $0.cls }, [.cryo, .assault, .pyro, .gunner])
         XCTAssertEqual(g.marines[1].name, "Кекс")
         XCTAssertEqual(g.marines[1].maxHp, 120)
-        XCTAssertEqual(g.marines[1].mods.dmg, BOT_DMG)
+        // default tier: Ветеран (bots at 0.85 of BOT_DMG)
+        XCTAssertEqual(g.difficulty.id, "vet")
+        XCTAssertEqual(g.marines[1].mods.dmg, BOT_DMG * 0.85, accuracy: 1e-6)
         XCTAssertEqual(g.player.mods.dmg, 1)
         XCTAssertEqual(g.objectiveText, "Запустите маяки 0/3")
         XCTAssertEqual(g.stage, .beacons)
         XCTAssertEqual(g.bugCap, 1400)
         var drained: [GameEvent] = []
         g.drainEvents { drained.append($0) }
-        XCTAssertTrue(drained.contains { if case .banner(let t, _, _) = $0 { return t == "Высадка" }; return false })
+        XCTAssertTrue(drained.contains { if case .banner(let t, let s, _) = $0 { return t == "Высадка" && s == "Кельвин-9 · запустите три маяка" }; return false })
         XCTAssertTrue(g.events.isEmpty)
     }
 
@@ -201,7 +203,8 @@ final class GameTests: XCTestCase {
         XCTAssertEqual(g.stage, .hold)
         XCTAssertTrue(g.objectiveText.hasPrefix("Держитесь на лифте · 1:40"))
         g.tick()
-        g.debugSkip()
+        g.debugSkip()   // the Матка dies (or never comes) first
+        XCTAssertTrue(g.queen.done)
         g.step(5)
         XCTAssertEqual(g.stage, .extract)
         g.step(5 * 60)
@@ -222,7 +225,7 @@ final class GameTests: XCTestCase {
         XCTAssertNotNil(picked)
         XCTAssertFalse(g.wantsLevelUp)
         XCTAssertEqual(g.upgradeCounts[picked!.id], 1)
-        XCTAssertEqual(g.marines[1].mods.dmg, dmg0 * 1.04, accuracy: 1e-5)
+        XCTAssertEqual(g.marines[1].mods.dmg, dmg0 * g.difficulty.botGrow, accuracy: 1e-5)   // Ветеран: × 1.025
         XCTAssertEqual(g.marines[1].maxHp, hp0 + 3)
         // XP from kills levels up
         let g2 = Game(seed: 13, playerClass: .assault)
@@ -260,13 +263,26 @@ final class GameTests: XCTestCase {
         XCTAssertGreaterThan(g.kills, 30)
     }
 
-    func testStandardDifficultyIsV1() {
-        let d = Difficulty.standard
+    func testLegacyRowIsV1() {
+        let d = Difficulty.legacyV10
         XCTAssertEqual(d.hp, 1); XCTAssertEqual(d.dmg, 1); XCTAssertEqual(d.trickle, 1); XCTAssertEqual(d.horde, 1)
         XCTAssertEqual(d.beaconHordeStep, 50); XCTAssertEqual(d.botDamage, 0.6); XCTAssertEqual(d.botGrow, 1.04)
         XCTAssertEqual(d.regen, 4); XCTAssertEqual(d.regenDelay, 3.5); XCTAssertEqual(d.regenCap, 1)
         XCTAssertEqual(d.beaconHeal, 0.25); XCTAssertEqual(d.reviveHp, 0.45); XCTAssertEqual(d.medkitChance, 0.35)
         XCTAssertEqual(d.trickleMinDist, 12); XCTAssertEqual(d.pulseInterval, 5); XCTAssertEqual(d.pulseFalloff, 0)
+        XCTAssertEqual(d.pulseDamage, 1); XCTAssertEqual(d.specials, 1); XCTAssertEqual(d.specialCap, 1)
+        XCTAssertFalse(d.stallTime.isFinite); XCTAssertFalse(d.pressureGrace.isFinite); XCTAssertEqual(d.runnerHp, 0)
+        XCTAssertFalse(d.hasQueen); XCTAssertEqual(d.index, -1)
+        // a legacy mission never meets the Матка and the lift leaves on time
+        var cfg = GameConfig(); cfg.difficulty = .legacyV10
+        let g = Game(seed: 10, playerClass: .pyro, config: cfg)
+        g.godMode = true
+        g.debugSkip(); g.debugSkip(); g.debugSkip(); g.debugSkip()
+        XCTAssertEqual(g.stage, .hold)
+        g.debugSetLiftTime(1)
+        g.step(120)
+        XCTAssertEqual(g.stage, .extract)
+        XCTAssertFalse(g.queen.spawned)
     }
 
     func testEventBufferIsBounded() {

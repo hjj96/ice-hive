@@ -315,6 +315,8 @@ extension Game {
         } else if abs(mx) + abs(mz) > 0.2 {
             m.aim += clampf(angDiff(m.aim, atan2f2(mx, mz)), -6 * dt, 6 * dt)
         }
+        // the first-run coach leaves the practice groups to the player
+        if coachHoldFire(m) { fire = false }
         return (mx, mz, fire)
     }
 }
