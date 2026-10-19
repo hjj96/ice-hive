@@ -144,7 +144,7 @@ final class WorldSwarm {
             let k = bugCnt[t]
             // built once and written to both slots: the arena is write-combined memory, never read it back
             let inst = BugInstance(pos: F4(bx, gy, bz, s), rot: F4(cosf(HD[i]), sinf(HD[i]), sp, cp),
-                                   color: U[i] == queenUid ? F4(0.55, 0.30, 0.95, sy) : F4(v, v * (0.92 + vr * 0.1), v, sy),
+                                   color: U[i] == queenUid ? F4(0.75, 0.40, 2.6, sy) : F4(v, v * (0.92 + vr * 0.1), v, sy),
                                    anim: F4(PH[i], flash, burn, frz))
             out[k] = inst
             if let pp = proxyPtr, proxyN < WorldSwarm.shadowProxyMax {

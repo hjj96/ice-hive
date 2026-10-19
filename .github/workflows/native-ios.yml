@@ -2,7 +2,8 @@ name: native-ios
 
 # Native build of «Ледяной Улей» 2.0 (ios-native/): Swift, the world drawn with Metal, HUD / menus as a SpriteKit
 # scene in the same Metal pass. Results of every run are committed to branch `ci-results` under <branch>/<short-sha>/:
-#   status.json, core-tests.log, build.log, release-check.txt, metrics.txt, fps.txt, hitches.txt, <demo>-<s>s.png,
+#   status.json, core-tests.log, core-perf.log, calib.txt / calib.jsonl (v1.1 balance gate), build.log, release-check.txt,
+#   metrics.txt, fps.txt, hitches.txt, <demo>-<s>s.png,
 #   app-<demo>.log, app.log
 on:
   push:
@@ -11,6 +12,11 @@ on:
       - 'ios-native/**'
       - '.github/workflows/native-ios.yml'
   workflow_dispatch:
+    inputs:
+      calib:
+        description: 'calibration preset of the core-tests job (gate = the CI gate, full = 40 runs per class and tier)'
+        required: false
+        default: 'gate'
 
 concurrency:
   group: native-ios-${{ github.ref }}
@@ -60,6 +66,28 @@ jobs:
           { grep -E '\[perf\]|Test Case .*(passed|failed|skipped)|error:' "$GITHUB_WORKSPACE/results/core-perf.full.log" || true
             echo "release perf tests exit code: $rc"; } > "$GITHUB_WORKSPACE/results/core-perf.log"
           exit $rc
+      # v1.1 «Ставки» balance gate (README «v1.1 Ставки» → calibration): deterministic autopilot missions on the three
+      # tiers + AFK / passive / legacy rows, gated on the web bands (spec §5.2): rows calib.jsonl, table + verdict calib.txt
+      - name: Calibration gate (release)
+        if: success() || failure()
+        working-directory: ios-native/IceHiveCore
+        env:
+          CALIB_PRESET: ${{ github.event.inputs.calib || 'gate' }}
+        run: |
+          set -o pipefail
+          mkdir -p "$GITHUB_WORKSPACE/results"
+          swift build -c release --product icehive-calib 2>&1 | tail -n 5
+          .build/release/icehive-calib --preset "$CALIB_PRESET" --jobs 3 --out "$GITHUB_WORKSPACE/results/calib.jsonl" \
+            --summary "$GITHUB_WORKSPACE/results/calib.txt" --gate 2>&1 | tee "$GITHUB_WORKSPACE/results/calib.log"
+      # generated stations (seeds 0–4, Ветеран): informational while the stations flag is off
+      - name: Calibration on generated stations (informational)
+        if: success() || failure()
+        continue-on-error: true
+        working-directory: ios-native/IceHiveCore
+        run: |
+          .build/release/icehive-calib --preset stations --jobs 3 --out "$GITHUB_WORKSPACE/results/calib-stations.jsonl" \
+            --summary "$GITHUB_WORKSPACE/results/calib-stations.txt" > /dev/null 2>&1 || true
+          tail -n 12 "$GITHUB_WORKSPACE/results/calib-stations.txt" || true
       - name: Collect log
         if: always()
         run: |
