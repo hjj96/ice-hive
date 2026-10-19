@@ -80,6 +80,12 @@ final class PostChain {
         self.device = device
         bloomPass.colorAttachments[0].loadAction = .dontCare
         bloomPass.colorAttachments[0].storeAction = .store
+        // look-dev launch options (CI shots, store shots): `-brightness G` (the player option's gamma, 0.5…2),
+        // `-exposure EV` (a shot EV on top of the mood's, −4…4)
+        let a = LaunchOptions.current.unknown
+        func value(_ k: String) -> Float? { a.firstIndex(of: k).flatMap { i in i + 1 < a.count ? Float(a[i + 1]) : nil } }
+        if let g = value("-brightness") { brightness = min(max(g, 0.5), 2) }
+        if let ev = value("-exposure") { shotEV = min(max(ev, -4), 4) }
     }
 
     /// The mood's EV (Look/exposure.json, else 0) + the shot + the running dip.
@@ -126,12 +132,7 @@ final class PostChain {
                 return try device.makeRenderPipelineState(descriptor: d)
             }
         }
-        func composite(_ high: Bool) -> MTLFunction? {
-            let cv = MTLFunctionConstantValues()
-            var h = high
-            cv.setConstantValue(&h, type: .bool, index: 0)
-            return try? lib.makeFunction(name: "fs_composite", constantValues: cv)
-        }
+        func composite(_ high: Bool) -> MTLFunction? { FunctionConstant.function(lib, "fs_composite", tier: high ? .high : .efficient) }
         let hdr = RenderTargets.colorFormat
         return [
             // (the function-constant specialisations compile inside the parallel jobs too)
@@ -173,7 +174,9 @@ final class PostChain {
         }
         setMood("gameplay")
         return "post: grade LUTs " + (files.isEmpty ? "built-in" : files.joined(separator: "/")) + ", exposure table "
-            + (moodEV.isEmpty ? "none" : "\(moodEV.count) moods") + String(format: " in %.0f ms", (FrameTimer.now() - t0) * 1000)
+            + (moodEV.isEmpty ? "none" : "\(moodEV.count) moods")
+            + (shotEV != 0 || brightness != 1 ? String(format: ", shot EV %+.2f brightness %.2f", shotEV, brightness) : "")
+            + String(format: " in %.0f ms", (FrameTimer.now() - t0) * 1000)
     }
 
     private func makeTexture2D(width: Int, height: Int, format: MTLPixelFormat, bytes: [UInt8], bpr: Int) -> MTLTexture? {

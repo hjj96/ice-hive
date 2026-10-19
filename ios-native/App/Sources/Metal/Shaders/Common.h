@@ -97,6 +97,13 @@ struct ShadowOut { float4 position [[position]]; };
 // ---------------------------------------------------------------- constants
 #define PI_F 3.14159265
 
+/// Function-constant indices (MetalRenderer.swift FunctionConstant). A tiered pipeline (PipelineSpec.tiered) is compiled
+/// twice with FC_TIER_HIGH = true / false; a shader file that branches on the tier declares its constant once at program
+/// scope with a file-unique name, e.g. `TIER_CONSTANT(kLevelHigh);` → `if (kLevelHigh) { …High-only work… }` (the
+/// branch is folded away in each variant).
+#define FC_TIER_HIGH 0
+#define TIER_CONSTANT(name) constant bool name [[function_constant(FC_TIER_HIGH)]]
+
 constexpr sampler repeatSampler(filter::linear, mip_filter::linear, address::repeat);
 constexpr sampler clampSampler(filter::linear, mip_filter::linear, address::clamp_to_edge);
 constexpr sampler dataSampler(filter::linear, address::clamp_to_edge);

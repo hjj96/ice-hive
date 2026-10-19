@@ -87,10 +87,15 @@ struct PipelineSpec {
     let target: Target
     /// The world cannot be drawn without it: a failure shows the Metal failure screen instead of a broken frame.
     let required: Bool
+    /// Compiled twice, once per tier (function constant FunctionConstant.tierHigh: true = High): the module draws with
+    /// `renderer.tieredPipeline(label)(renderer.frameTier)`. Costs a second compile behind the loading cover — only for
+    /// shaders whose tiers really differ (clear-coat lobe, shadow march, …).
+    var tiered = false
 
     static func world(_ label: String, _ vs: String, _ fs: String, _ blend: BlendMode = .none, _ layout: VertexLayout? = nil,
-                      required: Bool = false) -> PipelineSpec {
-        PipelineSpec(label: label, vertex: vs, fragment: fs, blend: blend, layout: layout, target: .world, required: required)
+                      required: Bool = false, tiered: Bool = false) -> PipelineSpec {
+        PipelineSpec(label: label, vertex: vs, fragment: fs, blend: blend, layout: layout, target: .world, required: required,
+                     tiered: tiered)
     }
 
     static func depthOnly(_ label: String, _ vs: String, _ layout: VertexLayout? = nil) -> PipelineSpec {
@@ -100,6 +105,29 @@ struct PipelineSpec {
     static func distortion(_ label: String, _ vs: String, _ fs: String, _ layout: VertexLayout? = nil) -> PipelineSpec {
         PipelineSpec(label: label, vertex: vs, fragment: fs, blend: .add, layout: layout, target: .distortion, required: false)
     }
+}
+
+/// Function-constant indices shared by every shader file (Shaders/Common.h FC_*).
+enum FunctionConstant {
+    /// bool: the High tier's variant of a tiered pipeline (Common.h TIER_CONSTANT).
+    static let tierHigh = 0
+
+    /// `name` from `lib`, specialised for `tier` when given (a function that declares no tier constant ignores it).
+    static func function(_ lib: MTLLibrary, _ name: String, tier: RenderTier?) -> MTLFunction? {
+        guard let t = tier else { return lib.makeFunction(name: name) }
+        let cv = MTLFunctionConstantValues()
+        var high = t == .high
+        cv.setConstantValue(&high, type: .bool, index: tierHigh)
+        return (try? lib.makeFunction(name: name, constantValues: cv)) ?? lib.makeFunction(name: name)
+    }
+}
+
+/// The two tier variants of a PipelineSpec.tiered pipeline; either may be nil (failed to compile: the other stands in).
+struct TieredPipeline {
+    let high: MTLRenderPipelineState?
+    let efficient: MTLRenderPipelineState?
+
+    func callAsFunction(_ t: RenderTier) -> MTLRenderPipelineState? { t == .high ? (high ?? efficient) : (efficient ?? high) }
 }
 
 /// Where a draw item runs (see the order keys in the header).
@@ -159,6 +187,8 @@ final class MetalRenderer {
     /// Bytes per arena: the heaviest frame (high tier: 2500 bugs, 4000 + 2400 particles, 1500 stains, 520 corpses) needs
     /// ≈ 1 MB; an overflow drops that frame's later uploads and is logged once.
     static let arenaSize = 2 * 1024 * 1024
+    /// encodeWorld slower than this (wall ms) is logged with its thread CPU time (diagnostics; ci/frame_metrics.py).
+    static let slowEncodeMs: Double = 25
 
     /// The batch service's own pipelines (vertex functions in Characters.metal, fs_props in Level.metal).
     static let pipelines: [PipelineSpec] = [
@@ -276,12 +306,12 @@ final class MetalRenderer {
         }
         let errLock = NSLock()
         func fail(_ s: String) { errLock.lock(); pipelineErrors.append(s); errLock.unlock() }
-        func make(_ sp: PipelineSpec) throws -> MTLRenderPipelineState {
-            guard let v = lib.makeFunction(name: sp.vertex) else {
+        func make(_ sp: PipelineSpec, _ tier: RenderTier?) throws -> MTLRenderPipelineState {
+            guard let v = FunctionConstant.function(lib, sp.vertex, tier: tier) else {
                 throw NSError(domain: "pipeline", code: 1, userInfo: [NSLocalizedDescriptionKey: "missing function \(sp.vertex)"])
             }
             let d = MTLRenderPipelineDescriptor()
-            d.label = sp.label
+            d.label = sp.label + (tier.map { "." + $0.rawValue } ?? "")
             d.vertexFunction = v
             d.vertexDescriptor = sp.layout?.descriptor
             switch sp.target {
@@ -291,7 +321,7 @@ final class MetalRenderer {
                 d.depthAttachmentPixelFormat = .depth32Float
                 return try device.makeRenderPipelineState(descriptor: d)
             case .world, .distortion:
-                guard let fn = sp.fragment, let f = lib.makeFunction(name: fn) else {
+                guard let fn = sp.fragment, let f = FunctionConstant.function(lib, fn, tier: tier) else {
                     throw NSError(domain: "pipeline", code: 1, userInfo: [NSLocalizedDescriptionKey: "missing function \(sp.fragment ?? "-")"])
                 }
                 d.fragmentFunction = f
@@ -327,7 +357,12 @@ final class MetalRenderer {
             return try device.makeRenderPipelineState(descriptor: d)
         }
         // every pipeline (world + post) compiles in parallel (device-specific compilation dominates a cold launch)
-        var jobs: [(String, () throws -> MTLRenderPipelineState)] = specs.map { sp in (sp.label, { try make(sp) }) }
+        // (a tiered spec is two jobs, "<label>.high" / "<label>.efficient")
+        var jobs: [(String, () throws -> MTLRenderPipelineState)] = specs.flatMap { sp -> [(String, () throws -> MTLRenderPipelineState)] in
+            sp.tiered ? [RenderTier.high, .efficient].map { t in (sp.label + "." + t.rawValue, { try make(sp, t) }) }
+                      : [(sp.label, { try make(sp, nil) })]
+        }
+        let worldJobs = jobs.count
         jobs += post.pipelineJobs(lib, drawableFormat: drawableFormat)
         var states = [MTLRenderPipelineState?](repeating: nil, count: jobs.count)
         var ms = [Double](repeating: 0, count: jobs.count)
@@ -355,10 +390,12 @@ final class MetalRenderer {
         var postStates: [String: MTLRenderPipelineState] = [:]
         for (i, job) in jobs.enumerated() {
             guard let st = states[i] else { continue }
-            if i < specs.count { pipelineStates[job.0] = st } else { postStates[job.0] = st }
+            if i < worldJobs { pipelineStates[job.0] = st } else { postStates[job.0] = st }
         }
         post.bind(postStates)
-        let missingRequired = specs.filter { $0.required && pipelineStates[$0.label] == nil }.map { $0.label }
+        let missingRequired = specs.filter { sp in
+            sp.required && (sp.tiered ? tieredPipeline(sp.label)(.high) == nil : pipelineStates[sp.label] == nil)
+        }.map { $0.label }
         psMesh = MetalRenderer.passOrder.map { p -> MTLRenderPipelineState? in
             switch p {
             case .props: return pipelineStates["meshProps"]
@@ -385,6 +422,15 @@ final class MetalRenderer {
 
     /// A compiled pipeline by its PipelineSpec label (nil: it failed to compile — the module skips that draw).
     func pipeline(_ label: String) -> MTLRenderPipelineState? { pipelineStates[label] }
+
+    /// Both variants of a PipelineSpec.tiered pipeline; draw with `variants(frameTier)`.
+    func tieredPipeline(_ label: String) -> TieredPipeline {
+        TieredPipeline(high: pipelineStates[label + ".high"], efficient: pipelineStates[label + ".efficient"])
+    }
+
+    /// Tier of the world frame being built / encoded (RenderQuality; the thermal ladder can change it between frames):
+    /// modules pick tiered pipelines and skip High-only work by it.
+    var frameTier: RenderTier { quality.tier }
 
     /// Pass-wide state that needs the loaded store (after MeshStore.loadAll and compilePipelines; off the main thread).
     func bindResources() -> String {
@@ -502,6 +548,16 @@ final class MetalRenderer {
         guard built, ready, targets.scene != nil else { built = false; return }
         built = false
         let t0 = FrameTimer.now()
+        // a slow encode (diagnostics) is logged with the thread's CPU time inside it: CI tells the app's own work from
+        // time the thread spent off the CPU inside Metal calls (the simulator forwards them to the host)
+        let c0 = AppLog.diagnostics ? CPUTime.thread() : 0
+        defer {
+            let wallMs = (FrameTimer.now() - t0) * 1000
+            if AppLog.diagnostics && wallMs > MetalRenderer.slowEncodeMs {
+                AppLog.info(String(format: "metal: slow world encode %.0f ms (thread cpu %.1f ms) wall=%.3f", wallMs,
+                                   (CPUTime.thread() - c0) * 1000, Date().timeIntervalSince1970))
+            }
+        }
         drawCalls = 0
         instanceCount = 0
         triangles = 0

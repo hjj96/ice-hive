@@ -15,12 +15,19 @@ Reads results/app-<demo>.log for every demo named on the command line and prints
     drs       dynamic-resolution sweep steps logged (`quality: drs sweep step k/10`, the probe demo / -drsSweep)
 
 Gate (exit 1 with --gate), the plan's common gate for every package:
-  warm 60 Hz demos    loop avg >= 59.5, min >= 58 fps, worst loop tick <= 43 ms (unless that tick is a logged host stall:
-                      a hitch line whose app work, upd + draw, is < 10 ms), no loop hitch > 50 ms after 1 s
+  warm 60 Hz demos    loop avg >= 59.5, min >= 58 fps (>= 55 when the run's only long ticks are host stalls), worst
+                      loop tick <= 43 ms, no loop hitch > 50 ms after 1 s
   menu demos (30 Hz)  no loop hitch
-  cold first launch   worst loop tick <= --cold-max-ms; loading <= --cold-load-s (1.6 s), or — when the runner itself is
-                      slow (median warm loading > 1.25 s) — at most 0.5 s more than the median warm loading of the run
-                      (what a first launch adds: the cold shader compile)
+  host stalls         a long tick in which the app's main thread worked < 10 ms is the simulator host's, not the app's:
+                      app work = upd + draw minus the time the thread spent off the CPU inside SKRenderer (hud − its cpu)
+                      and inside the world encode (`metal: slow world encode N ms (thread cpu M ms)`, logged by
+                      MetalRenderer for encodes > 25 ms). Such ticks are listed (`host-stalls`), not counted as hitches
+                      and not held to the worst-tick limit
+  cold first launch   worst loop tick <= --cold-max-ms; loading <= --cold-load-s (1.6 s) after taking out what the
+                      simulator's shader compiler service spent starting up while the scene waited for the Metal preload
+                      (`first request N ms` beyond 0.3 s, at most the logged `metal world ready in N ms` wait); or — when
+                      the runner itself is slow (median warm loading > 1.25 s) — at most 0.5 s more than the median warm
+                      loading of the run
   gpu-drawn           avg >= 55 in --drawn-gated demos (swarm3x, release-combat)
   frame graph         simulator GPU ema <= --gpu-ema-max (1.0 ms); one world-target allocation per launch; a DRS
                       sweep (when present) has 10 steps and its run's worst loop tick <= 34 ms
@@ -60,7 +67,11 @@ rx_done = re.compile(r'demo done after (\d+)s avgFps=' + num + ' minFps=' + num 
                      r'(?: drawnAvg=' + num + ' drawnMin=' + num + ' worstGap=' + num + 'ms)?')
 rx_load = re.compile(r'loading took ' + num + ' s')
 rx_hitch = re.compile(r'hitch (\d+) ms td=' + num)
-rx_hitch_work = re.compile(r'upd=(\d+)ms draw=(\d+)ms')
+rx_hitch_work = re.compile(r'upd=(\d+)ms draw=(\d+)ms(?: \(drawable \d+ world (\d+) hud (\d+) \(cpu (\d+)\))?')
+rx_hitch_wall = re.compile(r'wall=([0-9.]+)')
+rx_slow_enc = re.compile(r'metal: slow world encode (\d+) ms \(thread cpu ([0-9.]+) ms\) wall=([0-9.]+)')
+rx_first_req = re.compile(r'pipelines built in \d+ ms \(.*first request (\d+) ms')
+rx_ready_wait = re.compile(r'metal world ready in (\d+) ms')
 rx_cb = re.compile(r'cb=(\d+)ms')
 rx_hb = re.compile(r'hb t=.* td=' + num + r' .*gap=' + num + r'ms.* cbmax=' + num + 'ms')
 rx_hb_td = re.compile(r'hb t=' + num + ' td=' + num)
@@ -101,16 +112,37 @@ for d in demos:
     drawn_min = m.group(6) or '-'
     gap = m.group(7) or '-'
     lines = text.splitlines()
+    # slow world encodes: (wall stamp, ms off the CPU)
+    slow_enc = []
+    for line in lines:
+        e = rx_slow_enc.search(line)
+        if e:
+            slow_enc.append((float(e.group(3)), max(0.0, float(e.group(1)) - float(e.group(2)))))
     hitches, host_stalls = [], []
     for line in lines:
         h = rx_hitch.search(line)
-        if h and 1.2 <= float(h.group(2)) <= secs:
-            cb = rx_cb.search(line)
-            hitches.append((int(h.group(1)), float(h.group(2)), cb.group(1) if cb else '-'))
-        # a long tick in which the app itself worked < 10 ms (update + draw): the simulator host did not schedule it
-        wk = rx_hitch_work.search(line) if h else None
-        if h and wk and int(wk.group(1)) + int(wk.group(2)) < 10 and 0.2 <= float(h.group(2)) <= secs:
-            host_stalls.append(int(h.group(1)))
+        if not h or not (0.2 <= float(h.group(2)) <= secs):
+            continue
+        # the app's own work in the long tick: update + draw, minus the time its thread was off the CPU inside
+        # SKRenderer (hud wall − hud cpu) and inside the world encode (the slow-encode line logged in that tick)
+        wk = rx_hitch_work.search(line)
+        if wk:
+            work = int(wk.group(1)) + int(wk.group(2))
+            if wk.group(4) is not None:
+                work -= max(0, int(wk.group(4)) - int(wk.group(5)))
+            hw = rx_hitch_wall.search(line)
+            if hw and wk.group(3) is not None:
+                w = float(hw.group(1))
+                off = [o for (t, o) in slow_enc if w - 0.3 <= t <= w + 0.01]
+                if off:
+                    work -= min(int(wk.group(3)), off[-1])
+            if work < 10:
+                host_stalls.append(int(h.group(1)))
+                continue
+        if float(h.group(2)) < 1.2:
+            continue
+        cb = rx_cb.search(line)
+        hitches.append((int(h.group(1)), float(h.group(2)), cb.group(1) if cb else '-'))
     # GPU-side stalls in the window: heartbeats whose longest gap between completed frames exceeded 50 ms
     stalls, cbmax = 0, 0.0
     for line in lines:
@@ -147,19 +179,28 @@ for d in demos:
             bad.append(f'cold worstFrame {worst:.0f} ms > {cold_max:.0f}')
         if lm and float(lm.group(1)) > cold_load:
             cl = float(lm.group(1))
+            # the shader compiler service's start-up (the first pipeline request beyond 0.3 s) while the scene waited
+            fr, rw = rx_first_req.search(text), rx_ready_wait.search(text)
+            svc = min(float(rw.group(1)) / 1000, max(0.0, float(fr.group(1)) / 1000 - 0.3)) if fr and rw else 0.0
+            adj = cl - svc
             slow_host = warm_median is not None and warm_median > 1.25
-            if not (slow_host and cl - warm_median <= 0.5):
-                bad.append(f'cold load {cl:.2f} s > {cold_load:.1f}' + (f' (warm median {warm_median:.2f} s)' if warm_median else ''))
+            note = (f'compiler start-up {svc:.2f} s' if svc > 0 else '') \
+                + (f'{", " if svc > 0 else ""}warm median {warm_median:.2f} s' if warm_median else '')
+            if adj <= cold_load:
+                verdict = f'cold ({cl:.2f} s, {adj:.2f} s without the {note})'
+            elif slow_host and adj - warm_median <= 0.5:
+                verdict = f'cold (slow runner: {note}, cold +{adj - warm_median:.2f} s)'
             else:
-                verdict = f'cold (slow runner: warm median {warm_median:.2f} s, cold +{cl - warm_median:.2f} s)'
-    
+                bad.append(f'cold load {cl:.2f} s > {cold_load:.1f}' + (f' ({note})' if note else ''))
+
     else:
         if d not in menus:
             if avg < 59.5:
                 bad.append(f'avgFps {avg:.1f} < 59.5')
-            if mn < 58:
+            # (a second that lost frames only to host stalls is held to the old floor, 55)
+            if mn < 58 and not (host_stalls and not hitches and mn >= 55):
                 bad.append(f'minFps {mn:.1f} < 58')
-            # (a worst tick that is a logged host stall — no app work in it — is the simulator's, not the app's)
+            # (a worst tick that is a host stall — no app work in it — is the simulator's, not the app's)
             if worst > 43 and not any(abs(worst - st) <= 1 for st in host_stalls):
                 bad.append(f'worstFrame {worst:.0f} ms > 43')
         if hitches:
@@ -181,7 +222,8 @@ for d in demos:
     fg = (f'gpu ema {ema:.2f} ms' if ema is not None else 'gpu ema -') + f' allocs {allocs}' \
         + (f' tier {"/".join(sorted(tiers))} scale {"/".join(sorted(scales))}' if tiers else '') + (f' drs {sweep}/10' if sweep else '')
     rows.append((d, f'load {lm.group(1) if lm else "-"} s | loop avg {avg:.1f} min {mn:.1f} worst {worst:.0f} ms '
-                    f'hitches {len(hitches)} | gpu drawn avg {drawn_avg} min {drawn_min} gap {gap} ms '
+                    f'hitches {len(hitches)}' + (f' host-stalls {len(host_stalls)} ({max(host_stalls)} ms)' if host_stalls else '')
+                    + f' | gpu drawn avg {drawn_avg} min {drawn_min} gap {gap} ms '
                     f'stall-s {stalls} cbmax {cbmax:.0f} ms | {fg} | {verdict}'))
 
 w = max(len(r[0]) for r in rows) if rows else 10

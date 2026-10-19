@@ -19,8 +19,8 @@
 // ================================================================
 #include "Common.h"
 
-// tier variant of the composite (MTLFunctionConstantValues, index 0): High adds heat distortion
-constant bool kPostHigh [[function_constant(0)]];
+// tier variant of the composite (FC_TIER_HIGH): High adds heat distortion
+TIER_CONSTANT(kPostHigh);
 
 struct PostParams {
     float4 scene;    // xy = uv extent of the viewport in sceneHDR, zw = 1 / allocation size (texel)
