@@ -35,6 +35,11 @@ const PREVIEW = path.join(TOOLS, 'previews', 'meshes_verify.png');
 const verifyOnly = process.argv.includes('--verify');
 const HDR = 16, FPV = 13, STRIDE = FPV * 4;   // 13 floats = 52 bytes (the field list of the contract; see below)
 const F_GLOW = 1, F_LEG = 2, F_UV = 4;
+// LEGACY: this exporter is being retired. What the Blender pipeline (ios-native/tools/blender) ships instead is no longer
+// written: the whole station (decks, props, lift, beacon tips: App/Resources/Kit, WP6) and its textures.
+const RETIRED = new Set(['level_floor_grating', 'level_floor_slab', 'level_props', 'level_hazard', 'level_pad_mark', 'level_glow',
+  'lift_floor', 'lift_props', 'beacon_top']);
+const RETIRED_TEX = new Set(['grating', 'slab', 'hazard', 'snow']);
 
 // ---------------------------------------------------------------- notes / material table (from the game source)
 const MATERIALS = {
@@ -156,6 +161,7 @@ if (!verifyOnly) {
     constants: { LIFT_Y: -6, liftRiseMax: 22, lift: { x: -3, z: -42, r: 10 }, start: { x: 30, z: 30 }, fog: '#1a2737', fogDensity: '0.42 / camDist', marineScale: 1.12, bugScale: { runner: 0.8, spitter: 1.02, brute: 2.0, boomer: 1.15 } },
   };
   for (const [name, m] of Object.entries(meshes)) {
+    if (RETIRED.has(name)) continue;
     const file = name + '.mesh';
     const flags = writeMesh(path.join(OUTDIR, file), m);
     const kind = m.meta.kind;
@@ -167,6 +173,7 @@ if (!verifyOnly) {
     manifest.meshes[name] = e;
   }
   for (const [name, t] of Object.entries(textures)) {
+    if (RETIRED_TEX.has(name)) continue;
     const file = 'tex_' + name + '.png';
     fs.writeFileSync(path.join(OUTDIR, file), Buffer.from(t.png, 'base64'));
     manifest.textures[name] = { file, wrap: t.repeat ? 'repeat' : 'clamp', srgb: t.srgb, size: [t.w, t.h], notes: TEX_NOTES[name] || '' };

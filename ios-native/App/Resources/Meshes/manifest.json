@@ -545,150 +545,6 @@
       "vertices": 200,
       "indices": 552
     },
-    "level_floor_grating": {
-      "file": "level_floor_grating.mesh",
-      "notes": "Grating floor slabs, stairs and sloped catwalks (world space, uv = world xz * 0.5 on tops). Material: floorGrating + floorSnow.",
-      "flags": 13316,
-      "source": {
-        "triangles": 146,
-        "area": 2384.0206,
-        "colourArea": 7152.0617
-      },
-      "bounds": {
-        "min": [
-          -42,
-          -3.5,
-          -18
-        ],
-        "max": [
-          38,
-          0,
-          38
-        ]
-      },
-      "vertices": 276,
-      "indices": 438
-    },
-    "level_floor_slab": {
-      "file": "level_floor_slab.mesh",
-      "notes": "Snowy concrete slabs (landing pad, both staircases). Material: floorSlab + floorSnow.",
-      "flags": 13316,
-      "source": {
-        "triangles": 530,
-        "area": 1791.5,
-        "colourArea": 5374.5
-      },
-      "bounds": {
-        "min": [
-          -6,
-          -6.5,
-          -32.5
-        ],
-        "max": [
-          38,
-          0,
-          38
-        ]
-      },
-      "vertices": 964,
-      "indices": 1590
-    },
-    "level_props": {
-      "file": "level_props.mesh",
-      "notes": "All static props merged (railings, girders, supports, crates, pillars, pipes, snow drifts, vents, beacon bases, pad lights, stair nosings, distant towers). Material: props (snow caps on).",
-      "flags": 13313,
-      "source": {
-        "triangles": 34156,
-        "area": 72487.7941,
-        "colourArea": 3653.4137
-      },
-      "bounds": {
-        "min": [
-          -95.0821,
-          -90,
-          -103.7269
-        ],
-        "max": [
-          98.0468,
-          21.2704,
-          90.5007
-        ]
-      },
-      "vertices": 42602,
-      "indices": 102468
-    },
-    "level_hazard": {
-      "file": "level_hazard.mesh",
-      "notes": "Hazard strips along the beacon / pad edges (uv along the strip / 1.6 m). Material: hazard, drawn with a depth bias over the floor.",
-      "flags": 13316,
-      "source": {
-        "triangles": 48,
-        "area": 94.0798,
-        "colourArea": 282.2395
-      },
-      "bounds": {
-        "min": [
-          -42,
-          -2.988,
-          -18
-        ],
-        "max": [
-          38,
-          0.012,
-          38
-        ]
-      },
-      "vertices": 96,
-      "indices": 144
-    },
-    "level_pad_mark": {
-      "file": "level_pad_mark.mesh",
-      "notes": "Landing pad marking quad, 11 x 11 m at the start point. Material: padMark (alpha blended, no depth write).",
-      "flags": 13316,
-      "source": {
-        "triangles": 2,
-        "area": 121,
-        "colourArea": 363
-      },
-      "bounds": {
-        "min": [
-          24.5,
-          0.01,
-          24.5
-        ],
-        "max": [
-          35.5,
-          0.01,
-          35.5
-        ]
-      },
-      "vertices": 4,
-      "indices": 6
-    },
-    "level_glow": {
-      "file": "level_glow.mesh",
-      "notes": "Floor light pools under lamps / pillars / vents (additive; colours pre-scaled by 0.3, uv 0..1 per quad). Material: floorGlow.",
-      "flags": 13316,
-      "source": {
-        "triangles": 138,
-        "area": 619.1999,
-        "colourArea": 280.7785
-      },
-      "bounds": {
-        "min": [
-          -43.1,
-          -5.97,
-          -30.5
-        ],
-        "max": [
-          39.1,
-          0.03,
-          38.1
-        ]
-      },
-      "vertices": 276,
-      "indices": 414
-    },
     "level_haze": {
       "file": "level_haze.mesh",
       "notes": "Icy haze plane 16 m below the decks (220 x 220 m, drawn first). Material: haze.",
@@ -712,54 +568,6 @@
       },
       "vertices": 4,
       "indices": 6
-    },
-    "lift_floor": {
-      "file": "lift_floor.mesh",
-      "notes": "Lift deck disc (r 10, grating) at rest height LIFT_Y = -6; translate by +rise (0…22 m, u*u*22) during extraction. Material: floorGrating + floorSnow.",
-      "flags": 13316,
-      "source": {
-        "triangles": 144,
-        "area": 352.8187,
-        "colourArea": 1058.4561
-      },
-      "bounds": {
-        "min": [
-          -13,
-          -6.6,
-          -52
-        ],
-        "max": [
-          7,
-          -5.97,
-          -32
-        ]
-      },
-      "vertices": 241,
-      "indices": 432
-    },
-    "lift_props": {
-      "file": "lift_props.mesh",
-      "notes": "Lift railing ring, pads, teal rings, studs — same rise offset as lift_floor. Material: props.",
-      "flags": 13313,
-      "source": {
-        "triangles": 4160,
-        "area": 189.9644,
-        "colourArea": 54.414
-      },
-      "bounds": {
-        "min": [
-          -12.9,
-          -6,
-          -51.9
-        ],
-        "max": [
-          6.9,
-          -4.9,
-          -32.52
-        ]
-      },
-      "vertices": 5106,
-      "indices": 12480
     },
     "turret_base": {
       "file": "turret_base.mesh",
@@ -885,63 +693,9 @@
       },
       "vertices": 42,
       "indices": 240
-    },
-    "beacon_top": {
-      "file": "beacon_top.mesh",
-      "notes": "Beacon tip octahedron (r 0.42), placed at ground + 2.9 over each beacon. Material: unlit, colour 0xff3020 baked.",
-      "flags": 13312,
-      "source": {
-        "triangles": 8,
-        "area": 1.2221,
-        "colourArea": 1.2759
-      },
-      "bounds": {
-        "min": [
-          -0.42,
-          -0.42,
-          -0.42
-        ],
-        "max": [
-          0.42,
-          0.42,
-          0.42
-        ]
-      },
-      "vertices": 24,
-      "indices": 24
     }
   },
   "textures": {
-    "grating": {
-      "file": "tex_grating.png",
-      "wrap": "repeat",
-      "srgb": true,
-      "size": [
-        256,
-        256
-      ],
-      "notes": "Grated steel floor, one tile = 2 m (uv = world * 0.5). Also the bump source."
-    },
-    "slab": {
-      "file": "tex_slab.png",
-      "wrap": "repeat",
-      "srgb": true,
-      "size": [
-        256,
-        256
-      ],
-      "notes": "Snow-crusted concrete walkway tile, 2 m."
-    },
-    "hazard": {
-      "file": "tex_hazard.png",
-      "wrap": "repeat",
-      "srgb": true,
-      "size": [
-        128,
-        32
-      ],
-      "notes": "Amber/black hazard stripes, repeats along u (1.6 m per repeat)."
-    },
     "pad": {
       "file": "tex_pad.png",
       "wrap": "clamp",
@@ -1021,16 +775,6 @@
         32
       ],
       "notes": "Streaky noise for the cryo beam (repeat)."
-    },
-    "snow": {
-      "file": "tex_snow.png",
-      "wrap": "clamp",
-      "srgb": false,
-      "size": [
-        256,
-        256
-      ],
-      "notes": "World-space snow drift mask, 2 px per metre over x,z in [-64, 64): sample at ((x + 64) / 128, (z + 64) / 128) with a top-left origin (first row = z -64). Linear data, linear filtering, no mips."
     },
     "haze": {
       "file": "tex_haze.png",
