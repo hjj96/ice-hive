@@ -72,10 +72,16 @@ final class TitleScreen {
         check.add("hazard", CGRect(x: left, y: y - (landscape ? 6 : 8), width: cw, height: landscape ? 6 : 8))
         y -= landscape ? 18 : 24
         let opMeta = Label("ОПЕРАЦИЯ «ХОЛОДНЫЙ СВЕТ»", font: Fonts.mono, size: 11, color: UIPalette.teal, kern: 1.3, align: .left)
+        let stMeta = Label(meta.station.uppercased() + " · −94 °C", font: Fonts.mono, size: 11, color: UIPalette.inkDim, kern: 1.3, align: .right)
+        // narrow phones (375 pt): both meta labels a little smaller rather than touching
+        let metaW = opMeta.width + stMeta.width
+        if metaW + 12 > cw {
+            let s = max(8, (11 * (cw - 12) / metaW * 10).rounded(.down) / 10)
+            opMeta.size = s; stMeta.size = s
+        }
         opMeta.node.position = CGPoint(x: left, y: y)
         content.addChild(opMeta.node)
         check.add("meta.op", node: opMeta.node)
-        let stMeta = Label(meta.station.uppercased() + " · −94 °C", font: Fonts.mono, size: 11, color: UIPalette.inkDim, kern: 1.3, align: .right)
         stMeta.node.position = CGPoint(x: right, y: y)
         content.addChild(stMeta.node)
         check.add("meta.station", node: stMeta.node)
@@ -85,6 +91,7 @@ final class TitleScreen {
         let t1 = Label("ЛЕДЯНОЙ", font: Fonts.bold, size: ts, color: UIPalette.ink, kern: 1, align: .left)
         t1.node.position = CGPoint(x: left, y: y)
         content.addChild(t1.node)
+        check.add("title#1", node: t1.node)
         let t2 = Label("УЛЕЙ", font: Fonts.bold, size: ts, color: UIPalette.amber, kern: 1, align: .left)
         t2.stroke = UIPalette.amber
         t2.set("УЛЕЙ", force: true)
@@ -95,8 +102,8 @@ final class TitleScreen {
             t2.node.position = CGPoint(x: left, y: y)
         }
         content.addChild(t2.node)
-        // the two words as one element (stacked in portrait their font line boxes overlap by design)
-        check.add("title", t1.node.calculateAccumulatedFrame().union(t2.node.calculateAccumulatedFrame()))
+        // (stacked in portrait the two words' font line boxes overlap by design: one group for the check)
+        check.add("title#2", node: t2.node)
         y -= ts * 0.55 + 6
         // the story paragraph: for a new player only (web: hidden on phones after the first run)
         if prof.runs == 0 && level < 2 {
