@@ -278,8 +278,7 @@ function buildTitle() {
   });
   $('btnSound').textContent = soundLabel();
   updateControlHints();
-  const best = GS.best;
-  $('tBest').textContent = best && (best.kills || best.win) ? 'Рекорд: ' + best.kills + ' убито' + (best.win ? ' · лучшая эвакуация ' + fmtTime(best.win) : '') : '';
+  titleMeta();   // profile line, rank chips + medal pips, the tier row (11c-meta.js)
 }
 // menu buttons fire on the finger lifting (onTap), so they work while the other thumb still rests on the screen
 onTap($('btnGo'), () => startMission(GS.cls));
@@ -313,6 +312,7 @@ function openPauseUI() {
   $('pVol').textContent = volLabel();
   $('pQuality').textContent = qualityLabel();
   if (NATIVE) $('pHaptics').textContent = hapticsLabel();
+  pauseMeta();
   updateControlHints();
 }
 function renderCards() {
@@ -339,19 +339,11 @@ function renderCards() {
     wrap.appendChild(b);
   });
 }
-function showEnd(won, surrendered) {
+function showEnd(won, surrendered, res) {
   const box = $('eBox');
   box.classList.toggle('won', won); box.classList.toggle('lost', !won);
   $('eTitle').textContent = won ? 'Эвакуация успешна' : 'Рой победил';
-  $('eSub').textContent = won ? 'Отряд поднялся над бездной. Кельвин-9 остаётся рою — но вы живы.'
+  $('eSub').textContent = won ? 'Отряд поднялся над бездной. ' + stationLabel() + ' остаётся рою — но вы живы.'
     : surrendered ? 'Отряд отозван. Маяки погасли один за другим.' : 'Последний фонарь погас. Связь с отрядом потеряна.';
-  const acc = GS.shots > 0 ? Math.round(100 * Math.min(1, GS.hits / GS.shots)) : 0;
-  const rows = [
-    ['Время', fmtTime(GS.time)], ['Убито отрядом', String(GS.kills)], ['Ваши убийства', String(GS.playerKills)],
-    ['Точность', acc + '%'], ['Лучшее комбо', '×' + GS.bestCombo], ['Уровень', String(GS.level)],
-  ];
-  const st = $('eStats');
-  st.textContent = '';
-  for (const [a, b] of rows) { const d = document.createElement('div'); d.innerHTML = '<span></span><b></b>'; d.children[0].textContent = a; d.children[1].textContent = b; st.appendChild(d); }
-  if (GS.newRecord) st.children[1].classList.add('rec');
+  buildReport(won, surrendered, res);   // score, rank, medal, tip, next goal, numbers (11c-meta.js)
 }

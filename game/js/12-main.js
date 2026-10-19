@@ -69,8 +69,9 @@ function endGame(won, surrendered) {
   if (GS.kills > best.kills) { best.kills = GS.kills; GS.newRecord = true; }
   if (won && (!best.win || GS.time < best.win)) best.win = Math.round(GS.time);
   GS.best = best; store.set('best', best);
+  const res = commitRun(won, surrendered);   // profile: score, rank, medals (11c-meta.js); null in attract
   showScreen(won ? 'won' : 'lost');
-  showEnd(won, surrendered);
+  showEnd(won, surrendered, res);
   sfx(won ? 'victory' : 'defeat');
   if (!surrendered) haptic(won ? 'success' : 'error');
 }
@@ -410,5 +411,5 @@ function bootWhenReady(data) {
   const go = () => boot(data);
   NATIVE.ready.then(go, go);
 }
-try { window.claude?.hot?.snapshot?.(() => ({ best: GS.best, cls: GS.cls, muted: AU.muted })); } catch (e) { /* no hot reload host */ }
+try { window.claude?.hot?.snapshot?.(() => ({ best: GS.best, cls: GS.cls, muted: AU.muted, profile: PROF })); } catch (e) { /* no hot reload host */ }
 if (window.claude?.hot?.ready) window.claude.hot.ready(bootWhenReady); else bootWhenReady(window.claude?.hot?.data ?? {});
