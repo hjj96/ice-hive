@@ -8,8 +8,9 @@ Reads results/app-<demo>.log for every demo named on the command line and prints
   GPU side   (frames the GPU completed; on the simulator the host GPU stalls now and then)
     drawn avg / min per second, the longest time one image stayed up, the slowest command buffer (commit -> done)
   frame graph (WP1 «Кадр», `hb gpu` lines and the `metal: world target` allocation lines)
-    gpu ema   worst smoothed GPU time per frame in the window (simulator: the host GPU — a tripwire for pathological
-              regressions only, never a budget; device budgets are in Frame/RenderQuality.swift)
+    gpu ema   median of the per-second smoothed GPU time per frame in the window (simulator: the host GPU — a tripwire
+              for pathological regressions only, never a budget; device budgets are in Frame/RenderQuality.swift; the
+              median, because a host stall inflates a command buffer's GPU span for a second or two)
     allocs    world-target allocations in the run (the targets are allocated once; dynamic resolution moves a viewport)
     drs       dynamic-resolution sweep steps logged (`quality: drs sweep step k/10`, the probe demo / -drsSweep)
 
@@ -17,7 +18,9 @@ Gate (exit 1 with --gate), the plan's common gate for every package:
   warm 60 Hz demos    loop avg >= 59.5, min >= 58 fps, worst loop tick <= 43 ms (unless that tick is a logged host stall:
                       a hitch line whose app work, upd + draw, is < 10 ms), no loop hitch > 50 ms after 1 s
   menu demos (30 Hz)  no loop hitch
-  cold first launch   worst loop tick <= --cold-max-ms, loading <= --cold-load-s (1.6 s)
+  cold first launch   worst loop tick <= --cold-max-ms; loading <= --cold-load-s (1.6 s), or — when the runner itself is
+                      slow (median warm loading > 1.25 s) — at most 0.5 s more than the median warm loading of the run
+                      (what a first launch adds: the cold shader compile)
   gpu-drawn           avg >= 55 in --drawn-gated demos (swarm3x, release-combat)
   frame graph         simulator GPU ema <= --gpu-ema-max (1.0 ms); one world-target allocation per launch; a DRS
                       sweep (when present) has 10 steps and its run's worst loop tick <= 34 ms
@@ -67,6 +70,18 @@ rx_sweep = re.compile(r'quality: drs sweep step (\d+)/10')
 
 rows, failed = [], []
 gpu_avg = []
+# median warm loading time of the run (a slow runner slows every launch; the cold launch adds the shader compile)
+warm_loads = []
+for d in demos:
+    if d in cold:
+        continue
+    try:
+        lm0 = rx_load.search(open(f'{results}/app-{d}.log', encoding='utf-8', errors='replace').read())
+    except OSError:
+        lm0 = None
+    if lm0:
+        warm_loads.append(float(lm0.group(1)))
+warm_median = sorted(warm_loads)[len(warm_loads) // 2] if warm_loads else None
 for d in demos:
     try:
         text = open(f'{results}/app-{d}.log', encoding='utf-8', errors='replace').read()
@@ -106,7 +121,7 @@ for d in demos:
             cbmax = max(cbmax, float(b.group(3)))
     # frame graph: worst GPU ema in the window (an `hb gpu` line follows its loop heartbeat), tier / scale seen,
     # world-target allocations, DRS sweep steps
-    td, ema, tiers, scales = -1.0, None, set(), set()
+    td, emas, tiers, scales = -1.0, [], set(), set()
     for line in lines:
         t = rx_hb_td.search(line)
         if t:
@@ -116,7 +131,8 @@ for d in demos:
             tiers.add(g.group(4))
             scales.add(g.group(5))
             if 1.2 <= td <= secs + 1:
-                ema = max(ema or 0.0, float(g.group(3)))
+                emas.append(float(g.group(3)))
+    ema = sorted(emas)[len(emas) // 2] if emas else None
     allocs = sum(1 for line in lines if rx_alloc.search(line))
     sweep = max((int(s.group(1)) for line in lines for s in [rx_sweep.search(line)] if s), default=0)
     worst_h = max((h[0] for h in hitches), default=0)
@@ -130,7 +146,13 @@ for d in demos:
         if cold_max is not None and worst > cold_max:
             bad.append(f'cold worstFrame {worst:.0f} ms > {cold_max:.0f}')
         if lm and float(lm.group(1)) > cold_load:
-            bad.append(f'cold load {float(lm.group(1)):.2f} s > {cold_load:.1f}')
+            cl = float(lm.group(1))
+            slow_host = warm_median is not None and warm_median > 1.25
+            if not (slow_host and cl - warm_median <= 0.5):
+                bad.append(f'cold load {cl:.2f} s > {cold_load:.1f}' + (f' (warm median {warm_median:.2f} s)' if warm_median else ''))
+            else:
+                verdict = f'cold (slow runner: warm median {warm_median:.2f} s, cold +{cl - warm_median:.2f} s)'
+    
     else:
         if d not in menus:
             if avg < 59.5:
