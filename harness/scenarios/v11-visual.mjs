@@ -11,6 +11,11 @@
 //   states  cryo nova on ~300 bugs, a napalm burn, corpses and stains -> 1 shot
 //   desk    desktop 'high' (bloom) close shot of the squad, one bot downed -> 1 shot
 //           (or: --phase states --quality high --down 1 on the desktop viewport, both in one frame)
+//   glare   no screenshot: red ring, boomer countdown, acid mark and a brute lane in the flashlight pool, sampled with
+//           B's telegraph treatment off (v1.0 look) and on; fails on near-white warnings or lost saturation
+// Canvas-only options (no page screenshot): --grab N measures the magenta/pink share of --crop over N frames;
+// --pts 1 adds per-tag colour samples (frozen / burning / corpse / queen / marine:<cls> / ring / fill / lane) and, in
+// the states phase, asserts frozen = blue, burning = warm, corpses not pink; --dump F.png writes the last crop.
 // Phases that work on a v1.0 build too (pool, horde, perf) only use the public __dbg API.
 
 // In-page helper library (installed with page.evaluate): staging and numeric checks over the live handles that
@@ -454,7 +459,7 @@ export default async (page, h) => {
       res.push(await ev(() => window.__grab.res));
     }
     const m = res.map((r) => r.magentaPink);
-    for (const r of res) if (r.tags) { h.log('[tags ' + name + ']', JSON.stringify(r.tags)); delete r.tags; }
+    for (const r of res) if (r.tags) { h.log('[tags ' + name + ']', JSON.stringify(r.tags)); h.lastTags = r.tags; delete r.tags; }
     for (const r of res) if (r.png) { const fs = await import('node:fs'); fs.writeFileSync(String(h.args.dump), Buffer.from(r.png.split(',')[1], 'base64')); h.log('[dump]', h.args.dump); delete r.png; }
     h.log('[grab ' + name + ' crop ' + crop.join(',') + ']', JSON.stringify(res), '| mean magentaPink', (m.reduce((a, b) => a + b, 0) / m.length).toFixed(4));
     await info(name);
@@ -522,12 +527,21 @@ export default async (page, h) => {
     await h.sleep(600);
     await ev(installGrab);
     const crop = [0, 0, W, H];
-    for (const mode of ['off', 'on', 'off', 'on']) {
+    const sat = { off: {}, on: {} }, white = { off: {}, on: {} };
+    for (const mode of ['warm', 'off', 'on', 'off', 'on']) {
       await ev(([m, c]) => { window.__vx.glareMode(m === 'on'); window.__grab.res = null; window.__grab.want = c; window.__grab.pts = window.__vx.pts(); }, [mode, crop]);
       for (let t = 0; t < 100 && !(await ev(() => window.__grab.res)); t++) await h.sleep(50);
-      const r = await ev(() => window.__grab.res);
-      h.log('[glare ' + mode + ']', JSON.stringify(Object.fromEntries(Object.entries(r.tags || {}).filter(([k]) => /^(ring|fill|lane)/.test(k)).map(([k, v]) => [k, { rgb: v.rgb, hue: v.hue, sat: v.sat, top: v.top }]))));
+      const r = await ev(() => window.__grab.res), tg = Object.fromEntries(Object.entries(r.tags || {}).filter(([k]) => /^(ring|fill|lane)/.test(k)));
+      if (mode === 'warm') continue;
+      for (const [k, v] of Object.entries(tg)) { (sat[mode][k] = sat[mode][k] || []).push(v.sat); white[mode][k] = (white[mode][k] || 0) + v.top.white; }
+      h.log('[glare ' + mode + ']', JSON.stringify(Object.fromEntries(Object.entries(tg).map(([k, v]) => [k, { rgb: v.rgb, hue: v.hue, sat: v.sat, top: v.top }]))));
     }
+    // B's treatment: no more near-white windows among the brightest quarter of any warning than v1.0's treatment of
+    // the same frame (a white lamp or snow under a ring counts in both; +1 for frame noise)
+    for (const k of Object.keys(white.on)) if (white.on[k] > (white.off[k] || 0) + 1) h.fail('glare: ' + k + ' washes out to white on the lit deck (' + (white.off[k] || 0) + ' -> ' + white.on[k] + ' white windows)');
+    if (Object.keys(sat.on).length < 5) h.fail('glare: expected 5 warnings on screen, got ' + Object.keys(sat.on).join(','));
+    // and every warning is at least as saturated as the v1.0 treatment of the same frame
+    for (const k of Object.keys(sat.on)) { const a = (x) => x.reduce((p, q) => p + q, 0) / x.length, on = a(sat.on[k]), off = a(sat.off[k] || [0]); h.log('[glare sat ' + k + ']', off.toFixed(2), '->', on.toFixed(2)); if (on + 0.02 < off) h.fail('glare: ' + k + ' less saturated than v1.0 (' + off.toFixed(2) + ' -> ' + on.toFixed(2) + ')'); }
     if (h.args.dump) {
       await ev((c) => { window.__vx.glareMode(true); window.__grab.res = null; window.__grab.want = c; window.__grab.dump = true; }, [Math.round(W * 0.1), Math.round(H * 0.2), Math.round(W * 0.9), Math.round(H * 0.75)]);
       for (let t = 0; t < 100 && !(await ev(() => window.__grab.res)); t++) await h.sleep(50);
@@ -545,7 +559,15 @@ export default async (page, h) => {
     await h.sleep(900);
     h.log('[states-state]', JSON.stringify(await ev(() => window.__vx.statesInfo())));
     if (h.args.down) h.log('[desk-state]', JSON.stringify(await ev(() => window.__vx.marineInfo())));
+    h.lastTags = null;
     await finish('states');
+    // with --grab 1 --pts 1: frozen bugs read blue, burning ones warm, nothing on the deck reads pink
+    const T = h.lastTags;
+    if (T) {
+      if (!T.frozen || T.frozen.blue < 0.8 || T.frozen.hue < 190 || T.frozen.hue > 235 || T.frozen.sat < 0.3) h.fail('frozen bugs do not read blue ' + JSON.stringify(T.frozen));
+      if (!T.burning || T.burning.warm < 0.6) h.fail('burning bugs do not read orange ' + JSON.stringify(T.burning));
+      if (T.corpse && T.corpse.pink > 0.1) h.fail('corpses read pink ' + JSON.stringify(T.corpse));
+    }
     return;
   }
 
