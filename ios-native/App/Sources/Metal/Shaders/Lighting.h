@@ -311,6 +311,7 @@ struct LitSurface {
     float coat;      // clear-coat weight (0 = none; High only)
     float coatRough; // clear-coat roughness
     float ao;        // baked occlusion (1 = none); contact AO from the occupancy map is applied on top
+    float shadow;    // 1 = receives the flashlights' atlas shadows (three.js receiveShadow), 0 = not
 };
 
 /// The full light model: ambient (hemisphere + moon + probe), the four flashlights with their atlas shadows, the grid
@@ -356,7 +357,7 @@ static float3 shadeLit(constant Frame& F, constant LightBlock& LB, depth2d<float
         float nl = saturate(dot(N, st.xyz));
         float k = st.w * nl;
         if (k <= 0.0) continue;
-        k *= atlasShadow(LB, shadowAtlas, i, P, nl);
+        if (s.shadow > 0.5) k *= atlasShadow(LB, shadowAtlas, i, P, nl);
         float3 c = SPOT_COLOR * k;
         outD += c * diffuse;
         float3 sp = c * PI_F * brdfGGX(st.xyz, V, N, f0, alpha);

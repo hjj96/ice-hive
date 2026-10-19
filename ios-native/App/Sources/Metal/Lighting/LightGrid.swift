@@ -85,6 +85,22 @@ final class LightingHub {
     /// Per-frame pieces of the block that need the final frame constants (Atmosphere: cones, probe), run before the
     /// upload.
     var prepare: ((FrameUniforms) -> Void)?
+    /// Lights other modules emit for this frame (effects: blasts, muzzles, flames …), taken by the next LightGrid.fill.
+    private(set) var emitted: [(GridLight, Float)] = []
+
+    /// A light for this frame only (call before MetalWorld fills the frame uniforms, e.g. from the effects' update):
+    /// `color` linear, `intensity` like a three.js PointLight's, `range` (m); `priority` weighs it against the other
+    /// ≤ 32 lights near the camera (muzzle 6, flame 12, napalm 20, blast 30).
+    func emit(_ pos: F3, color: F3, intensity: Float, range: Float, specular: Bool = true, priority: Float = 10) {
+        let c = color * (intensity / Float.pi)
+        emitted.append((GridLight(posRange: F4(pos.x, pos.y, pos.z, range), color: F4(c.x, c.y, c.z, specular ? 1 : 0)), priority))
+    }
+
+    func takeEmitted() -> [(GridLight, Float)] {
+        let e = emitted
+        emitted.removeAll(keepingCapacity: true)
+        return e
+    }
 
     init() {
         // the Swift mirror must match Lighting.h's LightBlock byte for byte
@@ -175,7 +191,8 @@ final class LightGrid {
     let hub = LightingHub()
     private var spotPos = [F4](repeating: .zero, count: 4), spotDir = [F4](repeating: .zero, count: 4)
     private var pointPos = [F4](repeating: .zero, count: 3), pointCol = [F4](repeating: .zero, count: 3)
-    private let noLight = LaunchOptions.current.unknown.contains("-nolight")
+    /// `-nolight` or `-demo nolight` (look check: without the flashlights the weather must vanish).
+    private let noLight = LaunchOptions.current.unknown.contains("-nolight") || LaunchOptions.current.demo == "nolight"
     private let gridOff: Bool = {
         let a = LaunchOptions.current.unknown
         return a.firstIndex(of: "-lights").map { $0 + 1 < a.count && a[$0 + 1] == "off" } ?? false
@@ -287,7 +304,9 @@ final class LightGrid {
     private func collect(game: Game, time: Float, poses: [MetalEffects.MarinePose], fx: MetalEffects, fillAt: F3, focus: F3) {
         candidates.removeAll(keepingCapacity: true)
         lightsFromLevel(game.level)
+        let emitted = hub.takeEmitted()
         guard !noLight && !gridOff else { hub.lights.removeAll(keepingCapacity: true); strongestOther = nil; return }
+        candidates.append(contentsOf: emitted)
         // the squad fill (also the frame-only point light 1)
         add(fillAt, LightGrid.fillColor, intensity: LightGrid.fillIntensity, range: LightGrid.fillRange, spec: false, priority: 50)
         // the effects' pooled light (flame / napalm / the player's muzzle; also the frame-only point light 0)
