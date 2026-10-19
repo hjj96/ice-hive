@@ -175,7 +175,8 @@ function buildReport(won, surrendered, res) {
   const r1 = res.rank1, lo = RANKS[r1], hi = RANKS[r1 + 1] || RANKS[r1];
   const rk = mk('div', 'r-rank'), top = mk('div', 'r-rk-top');
   top.appendChild(mk('span', '', C.name + ' · ' + RANK_NAMES[r1]));
-  top.appendChild(mk('b', '', '+' + fmtN(res.xp) + ' выслуги'));
+  const xpEl = mk('b', '', '+' + fmtN(res.xp)); xpEl.appendChild(mk('span', '', ' выслуги'));
+  top.appendChild(xpEl);
   rk.appendChild(top);
   const bar = mk('div', 'r-bar'), fill = mk('i');
   fill.style.transform = 'scaleX(' + (hi > lo ? clamp((c.xp - lo) / (hi - lo), 0, 1) : 1).toFixed(3) + ')';
@@ -198,14 +199,14 @@ function buildReport(won, surrendered, res) {
 // ---------- title: profile line, class chips (rank + medals), tier selector ----------
 let tierEls = null;
 function metaUiInit() {
-  // two-column end report: column A (header + score), column B (rank, tips, goal, numbers, buttons). Built once:
+  // two-column end report: column A (header, strip, score, numbers), column B (rank, tips, goal, buttons). Built once:
   // the stage-0 nodes keep their ids, so the other packages' handlers (#eNew) still find them.
   const box = $('eBox');
   if (!box.querySelector('.e-a')) {
     const a = mk('div', 'e-col e-a'), b = mk('div', 'e-col e-b'), repB = mk('div', '');
     repB.id = 'eRepB';
-    a.append($('eTag'), $('eTitle'), $('eSub'), $('eRep'));
-    b.append(repB, $('eStats'), box.querySelector('.row'));
+    a.append($('eTag'), $('eTitle'), $('eSub'), $('eRep'), $('eStats'));
+    b.append(repB, box.querySelector('.row'));
     box.append(a, b);
   }
   $('eStats').classList.add('mini');
