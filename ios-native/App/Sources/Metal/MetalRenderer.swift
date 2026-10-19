@@ -423,7 +423,7 @@ final class MetalRenderer {
     /// A compiled pipeline by its PipelineSpec label (nil: it failed to compile — the module skips that draw).
     func pipeline(_ label: String) -> MTLRenderPipelineState? { pipelineStates[label] }
 
-    /// Both variants of a PipelineSpec.tiered pipeline; draw with `variants(frameTier)`.
+    /// Both variants of a PipelineSpec.tiered pipeline; draw with `tieredPipeline(label)(frameTier)`.
     func tieredPipeline(_ label: String) -> TieredPipeline {
         TieredPipeline(high: pipelineStates[label + ".high"], efficient: pipelineStates[label + ".efficient"])
     }

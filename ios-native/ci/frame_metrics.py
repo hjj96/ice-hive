@@ -23,11 +23,12 @@ Gate (exit 1 with --gate), the plan's common gate for every package:
                       and inside the world encode (`metal: slow world encode N ms (thread cpu M ms)`, logged by
                       MetalRenderer for encodes > 25 ms). Such ticks are listed (`host-stalls`), not counted as hitches
                       and not held to the worst-tick limit
-  cold first launch   worst loop tick <= --cold-max-ms; loading <= --cold-load-s (1.6 s) after taking out what the
-                      simulator's shader compiler service spent starting up while the scene waited for the Metal preload
-                      (`first request N ms` beyond 0.3 s, at most the logged `metal world ready in N ms` wait); or — when
-                      the runner itself is slow (median warm loading > 1.25 s) — at most 0.5 s more than the median warm
-                      loading of the run
+  cold first launch   worst loop tick <= --cold-max-ms; the renderer's share of the loading — the time the scene waited
+                      for the Metal preload (`metal world ready in N ms`) less the simulator's shader-compiler start-up
+                      (`first request N ms` beyond 0.3 s) — <= 0.5 s; the loading itself is reported against 1.6 s and
+                      fails only beyond the warm median + 2.5 s (a tripwire: on a cold launch the simulator's host GPU
+                      can return ~5 frames/s for seconds while the cover waits for 20 — the same commit 535ce21 loaded
+                      in 1.43 s and in 2.73 s on two runs; the cover GPU frames/s are printed)
   gpu-drawn           avg >= 55 in --drawn-gated demos (swarm3x, release-combat)
   frame graph         simulator GPU ema <= --gpu-ema-max (1.0 ms); one world-target allocation per launch; a DRS
                       sweep (when present) has 10 steps and no second with a scale step has a loop tick > 34 ms
@@ -42,6 +43,8 @@ gate = False
 menus, cold = set(), set()
 cold_max = None
 cold_load = 1.6
+cold_renderer = 0.5
+cold_tripwire = 2.5
 drawn_gated = {'swarm3x', 'release-combat'}
 gpu_ema_max = 1.0
 while args and args[0].startswith('--'):
@@ -72,6 +75,7 @@ rx_hitch_wall = re.compile(r'wall=([0-9.]+)')
 rx_slow_enc = re.compile(r'metal: slow world encode (\d+) ms \(thread cpu ([0-9.]+) ms\) wall=([0-9.]+)')
 rx_first_req = re.compile(r'pipelines built in \d+ ms \(.*first request (\d+) ms')
 rx_ready_wait = re.compile(r'metal world ready in (\d+) ms')
+rx_hb_drawn = re.compile(r'hb t=[0-9.]+ .*?drawn=(\d+)')
 rx_cb = re.compile(r'cb=(\d+)ms')
 rx_hb = re.compile(r'hb t=.* td=' + num + r' .*gap=' + num + r'ms.* cbmax=' + num + 'ms')
 rx_hb_td = re.compile(r'hb t=' + num + ' td=' + num)
@@ -188,22 +192,33 @@ for d in demos:
         # a cold first launch: its worst loop tick after the first second (looser limit) and its loading time
         if cold_max is not None and worst > cold_max:
             bad.append(f'cold worstFrame {worst:.0f} ms > {cold_max:.0f}')
-        if lm and float(lm.group(1)) > cold_load:
+        if lm:
             cl = float(lm.group(1))
-            # the shader compiler service's start-up (the first pipeline request beyond 0.3 s) while the scene waited
+            # what the renderer adds to a cold launch: the time the scene waited for the Metal preload (meshes +
+            # pipelines), less what the simulator's shader compiler service spent starting up (first request > 0.3 s)
             fr, rw = rx_first_req.search(text), rx_ready_wait.search(text)
-            svc = min(float(rw.group(1)) / 1000, max(0.0, float(fr.group(1)) / 1000 - 0.3)) if fr and rw else 0.0
-            adj = cl - svc
-            slow_host = warm_median is not None and warm_median > 1.25
-            note = (f'compiler start-up {svc:.2f} s' if svc > 0 else '') \
-                + (f'{", " if svc > 0 else ""}warm median {warm_median:.2f} s' if warm_median else '')
-            if adj <= cold_load:
-                verdict = f'cold ({cl:.2f} s, {adj:.2f} s without the {note})'
-            elif slow_host and adj - warm_median <= 0.5:
-                verdict = f'cold (slow runner: {note}, cold +{adj - warm_median:.2f} s)'
+            wait = float(rw.group(1)) / 1000 if rw else 0.0
+            svc = min(wait, max(0.0, float(fr.group(1)) / 1000 - 0.3)) if fr else 0.0
+            own = wait - svc
+            # GPU frames completed per second while the cover was up (it waits for 20 of them)
+            drawn_cover = []
+            for line in lines:
+                if 'loading took' in line:
+                    break
+                hd = rx_hb_drawn.search(line)
+                if hd:
+                    drawn_cover.append(hd.group(1))
+            note = f'renderer wait {own:.2f} s' + (f' + compiler start-up {svc:.2f} s' if svc > 0 else '') \
+                + (f', cover GPU frames/s {"/".join(drawn_cover)}' if drawn_cover else '')
+            if own > cold_renderer:
+                bad.append(f'cold launch: the scene waited {own:.2f} s for the Metal preload (> {cold_renderer:.1f})')
+            if cl > cold_load:
+                if warm_median is not None and cl - warm_median > cold_tripwire:
+                    bad.append(f'cold load {cl:.2f} s, {cl - warm_median:.2f} s over the warm median (> {cold_tripwire:.1f}; {note})')
+                else:
+                    verdict = f'cold {cl:.2f} s > {cold_load:.1f} on this runner ({note})'
             else:
-                bad.append(f'cold load {cl:.2f} s > {cold_load:.1f}' + (f' ({note})' if note else ''))
-
+                verdict = f'cold {cl:.2f} s ({note})'
     else:
         if d not in menus:
             if avg < 59.5:
