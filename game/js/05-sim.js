@@ -576,7 +576,7 @@ scene.add(bugShadow);
 const _pv4 = new THREE.Matrix4();
 const _bc = new Int32Array(4);
 // per-bug chitin tints (umber / slate / plum), picked and scaled by B.vr; the queen gets a violet multiplier
-const BUG_TINT = [[1.0, 0.86, 0.74], [0.8, 0.86, 1.0], [1.0, 0.8, 0.98]], QUEEN_TINT = [0.95, 0.5, 1.45];
+const BUG_TINT = [[1.0, 0.86, 0.74], [0.8, 0.86, 1.0], [1.0, 0.8, 0.98]], QUEEN_TINT = [0.72, 0.45, 1.5];
 function markRange(attr, start, count) { attr.clearUpdateRanges(); attr.addUpdateRange(start, count); attr.needsUpdate = true; }
 function writeBugInstances(time, dt) {
   _bc.fill(0);

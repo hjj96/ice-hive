@@ -160,7 +160,40 @@ function installLib() {
         F.teleLane(es.x, es.z, es.dx, es.dz, 12, 2.3, 30, 1);
         for (let k = 1; k <= 3; k++) { const i = F.spawnBug(X.RUN, es.x + es.dx * k * 1.2, es.z + es.dz * k * 1.2, 0); if (i >= 0) B.spd[i] = 0.01; }
       }
+      L.teleAt = [px, pz];
       return { beacon: bk, at: [+px.toFixed(1), +pz.toFixed(1)], queen: q, lane: es };
+    },
+    // right before the capture: squad (and camera) back at the staging spot, then on the lit deck in front of the
+    // player a swelling boomer's countdown (half full) and a spitter's acid mark, emitted exactly as simBugs does
+    teleMarks() {
+      window.__dbg.tp(L.teleAt[0], L.teleAt[1]);
+      const P = M[0], ax = P.ax || 0, az = P.az || 1, spots = [];
+      for (const [d, sd] of [[3.5, 1.6], [4.5, -1.8], [2.5, 2.5], [5, 0]]) { const x = P.x + ax * d - az * sd, z = P.z + az * d + ax * sd; if (F.walkable(x, z)) spots.push([x, z]); }
+      if (spots[0]) { const [x, z] = spots[0], i = F.spawnBug(X.BOOM, x, z, 0); if (i >= 0) B.spd[i] = 0.01; F.teleFill(x, z, 3.1, 1.0, 0.2, 0.1, 0.8); F.teleRing(x, z, 3.1, 1.0, 0.35, 0.2, 0.8); }
+      if (spots[1]) { const [x, z] = spots[1]; F.teleRing(x, z, 1.5, 0.75, 1.0, 0.15, 1.45); F.teleFill(x, z, 1.5, 0.5, 0.85, 0.08, 1.45); }
+      for (const e of TELE) if (e.on && e.kind !== 1 && e.t === 0) e.t = e.life * 0.5;
+      return spots.length;
+    },
+    // glare capture: no bugs (nobody fires), the player's flashlight pool on the deck, and in it one of each warning:
+    // a red ring, a boomer countdown (fill + rim), an acid mark (ring + fill) and a brute lane, held at fixed intensity
+    stageGlare() {
+      for (let i = 0; i < B.n; i++) if (!B.dead[i]) F.killBug(i, -1);
+      for (const n of X.NAP) n.on = false;
+      for (const e of TELE) e.on = false;
+      const P = M[0], ax = P.ax || 0, az = P.az || 1, at = (d, sd) => [P.x + ax * d - az * sd, P.z + az * d + ax * sd];
+      const ok = (q) => F.walkable(q[0], q[1]);
+      const pl = [];
+      let q = at(3.2, -1.6); if (ok(q)) { F.teleRing(q[0], q[1], 1.4, 1.0, 0.18, 0.1, 10, 1.4, false); pl.push('ring:red'); }
+      q = at(3.4, 1.7); if (ok(q)) { F.teleFill(q[0], q[1], 1.6, 1.0, 0.2, 0.1, 10); F.teleRing(q[0], q[1], 1.6, 1.0, 0.35, 0.2, 10, 1.6, false); pl.push('boomer'); }
+      q = at(6, -1.2); if (ok(q)) { F.teleRing(q[0], q[1], 1.5, 0.75, 1.0, 0.15, 10, 1.5, false); F.teleFill(q[0], q[1], 1.5, 0.5, 0.85, 0.08, 10); pl.push('acid'); }
+      q = at(5.6, 2.4); if (ok(q)) { F.teleLane(q[0], q[1], ax, az, 4, 1.6, 0.8, 30); pl.push('lane'); }
+      for (const e of TELE) if (e.on) { e.raw = [e.r, e.g, e.b]; e.t = e.kind === 1 ? 1 : e.kind === 2 ? 6 : 2; }
+      return pl;
+    },
+    // B's telegraph treatment on / off (off = no underlays, the colours as passed: the v1.0 look)
+    glareMode(on) {
+      for (const [, u] of X.teleUnders) u.visible = on;
+      for (const e of TELE) if (e.on && e.raw) { if (on) { const m = Math.max(...e.raw); [e.r, e.g, e.b] = e.raw.map((c) => m * Math.pow(c / m, 2.2)); } else [e.r, e.g, e.b] = e.raw; }
     },
     teleInfo() {
       let qi = -1; for (let i = 0; i < B.n; i++) if (!B.dead[i] && B.uid[i] === DIR.q.uid) qi = i;
@@ -220,6 +253,14 @@ function installLib() {
       }
       for (const C of X.corpseMeshes) { const a = C.mesh.instanceMatrix.array; for (let k = 0; k < C.mesh.count; k++) add('corpse', a[k * 16 + 12], a[k * 16 + 13] + 0.05, a[k * 16 + 14]); }
       for (const m of M) add('marine:' + m.cls, m.x, m.mesh.position.y + 1.15 * m.mesh.scale.y, m.z);
+      // telegraphs: rings on 0.8..1.0 of their current radius, fills over their disc, lanes along the centre line
+      for (const e of TELE) {
+        if (!e.on) continue;
+        const u = e.t / e.life, sm = u * u * (3 - 2 * u), col = e.g > e.r ? 'acid' : 'red';
+        if (e.kind === 0) { const r = e.r0 + (e.r1 - e.r0) * sm; for (let a = 0; a < 16; a++) for (const f of [0.8, 0.9, 1.0]) add('ring:' + col, e.x + Math.cos(a / 16 * TAU) * r * f, e.y + 0.05, e.z + Math.sin(a / 16 * TAU) * r * f); }
+        else if (e.kind === 2) { const r = e.r0 * (0.12 + 0.88 * u); for (let a = 0; a < 12; a++) for (const f of [0.3, 0.6, 0.9]) add('fill:' + col, e.x + Math.cos(a / 12 * TAU) * r * f, e.y + 0.05, e.z + Math.sin(a / 12 * TAU) * r * f); }
+        else for (let d = 0.5; d < e.len; d += 0.5) add('lane', e.x + e.dx * d, e.y + (e.y1 - e.y) * d / e.len + 0.06, e.z + e.dz * d);
+      }
       return out;
     },
     marineInfo() { return M.map(m => ({ cls: m.cls, downed: m.downed, scale: m.mesh.scale.x, rx: +m.mesh.rotation.x.toFixed(2), rz: +m.mesh.rotation.z.toFixed(2), rim: [X.MARINE_RIM[m.i].r, X.MARINE_RIM[m.i].g, X.MARINE_RIM[m.i].b].map(v => +v.toFixed(3)), ndc: L.ndc(m.x, m.mesh.position.y + 1, m.z) })); },
@@ -274,14 +315,18 @@ function installGrab() {
         for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const xx = px0 + dx, yy = py0 + dy; if (xx < 0 || yy < 0 || xx >= cv.width || yy >= cv.height) continue; const o = (yy * cv.width + xx) * 4; r += full[o]; gg += full[o + 1]; b += full[o + 2]; c++; }
         if (!c) continue;
         r /= c * 255; gg /= c * 255; b /= c * 255;
-        const [hu, sa] = hsv(r, gg, b), A = acc[tag] || (acc[tag] = { n: 0, r: 0, g: 0, b: 0, blue: 0, warm: 0, pink: 0 });
+        const [hu, sa] = hsv(r, gg, b), A = acc[tag] || (acc[tag] = { n: 0, r: 0, g: 0, b: 0, blue: 0, warm: 0, pink: 0, list: [] });
+        A.list.push([Math.max(r, gg, b), r, gg, b]);
         A.n++; A.r += r; A.g += gg; A.b += b;
         if (b > r && b >= gg * 0.9) A.blue++;
         if (sa > 0.35 && hu >= 10 && hu <= 60) A.warm++;
         if (sa > 0.35 && hu >= 285 && hu <= 352) A.pink++;
       }
       g.res.tags = {};
-      for (const [tag, A] of Object.entries(acc)) { const r = A.r / A.n, gg = A.g / A.n, b = A.b / A.n, [hu, sa, v] = hsv(r, gg, b); g.res.tags[tag] = { n: A.n, rgb: [r, gg, b].map((u) => +u.toFixed(3)), hue: Math.round(hu), sat: +sa.toFixed(2), val: +v.toFixed(2), blue: +(A.blue / A.n).toFixed(2), warm: +(A.warm / A.n).toFixed(2), pink: +(A.pink / A.n).toFixed(2) }; }
+      for (const [tag, A] of Object.entries(acc)) { const r = A.r / A.n, gg = A.g / A.n, b = A.b / A.n, [hu, sa, v] = hsv(r, gg, b); g.res.tags[tag] = { n: A.n, rgb: [r, gg, b].map((u) => +u.toFixed(3)), hue: Math.round(hu), sat: +sa.toFixed(2), val: +v.toFixed(2), blue: +(A.blue / A.n).toFixed(2), warm: +(A.warm / A.n).toFixed(2), pink: +(A.pink / A.n).toFixed(2) };
+        // the brightest quarter of the windows (a washed-out warning shows up here as high value, low saturation)
+        const top = A.list.sort((p, q) => q[0] - p[0]).slice(0, Math.max(1, A.list.length >> 2)), tr = top.reduce((s2, q) => s2 + q[1], 0) / top.length, tg = top.reduce((s2, q) => s2 + q[2], 0) / top.length, tb = top.reduce((s2, q) => s2 + q[3], 0) / top.length, th = hsv(tr, tg, tb);
+        g.res.tags[tag].top = { hue: Math.round(th[0]), sat: +th[1].toFixed(2), val: +th[2].toFixed(2), white: top.filter((q) => Math.min(q[1], q[2], q[3]) > 0.8).length }; }
       g.pts = null;
     }
     if (g.detail) { g.res.cells = g.cells.join(','); g.res.samples = g.samples; g.cells = new Array(48).fill(0); g.samples = []; }
@@ -374,6 +419,7 @@ export default async (page, h) => {
     await ev(installGrab);
     if (h.args.detail) await ev(() => { window.__grab.detail = true; });
     if (h.args.attrib && hasVx) {
+      if (h.args.pts) await ev(() => { window.__grabPts = true; });
       // attribution: magenta share with one group of scene objects hidden at a time (same frame state, timeScale 0.05)
       const groups = String(h.args.groups || 'none,bugs,corpses,decals,particles,beams,telegraphs,marines,splash,pl0').split(','), acc = {};
       for (let rep = 0; rep < +h.args.attrib; rep++) for (const gname of groups) {
@@ -389,11 +435,12 @@ export default async (page, h) => {
           if (g === 'splash') hide.push(X.splashMesh);
           if (g === 'pl0') { const l = X.plights[0].light; Object.defineProperty(l, 'intensity', { configurable: true, get: () => 0, set: () => {} }); window.__unpl = () => { delete l.intensity; l.intensity = 0; }; }
           window.__hidden = hide; for (const o of hide) o.visible = false;
-          window.__grab.res = null; window.__grab.want = c;
+          window.__grab.res = null; window.__grab.want = c; if (window.__vx && window.__grabPts) window.__grab.pts = window.__vx.pts();
         }, [gname, crop]);
         for (let t = 0; t < 100 && !(await ev(() => window.__grab.res)); t++) await h.sleep(50);
         const r = await ev(() => { for (const o of window.__hidden) o.visible = true; if (window.__unpl) { window.__unpl(); window.__unpl = null; } return window.__grab.res; });
         (acc[gname] = acc[gname] || []).push(r.magentaPink);
+        if (r.tags) h.log('[attrib tags hide ' + gname + ']', JSON.stringify(Object.fromEntries(Object.entries(r.tags).filter(([k]) => /^(ring|fill|lane|queen|bug)/.test(k)).map(([k, v]) => [k, { rgb: v.rgb, hue: v.hue, sat: v.sat, top: v.top }]))));
         if (h.args.detail) h.log('[detail ' + gname + ']', r.cells, JSON.stringify(r.samples));
       }
       for (const g of groups) h.log('[attrib hide ' + g + '] mean', (acc[g].reduce((a, b) => a + b, 0) / acc[g].length).toFixed(4), JSON.stringify(acc[g]));
@@ -459,9 +506,33 @@ export default async (page, h) => {
     await h.sleep(900);
     await ev(() => window.__dbg.timeScale(0.05));
     await lvl();
+    h.log('[tele-marks]', await ev(() => window.__vx.teleMarks()));
     await h.sleep(1000);
     h.log('[tele-state]', JSON.stringify(await ev(() => window.__vx.teleInfo())));
     await finish('tele');
+    return;
+  }
+
+  if (phase === 'glare') {
+    await ev(([c, q]) => { const d = window.__dbg; d.start(c); d.setQuality(q); d.god(true); }, [cls, h.args.quality || 'med']);
+    await h.sleep(800);
+    await ev(() => { const d = window.__dbg; d.tp(30, -8); d.timeScale(0.05); });
+    await h.sleep(600);
+    h.log('[glare-stage]', JSON.stringify(await ev(() => window.__vx.stageGlare())));
+    await h.sleep(600);
+    await ev(installGrab);
+    const crop = [0, 0, W, H];
+    for (const mode of ['off', 'on', 'off', 'on']) {
+      await ev(([m, c]) => { window.__vx.glareMode(m === 'on'); window.__grab.res = null; window.__grab.want = c; window.__grab.pts = window.__vx.pts(); }, [mode, crop]);
+      for (let t = 0; t < 100 && !(await ev(() => window.__grab.res)); t++) await h.sleep(50);
+      const r = await ev(() => window.__grab.res);
+      h.log('[glare ' + mode + ']', JSON.stringify(Object.fromEntries(Object.entries(r.tags || {}).filter(([k]) => /^(ring|fill|lane)/.test(k)).map(([k, v]) => [k, { rgb: v.rgb, hue: v.hue, sat: v.sat, top: v.top }]))));
+    }
+    if (h.args.dump) {
+      await ev((c) => { window.__vx.glareMode(true); window.__grab.res = null; window.__grab.want = c; window.__grab.dump = true; }, [Math.round(W * 0.1), Math.round(H * 0.2), Math.round(W * 0.9), Math.round(H * 0.75)]);
+      for (let t = 0; t < 100 && !(await ev(() => window.__grab.res)); t++) await h.sleep(50);
+      const r = await ev(() => window.__grab.res); const fs = await import('node:fs'); fs.writeFileSync(String(h.args.dump), Buffer.from(r.png.split(',')[1], 'base64')); h.log('[dump]', h.args.dump);
+    }
     return;
   }
 

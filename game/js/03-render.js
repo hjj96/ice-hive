@@ -177,7 +177,7 @@ varying float vSparse;`)
   totalEmissiveRadiance += vec3(1.0, 0.92, 0.88) * vFx.x * 0.8;
   totalEmissiveRadiance += vec3(0.05, 0.16, 0.3) * frz * 0.5;
   // the queen: a deep-violet sheen that survives the tone curve below and any light pool
-  totalEmissiveRadiance += vec3(0.30, 0.07, 0.62) * qn * (0.10 + 0.9 * rim * rim);`)
+  totalEmissiveRadiance += vec3(0.22, 0.06, 0.66) * qn * (0.10 + 0.9 * rim * rim);`)
       // lit chitin is tone-mapped on its own: half the chroma, a soft shoulder, a cold edge glint where lit,
       // and the glands dim inside light pools (they are the signal in the dark, noise in the light)
       .replace('#include <envmap_fragment>', `#include <envmap_fragment>

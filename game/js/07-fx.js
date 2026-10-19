@@ -339,15 +339,24 @@ const teleUnders = [[teleRingMesh, teleUnder(teleRingMesh, 0.55)], [teleLaneMesh
 const TELE = [];
 for (let k = 0; k < TELE_MAX + LANE_MAX + FILL_MAX; k++) TELE.push({ on: false, kind: 0, x: 0, z: 0, y: 0, y1: 0, dx: 0, dz: 0, r0: 1, r1: 1, w: 1, len: 1, r: 1, g: 1, b: 1, t: 0, life: 1, wind: 0, pulse: true });
 function teleAlloc() { for (const e of TELE) if (!e.on) return e; return null; }
+// Telegraph colours are meant as screen colours. The additive pass is sRGB-encoded on the way out, which lifts the
+// weak channels (a linear 0.18 green shows as 0.46), so red / green warnings stacked on lit snow went salmon and
+// white. Keep the strongest channel (same brightness) and take the others to linear (^2.2) so the hue survives.
+function teleChroma(e) {
+  const m = Math.max(e.r, e.g, e.b);
+  if (m > 0) { e.r = m * Math.pow(e.r / m, 2.2); e.g = m * Math.pow(e.g / m, 2.2); e.b = m * Math.pow(e.b / m, 2.2); }
+}
 // kind 0: ring (pulsing warning or expanding shock ring)
 function teleRing(x, z, r, cr, cg, cb, life, r1 = r, pulse = true) {
   const e = teleAlloc(); if (!e) return;
   Object.assign(e, { on: true, kind: 0, x, z, y: groundY(x, z), r0: r, r1, r: cr, g: cg, b: cb, t: 0, life, pulse });
+  teleChroma(e);
 }
 // kind 2: disc that fills up as the impact approaches (acid globs) — the countdown is readable at a glance
 function teleFill(x, z, r, cr, cg, cb, life) {
   const e = teleAlloc(); if (!e) return;
   Object.assign(e, { on: true, kind: 2, x, z, y: groundY(x, z), r0: r, r1: r, r: cr, g: cg, b: cb, t: 0, life, pulse: false });
+  teleChroma(e);
 }
 // kind 1: brute charge lane — pulses during the wind-up, stays lit while the brute charges along it.
 // The lane ends where the charge leaves the deck: the first non-walkable 0.5 m step (max 12 m).
@@ -358,6 +367,7 @@ function teleLane(x, z, dx, dz, len, w, wind, charge) {
   while (d + 0.5 <= lim && walkable(x + dx * (d + 0.5), z + dz * (d + 0.5))) d += 0.5;
   len = Math.max(d, 1);
   Object.assign(e, { on: true, kind: 1, x, z, y: groundY(x, z), y1: groundY(x + dx * len, z + dz * len), dx, dz, len, w, r: 1.0, g: 0.18, b: 0.1, t: 0, life: wind + charge, wind, pulse: true });
+  teleChroma(e);
 }
 function updateTelegraphs(dt, time) {
   let nr = 0, nl = 0, nf = 0;
@@ -737,7 +747,9 @@ function fxHeal(m) {
 }
 
 // ---------- per-frame visual update ----------
-const BEACON_COL = [[0.55, 0.85, 1.0], [1.0, 0.7, 0.15], [0.25, 1.0, 0.85]];
+// screen colours (the weak channels taken to linear, as teleChroma does) so state 0 reads blue, not grey, after the
+// ring shader's sRGB output
+const BEACON_COL = [[0.55, 0.85, 1.0], [1.0, 0.7, 0.15], [0.25, 1.0, 0.85]].map(([r, g, b]) => { const e = { r, g, b }; teleChroma(e); return [e.r, e.g, e.b]; });
 let steamT = 0;
 function renderFx(dt, time) {
   splN = 0;
@@ -956,7 +968,7 @@ function fxReset() {
 // package B debug handle: live references for harness/scenarios/v11-visual.mjs (its staging and checks run there)
 window.__dbgExt = Object.assign(window.__dbgExt || {}, {
   vx() {
-    return { THREE, B, M, DIR, LV, TELE, NAP, MAT, RUN, BRUTE, FWD_X, FWD_Z, RIGHT_X, RIGHT_Z, IS_MOBILE, renderer, camera, scene, walk,
+    return { THREE, B, M, DIR, LV, TELE, NAP, MAT, RUN, BRUTE, BOOM, FWD_X, FWD_Z, RIGHT_X, RIGHT_Z, IS_MOBILE, renderer, camera, scene, walk,
       decals, PA, PN, laserMesh, trMesh, plights,
       bugMeshes, corpseMeshes, teleUnders, teleRingMesh, teleFillMesh, teleLaneMesh, splashMesh, beaconFx, MARINE_RIM,
       get splN() { return splN; }, set splN(v) { splN = v; }, get renderTime() { return renderTime; }, get simTime() { return simTime; }, get decFill() { return decFill; },
