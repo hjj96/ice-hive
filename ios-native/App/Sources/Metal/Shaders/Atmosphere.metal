@@ -48,14 +48,16 @@ vertex MeshOut vs_haze(MeshIn v [[stage_in]],
     return meshOut(F, w, v.normal, v.color, v.glow, v.leg.xy, float3(0.0));
 }
 
-/// The old bright icy radial haze, now a faint cold glow deep in the shaft (crisp's navy, horror's near-black).
+/// The old bright icy radial haze (it read as a pale blue floor under linear blending), now only a soft lift of the
+/// abyss colour deep in the shaft: the radial map's alpha shapes it, its icy colour is dropped — crisp's navy over
+/// horror's near-black, never brighter than ~2× the height fog.
 fragment float4 fs_haze(MeshOut in [[stage_in]],
                         constant Frame& F [[buffer(1)]],
                         constant LightBlock& LB [[buffer(LIGHT_BUFFER)]],
                         texture2d<float> map [[texture(0)]]) {
     float4 t = map.sample(clampSampler, in.uv);
-    float3 c = mix(LB.fogColor.rgb, t.rgb * in.color, 0.35) * 0.55;
-    return float4(c, t.a * 0.7);
+    float3 c = LB.fogColor.rgb * (1.3 + 0.9 * saturate(t.a * 1.8));
+    return float4(c, saturate(t.a * 1.4) * 0.75);
 }
 
 // ================================================================ fog decks (alpha)
