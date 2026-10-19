@@ -13,8 +13,9 @@ import IceHiveCore
 //                      edge (only the walkable edge); one light colour
 //                      per element (teal pillars / lamps, amber pad /
 //                      beacon, orange vents, red warning lamps)
-//    horror            deep darkness: dark albedos, no fill — the
-//                      flashlights and the strips are the light
+//    horror            deep darkness: dark steel, low metalness so the
+//                      squad's flashlights (and WP2's grid lights from
+//                      the lamps this module registers) are the light
 //    frost             rime on grating bars and rims near the edges
 //                      (world mask × trim receptivity, subtle), icicle
 //                      fringes under the deck lips, LOW drifts inside
