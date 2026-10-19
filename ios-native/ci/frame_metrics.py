@@ -33,6 +33,10 @@ Gate (exit 1 with --gate), the plan's common gate for every package:
                       in 1.43 s and in 2.73 s on two runs; the cover GPU frames/s are printed)
   gpu-drawn           avg >= 55 in --drawn-gated demos (swarm3x, release-combat); when the host GPU stalls on its own
                       (the same run's unloaded `calm` demo draws < 57/s) at least calm − 2
+  host-stall seconds  when a demo misses avg / min fps or the drawn floor, the same numbers are taken again without the
+                      heartbeat seconds the host stalled — a host-stall tick inside (loop side), or a command buffer that
+                      took > 100 ms, over 10x the slowest frame's own GPU span (GPU side) — and pass if those
+                      hold over >= 4 clean seconds and the demo has no app hitch (noted in the row)
   frame graph         simulator GPU ema <= --gpu-ema-max (1.0 ms); one world-target allocation per launch; a DRS
                       sweep (when present) has 10 steps and no second with a scale step has a loop tick > 34 ms
 Usage: frame_metrics.py [--gate] [--menus a,b] [--cold a,b] [--cold-max-ms N] [--cold-load-s S] [--drawn-gated a,b]
@@ -82,6 +86,9 @@ rx_hb_drawn = re.compile(r'hb t=[0-9.]+ .*?drawn=(\d+)')
 rx_hb_sk = re.compile(r' sk=(\d+)ms/')
 rx_hb_drw = re.compile(r' drw=(\d+)ms')
 rx_hb_max = re.compile(r'hb ms .*\| max (.*)$')
+rx_hb_sec = re.compile(r'hb t=[0-9.]+ td=([0-9.-]+) fps=([0-9.]+) worst=\d+ms drawn=(\d+)')
+rx_hb_gpumax = re.compile(r' gpumax=([0-9.]+)ms')
+rx_hb_cbmax = re.compile(r' cbmax=(\d+)ms')
 rx_cb = re.compile(r'cb=(\d+)ms')
 rx_hb = re.compile(r'hb t=.* td=' + num + r' .*gap=' + num + r'ms.* cbmax=' + num + 'ms')
 rx_hb_td = re.compile(r'hb t=' + num + ' td=' + num)
@@ -138,7 +145,7 @@ for d in demos:
         e = rx_slow_enc.search(line)
         if e:
             slow_enc.append((float(e.group(3)), max(0.0, float(e.group(1)) - float(e.group(2)))))
-    hitches, host_stalls = [], []
+    hitches, host_stalls, stall_tds = [], [], []
     for line in lines:
         h = rx_hitch.search(line)
         if not h or not (0.2 <= float(h.group(2)) <= secs):
@@ -158,6 +165,7 @@ for d in demos:
                     work -= min(int(wk.group(3)), off[-1])
             if work < 10:
                 host_stalls.append(int(h.group(1)))
+                stall_tds.append(float(h.group(2)))
                 continue
         if float(h.group(2)) < 1.2:
             continue
@@ -190,6 +198,22 @@ for d in demos:
         work += sum(int(v) for v in re.findall(r'=(\d+)', mm.group(1))) + enc_max
         if work < 10:
             host_stalls.append(int(hw.group(1)))
+            stall_tds.append(float(tdm.group(2)) - 0.5)
+    # per heartbeat second in the window: loop fps, GPU frames drawn, and whether the host stalled it — the loop (a host
+    # stall tick inside the second) or the GPU (a command buffer waited > 50 ms while the slowest frame's own GPU time
+    # stayed < 5 ms: the simulator host did not schedule it)
+    per_sec = []
+    for line in lines:
+        b = rx_hb_sec.search(line)
+        if not b:
+            continue
+        tsec = float(b.group(1))
+        if not (1.2 <= tsec <= secs + 0.5):
+            continue
+        loop_stall = any(tsec - 1.0 <= t0 <= tsec for t0 in stall_tds)
+        gm, cm = rx_hb_gpumax.search(line), rx_hb_cbmax.search(line)
+        gpu_stall = bool(gm and cm and float(cm.group(1)) > 100 and float(gm.group(1)) * 10 < float(cm.group(1)))
+        per_sec.append((float(b.group(2)), int(b.group(3)), loop_stall, gpu_stall))
     # GPU-side stalls in the window: heartbeats whose longest gap between completed frames exceeded 50 ms
     stalls, cbmax = 0, 0.0
     for line in lines:
@@ -228,7 +252,7 @@ for d in demos:
     if drawn_avg != '-' and d not in menus and d not in cold:
         gpu_avg.append((d, float(drawn_avg)))
     verdict = 'ok'
-    bad = []
+    bad, notes = [], []
     if d in cold:
         verdict = 'cold'
         # a cold first launch: its worst loop tick after the first second (looser limit) and its loading time
@@ -263,18 +287,31 @@ for d in demos:
                 verdict = f'cold {cl:.2f} s ({note})'
     else:
         if d not in menus:
-            if avg < 59.5:
+            # the loop's fps without the seconds a host stall fell into (only when the app's own numbers miss)
+            clean = [f for (f, _, ls, _) in per_sec if not ls]
+            excl = len(per_sec) - len(clean)
+            c_avg = sum(clean) / len(clean) if clean else avg
+            c_min = min(clean) if clean else mn
+            if avg < 59.5 and not (excl and len(clean) >= 4 and c_avg >= 59.5 and not hitches):
                 bad.append(f'avgFps {avg:.1f} < 59.5')
-            # (a second that lost frames only to host stalls is held to the old floor, 55)
-            if mn < 58 and not (host_stalls and not hitches and mn >= 55):
+            if mn < 58 and not (excl and len(clean) >= 4 and c_min >= 58 and not hitches):
                 bad.append(f'minFps {mn:.1f} < 58')
+            if excl and (avg < 59.5 or mn < 58) and not hitches:
+                notes.append(f'loop fps {c_avg:.1f} avg / {c_min:.0f} min without {excl} host-stall second(s)')
             # (a worst tick that is a host stall — no app work in it — is the simulator's, not the app's)
             if worst > 43 and not any(abs(worst - st) <= 1 for st in host_stalls):
                 bad.append(f'worstFrame {worst:.0f} ms > 43')
         if hitches:
             bad.append(f'{len(hitches)} loop hitch(es) > 50 ms after 1 s, worst {worst_h} ms')
         if d in drawn_gated and drawn_avg != '-' and float(drawn_avg) < drawn_floor:
-            bad.append(f'gpu drawn avg {float(drawn_avg):.1f} < {drawn_floor:.1f}')
+            # the frames drawn per second without the seconds the host GPU stalled
+            gclean = [dr for (_, dr, _, gs) in per_sec if not gs]
+            gex = len(per_sec) - len(gclean)
+            g_avg = sum(gclean) / len(gclean) if gclean else 0
+            if gex and len(gclean) >= 4 and g_avg >= drawn_floor:
+                notes.append(f'gpu drawn {g_avg:.1f}/s without {gex} host-GPU-stall second(s)')
+            else:
+                bad.append(f'gpu drawn avg {float(drawn_avg):.1f} < {drawn_floor:.1f}')
     if ema is not None and ema > gpu_ema_max:
         bad.append(f'simulator gpu ema {ema:.2f} ms > {gpu_ema_max:.1f} (tripwire)')
     if allocs > 1:
@@ -287,6 +324,8 @@ for d in demos:
     if bad:
         verdict = 'FAIL: ' + '; '.join(bad)
         failed.append(f'{d}: ' + '; '.join(bad))
+    elif notes:
+        verdict += ' (' + '; '.join(notes) + ')'
     fg = (f'gpu ema {ema:.2f} ms' if ema is not None else 'gpu ema -') + f' allocs {allocs}' \
         + (f' tier {"/".join(sorted(tiers))} scale {"/".join(sorted(scales))}' if tiers else '') + (f' drs {sweep}/10 worst {sweep_worst} ms' if sweep else '')
     rows.append((d, f'load {lm.group(1) if lm else "-"} s | loop avg {avg:.1f} min {mn:.1f} worst {worst:.0f} ms '
