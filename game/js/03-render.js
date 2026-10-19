@@ -185,8 +185,11 @@ varying float vSparse;`)
     vec3 dif = outgoingLight - totalEmissiveRadiance;
     float L = dot(dif, vec3(0.2126, 0.7152, 0.0722));
     float lit = smoothstep(0.03, 0.25, L);
-    dif = mix(vec3(L), dif, 0.5 + 0.5 * max(frz, qn));
-    dif = dif * 1.15 / (1.0 + dif * 3.0);
+    float keep = max(frz, qn);
+    dif = mix(vec3(L), dif, 0.5 + 0.5 * keep);
+    // the shoulder works per channel on chitin (it also pulls lit highlights toward grey) but on luminance for frozen
+    // bugs and the queen, so ice stays blue and she stays violet inside a flashlight pool
+    dif = mix(dif * 1.15 / (1.0 + dif * 3.0), dif * (1.15 / (1.0 + L * 3.0)), keep);
     dif += vec3(0.55, 0.62, 0.70) * rim * rim * lit * 0.22 * (1.0 - vGlow);
     outgoingLight = dif + totalEmissiveRadiance - gland * 0.55 * lit;
   }`);

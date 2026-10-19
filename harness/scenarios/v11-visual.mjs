@@ -189,10 +189,14 @@ function installLib() {
       n.on = true; n.x = nx; n.z = nz; n.r = 4; n.t = 5; n.own = 1;
       for (let i = 0; i < B.n; i++) if (!B.dead[i] && (B.x[i] - nx) ** 2 + (B.z[i] - nz) ** 2 < 16) { B.burn[i] = 5; B.frz[i] = 0; B.chill[i] = 0; }
       F.fxNapalmBurst(nx, nz, 4);
+      // ~0.6 s later: the nova's hit flash has faded and its burst particles have aged (a software-rendered frame
+      // takes too long for real time to do this), the frozen ring is not burning
+      for (let i = 0; i < B.n; i++) if (!B.dead[i]) { B.fl[i] = 0; if (B.frz[i] > 0) B.burn[i] = 0; }
+      for (let k = 0; k < 6; k++) F.renderFx(0.1, X.renderTime + k * 0.1);
       window.__dbg.timeScale(0.05);
       return L.statesInfo();
     },
-    statesInfo() { let alive = 0, frozen = 0, burning = 0; for (let i = 0; i < B.n; i++) if (!B.dead[i]) { alive++; if (B.frz[i] > 0) frozen++; if (B.burn[i] > 0) burning++; } return { alive, frozen, burning, corpses: X.corpseMeshes.map(c => c.mesh.count), decals: X.decFill }; },
+    statesInfo() { let alive = 0, frozen = 0, burning = 0, flash = 0; for (let i = 0; i < B.n; i++) if (!B.dead[i]) { alive++; if (B.frz[i] > 0) frozen++; if (B.burn[i] > 0) burning++; if (B.fl[i] > 0.05) flash++; } return { alive, frozen, burning, flash, corpses: X.corpseMeshes.map(c => c.mesh.count), decals: X.decFill, simTime: +X.simTime.toFixed(2) }; },
     // desktop capture: squad close-up on 'high' (bloom), one squadmate downed, a few bugs around
     stageDesk() {
       window.__dbg.tp(LV.start.x - 4, LV.start.z - 4);
@@ -200,6 +204,23 @@ function installLib() {
       window.__dbg.fast(1.0);
       const m = M[2]; if (m) { m.downed = true; m.revive = 0.3; m.hp = 0; }
       return L.marineInfo();
+    },
+    // screen points (CSS px) to sample in the next canvas grab: frozen / burning bugs at mid-body, corpses on the deck,
+    // the queen, and each marine's torso (tagged by class)
+    pts() {
+      const cv = document.querySelector('#stage canvas'), W = cv.clientWidth, H = cv.clientHeight, out = [];
+      const add = (tag, x, y, z) => { const v = new THREE.Vector3(x, y, z).project(X.camera); if (Math.abs(v.x) < 0.97 && Math.abs(v.y) < 0.97 && v.z < 1) out.push([tag, (v.x + 1) / 2 * W, (1 - v.y) / 2 * H]); };
+      for (let i = 0; i < B.n; i++) {
+        if (B.dead[i]) continue;
+        const y = F.groundY(B.x[i], B.z[i]) + B.y[i] + 0.3 * B.sc[i];
+        if (DIR.q.uid && B.uid[i] === DIR.q.uid) add('queen', B.x[i], y + 0.3, B.z[i]);
+        else if (B.frz[i] > 0) add('frozen', B.x[i], y, B.z[i]);
+        else if (B.burn[i] > 0) add('burning', B.x[i], y, B.z[i]);
+        else add('bug', B.x[i], y, B.z[i]);
+      }
+      for (const C of X.corpseMeshes) { const a = C.mesh.instanceMatrix.array; for (let k = 0; k < C.mesh.count; k++) add('corpse', a[k * 16 + 12], a[k * 16 + 13] + 0.05, a[k * 16 + 14]); }
+      for (const m of M) add('marine:' + m.cls, m.x, m.mesh.position.y + 1.15 * m.mesh.scale.y, m.z);
+      return out;
     },
     marineInfo() { return M.map(m => ({ cls: m.cls, downed: m.downed, scale: m.mesh.scale.x, rx: +m.mesh.rotation.x.toFixed(2), rz: +m.mesh.rotation.z.toFixed(2), rim: [X.MARINE_RIM[m.i].r, X.MARINE_RIM[m.i].g, X.MARINE_RIM[m.i].b].map(v => +v.toFixed(3)), ndc: L.ndc(m.x, m.mesh.position.y + 1, m.z) })); },
   };
@@ -234,6 +255,35 @@ function installGrab() {
       if (hu >= 285 && hu <= 352) { mag++; if (g.detail) { const q = i / 4, cx = Math.floor((q % w) / w * 8), cy = 5 - Math.floor(Math.floor(q / w) / hh * 6); g.cells[cy * 8 + cx]++; if (g.samples.length < 12 && Math.random() < 0.01) g.samples.push([px[i], px[i + 1], px[i + 2]]); } }
     }
     g.res = { px: n, bright: +(lit / n).toFixed(3), magentaPink: +(mag / n).toFixed(4) };
+    if (g.dump) {
+      // the same crop as a PNG (canvas readback, no page screenshot): rows flipped, alpha forced opaque
+      const c2 = document.createElement('canvas'); c2.width = w; c2.height = hh;
+      const x2 = c2.getContext('2d'), im = x2.createImageData(w, hh);
+      for (let y = 0; y < hh; y++) for (let x = 0; x < w * 4; x++) im.data[y * w * 4 + x] = (x & 3) === 3 ? 255 : px[(hh - 1 - y) * w * 4 + x];
+      x2.putImageData(im, 0, 0); g.res.png = c2.toDataURL('image/png'); g.dump = false;
+    }
+    if (g.pts) {
+      // per tag: mean colour of 5x5 device-px windows at the points, the hue of that mean, and the share of windows
+      // whose own mean is blue-dominant / warm (hue 10..60, sat > .35) / magenta-pink (hue 285..352, sat > .35)
+      const hsv = (r, gg, b) => { const mx = Math.max(r, gg, b), mn = Math.min(r, gg, b), d = mx - mn; let hu = !d ? 0 : mx === r ? (gg - b) / d : mx === gg ? 2 + (b - r) / d : 4 + (r - gg) / d; hu = ((hu / 6) % 1 + 1) % 1 * 360; return [hu, mx ? d / mx : 0, mx]; };
+      const full = new Uint8Array(cv.width * cv.height * 4); gl.readPixels(0, 0, cv.width, cv.height, gl.RGBA, gl.UNSIGNED_BYTE, full);
+      const acc = {};
+      for (const [tag, x, y] of g.pts) {
+        const px0 = Math.round(x * k), py0 = cv.height - 1 - Math.round(y * k);
+        let r = 0, gg = 0, b = 0, c = 0;
+        for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const xx = px0 + dx, yy = py0 + dy; if (xx < 0 || yy < 0 || xx >= cv.width || yy >= cv.height) continue; const o = (yy * cv.width + xx) * 4; r += full[o]; gg += full[o + 1]; b += full[o + 2]; c++; }
+        if (!c) continue;
+        r /= c * 255; gg /= c * 255; b /= c * 255;
+        const [hu, sa] = hsv(r, gg, b), A = acc[tag] || (acc[tag] = { n: 0, r: 0, g: 0, b: 0, blue: 0, warm: 0, pink: 0 });
+        A.n++; A.r += r; A.g += gg; A.b += b;
+        if (b > r && b >= gg * 0.9) A.blue++;
+        if (sa > 0.35 && hu >= 10 && hu <= 60) A.warm++;
+        if (sa > 0.35 && hu >= 285 && hu <= 352) A.pink++;
+      }
+      g.res.tags = {};
+      for (const [tag, A] of Object.entries(acc)) { const r = A.r / A.n, gg = A.g / A.n, b = A.b / A.n, [hu, sa, v] = hsv(r, gg, b); g.res.tags[tag] = { n: A.n, rgb: [r, gg, b].map((u) => +u.toFixed(3)), hue: Math.round(hu), sat: +sa.toFixed(2), val: +v.toFixed(2), blue: +(A.blue / A.n).toFixed(2), warm: +(A.warm / A.n).toFixed(2), pink: +(A.pink / A.n).toFixed(2) }; }
+      g.pts = null;
+    }
     if (g.detail) { g.res.cells = g.cells.join(','); g.res.samples = g.samples; g.cells = new Array(48).fill(0); g.samples = []; }
     g.want = null;
   });
@@ -284,14 +334,20 @@ export default async (page, h) => {
     await ev(() => window.__dbg.timeScale(0.05));
     await lvl();
     await h.sleep(300);
-    const dc = await ev(() => new Promise((res) => {
-      const v = []; let n = 0;
-      const f = () => { v.push(window.__dbg.state().drawCalls); if (++n < 60) requestAnimationFrame(f); else res(v); };
-      requestAnimationFrame(f);
-    }));
+    // 60 rendered gameplay frames; a level-up popping in the middle voids the sample (dismiss it and measure again)
+    let dc = [];
+    for (let k = 0; k < 4; k++) {
+      dc = await ev(() => new Promise((res) => {
+        const v = []; let n = 0;
+        const f = () => { const s = window.__dbg.state(); if (s.screen !== 'playing') { res(null); return; } v.push(s.drawCalls); if (++n < 60) requestAnimationFrame(f); else res(v); };
+        requestAnimationFrame(f);
+      }));
+      if (dc) break;
+      await lvl(); await h.sleep(300);
+    }
     await release();
+    if (!dc) { h.fail('perf: no 60 uninterrupted gameplay frames'); return; }
     const s = await info('perf-horde');
-    if (s.screen !== 'playing') h.fail('perf: not measuring gameplay frames (screen ' + s.screen + ')');
     const progs = await ev(() => window.__progs.size);
     const mx = Math.max(...dc), mean = dc.reduce((a, b) => a + b, 0) / dc.length;
     h.log('[perf] alive', s.bugsAlive, '| drawCalls max', mx, 'mean', mean.toFixed(1), 'min', Math.min(...dc), '| GL programs used', progs,
@@ -346,11 +402,13 @@ export default async (page, h) => {
     const res = [];
     for (let k = 0; k < grabN; k++) {
       if (k) { await live(250); await lvl(); await h.sleep(200); }
-      await ev((c) => { window.__grab.res = null; window.__grab.want = c; }, crop);
+      await ev(([c, p, d]) => { window.__grab.res = null; window.__grab.want = c; window.__grab.dump = d; if (p && window.__vx) window.__grab.pts = window.__vx.pts(); }, [crop, !!h.args.pts, !!h.args.dump && k === grabN - 1]);
       for (let t = 0; t < 100 && !(await ev(() => window.__grab.res)); t++) await h.sleep(50);
       res.push(await ev(() => window.__grab.res));
     }
     const m = res.map((r) => r.magentaPink);
+    for (const r of res) if (r.tags) { h.log('[tags ' + name + ']', JSON.stringify(r.tags)); delete r.tags; }
+    for (const r of res) if (r.png) { const fs = await import('node:fs'); fs.writeFileSync(String(h.args.dump), Buffer.from(r.png.split(',')[1], 'base64')); h.log('[dump]', h.args.dump); delete r.png; }
     h.log('[grab ' + name + ' crop ' + crop.join(',') + ']', JSON.stringify(res), '| mean magentaPink', (m.reduce((a, b) => a + b, 0) / m.length).toFixed(4));
     await info(name);
   };
@@ -403,8 +461,7 @@ export default async (page, h) => {
     await lvl();
     await h.sleep(1000);
     h.log('[tele-state]', JSON.stringify(await ev(() => window.__vx.teleInfo())));
-    await h.shot('tele');
-    await info('tele');
+    await finish('tele');
     return;
   }
 
@@ -417,8 +474,7 @@ export default async (page, h) => {
     await h.sleep(900);
     h.log('[states-state]', JSON.stringify(await ev(() => window.__vx.statesInfo())));
     if (h.args.down) h.log('[desk-state]', JSON.stringify(await ev(() => window.__vx.marineInfo())));
-    await h.shot('states');
-    await info('states');
+    await finish('states');
     return;
   }
 

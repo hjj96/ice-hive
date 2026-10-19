@@ -959,7 +959,7 @@ window.__dbgExt = Object.assign(window.__dbgExt || {}, {
     return { THREE, B, M, DIR, LV, TELE, NAP, MAT, RUN, BRUTE, FWD_X, FWD_Z, RIGHT_X, RIGHT_Z, IS_MOBILE, renderer, camera, scene, walk,
       decals, PA, PN, laserMesh, trMesh, plights,
       bugMeshes, corpseMeshes, teleUnders, teleRingMesh, teleFillMesh, teleLaneMesh, splashMesh, beaconFx, MARINE_RIM,
-      get splN() { return splN; }, set splN(v) { splN = v; }, get renderTime() { return renderTime; }, get decFill() { return decFill; },
+      get splN() { return splN; }, set splN(v) { splN = v; }, get renderTime() { return renderTime; }, get simTime() { return simTime; }, get decFill() { return decFill; },
       fn: { teleRing, teleFill, teleLane, updateTelegraphs, splashNow, renderFx, writeBugInstances, renderMarines, spawnBug, killBug,
         walkable, cellOf, groundY, useAbility, fxNapalmBurst, rnd } };
   },
