@@ -102,7 +102,7 @@ constexpr sampler clampSampler(filter::linear, mip_filter::linear, address::clam
 constexpr sampler dataSampler(filter::linear, address::clamp_to_edge);
 
 // ---------------------------------------------------------------- tone mapping / output
-static float3 acesFilmic(float3 c) {
+static inline float3 acesFilmic(float3 c) {
     const float3x3 ACES_IN = float3x3(float3(0.59719, 0.07600, 0.02840),
                                       float3(0.35458, 0.90834, 0.13383),
                                       float3(0.04823, 0.01566, 0.83777));
@@ -117,7 +117,7 @@ static float3 acesFilmic(float3 c) {
     return saturate(ACES_OUT * c);
 }
 
-static float3 linearToSRGB(float3 c) {
+static inline float3 linearToSRGB(float3 c) {
     float3 lo = c * 12.92;
     float3 hi = pow(max(c, float3(0.0)), float3(0.41666)) * 1.055 - 0.055;
     return select(hi, lo, c <= float3(0.0031308));
@@ -125,7 +125,7 @@ static float3 linearToSRGB(float3 c) {
 
 /// The colour a material writes into the world target: its linear radiance, with the exp² fog (three.js FogExp2)
 /// mixed in linear space when fogged. No tone mapping here (Post.metal's composite).
-static float3 encodeColor(constant Frame& F, float3 lin, float depth, bool fogged) {
+static inline float3 encodeColor(constant Frame& F, float3 lin, float depth, bool fogged) {
     if (fogged) {
         float d = F.fog.w * depth;
         lin = mix(lin, F.fog.rgb, 1.0 - exp(-d * d));
@@ -134,12 +134,12 @@ static float3 encodeColor(constant Frame& F, float3 lin, float depth, bool fogge
 }
 
 /// The factor a multiply-blended draw (floor stains) writes for a linear factor `c` (1 = no change): linear.
-static float3 encodeMultiply(float3 c) {
+static inline float3 encodeMultiply(float3 c) {
     return c;
 }
 
 // ---------------------------------------------------------------- vertex helpers
-static MeshOut meshOut(constant Frame& F, float3 world, float3 normal, float3 color, float glow, float2 uv, float3 extra) {
+static inline MeshOut meshOut(constant Frame& F, float3 world, float3 normal, float3 color, float glow, float2 uv, float3 extra) {
     MeshOut o;
     o.position = F.viewProj * float4(world, 1.0);
     o.world = world;
@@ -153,13 +153,13 @@ static MeshOut meshOut(constant Frame& F, float3 world, float3 normal, float3 co
 }
 
 /// Corner `vid` (0…5) of a two-triangle quad over [-1, 1]²: (-1,-1) (1,-1) (1,1) (-1,-1) (1,1) (-1,1).
-static float2 quadCorner(uint vid) {
+static inline float2 quadCorner(uint vid) {
     float x = (vid == 1u || vid == 2u || vid == 4u) ? 1.0 : -1.0;
     float y = (vid == 2u || vid == 4u || vid == 5u) ? 1.0 : -1.0;
     return float2(x, y);
 }
 
-static QuadOut quadOut(constant Frame& F, float3 w, float4 color, float2 uv, float4 params) {
+static inline QuadOut quadOut(constant Frame& F, float3 w, float4 color, float2 uv, float4 params) {
     QuadOut o;
     o.position = F.viewProj * float4(w, 1.0);
     o.color = color;

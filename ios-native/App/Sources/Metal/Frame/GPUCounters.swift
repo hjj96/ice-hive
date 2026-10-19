@@ -69,8 +69,7 @@ final class GPUCounters {
     /// Re-measure the GPU tick length against the host clock (call rarely: once per heartbeat).
     func calibrate() {
         guard perPass else { return }
-        var cpu: MTLTimestamp = 0, gpu: MTLTimestamp = 0
-        device.sampleTimestamps(&cpu, gpuTimestamp: &gpu)
+        let gpu = device.sampleTimestamps().gpu
         let now = CACurrentMediaTime()
         if calCPU > 0 && gpu > calGPU && now - calCPU > 0.2 {
             secondsPerTick = (now - calCPU) / Double(gpu - calGPU)
@@ -117,7 +116,7 @@ final class GPUCounters {
             quality.reportGPU(ms: frameMs)
             var per = [Double](repeating: -1, count: Pass.allCases.count)
             let mask = rec.mask
-            if let b = buf, mask != 0, let data = b.resolveCounterRange(0..<(2 * Pass.allCases.count)) {
+            if let b = buf, mask != 0, let data = try? b.resolveCounterRange(0..<(2 * Pass.allCases.count)) {
                 data.withUnsafeBytes { raw in
                     let ts = raw.bindMemory(to: MTLCounterResultTimestamp.self)
                     for p in Pass.allCases where mask & (1 << p.rawValue) != 0 && 2 * p.rawValue + 1 < ts.count {
