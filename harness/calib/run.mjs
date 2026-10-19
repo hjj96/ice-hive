@@ -64,7 +64,8 @@ export default async (page, h) => {
         }
         if (!P.downed && P.hp < P.maxHp * 0.3) W.lowHpT += 1 / 60;
         if (!P.downed && P.hp < P.maxHp * 0.5) W.halfHpT += 1 / 60;
-        if (I.DIR.idleMul > W.idleMax) W.idleMax = I.DIR.idleMul;
+        if (I.DIR.idleMul > W.idleMax) { W.idleMax = I.DIR.idleMul; W.idleSt = st === 'beacons' ? (I.DIR.active >= 0 ? 'b' + (I.DIR.done + 1) : 'trav' + I.DIR.done) : st; }
+        if (st === 'hold' && W.pressAtHold == null) W.pressAtHold = +I.DIR.press.toFixed(1);
         if (I.DIR.press > W.pressMax) W.pressMax = I.DIR.press;
         if (W.firstBrute < 0 && I.typeAlive[2] > 0) W.firstBrute = t;
         // the Матка
@@ -101,7 +102,7 @@ export default async (page, h) => {
       stageAt: W.stageAt, downs: W.downs, pDowns: I.GS.downs, downBy: I.GS.downBy, firstDown: W.firstDown, pFirstDown: W.pFirstDown, holdDowns: W.holdDowns,
       minHp: W.minHp.map(x => Math.round(x)), pLowS: +W.lowHpT.toFixed(1), pHalfS: +W.halfHpT.toFixed(1), pTakenPerMin: Math.round(W.pTaken / Math.max(0.1, I.GS.time / 60)),
       maxAlive: W.maxAlive, avgAlive: Math.round(W.aliveSum / Math.max(1, W.aliveN)), holdAliveMax: W.holdAliveMax, deckMax: W.deckMax, nearMax: W.nearMax,
-      idleMax: +W.idleMax.toFixed(2), pressMax: +W.pressMax.toFixed(1), firstBrute: W.firstBrute, downSt: W.downSt, queen: W.queen,
+      idleMax: +W.idleMax.toFixed(2), idleSt: W.idleSt || '', pressAtHold: W.pressAtHold ?? null, pressMax: +W.pressMax.toFixed(1), firstBrute: W.firstBrute, downSt: W.downSt, queen: W.queen,
       hurtBy: (window.__hurt || []).map(Math.round), downBy4: window.__downBy || [],
       aliveAt: W.aliveAt.join(','), hpAt: W.hpAt.join(' '),
     };

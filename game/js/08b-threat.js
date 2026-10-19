@@ -57,8 +57,9 @@ function queenTick(dt) {
     return;
   }
   if (!q.alive) return;
-  let qi = -1;
-  for (let i = 0; i < B.n; i++) if (B.uid[i] === q.uid) { qi = i; break; }
+  // her slot from the last tick, unless compactBugs moved her (then one scan)
+  let qi = QSTATE.i;
+  if (qi < 0 || qi >= B.n || B.uid[qi] !== q.uid) { qi = -1; for (let i = 0; i < B.n; i++) if (B.uid[i] === q.uid) { qi = i; break; } }
   if (qi < 0 || B.dead[qi]) { q.alive = false; q.done = true; q.killT = GS.time - q.t0; QSTATE.i = -1; QSTATE.hpFrac = 0; return; }
   QSTATE.i = qi; QSTATE.x = B.x[qi]; QSTATE.z = B.z[qi]; QSTATE.hpFrac = clamp(B.hp[qi] / B.hpMax[qi], 0, 1);
   // immune to freeze and deep chill (beamTick / the nova / frost blasts skip her too)
