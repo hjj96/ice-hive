@@ -210,14 +210,17 @@ def sheet_gratings():
             s.box(frame, x0 + 1 - g - fw, x0 + 1 - g, y0 + g + fw, y0 + 1 - g - fw, -depth, 0.0)
             along_x = (tx + ty) % 2 == 0
             inner0, inner1 = g + fw, 1 - g - fw
-            n = 18
+            # 12 bars of 3 cm at ~7.6 cm pitch: the slats still read as lines at the gameplay camera (≈ 3–4 px per
+            # pitch on a phone), the abyss shows through the gaps
+            n = 12
             pitch = (inner1 - inner0) / n
+            hw = 0.015
             for k in range(n):
                 c = inner0 + (k + 0.5) * pitch
                 if along_x:
-                    s.box(bar, x0 + inner0, x0 + inner1, y0 + c - 0.0125, y0 + c + 0.0125, -0.045, -0.0005)
+                    s.box(bar, x0 + inner0, x0 + inner1, y0 + c - hw, y0 + c + hw, -0.045, -0.0005)
                 else:
-                    s.box(bar, x0 + c - 0.0125, x0 + c + 0.0125, y0 + inner0, y0 + inner1, -0.045, -0.0005)
+                    s.box(bar, x0 + c - hw, x0 + c + hw, y0 + inner0, y0 + inner1, -0.045, -0.0005)
             for k in range(1, 4):
                 c = inner0 + (inner1 - inner0) * k / 4
                 if along_x:
@@ -447,7 +450,7 @@ def bake_sheet(builder, res):
         lp.select_set(True)
         bpy.context.view_layer.objects.active = lp
         emission(kind == 'EMIT')
-        sc.cycles.samples = {'NORMAL': 8, 'AO': 64, 'ROUGHNESS': 16, 'EMIT': 4}[kind]
+        sc.cycles.samples = {'NORMAL': 8, 'AO': 40, 'ROUGHNESS': 12, 'EMIT': 4}[kind]
         t = time.time()
         kw = dict(normal_space='TANGENT') if kind == 'NORMAL' else {}
         bpy.ops.object.bake(type=kind, use_selected_to_active=True, cage_extrusion=0.02, max_ray_distance=0.12, margin=0,

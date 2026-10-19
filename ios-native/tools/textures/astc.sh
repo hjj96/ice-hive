@@ -4,6 +4,7 @@
 #   tools/textures/astc.sh path                               # prints the astcenc binary (downloads it once)
 #   tools/textures/astc.sh encode in.png out.astc 5x5 [-thorough] [-normal]
 #                                                              # LDR linear (-cl), 2 threads, invariant output
+#   tools/textures/astc.sh decode in.astc out.png               # back to PNG (read-back renders, reviews)
 #
 # astcenc 5.2.0 (Arm, Apache-2.0) from its GitHub release, checked against a pinned SHA-256 and cached in
 # tools/textures/.cache/ (gitignored). The release builds are invariant: the same input gives the same blocks with
@@ -44,5 +45,9 @@ case "$1" in
     in=$1; out=$2; blk=$3; shift 3
     "$B" -cl "$in" "$out" "$blk" "$@" -j 2 -silent
     ;;
-  *) echo "usage: astc.sh path | encode in.png out.astc 5x5 [-thorough] [-normal]" >&2; exit 2 ;;
+  decode)
+    B=$(bin)
+    "$B" -dl "$2" "$3" -silent
+    ;;
+  *) echo "usage: astc.sh path | encode in.png out.astc 5x5 [-thorough] [-normal] | decode in.astc out.png" >&2; exit 2 ;;
 esac

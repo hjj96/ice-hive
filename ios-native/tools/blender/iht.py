@@ -200,3 +200,31 @@ def encode_layers(layers, fmt, kind, toksvig_layers=None):
 
 def md5(path):
     return hashlib.md5(open(path, 'rb').read()).hexdigest()
+
+
+def decode_level(T, layer=0, mip=0):
+    """A level of a parsed IHT1 (read()) back to RGBA8 (h, w, 4) — ASTC through astc.sh decode (read-back renders)."""
+    fmt = T['format']
+    w, h = level_dims(T['width'], T['height'], mip)
+    raw = T['levels'][layer][mip]
+    if fmt in PLAIN:
+        c = PLAIN[fmt]
+        a = np.frombuffer(raw, np.uint8).reshape(h, w, c)
+        if c == 4:
+            return a.copy()
+        out = np.zeros((h, w, 4), np.uint8)
+        out[..., :c] = a
+        out[..., 3] = 255
+        return out
+    from PIL import Image
+    bw, bh = ASTC[fmt]
+    hdr = bytes([0x13, 0xab, 0xa1, 0x5c, bw, bh, 1, w & 255, (w >> 8) & 255, (w >> 16) & 255, h & 255, (h >> 8) & 255,
+                 (h >> 16) & 255, 1, 0, 0])
+    with tempfile.TemporaryDirectory() as td:
+        src = os.path.join(td, 'in.astc')
+        dst = os.path.join(td, 'out.png')
+        open(src, 'wb').write(hdr + raw)
+        r = subprocess.run([ASTC_SH, 'decode', src, dst], capture_output=True, text=True)
+        if r.returncode != 0:
+            raise RuntimeError('astcenc decode failed: ' + r.stdout[-400:] + r.stderr[-400:])
+        return np.asarray(Image.open(dst).convert('RGBA')).copy()

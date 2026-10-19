@@ -19,10 +19,10 @@ from kitgeo import (C, F_CHAMFER, F_FROST, F_ICE, F_PAINT, F_SNOW, F_STRIP, GRAT
 
 P_LIFT, P_DYNAMIC = 1, 2
 
-STEEL = Mat(C['steel'], 0.75, layer=PANELS)
-STEEL_D = Mat(C['steelD'], 0.7, layer=PANELS)
-STEEL_L = Mat(C['steelL'], 0.85, layer=RAILS, uv='strip', strip=7)
-COLUMN = Mat(C['steel'], 0.75, layer=RAILS, uv='strip', strip=2, axis=(0, 1, 0))
+STEEL = Mat(C['steel'], 0.55, layer=PANELS)
+STEEL_D = Mat(C['steelD'], 0.55, layer=PANELS)
+STEEL_L = Mat(C['steelL'], 0.7, layer=RAILS, uv='strip', strip=7)
+COLUMN = Mat(C['steel'], 0.55, layer=RAILS, uv='strip', strip=2, axis=(0, 1, 0))
 RUBBER = Mat(C['dark'], 0.0, layer=PIPES, uv='strip', strip=7)
 
 
@@ -38,11 +38,11 @@ def crate(w, d):
     m = Mesh()
     shell = Mat(0x808080, 0.35, layer=PANELS, flags=F_PAINT | F_FROST)
     m.merge(cbox(w - 0.14, h - 0.06, d - 0.14, 0.05, shell, center=(0, h / 2, 0), bottom=False))
-    post = Mat(C['steelL'], 0.85, layer=RAILS, uv='strip', strip=7, axis=(0, 1, 0))
+    post = Mat(C['steelL'], 0.7, layer=RAILS, uv='strip', strip=7, axis=(0, 1, 0))
     for sx in (-1, 1):
         for sz in (-1, 1):
             m.merge(cbox(0.12, h, 0.12, 0.0, post, center=(sx * (w / 2 - 0.08), h / 2, sz * (d / 2 - 0.08)), bottom=False))
-    rim = Mat(C['steelL'], 0.85, layer=RAILS, uv='strip', strip=6, flags=F_FROST)
+    rim = Mat(C['steelL'], 0.7, layer=RAILS, uv='strip', strip=6, flags=F_FROST)
     m.merge(cbox(w - 0.03, 0.07, d - 0.03, 0.02, rim, center=(0, h - 0.035, 0)))
     m.merge(cbox(w - 0.03, 0.07, d - 0.03, 0.02, STEEL_D, center=(0, 0.035, 0), bottom=False))
     m.merge(cbox(w - 0.11, 0.1, d - 0.11, 0.0, Mat(C['label'], 0.1, layer=PANELS), center=(0, h * 0.62, 0), bottom=False))
@@ -64,7 +64,7 @@ def pillar():
 
 
 def rail_post():
-    m = cbox(0.09, 1.1, 0.09, 0.018, Mat(C['steelL'], 0.85, layer=RAILS, uv='strip', strip=7, axis=(0, 1, 0)),
+    m = cbox(0.09, 1.1, 0.09, 0.018, Mat(C['steelL'], 0.7, layer=RAILS, uv='strip', strip=7, axis=(0, 1, 0)),
              center=(0, 0.55, 0), bottom=False)
     m.merge(cbox(0.17, 0.05, 0.17, 0.015, STEEL_D.but(flags=F_FROST), center=(0, 0.025, 0), bottom=False))
     return m
@@ -73,18 +73,20 @@ def rail_post():
 def lamp_post():
     """3.2 m post on the railing line, an arm over the deck (+z) and a lamp housing with a lens (F_PAINT: teal /
     green per placement)."""
-    post = Mat(C['steelL'], 0.85, layer=RAILS, uv='strip', strip=2, axis=(0, 1, 0))
+    post = Mat(C['steelL'], 0.7, layer=RAILS, uv='strip', strip=2, axis=(0, 1, 0))
     m = cbox(0.16, 3.2, 0.16, 0.03, post, center=(0, 1.6, 0), bottom=False)
     m.merge(cbox(0.24, 0.08, 0.24, 0.02, STEEL_D, center=(0, 0.04, 0), bottom=False))
     m.merge(beam((0, 3.12, 0.0), (0, 3.12, 0.85), 0.1, 0.1, 0.02, STEEL_L))
-    m.merge(cbox(0.3, 0.14, 0.42, 0.03, Mat(C['steelD'], 0.8, layer=PIPES, uv='strip', strip=5, flags=F_FROST),
+    m.merge(cbox(0.3, 0.14, 0.42, 0.03, Mat(C['steelD'], 0.65, layer=PIPES, uv='strip', strip=5, flags=F_FROST),
                  center=(0, 3.05, 0.85)))
-    m.merge(cbox(0.22, 0.03, 0.34, 0.0, light(C['teal'], 4.5, paint=True), center=(0, 2.97, 0.85), bottom=False))
+    # lens: a lit band under the housing, 1 cm proud of it on every side, so the gameplay camera (57° down) sees the
+    # glowing rim; its bottom face lights the deck in the read-back
+    m.merge(cbox(0.32, 0.05, 0.44, 0.0, light(C['teal'], 4.5, paint=True), center=(0, 2.955, 0.85)))
     return m
 
 
 def vent():
-    m = cbox(1.6, 0.12, 1.6, 0.04, Mat(C['steelD'], 0.8, layer=PANELS, flags=F_FROST), center=(0, 0.06, 0), bottom=False)
+    m = cbox(1.6, 0.12, 1.6, 0.04, Mat(C['steelD'], 0.65, layer=PANELS, flags=F_FROST), center=(0, 0.06, 0), bottom=False)
     for k in range(-2, 3):
         m.merge(cbox(1.2, 0.05, 0.12, 0.01, Mat(C['orange'], 0.3, emis=1.4, layer=PIPES, uv='strip', strip=4,
                                                  flags=F_STRIP), center=(0, 0.12, k * 0.26), bottom=False))
@@ -97,12 +99,12 @@ def beacon_mast():
     and red warning lamps at the top corners. The rotating head (beacon_head) rides on top (dynamic, state colour)."""
     m = Mesh()
     plinth = [(1.75, 0.0), (1.75, 0.18), (1.6, 0.3), (1.3, 0.3), (1.3, 0.38), (0.0, 0.38)]
-    pm = Mat(C['steel'], 0.75, layer=PANELS)
+    pm = Mat(C['steel'], 0.6, layer=PANELS)
     m.merge(lathe(plinth, 12, pm, mats=[pm, pm.but(flags=F_FROST), pm.but(flags=F_FROST), pm, pm.but(flags=F_FROST)]))
     ring = lathe([(1.5, 0.3), (1.5, 0.315), (1.42, 0.315), (1.42, 0.3)], 24, light(C['amber'], 3.0), cap_top=False)
     m.merge(ring)
-    leg = Mat(C['steelL'], 0.85, layer=PIPES, uv='strip', strip=3)
-    brace = Mat(C['steel'], 0.8, layer=PIPES, uv='strip', strip=3)
+    leg = Mat(C['steelL'], 0.7, layer=PIPES, uv='strip', strip=3)
+    brace = Mat(C['steel'], 0.65, layer=PIPES, uv='strip', strip=3)
     y0, y1 = 0.38, 3.4
     r0, r1 = 0.48, 0.2
     corners = [(1, 1), (-1, 1), (-1, -1), (1, -1)]
@@ -113,6 +115,10 @@ def beacon_mast():
         return np.array([sx * r, y0 + (y1 - y0) * t, sz * r])
     for k in range(4):
         m.merge(beam(at(k, 0), at(k, 1), 0.08, 0.08, 0.015, leg))
+        # amber light strip on the leg's outer side (the mast reads as a lit structure at gameplay size)
+        sx, sz = corners[k % 4]
+        out = np.array([sx, 0.0, sz]) * (0.045 / math.sqrt(2))
+        m.merge(beam(at(k, 0.08) + out, at(k, 0.9) + out, 0.022, 0.022, 0.0, light(C['amber'], 2.6)))
     secs = [0.0, 0.34, 0.68, 1.0]
     for k in range(4):
         for s in range(3):
@@ -152,7 +158,7 @@ def beacon_head():
     """The rotating lamp on the mast top (drawn per frame: rotation + the beacon's state colour on the lens)."""
     prof = [(0.2, 0.0), (0.24, 0.05), (0.24, 0.08), (0.2, 0.08), (0.2, 0.24), (0.24, 0.24), (0.24, 0.28), (0.16, 0.34),
             (0.0, 0.34)]
-    hm = Mat(C['steelD'], 0.8, layer=PIPES, uv='strip', strip=5)
+    hm = Mat(C['steelD'], 0.65, layer=PIPES, uv='strip', strip=5)
     lens = Mat(0xffffff, 0.0, emis=3.5, layer=NONE, flags=F_STRIP | F_PAINT)
     m = lathe(prof, 10, hm, phase=0.0, mats=[hm, hm, hm, lens, hm, hm, hm, hm.but(flags=F_FROST)])
     # reflector fin (reads as a rotating shutter)
@@ -163,7 +169,7 @@ def beacon_head():
 # ---------------------------------------------------------------- lift
 def lift_pad():
     prof = [(1.85, 0.0), (1.85, 0.08), (1.7, 0.14), (1.5, 0.14), (1.48, 0.12), (1.38, 0.12), (1.36, 0.14), (0.0, 0.14)]
-    pm = Mat(C['steel'], 0.75, layer=PANELS)
+    pm = Mat(C['steel'], 0.6, layer=PANELS)
     m = lathe(prof, 20, pm, mats=[pm, pm.but(flags=F_FROST), pm.but(flags=F_FROST), pm, pm, pm, Mat(0x1a3b44, 0.4, layer=PANELS)])
     m.merge(lathe([(1.475, 0.121), (1.385, 0.121)], 20, light(C['teal'], 3.0), cap_top=False))
     for k in range(6):
@@ -174,7 +180,7 @@ def lift_pad():
 
 
 def lift_hub():
-    hm = Mat(C['steelL'], 0.85, layer=PANELS)
+    hm = Mat(C['steelL'], 0.7, layer=PANELS)
     m = lathe([(1.1, 0.0), (1.1, 0.35), (0.9, 0.5), (0.0, 0.5)], 16, hm, mats=[hm, hm.but(flags=F_FROST), hm.but(flags=F_FROST)])
     m.merge(lathe([(1.02, 0.43), (0.95, 0.43)], 32, light(C['teal'], 3.0), cap_top=False))
     return m
@@ -213,7 +219,7 @@ def pad_light():
 
 
 def pipe_bracket():
-    br = Mat(C['steelD'], 0.75, layer=PIPES, uv='strip', strip=6)
+    br = Mat(C['steelD'], 0.6, layer=PIPES, uv='strip', strip=6)
     m = cbox(0.08, 0.9, 0.06, 0.0, br, center=(0, -0.45, 0))
     m.merge(cbox(0.08, 0.06, 0.4, 0.0, br, center=(0, -0.25, 0.17)))
     m.merge(cbox(0.08, 0.06, 0.4, 0.0, br, center=(0, -0.62, 0.17)))

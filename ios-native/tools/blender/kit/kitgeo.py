@@ -33,9 +33,9 @@ F_SNOW, F_ICE, F_HAZARD, F_CHAMFER, F_FROST, F_STRIP, F_PAINT = 1, 2, 4, 8, 16, 
 
 # palette (sRGB): crisp's hard-surface steels kept dark (horror's deep blacks), class-free station accents
 C = dict(
-    steel=0x343e48, steelD=0x1f262d, steelL=0x56626e, rail=0x66737f, girder=0x1a2027, support=0x161c23,
-    deck=0x2b333c, plate=0x323a43, teal=0x2af5e0, cyan=0x38d8ff, amber=0xffa21a, red=0xff2a3a, green=0x3dff9a,
-    orange=0xff5a1a, white=0xeef6ff, crateA=0x48553a, crateB=0x30425a, crateC=0x6e4419, dark=0x0d1115,
+    steel=0x46515c, steelD=0x29313a, steelL=0x6a7784, rail=0x73808c, girder=0x1f262e, support=0x1a2129,
+    deck=0x3d4651, plate=0x434c57, teal=0x2af5e0, cyan=0x38d8ff, amber=0xffa21a, red=0xff2a3a, green=0x3dff9a,
+    orange=0xff5a1a, white=0xeef6ff, crateA=0x5d6b48, crateB=0x3f587a, crateC=0x8a5726, dark=0x0d1115,
     snow=0xc6d2df, ice=0x9fc4dc, label=0xcfc6ad,
 )
 
@@ -384,23 +384,25 @@ def icicle(x, z, length, r, mat, seg=5, rot=0.0):
 
 
 def mound(length, width, height, mat, nu=14, nv=6, seed=0, tilt=0.0):
-    """A low snow drift: a soft ridge along x (length) on a flat base at y = -0.015; one side (z < 0, the railing)
-    leans higher (tilt 0..1: wind-packed against the rail)."""
+    """A low snow drift banked against a railing: a soft ridge along x (length) on a flat base at y = -0.015, its crest
+    nearer the -z side (the rail; tilt 0..1 = how wind-packed), an irregular outline (no lens / saucer shape)."""
     R = np.random.RandomState(seed)
+    wob = R.uniform(-1, 1, nu + 1)
     m = Mesh()
     grid = []
     for i in range(nu + 1):
         u = i / nu
         row = []
+        # footprint: rounded ends, a wobbling width
+        env = max(0.18, math.sin(math.pi * u) ** 0.45) * (1.0 + 0.22 * wob[i])
         for j in range(nv + 1):
             v = j / nv
             x = (u - 0.5) * length
-            zc = (v - 0.5) * width
-            # footprint: lens shape (narrows to the ends)
-            env = math.sin(math.pi * u) ** 0.65
-            z = zc * env
-            prof = math.sin(math.pi * v) ** 1.4 * (1.0 + tilt * (0.5 - v))
-            hgt = height * env ** 1.2 * prof * (0.85 + 0.3 * R.rand())
+            z = (v - 0.5) * width * env
+            # crest at v ≈ 0.3 (rail side), a gentle tail toward the deck
+            t = v / 0.3 if v < 0.3 else (1.0 - v) / 0.7
+            prof = math.sin(0.5 * math.pi * max(0.0, min(1.0, t))) ** (1.2 - 0.5 * tilt)
+            hgt = height * min(1.0, env) ** 1.3 * prof * (0.8 + 0.4 * R.rand())
             edge = i in (0, nu) or j in (0, nv)
             y = -0.015 if edge else max(-0.015, hgt)
             row.append(m.add_vertex((x, y, z)))
