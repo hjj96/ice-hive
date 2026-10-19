@@ -129,6 +129,8 @@ final class WorldLevel {
         r.passTextures[TextureIndex.snow] = worldMask
         if kit.ready {
             buildStation(r.device)
+            // WP2's grid lights: the station's lamp lenses, pillar strips and vent slats (beacons: LightGrid's own)
+            LightingHub.current?.setStationLamps(lights.filter { $0.kind != .beacon }.map { ($0.pos, $0.color) })
         } else {
             summary = "station: kit not loaded — nothing to draw"
         }
