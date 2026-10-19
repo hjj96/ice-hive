@@ -143,10 +143,9 @@ function buildReport(won, surrendered, res) {
   repA.textContent = ''; repB.textContent = ''; st.textContent = '';
   $('eTag').textContent = 'Отчёт миссии · ' + stationLabel();
   // primary button: a win invites a new station, a loss the same one again
-  const again = $('eAgain'), nw = $('eNew');
-  again.classList.toggle('btn-go', !won); again.classList.toggle('btn-ghost', won);
-  nw.classList.toggle('btn-go', won); nw.classList.toggle('btn-ghost', !won);
-  $('eBox').classList.toggle('new-first', won);
+  const again = $('eAgain'), nw = $('eNew'), newGo = won && !nw.hidden;   // (package E un-hides #eNew)
+  again.classList.toggle('btn-go', !newGo); again.classList.toggle('btn-ghost', newGo);
+  nw.classList.toggle('btn-go', newGo); nw.classList.toggle('btn-ghost', !newGo);
   const acc = GS.shots > 0 ? Math.round(100 * Math.min(1, GS.hits / GS.shots)) : 0;
   for (const [a, b] of [['Время', fmtTime(GS.time)], ['Комбо', '×' + GS.bestCombo], ['Точность', acc + '%'], ['Уровень', String(GS.level)]]) {
     const d = mk('div'); d.appendChild(mk('span', '', a)); d.appendChild(mk('b', '', b)); st.appendChild(d);

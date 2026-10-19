@@ -68,6 +68,10 @@ export default async (page, h) => {
   });
 
   await ev(() => window.__dbg.setQuality('low'));
+  // package E un-hides «Новая станция» (and wires it); until it lands the button is shown here so the layout and
+  // the primary-button rule can be checked
+  const showNew = () => ev(() => { document.getElementById('eNew').hidden = false; });
+  await showNew();
 
   // ---------- 1. fresh profile: Новобранец by default, the title fits
   let m = await meta();
