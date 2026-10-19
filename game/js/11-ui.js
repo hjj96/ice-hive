@@ -105,7 +105,7 @@ function readHudLayout() {
 }
 function updatePlates() {
   if (plateTopDirty) readHudLayout();
-  const now = performance.now(), pdt = Math.min(0.1, (now - plLast) / 1000); plLast = now;
+  const now = performance.now(), pdt = Math.min(0.25, (now - plLast) / 1000); plLast = now;
   const n = M.length;
   for (let k = 0; k < n; k++) {
     const m = M[k];
@@ -123,6 +123,7 @@ function updatePlates() {
   for (let q = 0; q < n; q++) {
     const k = plOrd[q], m = M[k], force = k === 0 || m.downed || m.hp < m.maxHp * 0.35;
     const hw = k === 0 ? 48 : 38;
+    plHold[k] = Math.max(0, plHold[k] - pdt);
     let x = plX[k], y = plY[k], mini = false;
     if (!force) {
       // a full plate may first slide sideways (never up), then folds
@@ -140,9 +141,10 @@ function updatePlates() {
         for (let j = 0; j < 4; j++) { const dx = PL_DX[j]; if (!plHit(x + dx - 17, y - 2, x + dx + 17, y + 8)) { d = dx; break; } }
         if (d === 99) y += 10; else x += d;
       }
-      plPut(x - 17, y - 2, x + 17, y + 8);
       // hysteresis: stay folded until the full plate's spot (with a margin) has been clear for 0.35 s
-      if (plHit(plX[k] - hw - 14, plY[k] - 8, plX[k] + hw + 14, plY[k] + 30)) plHold[k] = PL_HOLD; else plHold[k] = Math.max(0, plHold[k] - pdt);
+      // (tested before this bar is placed, so a bar never blocks its own plate)
+      if (plHit(plX[k] - hw - 14, plY[k] - 8, plX[k] + hw + 14, plY[k] + 30)) plHold[k] = PL_HOLD;
+      plPut(x - 17, y - 2, x + 17, y + 8);
     } else {
       // forced plates that still collide (two hurt squadmates side by side): up while below the objective box,
       // else sideways
@@ -151,7 +153,6 @@ function updatePlates() {
         else { if (x + 2 * hw + 4 <= viewW - hw && !plHit(x + hw + 4, y - 2, x + 3 * hw + 4, y + 24)) x += 2 * hw + 4; else if (x - 2 * hw - 4 >= hw) x -= 2 * hw + 4; break; }
       }
       plPut(x - hw, y - 2, x + hw, y + 24);
-      plHold[k] = Math.max(0, plHold[k] - pdt);
     }
     plMini[k] = mini ? 1 : 0; plX[k] = x; plY[k] = y;
   }
@@ -216,7 +217,7 @@ function updateMarker() {
   let x = (v.x * 0.5 + 0.5) * viewW, y = (-v.y * 0.5 + 0.5) * viewH;
   if (v.z > 1) { x = viewW - x; y = viewH - y; }
   // safe box: below the top HUD band, above the bottom controls
-  const top = viewW < 600 ? 150 : 96, bot = viewH - (IN.mode === 'touch' ? 150 : 100), left = 34, right = viewW - 34;
+  const top = Math.max(viewW < 600 ? 150 : 96, plateTop + 16), bot = viewH - (IN.mode === 'touch' ? 150 : 100), left = 34, right = viewW - 34;
   const inside = v.z <= 1 && x > left && x < right && y > top && y < bot && !(x > mkBlockX && y > mkBlockY);
   let ang = 0;
   if (!inside) {

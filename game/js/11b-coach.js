@@ -164,4 +164,15 @@ function coachHint() { return CO.revT > 0 ? CO.revText : ''; }
 window.__dbgExt = Object.assign(window.__dbgExt || {}, {
   tut() { return { on: CO.on, step: CO.step, t: +CO.t.toFixed(2), calm: DIR.calm, beaconHordeMul: DIR.beaconHordeMul, hordes: DIR.hordes, time: +GS.time.toFixed(1), active: DIR.active, tut: store.get('tut', 0), revT: +CO.revT.toFixed(1) }; },
   cam() { return { zoom: +camZoom.toFixed(4), near: nearCam, want: camZoomWant }; },
+  // tests: set a squad member's armour (0 or less downs them)
+  // tests: move one marine (and optionally set its aim, radians); plate layout state; updatePlates cost
+  place(k = 0, x = 0, z = 0, aim) { const m = M[k | 0]; if (!m) return null; m.x = m.px = x; m.z = m.pz = z; if (aim != null) { m.aim = m.aimVis = +aim; m.ax = Math.sin(m.aim); m.az = Math.cos(m.aim); } if (!k) camTarget.set(x, groundY(x, z), z); return [m.x, m.z]; },
+  nextBeacon() { const b = nextBeacon(); return b ? { x: b.x, z: b.z, name: b.name } : null; },
+  plates() { return M.map((m, k) => ({ name: m.isPlayer ? 'ВЫ' : m.name, mini: plMini[k], hold: +plHold[k].toFixed(3), x: +plX[k].toFixed(1), y: +plY[k].toFixed(1), off: plOff[k], top: plateTop })); },
+  platesBench(n = 10000, move = false) {
+    const t0 = performance.now();
+    for (let i = 0; i < n; i++) { if (move) for (const m of M) m.mesh.position.x += (i & 1 ? -0.02 : 0.02); updatePlates(); }
+    return +((performance.now() - t0) / n * 1000).toFixed(2);   // µs per call
+  },
+  hurt(k = 1, hp = 20) { const m = M[k | 0]; if (!m) return null; if (hp <= 0) downMarine(m); else { m.hp = Math.min(m.maxHp, hp); m.downed = false; } return { name: m.name, hp: m.hp, downed: m.downed }; },
 });
