@@ -36,7 +36,7 @@ def crate(w, d):
     olive / navy / rust), bright steel corner posts and rims, a pale label band, a status LED on the front."""
     h = 1.0
     m = Mesh()
-    shell = Mat(0x808080, 0.35, layer=PANELS, flags=F_PAINT | F_FROST)
+    shell = Mat(0x808080, 0.25, layer=PANELS, flags=F_PAINT | F_FROST)
     m.merge(cbox(w - 0.14, h - 0.06, d - 0.14, 0.05, shell, center=(0, h / 2, 0), bottom=False))
     post = Mat(C['steelL'], 0.7, layer=RAILS, uv='strip', strip=7, axis=(0, 1, 0))
     for sx in (-1, 1):
@@ -195,8 +195,8 @@ def icicles(seed, n):
     m.merge(cbox(1.0, 0.03, 0.05, 0.0, ice.but(smooth=False), center=(0, -0.015, 0), bottom=True))
     xs = np.sort(R.uniform(-0.46, 0.46, n))
     for k, x in enumerate(xs):
-        L = 0.06 + 0.34 * R.rand() ** 1.6
-        r = 0.016 + 0.022 * (L / 0.4) + 0.006 * R.rand()
+        L = 0.1 + 0.42 * R.rand() ** 1.4
+        r = 0.016 + 0.02 * (L / 0.5) + 0.006 * R.rand()
         m.merge(icicle(float(x), float(R.uniform(-0.012, 0.012)), float(L), float(r), ice, seg=5, rot=float(R.rand() * 6.28)))
     return m
 
@@ -241,9 +241,9 @@ PIECES = {
     'icicles_a': (lambda: icicles(11, 8), 0, 'ceiling', 200),
     'icicles_b': (lambda: icicles(23, 6), 0, 'ceiling', 200),
     'icicles_c': (lambda: icicles(37, 8), 0, 'ceiling', 200),
-    'drift_a': (lambda: drift(1.9, 0.5, 0.11, 3, 0.6), 0, 'floor', 200),
-    'drift_b': (lambda: drift(2.6, 0.62, 0.14, 5, 0.8), 0, 'floor', 200),
-    'drift_c': (lambda: drift(1.3, 0.42, 0.08, 7, 0.4), 0, 'floor', 200),
+    'drift_a': (lambda: drift(2.0, 0.56, 0.15, 3, 0.6), 0, 'floor', 200),
+    'drift_b': (lambda: drift(2.7, 0.7, 0.19, 5, 0.8), 0, 'floor', 200),
+    'drift_c': (lambda: drift(1.4, 0.46, 0.11, 7, 0.4), 0, 'floor', 200),
     'support_cap': (support_cap, 0, 'ceiling', 120),
     'pad_light': (pad_light, 0, 'floor', 40),
     'pipe_bracket': (pipe_bracket, 0, 'none', 60),

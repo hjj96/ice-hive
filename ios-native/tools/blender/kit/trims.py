@@ -1,6 +1,15 @@
 """Station trim sheets (headless Blender + Cycles bakes):
 
-  venv/bin/python kit/trims.py OUTDIR [--previews DIR] [--res 1024]
+  venv/bin/python kit/trims.py OUTDIR [--previews DIR]           encode trim_*.iht from the committed bakes (build.sh)
+  venv/bin/python kit/trims.py OUTDIR --bake [--previews DIR] [--res 1024]
+                                                                   re-bake the sheets in Cycles into kit/trims_src/, then
+                                                                   encode (after editing a sheet below)
+
+Two steps, so the build stays byte-exact: the Cycles bakes are an authoring step whose result is committed as 8-bit
+sources (kit/trims_src/<sheet>_normal.png: X, Y in R, G; <sheet>_orm.png: AO, roughness, metal, rime) — a selected-to-
+active bake is not bit-stable between runs (a few pixels at bolt and rivet edges move by up to 0.25 between clean
+bakes, Cycles' sample batching and ray ties), so encoding straight from it flipped ASTC blocks between builds. Encoding
+the committed sources (mips, Toksvig, astcenc) is deterministic.
 
 Four 2 m × 2 m sheets (kitgeo.LAYER_NAMES) are modelled as high-poly relief over the XY plane (Z = height, the top
 surface at Z = 0, features within +1.5 cm / -8 cm) and baked onto a flat low-poly plane:
@@ -27,6 +36,8 @@ import bmesh  # noqa: E402  (after bpy: bpy puts Blender's modules on the path)
 
 import iht  # noqa: E402
 import kitgeo  # noqa: E402
+
+SRC = os.path.join(HERE, 'trims_src')
 
 T0 = time.time()
 THREADS = 3
@@ -450,6 +461,7 @@ def bake_sheet(builder, res):
         lp.select_set(True)
         bpy.context.view_layer.objects.active = lp
         emission(kind == 'EMIT')
+        # (not bit-stable between runs: see the header — the committed 8-bit sources make the build exact)
         sc.cycles.samples = {'NORMAL': 8, 'AO': 40, 'ROUGHNESS': 12, 'EMIT': 4}[kind]
         t = time.time()
         kw = dict(normal_space='TANGENT') if kind == 'NORMAL' else {}
@@ -458,6 +470,8 @@ def bake_sheet(builder, res):
         a = np.empty(res * res * 4, np.float32)
         img.pixels.foreach_get(a)
         out[kind] = a.reshape(res, res, 4)[::-1].copy()      # Metal row order
+        if os.environ.get('TRIMS_DUMP'):                      # determinism debugging: the raw float bakes
+            np.save(os.path.join(os.environ['TRIMS_DUMP'], f'{s.name}_{kind}.npy'), out[kind])
         log(f'{s.name}: {kind} {res}² in {time.time() - t:.1f}s')
     log(f'{s.name}: high poly {ntri} triangles')
     n = out['NORMAL'][..., :3] * 2.0 - 1.0
@@ -485,18 +499,59 @@ def preview(normals, orms, path):
     sheet.save(path)
 
 
+def save_sources(name, n, orm):
+    """The committed bake of one sheet: normal X, Y → 8-bit R, G (Z rebuilt on load); ORM + rime → 8-bit RGBA."""
+    from PIL import Image
+    os.makedirs(SRC, exist_ok=True)
+    xy = np.zeros(n.shape[:2] + (3,), np.uint8)
+    xy[..., 0] = iht._u8(n[..., 0] * 0.5 + 0.5)
+    xy[..., 1] = iht._u8(n[..., 1] * 0.5 + 0.5)
+    Image.fromarray(xy, 'RGB').save(os.path.join(SRC, f'{name}_normal.png'), optimize=True)
+    Image.fromarray(iht._u8(orm), 'RGBA').save(os.path.join(SRC, f'{name}_orm.png'), optimize=True)
+
+
+def load_sources(name):
+    from PIL import Image
+    pn, po = os.path.join(SRC, f'{name}_normal.png'), os.path.join(SRC, f'{name}_orm.png')
+    if not (os.path.exists(pn) and os.path.exists(po)):
+        raise SystemExit(f'trims.py: no committed bake for {name} in kit/trims_src (run trims.py OUT --bake)')
+    xy = np.asarray(Image.open(pn).convert('RGB')).astype(np.float32)[..., :2] / 255.0 * 2.0 - 1.0
+    z = np.sqrt(np.clip(1.0 - (xy ** 2).sum(-1), 0.0, 1.0))
+    n = np.concatenate([xy, z[..., None]], -1)
+    n /= np.maximum(np.linalg.norm(n, axis=2, keepdims=True), 1e-6)
+    orm = np.asarray(Image.open(po).convert('RGBA')).astype(np.float32) / 255.0
+    return n.astype(np.float32), orm
+
+
 def main():
+    import json
     args = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else sys.argv[1:]
     out = os.path.abspath(args[0])
     os.makedirs(out, exist_ok=True)
     res = int(args[args.index('--res') + 1]) if '--res' in args else 1024
     prev = os.path.abspath(args[args.index('--previews') + 1]) if '--previews' in args else None
-    normals, orms, tris = [], [], []
+    only = os.environ.get('TRIMS_ONLY')                      # debugging: bake one sheet (no files written)
+    if '--bake' in args or only:
+        tris = []
+        for b in SHEETS:
+            if only and only not in b.__name__:
+                continue
+            n, o, t = bake_sheet(b, res)
+            tris.append(t)
+            if not only:
+                save_sources(b.__name__.replace('sheet_', ''), n, o)
+        if only:
+            log('TRIMS_ONLY: nothing written')
+            return
+        with open(os.path.join(SRC, 'bake.json'), 'w') as f:
+            json.dump(dict(res=res, layers=kitgeo.LAYER_NAMES, high_poly_triangles=tris), f, indent=1, sort_keys=True)
+        log(f'baked {len(tris)} sheets into kit/trims_src')
+    normals, orms = [], []
     for b in SHEETS:
-        n, o, t = bake_sheet(b, res)
+        n, o = load_sources(b.__name__.replace('sheet_', ''))
         normals.append(n)
         orms.append(o)
-        tris.append(t)
+    res = normals[0].shape[0]
     lv = iht.encode_layers(normals, 2, 'normal')
     sz = iht.write(os.path.join(out, 'trim_normal.iht'), 2, res, res, lv, flags=iht.FL_NORMAL)
     log(f'wrote trim_normal.iht: {sz} bytes (ASTC 5x5, {len(normals)} layers, {len(lv[0])} mips)')
@@ -506,11 +561,11 @@ def main():
     if prev:
         os.makedirs(prev, exist_ok=True)
         preview(normals, orms, os.path.join(prev, 'trims.png'))
-    import json
+    bake = json.load(open(os.path.join(SRC, 'bake.json')))
     with open(os.path.join(out, 'trims_build.json'), 'w') as f:
-        json.dump(dict(res=res, layers=kitgeo.LAYER_NAMES, high_poly_triangles=tris,
-                       orm_mean=[[float(x) for x in o.reshape(-1, 4).mean(0)] for o in orms]), f, indent=1, sort_keys=True)
+        json.dump(dict(res=res, layers=kitgeo.LAYER_NAMES, high_poly_triangles=bake['high_poly_triangles'],
+                       orm_mean=[[round(float(x), 6) for x in o.reshape(-1, 4).mean(0)] for o in orms]), f, indent=1,
+                  sort_keys=True)
     log('done')
-
 
 main()

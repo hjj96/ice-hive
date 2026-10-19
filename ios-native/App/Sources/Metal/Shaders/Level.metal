@@ -134,6 +134,16 @@ vertex KitOut vs_kit(uint vid [[vertex_id]],
     return kitOut(F, v, w, n, t, albedo);
 }
 
+/// Station shadow casters (crates, pillars, beacon masts, lamp posts: WorldLevel's caster index list) into the spot
+/// tile the shadow pass has bound (F.shadowMatrix).
+vertex ShadowOut vs_shadow_kit(uint vid [[vertex_id]],
+                               const device KitVertex* V [[buffer(0)]],
+                               constant Frame& F [[buffer(1)]]) {
+    ShadowOut o;
+    o.position = F.shadowMatrix * float4(float3(V[vid].pos), 1.0);
+    return o;
+}
+
 /// Diagonal amber / black hazard paint (analytic, anti-aliased).
 static inline float3 hazardPaint(float3 world) {
     float s = (world.x + world.z) * 1.25;
@@ -198,14 +208,15 @@ fragment float4 fs_level(KitOut in [[stage_in]],
         N = Nv;
     }
     if ((fl & KF_ICE) != 0u) {
-        albedo = float3(0.05, 0.08, 0.11);
-        rough = 0.1;
+        // clear blue ice: light enough to catch the flashlight and the strip above it against the abyss
+        albedo = float3(0.22, 0.32, 0.42);
+        rough = 0.12;
         metal = 0.0;
     }
     if ((fl & KF_FROST) != 0u) {
         // rime: only where the world mask says frost AND the trim says "top of a bar / rim", on up-facing surfaces
-        float rime = saturate(mk.r * 1.5 - 0.35) * rimeK * smoothstep(0.55, 0.92, N.y) * P.look.x;
-        albedo = mix(albedo, float3(0.42, 0.48, 0.56), rime);
+        float rime = saturate(mk.r * 1.7 - 0.35) * saturate(rimeK * 1.6) * smoothstep(0.55, 0.92, N.y) * P.look.x;
+        albedo = mix(albedo, float3(0.46, 0.52, 0.6), rime);
         rough = mix(rough, 0.72, rime);
         metal = mix(metal, 0.0, rime);
     }
@@ -234,10 +245,12 @@ fragment float4 fs_level(KitOut in [[stage_in]],
     float sh = spotShadow(F, shadowMap, in.world);
     float3 c = standardLight(F, in.world, N, V, albedo, rough, metal, sh) * ao;
 #endif
-    if (high && (fl & KF_ICE) != 0u) {
-        // ice: a cold fresnel rim from the sky so icicle fringes read against the abyss
-        float fr = pow(1.0 - saturate(dot(Nv, V)), 4.0);
-        c += float3(0.35, 0.6, 0.85) * fr * (F.hemiSky.rgb * PI_F) * 0.8;
+    if ((fl & KF_ICE) != 0u) {
+        // ice: a cold fresnel rim from the sky (both tiers: icicle fringes must read against the abyss) and, on
+        // High, a faint cyan glint of the edge strip just above them
+        float fr = pow(1.0 - saturate(dot(Nv, V)), 3.0);
+        c += float3(0.35, 0.6, 0.85) * fr * (F.hemiSky.rgb * PI_F) * 1.2;
+        if (high) c += float3(0.02, 0.09, 0.12) * fr;
     }
     c += in.albedo * in.emis;
 #if defined(LIGHTING_PARAMS)
