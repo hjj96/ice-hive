@@ -96,6 +96,27 @@ window.__dbgExt = Object.assign(window.__dbgExt || {}, {
   station() { return { seed: STATION.seed, name: STATION.name, saved: store.get('seed', null), refused: stRefused, log: ST_LOG.slice(), busy: stBusy }; },
   newStation() { return newStation().then(() => this.station()); },
   gpu() { return { geo: renderer.info.memory.geometries, tex: renderer.info.memory.textures, progs: renderer.info.programs.length }; },
+  // single frames for screenshots on a loaded machine: freeze the live loop, draw exactly one frame by hand
+  // (overview: a high isometric camera over the whole station, fog thinned, lights raised)
+  snap(overview) {
+    if (GS.screen === 'playing') GS.screen = 'paused';
+    const t = performance.now() / 1000;
+    renderer.info.reset();
+    updateCamera(0.05, 1); renderMarines(1, 0.016); writeBugInstances(t, 0.016); renderFx(0.016, t); updateHUD(0.016);
+    const fov = camera.fov, far = camera.far, fd = scene.fog.density, hi = hemi.intensity, mi = moon.intensity;
+    if (overview) {
+      const yaw = Math.PI / 4, pitch = 62 * Math.PI / 180, D = 230, cx = -2, cz = -6;
+      camera.fov = 40; camera.far = 600; camera.updateProjectionMatrix();
+      camera.position.set(cx + Math.sin(yaw) * Math.cos(pitch) * D, Math.sin(pitch) * D, cz + Math.cos(yaw) * Math.cos(pitch) * D);
+      camera.lookAt(cx, -4, cz); camera.updateMatrixWorld();
+      scene.fog.density = 0.0025; hemi.intensity = 2.2; moon.intensity = 1.6;
+    }
+    if (composer) composer.render(); else renderer.render(scene, camera);
+    const out = { draw: renderer.info.render.calls, tris: renderer.info.render.triangles };
+    if (overview) { camera.fov = fov; camera.far = far; camera.updateProjectionMatrix(); scene.fog.density = fd; hemi.intensity = hi; moon.intensity = mi; }
+    stillDrawn = true;
+    return out;
+  },
   // autopilot for sec simulated seconds (no rendering); between calls the live loop stays frozen
   run(sec = 60) {
     if (GS.screen === 'paused') GS.screen = 'playing';

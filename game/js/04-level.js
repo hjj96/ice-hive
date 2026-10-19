@@ -760,6 +760,29 @@ liftGroup.add(liftDeck);
 const HZ_MAT = new THREE.MeshStandardMaterial({ map: TEX.hazard, roughness: 0.8, metalness: 0.1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
 const PAD_MAT = new THREE.MeshStandardMaterial({ map: TEX.pad, transparent: true, depthWrite: false, roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
 const GLOW_MAT = new THREE.MeshBasicMaterial({ map: TEX.glow, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+// merge the prop parts and drop every triangle that faces steeply down (normal y < -0.9): the camera always looks
+// down at 32 deg or more, so with front-face culling those were never drawn (bottoms of boxes and rails, the buried
+// half of the snow drifts) — about a quarter of the prop triangles, no visible change
+function mergeVisible(parts) {
+  const g = mergeGeometries(parts);
+  if (g.index) return g;
+  const p = g.attributes.position.array, n = p.length / 9, keep = new Uint8Array(n);
+  let k = 0;
+  for (let t = 0; t < n; t++) {
+    const a = t * 9, ux = p[a + 3] - p[a], uy = p[a + 4] - p[a + 1], uz = p[a + 5] - p[a + 2], wx = p[a + 6] - p[a], wy = p[a + 7] - p[a + 1], wz = p[a + 8] - p[a + 2];
+    const nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx;
+    if (ny >= -0.9 * Math.hypot(nx, ny, nz)) { keep[t] = 1; k++; }
+  }
+  const out = new THREE.BufferGeometry();
+  for (const name in g.attributes) {
+    const src = g.attributes[name], sz = src.itemSize, arr = new src.array.constructor(k * 3 * sz);
+    for (let t = 0, o = 0, w = 3 * sz; t < n; t++) if (keep[t]) { arr.set(src.array.subarray(t * w, t * w + w), o); o += w; }
+    out.setAttribute(name, new THREE.BufferAttribute(arr, sz, src.normalized));
+  }
+  g.dispose();
+  out.computeBoundingSphere();
+  return out;
+}
 function clearGroup(g) { for (const o of g.children.slice()) { g.remove(o); if (o.geometry) o.geometry.dispose(); } }
 function buildLevel() {
   PROP_PARTS.length = 0; LIFT_PARTS.length = 0; GLOWQ.length = 0; HAZ_STRIPS.length = 0;
@@ -784,7 +807,7 @@ function buildLevel() {
   const mg = new THREE.Mesh(bg.geometry(), MAT.grating), ms = new THREE.Mesh(bs.geometry(), MAT.slab);
   mg.receiveShadow = ms.receiveShadow = true;
   level.add(mg, ms);
-  const props = new THREE.Mesh(mergeGeometries(PROP_PARTS), MAT.props);
+  const props = new THREE.Mesh(mergeVisible(PROP_PARTS), MAT.props);
   props.receiveShadow = true;
   level.add(props);
   PROP_PARTS.length = 0;
@@ -815,7 +838,7 @@ function buildLevel() {
   lb.disc(L.x, L.z, L.r, LIFT_Y - 0.6, LIFT_Y + 0.03, 48);
   const lf = new THREE.Mesh(lb.geometry(), MAT.grating);
   lf.receiveShadow = true;
-  const lp = new THREE.Mesh(mergeGeometries(LIFT_PARTS), MAT.props);
+  const lp = new THREE.Mesh(mergeVisible(LIFT_PARTS), MAT.props);
   LIFT_PARTS.length = 0;
   liftDeck.add(lf, lp);
 }
