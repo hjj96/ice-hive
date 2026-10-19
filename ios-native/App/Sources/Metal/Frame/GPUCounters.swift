@@ -122,7 +122,9 @@ final class GPUCounters {
                     let ts = raw.bindMemory(to: MTLCounterResultTimestamp.self)
                     for p in Pass.allCases where mask & (1 << p.rawValue) != 0 && 2 * p.rawValue + 1 < ts.count {
                         let a = ts[2 * p.rawValue].timestamp, e = ts[2 * p.rawValue + 1].timestamp
-                        if e > a && a != MTLCounterErrorValue && e != MTLCounterErrorValue { per[p.rawValue] = Double(e - a) * spt * 1000 }
+                        // (an error sample reads all ones: the span check drops it)
+                        let ms = e > a ? Double(e - a) * spt * 1000 : -1
+                        if ms >= 0 && ms < 1000 { per[p.rawValue] = ms }
                     }
                 }
             }
