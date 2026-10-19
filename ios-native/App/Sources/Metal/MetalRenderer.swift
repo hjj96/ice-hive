@@ -188,7 +188,7 @@ final class MetalRenderer {
     /// ≈ 1 MB; an overflow drops that frame's later uploads and is logged once.
     static let arenaSize = 2 * 1024 * 1024
     /// encodeWorld slower than this (wall ms) is logged with its thread CPU time (diagnostics; ci/frame_metrics.py).
-    static let slowEncodeMs: Double = 25
+    static let slowEncodeMs: Double = 8
 
     /// The batch service's own pipelines (vertex functions in Characters.metal, fs_props in Level.metal).
     static let pipelines: [PipelineSpec] = [

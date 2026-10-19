@@ -21,15 +21,18 @@ Gate (exit 1 with --gate), the plan's common gate for every package:
   host stalls         a long tick in which the app's main thread worked < 10 ms is the simulator host's, not the app's:
                       app work = upd + draw minus the time the thread spent off the CPU inside SKRenderer (hud − its cpu)
                       and inside the world encode (`metal: slow world encode N ms (thread cpu M ms)`, logged by
-                      MetalRenderer for encodes > 25 ms). Such ticks are listed (`host-stalls`), not counted as hitches
-                      and not held to the worst-tick limit
+                      MetalRenderer for encodes > 8 ms). Such ticks are listed (`host-stalls`), not counted as hitches
+                      and not held to the worst-tick limit. A tick of 44–50 ms (no hitch line) counts as a host stall
+                      when the app's own maxima in that heartbeat second (`hb ms … max`, the slowest HUD render `sk=`,
+                      the drawable wait `drw=`, a world encode > 8 ms) add up to < 10 ms
   cold first launch   worst loop tick <= --cold-max-ms; the renderer's share of the loading — the time the scene waited
                       for the Metal preload (`metal world ready in N ms`) less the simulator's shader-compiler start-up
                       (`first request N ms` beyond 0.3 s) — <= 0.5 s; the loading itself is reported against 1.6 s and
                       fails only beyond the warm median + 2.5 s (a tripwire: on a cold launch the simulator's host GPU
                       can return ~5 frames/s for seconds while the cover waits for 20 — the same commit 535ce21 loaded
                       in 1.43 s and in 2.73 s on two runs; the cover GPU frames/s are printed)
-  gpu-drawn           avg >= 55 in --drawn-gated demos (swarm3x, release-combat)
+  gpu-drawn           avg >= 55 in --drawn-gated demos (swarm3x, release-combat); when the host GPU stalls on its own
+                      (the same run's unloaded `calm` demo draws < 57/s) at least calm − 2
   frame graph         simulator GPU ema <= --gpu-ema-max (1.0 ms); one world-target allocation per launch; a DRS
                       sweep (when present) has 10 steps and no second with a scale step has a loop tick > 34 ms
 Usage: frame_metrics.py [--gate] [--menus a,b] [--cold a,b] [--cold-max-ms N] [--cold-load-s S] [--drawn-gated a,b]
@@ -76,6 +79,9 @@ rx_slow_enc = re.compile(r'metal: slow world encode (\d+) ms \(thread cpu ([0-9.
 rx_first_req = re.compile(r'pipelines built in \d+ ms \(.*first request (\d+) ms')
 rx_ready_wait = re.compile(r'metal world ready in (\d+) ms')
 rx_hb_drawn = re.compile(r'hb t=[0-9.]+ .*?drawn=(\d+)')
+rx_hb_sk = re.compile(r' sk=(\d+)ms/')
+rx_hb_drw = re.compile(r' drw=(\d+)ms')
+rx_hb_max = re.compile(r'hb ms .*\| max (.*)$')
 rx_cb = re.compile(r'cb=(\d+)ms')
 rx_hb = re.compile(r'hb t=.* td=' + num + r' .*gap=' + num + r'ms.* cbmax=' + num + 'ms')
 rx_hb_td = re.compile(r'hb t=' + num + ' td=' + num)
@@ -98,6 +104,15 @@ for d in demos:
     if lm0:
         warm_loads.append(float(lm0.group(1)))
 warm_median = sorted(warm_loads)[len(warm_loads) // 2] if warm_loads else None
+# frames the host GPU completed per second in the unloaded `calm` demo of the same run: when the host itself stalls
+# (calm < 57/s) a gated demo has to draw no fewer than calm − 2, else 55
+drawn_floor = 55.0
+try:
+    mc = rx_done.search(open(f'{results}/app-calm.log', encoding='utf-8', errors='replace').read())
+    if mc and mc.group(5):
+        drawn_floor = min(55.0, float(mc.group(5)) - 2)
+except OSError:
+    pass
 for d in demos:
     try:
         text = open(f'{results}/app-{d}.log', encoding='utf-8', errors='replace').read()
@@ -148,6 +163,33 @@ for d in demos:
             continue
         cb = rx_cb.search(line)
         hitches.append((int(h.group(1)), float(h.group(2)), cb.group(1) if cb else '-'))
+    # long ticks under the hitch threshold (no hitch line): a heartbeat second whose worst tick is 44–50 ms while the
+    # app's own maxima in that second — the `hb ms … max` sections, the slowest HUD render (sk=), the drawable wait
+    # (drw=) and any world encode > 8 ms (`metal: slow world encode`) — add up to < 10 ms was stalled by the host
+    enc_in_second = 0.0
+    for k, line in enumerate(lines):
+        se = rx_slow_enc.search(line)
+        if se:
+            enc_in_second = max(enc_in_second, float(se.group(1)))
+            continue
+        hw = rx_hb_worst.search(line)
+        if not hw:
+            continue
+        enc_max, enc_in_second = enc_in_second, 0.0
+        if not (43 < int(hw.group(1)) <= 50):
+            continue
+        tdm = rx_hb_td.search(line)
+        if not tdm or not (0.2 <= float(tdm.group(2)) <= secs):
+            continue
+        sk, dw = rx_hb_sk.search(line), rx_hb_drw.search(line)
+        work = (int(sk.group(1)) if sk else 99) + (int(dw.group(1)) if dw else 99)
+        nxt = lines[k + 1] if k + 1 < len(lines) else ''
+        mm = rx_hb_max.search(nxt)
+        if mm is None:
+            continue
+        work += sum(int(v) for v in re.findall(r'=(\d+)', mm.group(1))) + enc_max
+        if work < 10:
+            host_stalls.append(int(hw.group(1)))
     # GPU-side stalls in the window: heartbeats whose longest gap between completed frames exceeded 50 ms
     stalls, cbmax = 0, 0.0
     for line in lines:
@@ -231,8 +273,8 @@ for d in demos:
                 bad.append(f'worstFrame {worst:.0f} ms > 43')
         if hitches:
             bad.append(f'{len(hitches)} loop hitch(es) > 50 ms after 1 s, worst {worst_h} ms')
-        if d in drawn_gated and drawn_avg != '-' and float(drawn_avg) < 55:
-            bad.append(f'gpu drawn avg {float(drawn_avg):.1f} < 55')
+        if d in drawn_gated and drawn_avg != '-' and float(drawn_avg) < drawn_floor:
+            bad.append(f'gpu drawn avg {float(drawn_avg):.1f} < {drawn_floor:.1f}')
     if ema is not None and ema > gpu_ema_max:
         bad.append(f'simulator gpu ema {ema:.2f} ms > {gpu_ema_max:.1f} (tripwire)')
     if allocs > 1:
@@ -257,7 +299,7 @@ for d, s in rows:
     print(f'{d:<{w}}  {s}')
 # GPU side (report only except --drawn-gated: the simulator host's GPU stalls on its own, see the calm baseline)
 low = [f'{d} {a:.1f}' for d, a in gpu_avg if a < 55]
-print('\nGPU side (gated only in ' + ', '.join(sorted(drawn_gated)) + '): drawn avg < 55/s in ' + (', '.join(low) if low else 'none')
+print('\nGPU side (gated only in ' + ', '.join(sorted(drawn_gated)) + f', floor {drawn_floor:.1f}): drawn avg < 55/s in ' + (', '.join(low) if low else 'none')
       + (f' (calm baseline {dict(gpu_avg)["calm"]:.1f})' if 'calm' in dict(gpu_avg) else ''))
 if failed:
     print('\nGATE: ' + ('FAILED' if gate else 'would fail') + '\n  ' + '\n  '.join(failed))
