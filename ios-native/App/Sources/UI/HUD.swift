@@ -576,6 +576,8 @@ final class HUD {
         let landscape = size.width > size.height
         let sr = max(16, insets.right), top = 10 + insets.top
         toastRoot.position = hp(size.width - sr, landscape ? max(top + 52, bandBottom + 6) : bandBottom + 8)
+        // the nameplates never rise above the band either (web plateTop = max(objective, coach card) bottom + 4)
+        plates.topLimit = hp(0, bandBottom + 4).y
     }
 
     // ---------------------------------------------------------------- events
@@ -630,6 +632,11 @@ final class HUD {
     private func warmV11(_ on: Bool) {
         warmNode?.removeFromParent()
         warmNode = nil
+        // whatever the warm-up shows, the next update applies the game's real state again
+        coachTarget = nil
+        cardStep = -1
+        markerUrgent = false
+        marker.setScale(1)
         coachCard.hide()
         ghost.set(.none, at: .zero)
         abilityRing.isHidden = true; dashRing.isHidden = true; markerRing.isHidden = true

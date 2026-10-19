@@ -85,7 +85,6 @@ final class TitleScreen {
         let t1 = Label("ЛЕДЯНОЙ", font: Fonts.bold, size: ts, color: UIPalette.ink, kern: 1, align: .left)
         t1.node.position = CGPoint(x: left, y: y)
         content.addChild(t1.node)
-        check.add("title1", node: t1.node)
         let t2 = Label("УЛЕЙ", font: Fonts.bold, size: ts, color: UIPalette.amber, kern: 1, align: .left)
         t2.stroke = UIPalette.amber
         t2.set("УЛЕЙ", force: true)
@@ -96,7 +95,8 @@ final class TitleScreen {
             t2.node.position = CGPoint(x: left, y: y)
         }
         content.addChild(t2.node)
-        check.add("title2", node: t2.node)
+        // the two words as one element (stacked in portrait their font line boxes overlap by design)
+        check.add("title", t1.node.calculateAccumulatedFrame().union(t2.node.calculateAccumulatedFrame()))
         y -= ts * 0.55 + 6
         // the story paragraph: for a new player only (web: hidden on phones after the first run)
         if prof.runs == 0 && level < 2 {
@@ -158,6 +158,7 @@ final class TitleScreen {
                 let cwid = chipL.width + 8
                 let box = Shapes.panel(width: cwid, height: 16, cut: 0, fill: .clear, stroke: UIPalette.tealDim)
                 box.position = CGPoint(x: mx, y: rowY + 8)
+                box.zPosition = -0.5   // ignoresSiblingOrder: under its text, over the card
                 content.addChild(box)
                 chipL.node.position = CGPoint(x: mx + 4, y: rowY)
                 content.addChild(chipL.node)
@@ -167,6 +168,7 @@ final class TitleScreen {
                     let on = rec.ev[i] > 0
                     let pip = Shapes.panel(width: 13, height: 15, cut: 0, fill: on ? UIPalette.amber : .clear, stroke: on ? nil : UIPalette.line)
                     pip.position = CGPoint(x: mx, y: rowY + 7.5)
+                    pip.zPosition = -0.5   // the letter stays on top of an amber pip
                     content.addChild(pip)
                     let pl = Label(MetaText.tierAbbr[i], font: Fonts.monoBold, size: 10, color: on ? UIPalette.bg : UIPalette.inkFaint)
                     pl.node.position = CGPoint(x: mx + 6.5, y: rowY)
