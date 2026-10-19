@@ -513,6 +513,14 @@ const beaconFx = LV.beacons.map((b) => {
 const liftInd = makeIndicator(LV.lift.r - 0.3);
 liftGroup.add(liftInd); liftInd.position.set(LV.lift.x, LIFT_Y + 0.06, LV.lift.z);
 const reviveInd = [0, 1, 2, 3].map(() => { const m = makeIndicator(1.5); m.visible = false; return m; });
+// a rebuilt station moves the fixed set of objective markers (3 beacons + the lift ring); nothing is created or freed
+function placeObjectiveFx() {
+  for (let k = 0; k < beaconFx.length; k++) {
+    const b = LV.beacons[k], f = beaconFx[k], gy = groundY(b.x, b.z);
+    f.gy = gy; f.ind.position.set(b.x, gy + 0.04, b.z); f.top.position.set(b.x, gy + 2.9, b.z); f.beam.position.set(b.x, gy + 30, b.z);
+  }
+  liftInd.position.set(LV.lift.x, LIFT_Y + 0.06, LV.lift.z);
+}
 
 // ---------- weather: GPU-animated snowfall + motes rising from the abyss ----------
 const SNOW_MAX = 1300;

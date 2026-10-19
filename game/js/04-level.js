@@ -1,9 +1,10 @@
 // ================================================================
-//  LEVEL — «Станция Кельвин-9»: grated platforms over an abyss
-//  Three height tiers: landing pad / hub / beacon A at 0 m, plaza and
-//  beacons B, C at −3 m, the cargo lift at −6 m. Real staircases and
-//  sloped catwalks connect them (the simulation stays 2D; every visual
-//  y comes from groundY()).
+//  LEVEL — grated platforms over an abyss. Seed 0 is the hand-made
+//  «Кельвин-9» (landing pad / hub / beacon A at 0 m, plaza and beacons
+//  B, C at −3 m, the cargo lift at −6 m); any other seed is a generated
+//  station (LEVELGEN below). Real staircases and sloped catwalks connect
+//  the decks (the simulation stays 2D; every visual y comes from groundY()).
+//  rebuildLevel(seed) swaps the layout in place between missions.
 // ================================================================
 const walk = new Uint8Array(G * G);      // 0 abyss, 1 floor, 2 floor blocked by a prop
 const liftCell = new Uint8Array(G * G);  // 1 = part of the lift disc
@@ -25,7 +26,294 @@ function groundY(x, z) {
   return hgt[c] + hgz[c] * (z - (j - GH + 0.5));
 }
 
-const LIFT_Y = -6;
+// ================================================================
+//  LEVELGEN — seeded station layouts from modules on a 4x4 node lattice.
+//  Pure data (no THREE): returns rects / crates / pillars / lift / beacons / vents / pipes in the exact
+//  format 04-level.js already consumes. Ramps and stairs only run along z and heights only step DOWN
+//  toward -z (away from the camera), so every lower deck is seen from above and never hides a higher one.
+// ================================================================
+const LG = { COLS: 4, ROWS: 4, PITCH: 24, TOUR_MIN: 190, TOUR_MAX: 320, REACH: 0.97 };
+// a layout is accepted only when genCheck passes; after 40 rejected tries the caller falls back to seed 0
+function genLevel(seed, opt) {
+  opt = opt || {};
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const L = genTry((seed >>> 0) * 977 + attempt * 7919, opt);
+    if (!L) continue;
+    const c = genCheck(L);
+    if (c.ok) { L.seed = seed; L.attempts = attempt + 1; L.check = c; return L; }
+  }
+  return null;
+}
+// ---- validation on a scratch raster (same rules as rasterLevel; the live walk grid is never touched) ----
+const GC_WALK = new Uint8Array(G * G), GC_LIFT = new Uint8Array(G * G), GC_H = new Float32Array(G * G);
+const GC_D = new Int32Array(G * G), GC_Q = new Int32Array(G * G);
+function genBfs(from) {
+  const d = GC_D, q = GC_Q, w = GC_WALK; d.fill(-1);
+  let h = 0, t = 0; d[from] = 0; q[t++] = from;
+  while (h < t) {
+    const c = q[h++], i = c % G, n1 = d[c] + 1;
+    if (i > 0 && w[c - 1] === 1 && d[c - 1] < 0) { d[c - 1] = n1; q[t++] = c - 1; }
+    if (i < G - 1 && w[c + 1] === 1 && d[c + 1] < 0) { d[c + 1] = n1; q[t++] = c + 1; }
+    if (c >= G && w[c - G] === 1 && d[c - G] < 0) { d[c - G] = n1; q[t++] = c - G; }
+    if (c < G * (G - 1) && w[c + G] === 1 && d[c + G] < 0) { d[c + G] = n1; q[t++] = c + G; }
+  }
+  return d;
+}
+// connectivity (start reaches every beacon ring and the lift, >= 97% of the floor), no cliffs between walkable
+// neighbours, objective tour 190-320 cells (the greedy order the autopilot plays), and a lift rim edge on the far
+// side (z - lift.z < -4) for the queen's climb
+function genCheck(L) {
+  const w = GC_WALK, lc = GC_LIFT, hg = GC_H;
+  w.fill(0); lc.fill(0); hg.fill(0);
+  for (const [x0, z0, x1, z1, , , hs] of L.rects) {
+    const i0 = Math.max(0, Math.floor(x0 + GH - 0.5)), i1 = Math.min(G - 1, Math.ceil(x1 + GH)), j0 = Math.max(0, Math.floor(z0 + GH - 0.5)), j1 = Math.min(G - 1, Math.ceil(z1 + GH));
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      const x = i - GH + 0.5, z = j - GH + 0.5;
+      if (x > x0 && x < x1 && z > z0 && z < z1) { w[j * G + i] = 1; hg[j * G + i] = rectH(hs, z); }
+    }
+  }
+  const T = L.lift;
+  for (let j = 0; j < G; j++) for (let i = 0; i < G; i++) {
+    const x = i - GH + 0.5, z = j - GH + 0.5;
+    if ((x - T.x) ** 2 + (z - T.z) ** 2 < (T.r - 0.3) ** 2) { const c = j * G + i; w[c] = 1; lc[c] = 1; hg[c] = T.y; }
+  }
+  for (const [x0, z0, cw, cd] of L.crates) for (let a = 0; a < cw; a++) for (let b = 0; b < cd; b++) { const c = cellOf(x0 + a + 0.5, z0 + b + 0.5); if (c >= 0) w[c] = 2; }
+  for (const [x, z] of L.pillars) { const c = cellOf(x, z); if (c >= 0) w[c] = 2; }
+  // the queen's rim: a spawn edge (floor next to the abyss) by the lift, on its far side
+  let rim = 0;
+  for (let j = 1; j < G - 1; j++) for (let i = 1; i < G - 1; i++) {
+    const c = j * G + i; if (w[c] !== 1) continue;
+    if (w[c - 1] && w[c + 1] && w[c - G] && w[c + G]) continue;
+    const x = i - GH + 0.5, z = j - GH + 0.5;
+    if ((x - T.x) ** 2 + (z - T.z) ** 2 <= (T.r + 1.5) ** 2 && z - T.z < -4) rim++;
+  }
+  for (const b of L.beacons) for (const [ox, oz] of [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]]) { const c = cellOf(b.x + ox, b.z + oz); if (c >= 0) w[c] = 2; }
+  let floor = 0, cliffs = 0;
+  for (let j = 1; j < G - 1; j++) for (let i = 1; i < G - 1; i++) {
+    const c = j * G + i; if (w[c] !== 1) continue; floor++;
+    if (w[c + 1] === 1 && Math.abs(hg[c + 1] - hg[c]) > 0.05) cliffs++;
+    if (w[c + G] === 1 && Math.abs(hg[c + G] - hg[c]) > 0.65) cliffs++;
+  }
+  const s = cellOf(L.start.x + 0.5, L.start.z + 0.5);
+  if (s < 0 || w[s] !== 1) return { ok: false, why: 'start' };
+  let d = genBfs(s), reach = 0;
+  for (let c = 0; c < G * G; c++) if (w[c] === 1 && d[c] >= 0) reach++;
+  const ringD = (x, z) => { let m = 1e9; for (let j = -4; j <= 4; j++) for (let i = -4; i <= 4; i++) { if (i * i + j * j > 16) continue; const c = cellOf(x + i, z + j); if (c >= 0 && d[c] >= 0) m = Math.min(m, d[c]); } return m; };
+  if (L.beacons.some(b => ringD(b.x, b.z) >= 1e9) || ringD(T.x, T.z) >= 1e9) return { ok: false, why: 'unreachable' };
+  // greedy tour start -> nearest unvisited beacon -> ... -> lift
+  let tour = 0;
+  const left = L.beacons.slice();
+  while (left.length) {
+    let bi = 0, bv = 1e9;
+    left.forEach((b, k) => { const c = cellOf(b.x + 2.5, b.z + 2.5), v = c >= 0 && d[c] >= 0 ? d[c] : 1e9; if (v < bv) { bv = v; bi = k; } });
+    if (bv >= 1e9) return { ok: false, why: 'unreachable' };
+    tour += bv;
+    d = genBfs(cellOf(left[bi].x + 2.5, left[bi].z + 2.5));
+    left.splice(bi, 1);
+  }
+  const lt = d[cellOf(T.x, T.z)];
+  if (lt < 0) return { ok: false, why: 'unreachable' };
+  tour += lt;
+  const reachFrac = reach / Math.max(1, floor);
+  const why = cliffs ? 'cliff' : reachFrac <= LG.REACH ? 'pockets' : tour < LG.TOUR_MIN || tour > LG.TOUR_MAX ? 'tour' : !rim ? 'rim' : '';
+  return { ok: !why, why, tour, floor, reach: +reachFrac.toFixed(3), rim, cliffs };
+}
+function genTry(s, opt) {
+  const R = mulberry32(s), ri = (a, b) => a + Math.floor(R() * (b - a + 1)), pick = (a) => a[Math.floor(R() * a.length)];
+  const { COLS, ROWS, PITCH } = LG;
+  const id = (c, r) => r * COLS + c, colOf = (n) => n % COLS, rowOf = (n) => (n / COLS) | 0;
+  const nb = (n) => { const c = colOf(n), r = rowOf(n), o = []; if (c > 0) o.push(n - 1); if (c < COLS - 1) o.push(n + 1); if (r > 0) o.push(n - COLS); if (r < ROWS - 1) o.push(n + COLS); return o; };
+  // ---- 1. grow a random tree from the start node (row 0 = nearest the camera, highest deck) ----
+  const target = opt.nodes || ri(8, 10);
+  const start = id(ri(0, COLS - 1), 0);
+  const inSet = new Uint8Array(COLS * ROWS), edges = new Set(), adj = Array.from({ length: COLS * ROWS }, () => []);
+  const ek = (a, b) => a < b ? a + ':' + b : b + ':' + a;
+  const link = (a, b) => { edges.add(ek(a, b)); adj[a].push(b); adj[b].push(a); };
+  inSet[start] = 1; let count = 1;
+  while (count < target) {
+    const front = [];
+    for (let n = 0; n < COLS * ROWS; n++) if (inSet[n]) for (const m of nb(n)) if (!inSet[m]) front.push([n, m]);
+    if (!front.length) break;
+    // bias toward growing downward (-z): the mission reads as a descent into the station
+    const w = front.map(([n, m]) => rowOf(m) > rowOf(n) ? 1.6 : 1);
+    let t = R() * w.reduce((a, b) => a + b, 0), k = 0;
+    for (; k < front.length - 1; k++) { t -= w[k]; if (t <= 0) break; }
+    const [n, m] = front[k];
+    inSet[m] = 1; count++; link(n, m);
+  }
+  const bfs = (from) => { const d = new Int32Array(COLS * ROWS).fill(-1), q = [from]; d[from] = 0; while (q.length) { const n = q.shift(); for (const m of adj[n]) if (d[m] < 0) { d[m] = d[n] + 1; q.push(m); } } return d; };
+  // ---- 2. lift: a leaf in row >= 2 whose only link comes from +z (the lift railing opens toward +z) ----
+  let d0 = bfs(start), lift = -1, best = -1;
+  for (let n = 0; n < COLS * ROWS; n++) {
+    if (!inSet[n] || rowOf(n) < 2 || adj[n].length !== 1 || adj[n][0] !== n - COLS) continue;
+    const sc = d0[n] * 10 + rowOf(n) * 3 + R();
+    if (sc > best) { best = sc; lift = n; }
+  }
+  if (lift < 0) return null;
+  // ---- 3. one or two loop links (never into the lift): flanking routes and kiting circles ----
+  const loops = ri(1, 2);
+  for (let tries = 0, made = 0; tries < 30 && made < loops; tries++) {
+    const n = ri(0, COLS * ROWS - 1); if (!inSet[n] || n === lift) continue;
+    const m = pick(nb(n)); if (!inSet[m] || m === lift || edges.has(ek(n, m))) continue;
+    link(n, m); made++;
+  }
+  d0 = bfs(start);
+  // ---- 4. three beacons: far from the start and from each other (farthest-point on graph distance) ----
+  const cand = []; for (let n = 0; n < COLS * ROWS; n++) if (inSet[n] && n !== start && n !== lift) cand.push(n);
+  if (cand.length < 3) return null;
+  const beac = [];
+  while (beac.length < 3) {
+    let bn = -1, bs = -1;
+    for (const n of cand) {
+      if (beac.includes(n)) continue;
+      const dn = bfs(n);
+      let mind = d0[n] * 0.8;
+      for (const b of beac) mind = Math.min(mind, dn[b] * 1.2);
+      // the node next to the lift stays a plain approach (the climax needs a clean run-up)
+      const sc = mind + (adj[lift][0] === n ? -2 : 0) + R() * 0.5;
+      if (sc > bs) { bs = sc; bn = n; }
+    }
+    beac.push(bn);
+  }
+  // ---- 5. heights per row: each row is level with, or 3 m below, the row nearer the camera ----
+  const rowH = [0]; for (let r = 1; r < ROWS; r++) rowH.push(rowH[r - 1] - (R() < 0.55 ? 3 : 0));
+  // ---- 6. node footprints (integer metres so the 1 m walk grid rasterises cleanly) ----
+  const N = [];
+  for (let n = 0; n < COLS * ROWS; n++) {
+    if (!inSet[n]) { N.push(null); continue; }
+    const big = beac.includes(n) || n === start;
+    const hx = big ? ri(8, 9) : ri(6, 8), hz = big ? ri(8, 9) : ri(6, 8);
+    const cx = -36 + PITCH * colOf(n) + ri(-2, 2), cz = 36 - PITCH * rowOf(n) + ri(-2, 2);
+    N.push({ n, cx, cz, hx, hz, h: rowH[rowOf(n)], x0: cx - hx, x1: cx + hx, z0: cz - hz, z1: cz + hz });
+  }
+  const rects = [], crates = [], pillars = [], vents = [], pipes = [], mouths = [];
+  const Lnode = N[lift], up = N[lift - COLS];
+  const LIFT_R = 10, liftY = up.h - 3;
+  // the lift disc sits under its approach node, centred on a 6 m stair that must fit inside that node
+  const lx = clampI(Lnode.cx, up.x0 + 4, up.x1 - 4), lz = up.z0 - ri(10, 12) - LIFT_R;
+  const liftInfo = { x: lx, z: lz, r: LIFT_R, y: liftY };
+  N[lift] = null;
+  for (const nd of N) if (nd) {
+    const isB = beac.includes(nd.n), isS = nd.n === start;
+    const kind = isS ? 's' : R() < 0.3 ? 's' : 'g';
+    rects.push([nd.x0, nd.z0, nd.x1, nd.z1, kind, isB || isS ? 1 : 0, nd.h]);
+    // L-shaped wing on some plain nodes: more corners, more railing edges for climbers
+    if (!isB && !isS && R() < 0.4) {
+      const side = ri(0, 3), w = ri(4, 6), len = ri(4, 6);
+      let r2;
+      if (side === 0) r2 = [nd.x1, nd.z1 - w - ri(0, 3), nd.x1 + len, null];
+      else if (side === 1) r2 = [nd.x0 - len, nd.z0 + ri(0, 3), nd.x0, null];
+      else if (side === 2) r2 = [nd.x0 + ri(0, 3), nd.z1, null, nd.z1 + len];
+      else r2 = [nd.x1 - w - ri(0, 3), nd.z0 - len, null, nd.z0];
+      if (r2[3] === null) r2[3] = r2[1] + w; if (r2[2] === null) r2[2] = r2[0] + w;
+      nd.wing = r2;
+    }
+  }
+  // ---- 7. connectors: flat bridges E-W, bridges / ramps / stairs N-S ----
+  const conns = [];
+  for (const e of edges) {
+    const [a, b] = e.split(':').map(Number);
+    if (a === lift || b === lift) continue;
+    const A = N[a], Bn = N[b];
+    if (rowOf(a) === rowOf(b)) {
+      const W = colOf(a) < colOf(b) ? A : Bn, E = W === A ? Bn : A;
+      const lo = Math.max(W.z0, E.z0) + 1, hi = Math.min(W.z1, E.z1) - 1;
+      let w = R() < 0.25 ? 3 : ri(4, 6); if (hi - lo < w) w = hi - lo; if (w < 3) return null;
+      const zc = clampI(Math.round((W.cz + E.cz) / 2), lo + Math.ceil(w / 2), hi - Math.floor(w / 2));
+      const z0 = zc - Math.floor(w / 2), z1 = z0 + w;
+      conns.push([W.x1, z0, E.x0, z1, R() < 0.2 ? 's' : 'g', 0, W.h]);
+      mouths.push([W.x1, (z0 + z1) / 2], [E.x0, (z0 + z1) / 2]);
+    } else {
+      const U = rowOf(a) < rowOf(b) ? A : Bn, D = U === A ? Bn : A;   // U nearer the camera (+z), D lower z
+      const lo = Math.max(U.x0, D.x0) + 1, hi = Math.min(U.x1, D.x1) - 1;
+      const drop = U.h - D.h, stairs = drop !== 0 && R() < 0.6;
+      let w = drop ? (stairs ? 6 : 4) : (R() < 0.25 ? 3 : ri(4, 6)); if (hi - lo < w) w = hi - lo; if (w < 3) return null;
+      const xc = clampI(Math.round((U.cx + D.cx) / 2), lo + Math.ceil(w / 2), hi - Math.floor(w / 2));
+      const x0 = xc - Math.floor(w / 2), x1 = x0 + w, za = D.z1, zb = U.z0;
+      if (zb - za < 4) return null;
+      const hs = drop ? { a: za + 0.5, ha: D.h, b: zb - 0.5, hb: U.h, stairs } : U.h;
+      if (drop && zb - za - 1 < (stairs ? 5 : 6)) return null;   // too steep
+      conns.push([x0, za, x1, zb, stairs ? 's' : 'g', 0, hs]);
+      mouths.push([(x0 + x1) / 2, za], [(x0 + x1) / 2, zb]);
+    }
+  }
+  // the stair down to the lift (lands 0.5 m inside the disc rim, as in the hand-made level)
+  conns.push([lx - 3, lz + LIFT_R - 0.5, lx + 3, up.z0, 's', 0, { a: lz + LIFT_R + 1.5, ha: liftY, b: up.z0 - 0.5, hb: up.h, stairs: true }]);
+  mouths.push([lx, up.z0]);
+  // wings must not touch connectors or other nodes (2 m clearance), else they are dropped
+  const all = () => rects.concat(conns);
+  const hitsAny = (r, list, m) => list.some(o => r[0] < o[2] + m && r[2] > o[0] - m && r[1] < o[3] + m && r[3] > o[1] - m);
+  const liftBox = [lx - LIFT_R - 1, lz - LIFT_R - 1, lx + LIFT_R + 1, lz + LIFT_R + 1];
+  // the disc must clear every deck and bridge except its own stair (2 m air gap), and stay on the grid
+  if (hitsAny(liftBox, rects.concat(conns.slice(0, -1)), 1) || lz - LIFT_R < -58) return null;
+  for (const nd of N) if (nd && nd.wing) {
+    const w = nd.wing, others = all().filter(o => !(o[0] === nd.x0 && o[1] === nd.z0 && o[2] === nd.x1 && o[3] === nd.z1));
+    if (!hitsAny(w, others, 2) && !hitsAny(w, [liftBox], 1) && w[0] > -56 && w[2] < 56 && w[1] > -56 && w[3] < 56) rects.push([w[0], w[1], w[2], w[3], 'g', 0, nd.h]);
+  }
+  // ---- 8. dead-end catwalk spurs: extra climbing lanes that flank the route ----
+  const spurs = ri(1, 2);
+  for (let t = 0, made = 0; t < 20 && made < spurs; t++) {
+    const nd = pick(N.filter(Boolean)); const side = ri(0, 3), w = 3, len = ri(5, 8);
+    let r;
+    if (side === 0) { const z0 = ri(nd.z0 + 1, nd.z1 - 4); r = [nd.x1, z0, nd.x1 + len, z0 + w]; }
+    else if (side === 1) { const z0 = ri(nd.z0 + 1, nd.z1 - 4); r = [nd.x0 - len, z0, nd.x0, z0 + w]; }
+    else if (side === 2) { const x0 = ri(nd.x0 + 1, nd.x1 - 4); r = [x0, nd.z1, x0 + w, nd.z1 + len]; }
+    else { const x0 = ri(nd.x0 + 1, nd.x1 - 4); r = [x0, nd.z0 - len, x0 + w, nd.z0]; }
+    const others = all().filter(o => !(o[0] === nd.x0 && o[1] === nd.z0 && o[2] === nd.x1 && o[3] === nd.z1));
+    if (hitsAny(r, others, 2) || hitsAny(r, [liftBox], 1) || r[0] < -56 || r[2] > 56 || r[1] < -56 || r[3] > 56) continue;
+    rects.push([r[0], r[1], r[2], r[3], 'g', 0, nd.h]);
+    // a burrow vent at the far end: a visible flank the horde can pour out of
+    vents.push([side === 0 ? r[2] - 1.5 : side === 1 ? r[0] + 1.5 : (r[0] + r[2]) / 2, side === 2 ? r[3] - 1.5 : side === 3 ? r[1] + 1.5 : (r[1] + r[3]) / 2]);
+    made++;
+  }
+  // ---- 9. objective and prop placement ----
+  const names = ['Альфа', 'Бета', 'Гамма'];
+  const beacons = beac.map((n, k) => { const nd = N[n]; return { x: nd.cx + ri(-1, 1), z: nd.cz + ri(-1, 1), name: names[k], node: n }; });
+  const sN = N[start];
+  const startP = { x: sN.cx, z: sN.cz };
+  const near = (x, z, list, r) => list.some(p => (p[0] - x) ** 2 + (p[1] - z) ** 2 < r * r);
+  for (const b of beacons) {
+    const nd = N[b.node];
+    for (let k = 0, made = 0; k < 20 && made < 2; k++) {
+      const a = R() * Math.PI * 2, d = 5.5 + R() * 1.5, x = Math.round(b.x + Math.cos(a) * d) + 0.5, z = Math.round(b.z + Math.sin(a) * d) + 0.5;
+      if (x < nd.x0 + 1.5 || x > nd.x1 - 1.5 || z < nd.z0 + 1.5 || z > nd.z1 - 1.5 || near(x, z, vents, 4)) continue;
+      vents.push([x, z]); made++;
+    }
+  }
+  for (const nd of N) if (nd) {
+    const isB = beac.includes(nd.n), isS = nd.n === start;
+    // teal-lit pillars on the corners (inset 1.5 m), like the hand-made decks
+    if (R() < 0.6 || isB || isS) for (const [sx, sz] of [[-1, -1], [1, 1], [-1, 1], [1, -1]]) if (R() < 0.6) {
+      const x = (sx < 0 ? nd.x0 : nd.x1) - sx * 1.5, z = (sz < 0 ? nd.z0 : nd.z1) - sz * 1.5;
+      if (!near(x, z, mouths, 3.5)) pillars.push([x, z]);
+    }
+    if (isS) {
+      // crates stacked in one corner of the landing pad
+      crates.push([nd.x0 + 2, nd.z1 - 3, 1, 1, 1.2], [nd.x0 + 3, nd.z1 - 3, 1, 1, 0.9], [nd.x0 + 2, nd.z1 - 4, 1, 1, 0.9]);
+      continue;
+    }
+    const clusters = ri(1, 3);
+    for (let c = 0, t = 0; c < clusters && t < 25; t++) {
+      const w = ri(1, 2), d = ri(1, 2), x0 = ri(nd.x0 + 2, nd.x1 - 2 - w), z0 = ri(nd.z0 + 2, nd.z1 - 2 - d);
+      const cx = x0 + w / 2, cz = z0 + d / 2;
+      if (near(cx, cz, mouths, 4.5) || near(cx, cz, vents, 2.5) || near(cx, cz, pillars, 2)) continue;
+      if (isB) { const b = beacons.find(q => q.node === nd.n); if (Math.hypot(cx - b.x, cz - b.z) < 4.6 + 2) continue; }
+      crates.push([x0, z0, w, d, 0.8 + R() * 0.6]);
+      if (R() < 0.5) crates.push([x0 + w, z0, 1, 1, 0.7 + R() * 0.4]);
+      c++;
+    }
+  }
+  // pipe bundles under a few south (−z) deck edges
+  for (const nd of N) if (nd && R() < 0.45) pipes.push([nd.x0, nd.z0 - 0.3, nd.x1, nd.z0 - 0.3, nd.h]);
+  return {
+    rects: rects.concat(conns), crates, pillars, vents, pipes,
+    start: startP, pad: [sN.x0, sN.z0, sN.x1, sN.z1], lift: liftInfo, beacons: beacons.map(b => ({ x: b.x, z: b.z, name: b.name })),
+    meta: { nodes: count, start, lift, beac, rowH, edges: edges.size },
+  };
+}
+function clampI(v, a, b) { return a > b ? Math.round((a + b) / 2) : v < a ? a : v > b ? b : v; }
+
+let LIFT_Y = -6;
 // x0, z0, x1, z1, kind (g = grating, s = snowy slab), hazard flag, height:
 //   a number (flat) or a ramp along z: { a, ha, b, hb } — ha for z <= a, hb for z >= b, linear between (stairs: real steps)
 const RECTS = [
@@ -75,9 +363,22 @@ const CRATES = [
 ];
 const PILLARS = [[23.5, 23.5], [36.5, 36.5], [-6.5, 36.5], [-11.5, -11.5], [9.5, -11.5], [9.5, 1.5], [-11.5, 1.5],
   [-39.5, 35.5], [-24.5, 18.5], [37.5, -15.5], [22.5, -0.5], [-41.5, -17.5], [-26.5, -0.5]];
+// pipe bundles hanging off a few platform sides (x0, z0, x1, z1, platform height) and the landing pad rect
+const PIPES = [[-8, 38.3, 6, 38.3, 0], [-12, -12.3, -6, -12.3, -3], [22, -16.3, 38, -16.3, -3], [-42, -18.3, -26, -18.3, -3], [38.3, 22, 38.3, 38, 0]];
+const PAD = [22, 22, 38, 38];
+const HAND_LEVEL = { rects: RECTS.slice(), crates: CRATES.slice(), pillars: PILLARS.slice(), pipes: PIPES.slice(), pad: PAD.slice(),
+  start: { ...LV.start }, lift: { ...LV.lift }, beacons: LV.beacons.map(b => ({ ...b })), vents: LV.vents.slice() };
+let levelSeed = 0;
+function loadLevelData(L) {
+  for (const [dst, src] of [[RECTS, L.rects], [CRATES, L.crates], [PILLARS, L.pillars], [PIPES, L.pipes], [PAD, L.pad], [LV.vents, L.vents]]) { dst.length = 0; dst.push(...src); }
+  LV.beacons.length = 0; for (const b of L.beacons) LV.beacons.push({ ...b });
+  LV.start.x = L.start.x; LV.start.z = L.start.z;
+  Object.assign(LV.lift, L.lift); LIFT_Y = L.lift.y;
+}
 
 // ---------- walk grid + height field ----------
 function rasterLevel() {
+  walk.fill(0); liftCell.fill(0); hazCell.fill(0); hgt.fill(0); hgz.fill(0); stairCell.fill(0);
   const hset = new Uint8Array(G * G);
   for (const [x0, z0, x1, z1, , haz, hs] of RECTS) {
     for (let j = 0; j < G; j++) for (let i = 0; i < G; i++) {
@@ -166,6 +467,7 @@ function buildSnowMask() {
     const o = (py * S + px) * 4;
     data[o] = clamp(v, 0, 1) * 255; data[o + 1] = data[o]; data[o + 2] = data[o]; data[o + 3] = 255;
   }
+  if (snowTex) { snowTex.image.data.set(data); snowTex.needsUpdate = true; return snowTex; }
   const t = new THREE.DataTexture(data, S, S, THREE.RGBAFormat);
   t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearFilter; t.generateMipmaps = false;
   t.needsUpdate = true;
@@ -368,7 +670,7 @@ function buildProps() {
     GLOWQ.push([x, z, 3.2, COL.teal]);
   }
   // pipe bundles hanging off a few platform sides (x0, z0, x1, z1, platform height)
-  for (const [x0, z0, x1, z1, h] of [[-8, 38.3, 6, 38.3, 0], [-12, -12.3, -6, -12.3, -3], [22, -16.3, 38, -16.3, -3], [-42, -18.3, -26, -18.3, -3], [38.3, 22, 38.3, 38, 0]]) {
+  for (const [x0, z0, x1, z1, h] of PIPES) {
     const len = Math.hypot(x1 - x0, z1 - z0), ang = Math.atan2(z1 - z0, x1 - x0);
     for (const [dy, r, col] of [[-0.25, 0.17, COL.pipe], [-0.62, 0.12, COL.girder]]) {
       const g = new THREE.CylinderGeometry(r, r, len, 8);
@@ -400,9 +702,8 @@ function buildProps() {
     for (const [ox, oz] of [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]]) walk[cellOf(b.x + ox, b.z + oz)] = 2;
   }
   // landing pad edge lights
-  for (let k = 0; k < 8; k++) {
-    for (const [x, z] of [[22.6 + k * 2, 22.6], [22.6 + k * 2, 37.4], [22.6, 22.6 + k * 2], [37.4, 22.6 + k * 2]]) pBox(PROP_PARTS, 0.18, 0.08, 0.18, x, 0.04, z, COL.amber, 1.6);
-  }
+  { const [px0, pz0, px1, pz1] = PAD, ny = Math.round((px1 - px0) / 2), py = groundY((px0 + px1) / 2, (pz0 + pz1) / 2);
+    for (let k = 0; k < ny; k++) for (const [x, z] of [[px0 + 0.6 + k * 2, pz0 + 0.6], [px0 + 0.6 + k * 2, pz1 - 0.6], [px0 + 0.6, pz0 + 0.6 + k * 2], [px1 - 0.6, pz0 + 0.6 + k * 2]]) pBox(PROP_PARTS, 0.18, 0.08, 0.18, x, py + 0.04, z, COL.amber, 1.6); }
   // stair nosings: pale edge on every tread, amber warning stripe on the first and last step
   for (const [x0, , x1, , , , hs] of RECTS) {
     if (typeof hs === 'number' || !hs.stairs) continue;
@@ -443,28 +744,36 @@ function buildLift() {
   for (let k = 0; k < 24; k++) { const a = k / 24 * TAU; pBox(LIFT_PARTS, 0.16, 0.06, 0.16, L.x + Math.cos(a) * (L.r - 0.6), Y + 0.06, L.z + Math.sin(a) * (L.r - 0.6), COL.teal, 1.8); }
 }
 
-// ---------- assemble ----------
-rasterLevel();
-snowTex = buildSnowMask();
+// ---------- assemble (rebuildable: a new seed swaps geometry only, never materials or shader programs) ----------
 const MAT = {
   grating: makeFloorMaterial(TEX.grating, 1.6, 0.0),
   slab: makeFloorMaterial(TEX.slab, 0.6, 0.18),
   props: makeGlowMaterial({ snow: true }),
   bug: makeBugMaterial(),
 };
-buildRailings();
-buildSupports();
-buildProps();
-buildLift();
-
 const level = new THREE.Group();
 scene.add(level);
-{
+const liftGroup = new THREE.Group();   // the group offset is the extraction rise
+scene.add(liftGroup);
+const liftDeck = new THREE.Group();
+liftGroup.add(liftDeck);
+const HZ_MAT = new THREE.MeshStandardMaterial({ map: TEX.hazard, roughness: 0.8, metalness: 0.1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+const PAD_MAT = new THREE.MeshStandardMaterial({ map: TEX.pad, transparent: true, depthWrite: false, roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+const GLOW_MAT = new THREE.MeshBasicMaterial({ map: TEX.glow, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+function clearGroup(g) { for (const o of g.children.slice()) { g.remove(o); if (o.geometry) o.geometry.dispose(); } }
+function buildLevel() {
+  PROP_PARTS.length = 0; LIFT_PARTS.length = 0; GLOWQ.length = 0; HAZ_STRIPS.length = 0;
+  rasterLevel();
+  snowTex = buildSnowMask();
+  buildRailings();
+  buildSupports();
+  buildProps();
+  buildLift();
+  clearGroup(level); clearGroup(liftDeck);
   const bg = new SlabBuilder(), bs = new SlabBuilder();
   for (const [x0, z0, x1, z1, k, , hs] of RECTS) {
     const sb = k === 's' ? bs : bg;
     if (typeof hs === 'number') { sb.box(x0, z0, x1, z1, hs - 0.5, hs); continue; }
-    // flat landings at both ends + stairs or a sloped deck between
     if (hs.a > z0) sb.box(x0, z0, x1, hs.a, hs.ha - 0.5, hs.ha);
     if (hs.b < z1) sb.box(x0, hs.b, x1, z1, hs.hb - 0.5, hs.hb);
     if (hs.stairs) {
@@ -479,21 +788,18 @@ scene.add(level);
   props.receiveShadow = true;
   level.add(props);
   PROP_PARTS.length = 0;
-  // hazard strips (one merged mesh)
   const hb = new SlabBuilder();
   for (const [x, z, w, d, horiz] of HAZ_STRIPS) {
     const x0 = x - w / 2, x1 = x + w / 2, z0 = z - d / 2, z1 = z + d / 2, y = groundY(x, z) + 0.012;
     if (horiz) hb.quad([x0, y, z1], [x1, y, z1], [x1, y, z0], [x0, y, z0], 0, 1, 0, [x0 / 1.6, 1], [x1 / 1.6, 1], [x1 / 1.6, 0], [x0 / 1.6, 0]);
     else hb.quad([x0, y, z1], [x1, y, z1], [x1, y, z0], [x0, y, z0], 0, 1, 0, [z1 / 1.6, 0], [z1 / 1.6, 1], [z0 / 1.6, 1], [z0 / 1.6, 0]);
   }
-  const hz = new THREE.Mesh(hb.geometry(), new THREE.MeshStandardMaterial({ map: TEX.hazard, roughness: 0.8, metalness: 0.1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+  const hz = new THREE.Mesh(hb.geometry(), HZ_MAT);
   hz.receiveShadow = true;
   level.add(hz);
-  // landing pad marking
-  const pad = new THREE.Mesh(new THREE.PlaneGeometry(11, 11).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: TEX.pad, transparent: true, depthWrite: false, roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+  const pad = new THREE.Mesh(new THREE.PlaneGeometry(11, 11).rotateX(-Math.PI / 2), PAD_MAT);
   pad.position.set(LV.start.x, groundY(LV.start.x, LV.start.z) + 0.01, LV.start.z);
   level.add(pad);
-  // floor glows under lamps (additive, one mesh)
   const gp = [], gc = [], gu = [];
   for (const [x, z, s, col] of GLOWQ) {
     _col.set(col); const h = s / 2, y = groundY(x, z) + 0.03;
@@ -504,8 +810,29 @@ scene.add(level);
   gg.setAttribute('position', new THREE.Float32BufferAttribute(gp, 3));
   gg.setAttribute('color', new THREE.Float32BufferAttribute(gc, 3));
   gg.setAttribute('uv', new THREE.Float32BufferAttribute(gu, 2));
-  level.add(new THREE.Mesh(gg, new THREE.MeshBasicMaterial({ map: TEX.glow, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })));
+  level.add(new THREE.Mesh(gg, GLOW_MAT));
+  const L = LV.lift, lb = new SlabBuilder();
+  lb.disc(L.x, L.z, L.r, LIFT_Y - 0.6, LIFT_Y + 0.03, 48);
+  const lf = new THREE.Mesh(lb.geometry(), MAT.grating);
+  lf.receiveShadow = true;
+  const lp = new THREE.Mesh(mergeGeometries(LIFT_PARTS), MAT.props);
+  LIFT_PARTS.length = 0;
+  liftDeck.add(lf, lp);
 }
+// seed 0 = the hand-made «Кельвин-9»; any other seed = a generated station (falls back to the hand-made one when
+// 40 tries fail validation). Never called mid-mission (04b-stations.js guards that). Returns the cost in ms.
+function rebuildLevel(seed) {
+  const t0 = performance.now();
+  const L = seed ? genLevel(seed) : null;
+  loadLevelData(L || HAND_LEVEL);
+  levelSeed = L ? seed : 0;
+  buildLevel();
+  placeObjectiveFx();
+  objFlowKey = '';
+  updateFlows();
+  return performance.now() - t0;
+}
+buildLevel();
 // icy haze far below the decks: the abyss reads as a cold blue-grey chasm, piers fade into it (one draw)
 {
   const c = mkCanvas(256, 256), g = c.getContext('2d');
@@ -516,16 +843,4 @@ scene.add(level);
     new THREE.MeshBasicMaterial({ map: canvasTex(c, { aniso: 1 }), transparent: true, depthWrite: false, fog: false }));
   haze.position.set(0, -16, -5); haze.renderOrder = -1;
   scene.add(haze);
-}
-// lift group (geometry sits at LIFT_Y; the group offset is the extraction rise)
-const liftGroup = new THREE.Group();
-scene.add(liftGroup);
-{
-  const L = LV.lift, lb = new SlabBuilder();
-  lb.disc(L.x, L.z, L.r, LIFT_Y - 0.6, LIFT_Y + 0.03, 48);
-  const lf = new THREE.Mesh(lb.geometry(), MAT.grating);
-  lf.receiveShadow = true;
-  const lp = new THREE.Mesh(mergeGeometries(LIFT_PARTS), MAT.props);
-  LIFT_PARTS.length = 0;
-  liftGroup.add(lf, lp);
 }
