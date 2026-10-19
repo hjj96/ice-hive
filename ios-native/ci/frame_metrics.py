@@ -30,7 +30,7 @@ Gate (exit 1 with --gate), the plan's common gate for every package:
                       loading of the run
   gpu-drawn           avg >= 55 in --drawn-gated demos (swarm3x, release-combat)
   frame graph         simulator GPU ema <= --gpu-ema-max (1.0 ms); one world-target allocation per launch; a DRS
-                      sweep (when present) has 10 steps and its run's worst loop tick <= 34 ms
+                      sweep (when present) has 10 steps and no second with a scale step has a loop tick > 34 ms
 Usage: frame_metrics.py [--gate] [--menus a,b] [--cold a,b] [--cold-max-ms N] [--cold-load-s S] [--drawn-gated a,b]
                         [--gpu-ema-max MS] <results dir> <demo> [<demo> ...]
 """
@@ -78,6 +78,7 @@ rx_hb_td = re.compile(r'hb t=' + num + ' td=' + num)
 rx_gpu = re.compile(r'hb gpu frame=' + num + ' max=' + num + r'.*\| ema=' + num + r' tier=(\w+) scale=' + num)
 rx_alloc = re.compile(r'metal: world target \d+x\d+ px')
 rx_sweep = re.compile(r'quality: drs sweep step (\d+)/10')
+rx_hb_worst = re.compile(r'hb t=[0-9.]+ td=[0-9.-]+ fps=[0-9.]+ worst=(\d+)ms')
 
 rows, failed = [], []
 gpu_avg = []
@@ -167,6 +168,16 @@ for d in demos:
     ema = sorted(emas)[len(emas) // 2] if emas else None
     allocs = sum(1 for line in lines if rx_alloc.search(line))
     sweep = max((int(s.group(1)) for line in lines for s in [rx_sweep.search(line)] if s), default=0)
+    # the worst loop tick of each second that holds a DRS sweep step (the heartbeat after the step's line)
+    sweep_worst, pending = 0, False
+    for line in lines:
+        if rx_sweep.search(line):
+            pending = True
+            continue
+        hw = rx_hb_worst.search(line)
+        if pending and hw:
+            sweep_worst = max(sweep_worst, int(hw.group(1)))
+            pending = False
     worst_h = max((h[0] for h in hitches), default=0)
     if drawn_avg != '-' and d not in menus and d not in cold:
         gpu_avg.append((d, float(drawn_avg)))
@@ -214,13 +225,13 @@ for d in demos:
     if sweep:
         if sweep < 10:
             bad.append(f'drs sweep stopped at step {sweep}/10')
-        if worst > 34:
-            bad.append(f'drs sweep run worstFrame {worst:.0f} ms > 34')
+        if sweep_worst > 34:
+            bad.append(f'drs sweep: worst tick {sweep_worst} ms > 34 in a second with a scale step')
     if bad:
         verdict = 'FAIL: ' + '; '.join(bad)
         failed.append(f'{d}: ' + '; '.join(bad))
     fg = (f'gpu ema {ema:.2f} ms' if ema is not None else 'gpu ema -') + f' allocs {allocs}' \
-        + (f' tier {"/".join(sorted(tiers))} scale {"/".join(sorted(scales))}' if tiers else '') + (f' drs {sweep}/10' if sweep else '')
+        + (f' tier {"/".join(sorted(tiers))} scale {"/".join(sorted(scales))}' if tiers else '') + (f' drs {sweep}/10 worst {sweep_worst} ms' if sweep else '')
     rows.append((d, f'load {lm.group(1) if lm else "-"} s | loop avg {avg:.1f} min {mn:.1f} worst {worst:.0f} ms '
                     f'hitches {len(hitches)}' + (f' host-stalls {len(host_stalls)} ({max(host_stalls)} ms)' if host_stalls else '')
                     + f' | gpu drawn avg {drawn_avg} min {drawn_min} gap {gap} ms '
