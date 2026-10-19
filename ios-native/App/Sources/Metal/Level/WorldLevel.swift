@@ -36,7 +36,7 @@ struct LevelParams {
     /// x = vertical offset of the draw (lift rise).
     var lift = F4(0, 0, 0, 0)
     /// x rime strength, y contact-AO strength, z chamfer wear, w snow albedo.
-    var look = F4(1, 0.65, 0.55, 0.42)
+    var look = F4(1, 0.65, 0.55, 0.5)
     /// x = 1 on the High tier (wet trails, ice rim, grid-light specular).
     var misc = F4(0, 0, 0, 0)
     /// World mask: xy world origin, z 1 / size (m).
@@ -362,7 +362,7 @@ final class WorldLevel {
         var parts: [(String, Int)] = []
         func step(_ name: String, _ f: () -> Void) { let a = tris(); f(); parts.append((name, tris() - a)) }
         step("decks") { buildDecks() }
-        step("edges") { buildEdges() }
+        step("edges") { buildEdges(); buildCornerDrifts() }
         step("supports") { buildSupports() }
         step("props") { buildProps() }
         step("lift") { buildLift() }
@@ -638,7 +638,7 @@ final class WorldLevel {
             if !r.haz && !drifts.isEmpty && len >= 3 {
                 var t: Float = 1.2
                 while t < len - 1.2 {
-                    if rng.next() < 0.5 {
+                    if rng.next() < 0.62 {
                         let (x, z) = P(t, 0.48)
                         let c = level.cellOf(x, z)
                         if c >= 0 && level.walkValue(c) == 1 && !level.isLiftCell(c) && !level.isStairCell(c) {
@@ -652,6 +652,35 @@ final class WorldLevel {
                         t += 1.6
                     }
                 }
+            }
+        }
+    }
+
+    /// Low drifts banked into the inside corners of the decks (a walkable cell with the abyss on two adjacent sides):
+    /// the wind packs snow there first. The piece's ridge (its -z side) faces the corner; never on the lift, stairs or
+    /// hazard platforms, always inside the rail lines.
+    private func buildCornerDrifts() {
+        // the short drift only: 1.4 m across the corner, centred 0.25 m in from the cell centre, keeps both ends ≥ 0.1 m
+        // inside the two rail lines (the rail line is 0.38 m from the cell centre)
+        guard let pc = piece("drift_c") else { return }
+        var rng = StationRNG(seed: 77)
+        let G = GRID
+        for j in 1..<(G - 1) {
+            for i in 1..<(G - 1) {
+                let c = j * G + i
+                if level.walkValue(c) != 1 || level.isLiftCell(c) || level.isStairCell(c) || level.isHazardCell(c) { continue }
+                let n = level.walkValue(c - G) == 0, s = level.walkValue(c + G) == 0
+                let w = level.walkValue(c - 1) == 0, e = level.walkValue(c + 1) == 0
+                // the corner's outward diagonal (sx, sz)
+                var corner: (Float, Float)?
+                if n && w { corner = (-1, -1) } else if n && e { corner = (1, -1) } else if s && w { corner = (-1, 1) } else if s && e { corner = (1, 1) }
+                guard let (sx, sz) = corner, rng.next() < 0.75 else { continue }
+                // the two inward neighbours must be deck (no drift on a one-cell-wide spur)
+                if level.walkValue(c - Int(sx)) == 0 || level.walkValue(c - Int(sz) * G) == 0 { continue }
+                let x = Float(i) - GRID_HALF + 0.5 - sx * 0.25, z = Float(j) - GRID_HALF + 0.5 - sz * 0.25
+                // place() maps the piece's -z (its ridge) to (-sin yaw, -cos yaw): point it along (sx, sz)
+                cell(x, z).place(pc, at: F3(x, level.groundY(x, z), z), yaw: atan2f(-sx, -sz))
+                edgeStats.drifts += 1
             }
         }
     }

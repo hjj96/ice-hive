@@ -195,8 +195,8 @@ def icicles(seed, n):
     m.merge(cbox(1.0, 0.03, 0.05, 0.0, ice.but(smooth=False), center=(0, -0.015, 0), bottom=True))
     xs = np.sort(R.uniform(-0.46, 0.46, n))
     for k, x in enumerate(xs):
-        L = 0.1 + 0.42 * R.rand() ** 1.4
-        r = 0.016 + 0.02 * (L / 0.5) + 0.006 * R.rand()
+        L = 0.16 + 0.5 * R.rand() ** 1.3
+        r = 0.022 + 0.026 * (L / 0.66) + 0.006 * R.rand()
         m.merge(icicle(float(x), float(R.uniform(-0.012, 0.012)), float(L), float(r), ice, seg=5, rot=float(R.rand() * 6.28)))
     return m
 
@@ -238,9 +238,9 @@ PIECES = {
     'beacon_head': (beacon_head, P_DYNAMIC, 'none', 200),
     'lift_pad': (lift_pad, P_LIFT, 'floor', 400),
     'lift_hub': (lift_hub, P_LIFT, 'floor', 200),
-    'icicles_a': (lambda: icicles(11, 8), 0, 'ceiling', 200),
-    'icicles_b': (lambda: icicles(23, 6), 0, 'ceiling', 200),
-    'icicles_c': (lambda: icicles(37, 8), 0, 'ceiling', 200),
+    'icicles_a': (lambda: icicles(11, 7), 0, 'ceiling', 200),
+    'icicles_b': (lambda: icicles(23, 5), 0, 'ceiling', 200),
+    'icicles_c': (lambda: icicles(37, 7), 0, 'ceiling', 200),
     'drift_a': (lambda: drift(2.0, 0.56, 0.15, 3, 0.6), 0, 'floor', 200),
     'drift_b': (lambda: drift(2.7, 0.7, 0.19, 5, 0.8), 0, 'floor', 200),
     'drift_c': (lambda: drift(1.4, 0.46, 0.11, 7, 0.4), 0, 'floor', 200),

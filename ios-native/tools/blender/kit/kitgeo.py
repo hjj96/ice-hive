@@ -379,7 +379,7 @@ def icicle(x, z, length, r, mat, seg=5, rot=0.0):
         P = np.array([m.V[i] for i in tri])
         o = P.mean(0) - np.array([x, -length * 0.4, z])
         add_face(m, _ccw(m, tri, o), mat)
-    add_face(m, _ccw(m, top, (0, 1, 0)), mat)
+    # no top cap: it sits flush under the deck lip, never seen
     return m
 
 
