@@ -7,15 +7,20 @@ venv). Модели строятся процедурно из Python и ост�
 ```sh
 python3.13 -m venv ios-native/tools/blender/venv
 ios-native/tools/blender/venv/bin/pip install -r ios-native/tools/blender/requirements.txt   # ≈1.1 ГБ, один раз
-ios-native/tools/blender/build.sh            # всё → App/Resources, assets.md5, гейты (≈9 мин: запекание трим-листов)
-ios-native/tools/blender/build.sh --verify   # две чистые сборки должны совпасть побайтно и совпасть с закоммиченным
-ios-native/tools/blender/build.sh --renders  # + контрольный рендер с игровой камеры (ночная задача) → previews/
+ios-native/tools/blender/build.sh               # всё → App/Resources, assets.md5, гейты (≈1 мин)
+ios-native/tools/blender/build.sh --verify      # две чистые сборки должны совпасть побайтно и совпасть с закоммиченным
+ios-native/tools/blender/build.sh --renders     # + контрольный рендер с игровой камеры (ночная задача) → previews/
+ios-native/tools/blender/build.sh --bake-trims  # перезапечь трим-листы в Cycles → kit/trims_src (≈6 мин), затем сборка
 python3 ios-native/tools/blender/gates.py    # только гейты (numpy, без Blender) — шаг CI
 ```
 
 ASTC кодирует закреплённый `astcenc 5.2.0` (`tools/textures/astc.sh` скачивает релиз Arm и сверяет SHA-256;
-сборки «invariant»: одинаковые блоки на любом SIMD и любом числе потоков — проверено). Сам Blender детерминирован при
-фиксированном seed и числе потоков: две чистые сборки кита дают одинаковые md5 (`--verify`).
+сборки «invariant»: одинаковые блоки на любом SIMD и любом числе потоков — проверено). Детали кита и атлас AO
+Blender строит детерминированно (фиксированные seed и число потоков). Запекание трим-листов «выделенное → активное» —
+нет: между чистыми запусками несколько пикселей у кромок болтов и заклёпок гуляют (до 0,25 по шероховатости), и ASTC-блок
+переворачивался. Поэтому запекание — шаг автора (`--bake-trims`), его 8-битный результат коммитится в `kit/trims_src/`
+(`<лист>_normal.png`: X, Y нормали в R, G; `<лист>_orm.png`: AO, шероховатость, металл, иней), а сборка кодирует уже
+его (мипы, Токсвиг, astcenc) — побайтно одинаково: две чистые сборки дают одинаковые md5 (`--verify`).
 
 ## Что где
 
@@ -24,7 +29,7 @@ ASTC кодирует закреплённый `astcenc 5.2.0` (`tools/textures/
 | `ihv.py` | IHV1 v2: существа и бойцы (LOD0–2, VAT, жёсткие кости, скиннинг, дорожки клипов) | WP6 (формат) |
 | `ihk.py` | IHK1: статический кит станции | WP6 |
 | `iht.py` | IHT1: ASTC-текстуры (мипы, массивы) + сборка мипов и драйвер astcenc | WP6 |
-| `kit/` | кит станции: `kitgeo.py` (примитивы с фасками и правилами UV трим-листов), `pieces.py` (детали), `build_kit.py` (Blender: детали, атлас AO, экспорт), `trims.py` (4 трим-листа: high-poly → запекание) | WP6 |
+| `kit/` | кит станции: `kitgeo.py` (примитивы с фасками и правилами UV трим-листов), `pieces.py` (детали), `build_kit.py` (Blender: детали, атлас AO, экспорт), `trims.py` (4 трим-листа: high-poly → запекание в `trims_src/` → ASTC) | WP6 |
 | `gates.py` | гейты ассетов (md5, бюджеты, отчёты сборок существ) | WP6 |
 | `build.sh`, `requirements.txt` | сборка, закреплённые пакеты | WP6 |
 | `creatures/` | жуки (бегун, плевун, громила, бумер, матка) | WP3 |
@@ -72,7 +77,7 @@ ASTC кодирует закреплённый `astcenc 5.2.0` (`tools/textures/
   уровня (`WorldLevel.swift`) по тем же правилам UV, что `kitgeo.py`, — поэтому сгенерированная станция v1.1
   получает тот же кит.
 
-Правка: геометрия и материалы — в `kit/*.py` (затем `build.sh`); или в `work/main/kit/kit_src.blend` (атрибуты
+Правка: геометрия и материалы деталей — в `kit/*.py` (затем `build.sh`), рельеф трим-листов — в `kit/trims.py` (затем `build.sh --bake-trims` и коммит `kit/trims_src/`); или в `work/main/kit/kit_src.blend` (атрибуты
 граней `tint`, `metal`, `emis`, `layer`, `flags`, UV-карты `trim` и `ao`) и повторный экспорт
 `venv/bin/python kit/build_kit.py OUT --from-blend kit_src.blend` (геометрия и атлас AO берутся из файла).
 

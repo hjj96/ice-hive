@@ -108,6 +108,9 @@ struct KitPiece {
 final class KitMesh {
     var vertices: [KitVertex] = []
     var indices: [UInt32] = []
+    /// The triangles that cast flashlight shadows (a second index list over the same vertices: crates, pillars, masts,
+    /// lamp posts — `place(…, caster: true)`).
+    var casterIndices: [UInt32] = []
     var lo = F3(repeating: .greatestFiniteMagnitude), hi = F3(repeating: -.greatestFiniteMagnitude)
 
     init(reserve: Int = 0) {
@@ -378,7 +381,8 @@ final class KitMesh {
     // ---------------------------------------------------------------- pieces
     /// A kit piece placed with a yaw, an optional vertical scale and a paint colour (KitFlag.paint faces take it).
     /// `headIndex`: the piece is beacon head k (KitFlag.head on every vertex, k in extra.w; vs_kit spins it).
-    func place(_ p: KitPiece, at t: F3, yaw: Float = 0, scaleY: Float = 1, paint: UInt32? = nil, headIndex: UInt32? = nil) {
+    func place(_ p: KitPiece, at t: F3, yaw: Float = 0, scaleY: Float = 1, paint: UInt32? = nil, headIndex: UInt32? = nil,
+               caster: Bool = false) {
         let c = cosf(yaw), s = sinf(yaw)
         @inline(__always) func rot(_ v: F3) -> F3 { F3(c * v.x + s * v.z, v.y, -s * v.x + c * v.z) }
         let base = UInt32(vertices.count)
@@ -408,6 +412,7 @@ final class KitMesh {
                               u: uv.x, v: uv.y, uv1: p.uv1[i], tint: tint, extra: ex))
         }
         for ix in p.indices { indices.append(base + UInt32(ix)) }
+        if caster { for ix in p.indices { casterIndices.append(base + UInt32(ix)) } }
     }
 }
 
