@@ -876,17 +876,18 @@ function renderFx(dt, time) {
   // point lights: [0] follows flames / napalm, [1..2] flashes.
   // Warm lights are amber-yellow, not red-orange: in linear space a red-orange key light over the cold blue ambient
   // mixes to mauve on the deck around the flame (most of the lit-pool 'magenta carpet' after the bug tone curve).
+  // Intensities are scaled so each light keeps the linear luminance of its old red-orange colour.
   const pl0 = plights[0].light;
   const pyro = pyroIdx >= 0 ? M[pyroIdx] : null;
   const nap = NAP[0].on ? NAP[0] : NAP[1].on ? NAP[1] : NAP[2].on ? NAP[2] : null;
-  if (pyro && pyro.firing && !pyro.downed) { pl0.position.set(pyro.x + pyro.ax * 3.5, pyro.mesh.position.y + 1.4, pyro.z + pyro.az * 3.5); pl0.color.setHex(0xffb050); pl0.intensity = 110 * (0.8 + 0.2 * Math.sin(time * 37)); }
-  else if (nap) { pl0.position.set(nap.x, groundY(nap.x, nap.z) + 1.5, nap.z); pl0.color.setHex(0xffa040); pl0.intensity = 140 * (0.8 + 0.2 * Math.sin(time * 29)); }
+  if (pyro && pyro.firing && !pyro.downed) { pl0.position.set(pyro.x + pyro.ax * 3.5, pyro.mesh.position.y + 1.4, pyro.z + pyro.az * 3.5); pl0.color.setHex(0xffb050); pl0.intensity = 74 * (0.8 + 0.2 * Math.sin(time * 37)); }
+  else if (nap) { pl0.position.set(nap.x, groundY(nap.x, nap.z) + 1.5, nap.z); pl0.color.setHex(0xffa040); pl0.intensity = 94 * (0.8 + 0.2 * Math.sin(time * 29)); }
   else if (M[0] && !M[0].downed && M[0].muzzle > 0 && (M[0].cls === 'assault' || M[0].cls === 'gunner')) {
     // the player's muzzle flash really lights bugs and props nearby
     const P = M[0], mp = muzzlePos(P);
     pl0.position.set(mp[0] + P.ax * 0.4, P.mesh.position.y + 1.3, mp[1] + P.az * 0.4);
     pl0.color.setHex(P.cls === 'assault' ? 0xffb050 : 0xffc060);
-    pl0.intensity = 75 * (0.55 + 0.45 * rnd()) * Math.min(1, P.muzzle + 0.3);
+    pl0.intensity = (P.cls === 'assault' ? 42 : 75) * (0.55 + 0.45 * rnd()) * Math.min(1, P.muzzle + 0.3);
   } else if (M[0] && !M[0].downed && M[0].firing && M[0].cls === 'cryo') {
     const P = M[0];
     pl0.position.set(P.x + P.ax * P.beamLen * 0.5, P.mesh.position.y + 1.2, P.z + P.az * P.beamLen * 0.5);

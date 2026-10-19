@@ -10,6 +10,7 @@
 //   tele    brutes, spitters, boomers and a console 4.2x queen next to beacon 0 -> 1 shot
 //   states  cryo nova on ~300 bugs, a napalm burn, corpses and stains -> 1 shot
 //   desk    desktop 'high' (bloom) close shot of the squad, one bot downed -> 1 shot
+//           (or: --phase states --quality high --down 1 on the desktop viewport, both in one frame)
 // Phases that work on a v1.0 build too (pool, horde, perf) only use the public __dbg API.
 
 // In-page helper library (installed with page.evaluate): staging and numeric checks over the live handles that
@@ -142,6 +143,9 @@ function installLib() {
       window.__dbg.spawn(3, 'brute'); window.__dbg.spawn(8, 'spitter'); window.__dbg.spawn(3, 'boomer'); window.__dbg.spawn(60);
       const q = L.queen(px + X.RIGHT_X * 5 + X.FWD_X * 3, pz + X.RIGHT_Z * 5 + X.FWD_Z * 3);
       window.__dbg.fast(2.0);
+      // the squad walks into the beacon while the sim runs: put it back to 'go here' (state 0) with everyone outside
+      b.state = 0; b.progress = 0; DIR.active = -1;
+      for (const m of M) { const ok = F.walkable(px + (m.i - 1.5) * 1.2, pz); m.x = m.px = ok ? px + (m.i - 1.5) * 1.2 : px; m.z = m.pz = pz; }
       const es = L.edgeSpot(px, pz, 3, 14);
       if (es) {
         F.teleLane(es.x, es.z, es.dx, es.dz, 12, 2.3, 30, 1);
@@ -154,20 +158,25 @@ function installLib() {
       const b = DIR.beacons.find(b => b.state === 0) || DIR.beacons[0];
       const lanes = TELE.filter(e => e.on && e.kind === 1).map(e => ({ len: e.len, start: L.ndc(e.x, e.y, e.z), end: L.ndc(e.x + e.dx * e.len, e.y1, e.z + e.dz * e.len) }));
       return { rings: X.teleRingMesh.count, fills: X.teleFillMesh.count, lanes, under: X.teleUnders.map(([, u]) => u.count),
-        beacon: { state: b.state, ndc: L.ndc(b.x, 0, b.z) }, queen: qi >= 0 ? { ndc: L.ndc(B.x[qi], F.groundY(B.x[qi], B.z[qi]) + 1, B.z[qi]), st: B.st[qi] } : null,
+        beacon: { state: b.state, ndc: L.ndc(b.x, 0, b.z) }, queen: qi >= 0 ? { ndc: L.ndc(B.x[qi], F.groundY(B.x[qi], B.z[qi]) + 1, B.z[qi]), st: B.st[qi], flash: +B.fl[qi].toFixed(2), burn: +B.burn[qi].toFixed(2) } : null,
         player: L.ndc(M[0].x, M[0].mesh.position.y + 1, M[0].z) };
     },
     // states capture: a frozen crowd (cryo nova) next to a napalm burn (orange glands), corpses and stains on the deck
     stageStates() {
       const P = M[0];
       window.__dbg.tp(LV.start.x, LV.start.z);
-      window.__dbg.spawn(220);
-      window.__dbg.fast(1.2);
-      let k = 0; for (let i = 0; i < B.n && k < 40; i++) if (!B.dead[i] && F.rnd() < 0.3) { F.killBug(i, 0); k++; }
-      window.__dbg.spawn(160);
-      window.__dbg.fast(1.0);
+      // a ring of bugs right around the squad (the nova freezes them), a second cluster in the napalm pool, and
+      // corpses / stains from a kill front between them
+      const ring = (cx, cz, r0, r1, n) => { let k = 0; for (let t = 0; t < n * 4 && k < n; t++) { const a = F.rnd() * TAU, r = r0 + F.rnd() * (r1 - r0), x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r; if (F.walkable(x, z) && F.spawnBug(X.RUN, x, z, 0) >= 0) k++; } return k; };
+      ring(P.x, P.z, 2.5, 6, 160);
+      const nx = P.x + X.FWD_X * 8, nz = P.z + X.FWD_Z * 8;
+      ring(P.x + X.RIGHT_X * 7, P.z + X.RIGHT_Z * 7, 0, 3, 40);
+      for (let i = 0, k = 0; i < B.n && k < 40; i++) if (!B.dead[i] && (B.x[i] - P.x - X.RIGHT_X * 7) ** 2 + (B.z[i] - P.z - X.RIGHT_Z * 7) ** 2 < 9) { F.killBug(i, 0); k++; }
+      ring(nx, nz, 0, 3.5, 70);
+      for (let i = 0; i < B.n; i++) if (!B.dead[i]) { B.spd[i] = 0.01; B.cd[i] = 99; B.hp[i] = B.hpMax[i] = 1e4; }
+      window.__dbg.fast(0.05);   // one sim step puts the new bugs into the spatial grid the nova queries
       P.abCd = 0; F.useAbility(P, P.x, P.z);
-      const nx = P.x + X.FWD_X * 7, nz = P.z + X.FWD_Z * 7, n = X.NAP[0];
+      const n = X.NAP[0];
       n.on = true; n.x = nx; n.z = nz; n.r = 4; n.t = 5; n.own = 1;
       for (let i = 0; i < B.n; i++) if (!B.dead[i] && (B.x[i] - nx) ** 2 + (B.z[i] - nz) ** 2 < 16) { B.burn[i] = 5; B.frz[i] = 0; B.chill[i] = 0; }
       F.fxNapalmBurst(nx, nz, 4);
@@ -391,12 +400,14 @@ export default async (page, h) => {
   }
 
   if (phase === 'states') {
-    await ev(() => { const d = window.__dbg; d.start('cryo'); d.setQuality('med'); d.god(true); });
+    // --quality high --down 1 on the desktop viewport doubles as the 'desk' capture (bloom, downed squadmate, scale)
+    await ev((q) => { const d = window.__dbg; d.start('cryo'); d.setQuality(q); d.god(true); }, h.args.quality || 'med');
     await h.sleep(800);
-    const r = await ev(() => window.__vx.stageStates());
+    const r = await ev((dn) => { const r = window.__vx.stageStates(); if (dn) { const m = window.__dbg.vx().M[2]; m.downed = true; m.revive = 0.3; m.hp = 0; } return r; }, !!h.args.down);
     h.log('[states-stage]', JSON.stringify(r));
     await h.sleep(900);
     h.log('[states-state]', JSON.stringify(await ev(() => window.__vx.statesInfo())));
+    if (h.args.down) h.log('[desk-state]', JSON.stringify(await ev(() => window.__vx.marineInfo())));
     await h.shot('states');
     await info('states');
     return;

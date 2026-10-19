@@ -632,8 +632,9 @@ function writeBugInstances(time, dt) {
     col[oc] = v * tt[0]; col[oc + 1] = v * tt[1]; col[oc + 2] = v * tt[2];
     const an = mesh.geometry.attributes.iAnim.array, oa = k * 4;
     an[oa] = B.ph[i];
-    // hit flash; swelling boomers blink white-hot faster and faster before they pop
-    an[oa + 1] = B.st[i] === S_SWELL ? Math.max(B.fl[i], (0.5 + 0.5 * Math.sin(time * (18 + 30 * (1 - B.t[i] / 0.8)))) * 0.9) : Math.max(0, B.fl[i]);
+    // hit flash; swelling boomers blink white-hot faster and faster before they pop. The queen is under fire the
+    // whole fight: her flash is a faint flicker, so she stays violet instead of a white blob
+    an[oa + 1] = B.st[i] === S_SWELL ? Math.max(B.fl[i], (0.5 + 0.5 * Math.sin(time * (18 + 30 * (1 - B.t[i] / 0.8)))) * 0.9) : Math.max(0, B.fl[i]) * (isQ ? 0.25 : 1);
     if (B.burn[i] > 0) {
       an[oa + 2] = 0.55 + 0.45 * Math.sin(time * 23 + i * 1.7);
       if (rnd() < emitK) PA.emit(B.x[i] + rr(-0.2, 0.2), 0.35 * B.sc[i], B.z[i] + rr(-0.2, 0.2), 0, rr(1, 2.2), 0, rr(0.25, 0.45), 0.35 * B.sc[i], 0.7 * B.sc[i], 1, 0.6, 0.25, 0.55, -0.5, 1, 1);
