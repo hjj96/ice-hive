@@ -149,7 +149,8 @@ for d in demos:
     hitches, host_stalls, stall_tds = [], [], []
     for line in lines:
         h = rx_hitch.search(line)
-        if not h or not (0.2 <= float(h.group(2)) <= secs):
+        # (classified up to 1 s past the window: the app's own worst / min fps can include the tick that ends it)
+        if not h or not (0.2 <= float(h.group(2)) <= secs + 1):
             continue
         # the app's own work in the long tick: update + draw, minus the time its thread was off the CPU inside
         # SKRenderer (hud wall − hud cpu) and inside the world encode (the slow-encode line logged in that tick)
@@ -168,7 +169,7 @@ for d in demos:
                 host_stalls.append(int(h.group(1)))
                 stall_tds.append(float(h.group(2)))
                 continue
-        if float(h.group(2)) < 1.2:
+        if not (1.2 <= float(h.group(2)) <= secs):
             continue
         cb = rx_cb.search(line)
         hitches.append((int(h.group(1)), float(h.group(2)), cb.group(1) if cb else '-'))
