@@ -29,15 +29,15 @@ import IceHiveCore
 // ================================================================
 final class VolumeCones {
     /// In-scatter gain per beam (× the spot's intensity / π) and the beam's visible length (m); the player's is a little
-    /// denser. The saturation cap is LightBlock.fogColor.w (radiance a beam adds at most: ~0.12 shows about 90 of 255
+    /// denser. The saturation cap is LightBlock.fogColor.w (radiance a beam adds at most: ~0.13 shows about 95 of 255
     /// over the dark deck, a veil, never a white-out — four crossed beams stay under the tone curve's shoulder).
     /// With the flashlights at half the web's intensity the beams, not the pools, carry the light (horror's discipline):
     /// the air's gentler falloff (Atmosphere.metal fs_cone) puts ~0.08 over the near pool (~0.2), ~0.05 at 9 m where the
     /// pool has dropped to ~0.04, and the shaft fades out from 7 to 16 m (CI 82f523c: with the pool's own falloff the
     /// in-scatter hid inside the pool).
-    static let gain: Float = 0.013, playerGain: Float = 1.15
+    static let gain: Float = 0.017, playerGain: Float = 1.15
     static let length: Float = 16
-    static let cap: Float = 0.12
+    static let cap: Float = 0.13
     /// Cookie and cone of the spots (Lighting.h SPOT_COS_OUT / SPOT_COS_IN, 32 m range).
     static let cosOut: Float = 0.87758, cosIn: Float = 0.97479, range: Float = 32, cookie: Float = 1
 

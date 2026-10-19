@@ -183,12 +183,13 @@ final class LightGrid {
     /// Hemisphere sky / ground and moon: faint cold moonlight. In linear HDR through ACES and the grade's toe the web's
     /// 0.42 / 0.5 already show the unlit deck as a dark navy (luma ~22); half of it (horror's "ambient halved", CI
     /// 82f523c) sank the deck into the toe — black on black, the walkways lost against the void, the swarm a black
-    /// carpet. The darkness comes from the void, the toe and the light discipline instead; the moon a little stronger
-    /// than the web's so chamfers, rails and chitin keep a cold edge outside the beams (crisp's readability).
+    /// carpet. The darkness comes from the void, the toe and the light discipline instead; hemisphere and moon a little
+    /// stronger than the web's (CI 1631618 at 0.42 / 0.55: unlit deck luma ~25, world-band median 25 against the blend's
+    /// 35–50) so chamfers, rails and chitin keep a cold edge outside the beams (crisp's readability).
     static let skyColor: UInt32 = 0x4a5f86, groundColor: UInt32 = 0x030509
-    static let hemiIntensity: Float = 0.42
+    static let hemiIntensity: Float = 0.55
     static let moonColor: UInt32 = 0x7d98c8
-    static let moonIntensity: Float = 0.55
+    static let moonIntensity: Float = 0.75
     /// Flashlight intensity: about half the web's LDR-tuned 62 player / 42 squad (horror's light discipline — in linear
     /// HDR the old values put the pool on the tone curve's shoulder, a flat pale wedge). The shader's flattened falloff
     /// is normalised to the web's d^-1.35 at 5 m, so the near field (a bug at the barrel, a marine in a squadmate's
@@ -200,12 +201,12 @@ final class LightGrid {
     static let fillColor = F3(0.62, 0.76, 1.0)
     /// Fog colour of the frame (display value at 0 EV before the grade) and the void the world pass clears to: a deep
     /// navy between crisp's (16, 29, 45) and horror's near-black (2, 6, 19) — after the grade's toe the void shows
-    /// about (8, 18, 37), the distance fog (9, 19, 38); the abyss below the decks sinks darker (4, 13, 28), so the piers
-    /// stand as silhouettes against the void and the walkways read against both.
-    static let fogDisplay = displayRGB(0x121c2f)
-    static let voidDisplay = displayRGB(0x111b2d)
+    /// about (9, 20, 40), the distance fog (10, 21, 41); the abyss below the decks sinks darker (5, 15, 32), so the
+    /// piers stand as silhouettes against the void and the walkways read against both.
+    static let fogDisplay = displayRGB(0x141f34)
+    static let voidDisplay = displayRGB(0x131e33)
     /// Height fog of the abyss: below the lowest deck (the lift, −6 m) the piers sink into this (display) colour.
-    static let abyssDisplay = displayRGB(0x0d1624)
+    static let abyssDisplay = displayRGB(0x0e1828)
     static let abyssTop: Float = -6.5, abyssDepth: Float = 9, abyssDensity: Float = 0.92
 
     let hub = LightingHub()
