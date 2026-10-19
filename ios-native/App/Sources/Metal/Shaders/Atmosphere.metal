@@ -227,8 +227,11 @@ fragment float4 fs_cone(ConeOut in [[stage_in]],
         float h = dot(q, D);
         float cosT = h / dist;
         // the air keeps a gentler falloff than the deck pool (1 / (1 + 0.05 d²): 0.44 at 5 m, 0.2 at 10 m): from the
-        // steep game camera the beam's air sits over its own pool, so the shaft has to outlast the pool to read as one
-        float lit = spotCookie(cosT, cone.x, cone.y, cone.w * 0.6) / (1.0 + 0.05 * dist * dist);
+        // steep game camera the beam's air sits over its own pool, so the shaft has to outlast the pool to read as one;
+        // and a bright core along the axis (1.5× at the centre, 0.6× in the skirt): a beam, not a wide fan of haze
+        float rr = sqrt(saturate((1.0 - cosT) / (1.0 - cone.x)));
+        float core = 0.6 + 0.9 * exp(-rr * rr * 9.0);
+        float lit = spotCookie(cosT, cone.x, cone.y, cone.w * 0.6) * core / (1.0 + 0.05 * dist * dist);
         lit *= smoothstep(0.15, 1.1, h) * (1.0 - smoothstep(beam.y * 0.45, beam.y, h));
         if (lit <= 0.0) continue;
         // drifting dust: shafts with structure, not milk
