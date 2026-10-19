@@ -374,6 +374,12 @@ jobs:
           run_demo swarmshot 4 "-demo swarmshot -seed 7" 0
           # the same with every speckle drawn again as an anti-aliased dot (-glintDots; default off, like the web)
           run_demo swarmshot-dots 4 "-demo swarmshot -seed 7 -glintDots" 0
+          # TEST BRANCH ONLY (native-vx-light-look, not for merge): HUD-off look shots and the -nolight weather A/B
+          run_demo swarmshot-nohud 4 "-demo swarmshot -seed 7 -hideHUD" 0
+          run_demo beacon-nohud 15 "-demo beacon -seed 7 -hideHUD" 0
+          run_demo calm-nohud 8 "-demo calm -hideHUD" 0
+          run_demo nolight 6 "-demo calm -nolight -hideHUD" 0
+          run_demo nolight-noweather 6 "-demo calm -nolight -noweather -hideHUD" 0
           # heavy swarm (the med tier's cap of 1400 live bugs), at the default 2x world target and at the native 3x
           run_demo swarm 15 "-demo combat -seed 7 -bugs 1400" 0
           run_demo swarm3x 15 "-demo combat -seed 7 -bugs 1400 -mscale 3" 0
