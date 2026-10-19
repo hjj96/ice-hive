@@ -669,32 +669,37 @@ final class WorldLevel {
             if !r.haz && !drifts.isEmpty && len >= 3 {
                 let S = WorldLevel.driftScale
                 var t: Float = 0.4
-                while t < len {
-                    let pc = drifts[Int(rng.next() * Float(drifts.count)) % drifts.count]
-                    let half = pc.halfLength * S.x, wide = pc.halfWidth * S.z
-                    let tc = t + half
-                    if tc + half > len - 0.4 { break }
+                let shortest = drifts.min { $0.halfLength < $1.halfLength }!
+                while t < len - 0.4 {
+                    let pick = drifts[Int(rng.next() * Float(drifts.count)) % drifts.count]
+                    var placed = false
                     if rng.next() < 0.7 {
-                        // crest side (the piece's -z) 0.12 m inside this rail line: centre = 0.12 + half width; the far
-                        // side + 0.12 m must still be on deck, so a narrow spur's opposite rail line is never crossed
-                        let off = 0.12 + wide
-                        let ok = [tc - half + 0.3, tc, tc + half - 0.3].allSatisfy { tt in
-                            [off, off + wide + 0.12].allSatisfy { o in
-                                let (x, z) = P(tt, o), c = level.cellOf(x, z)
-                                return c >= 0 && level.walkValue(c) == 1 && !level.isLiftCell(c) && !level.isStairCell(c)
+                        // the picked drift, else the shortest one where the picked one does not fit
+                        for pc in pick.name == shortest.name ? [pick] : [pick, shortest] {
+                            let half = pc.halfLength * S.x, wide = pc.halfWidth * S.z
+                            let tc = t + half
+                            if tc + half > len - 0.4 { continue }
+                            // crest side (the piece's -z) 0.12 m inside this rail line: centre = 0.12 + half width; the
+                            // far side + 0.12 m must still be on deck, so a narrow spur's opposite rail is never crossed
+                            let off = 0.12 + wide
+                            let ok = [tc - half + 0.3, tc, tc + half - 0.3].allSatisfy { tt in
+                                [off, off + wide + 0.12].allSatisfy { o in
+                                    let (x, z) = P(tt, o), c = level.cellOf(x, z)
+                                    return c >= 0 && level.walkValue(c) == 1 && !level.isLiftCell(c) && !level.isStairCell(c)
+                                }
                             }
-                        }
-                        // flat deck only (a sloped catwalk would leave the ends floating or buried)
-                        let flat = abs(H(tc - half + 0.3) - H(tc)) < 0.05 && abs(H(tc + half - 0.3) - H(tc)) < 0.05
-                        if ok && flat {
+                            // flat deck only (a sloped catwalk would leave the ends floating or buried)
+                            let flat = abs(H(tc - half + 0.3) - H(tc)) < 0.05 && abs(H(tc + half - 0.3) - H(tc)) < 0.05
+                            if !(ok && flat) { continue }
                             let (x, z) = P(tc, off)
                             m.place(pc, at: F3(x, level.groundY(x, z), z), yaw: yawAlong, scaleY: S.y, scaleX: S.x, scaleZ: S.z)
                             edgeStats.drifts += 1
                             t = tc + half + 0.6 + rng.next() * 2.4
-                            continue
+                            placed = true
+                            break
                         }
                     }
-                    t += 1.5
+                    if !placed { t += 1.5 }
                 }
             }
         }
