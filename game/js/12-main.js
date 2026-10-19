@@ -96,14 +96,26 @@ function pickCard(i) {
 }
 
 // ---------- camera ----------
+// VX-6: phones pull the camera back up to 10 % while the screen is packed (hysteresis 240 / 180 bugs near the
+// camera, smoothed, so it never pumps)
+let camZoom = 1, camZoomWant = 1;
 function updateCamera(rdt, alpha) {
   const P = M[0];
   const px = lerp(P.px, P.x, alpha), pz = lerp(P.pz, P.z, alpha);
   const title = GS.screen === 'title';
+  const touch = !title && IN.mode === 'touch', portrait = touch && viewH > viewW;
   const lead = title ? 0 : (IN.mode === 'touch' ? 2.4 : 2.0);
-  // on touch the look-at point moves toward screen-down: the player sits higher, the thumbs hide less of the near side
-  const dn = title || IN.mode !== 'touch' ? 0 : (viewW > viewH ? 3 : 1.5);
-  const tx = px + P.ax * lead - FWD_X * dn, tz = pz + P.az * lead - FWD_Z * dn;
+  // on touch the look-at point moves toward screen-down: the player sits higher, the thumbs hide less of the near side.
+  // Portrait sits the player in the middle of the free band and leads mostly sideways: the screen is ~23 m wide but
+  // ~50 m deep, so the narrow axis is the one worth leading into. Landscape and desktop keep a uniform lead.
+  const dn = !touch ? 0 : (portrait ? 3.2 : 3);
+  const sr = P.ax * RIGHT_X + P.az * RIGHT_Z, su = P.ax * FWD_X + P.az * FWD_Z;
+  const lr = portrait ? 3.4 : lead, lu = portrait ? 1.4 : lead;
+  const tx = px + RIGHT_X * sr * lr + FWD_X * su * lu - FWD_X * dn, tz = pz + RIGHT_Z * sr * lr + FWD_Z * su * lu - FWD_Z * dn;
+  if (!touch) camZoomWant = 1;
+  else if (nearCam > 240) camZoomWant = 1.1;
+  else if (nearCam < 180) camZoomWant = 1;
+  camZoom += (camZoomWant - camZoom) * damp(1.2, rdt);
   const k = damp(title ? 1.5 : 5, rdt);
   camTarget.x += (tx - camTarget.x) * k; camTarget.z += (tz - camTarget.z) * k;
   // follow the floor height (stairs, sloped catwalks) and the rising lift
@@ -114,7 +126,7 @@ function updateCamera(rdt, alpha) {
   const liftY = camTarget.y;
   const yaw = CAM_YAW + (title ? Math.sin(renderTime * 0.06) * 0.35 : 0);
   const pitch = CAM_PITCH - (title ? 0.08 : 0) + 0.12 * ex;
-  const dist = camDist * (title ? 1.12 : 1) * (1 + 0.35 * ex);
+  const dist = camDist * (title ? 1.12 : camZoom) * (1 + 0.35 * ex);
   shake *= Math.exp(-6 * rdt);
   const sk = shake * 0.35;
   // tiny recoil kick against the aim while the player's gun is firing

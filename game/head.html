@@ -436,6 +436,72 @@ body.touch #touchUI { display: block; }
 /* ==== v1.1 B visuals · begin ==== */
 /* ==== v1.1 B visuals · end ==== */
 /* ==== v1.1 C hud+coach · begin ==== */
+/* VX-2 smart plates: class-coloured names, the player's plate on top, squadmates fold into a 30 px HP bar */
+.plate:not(.me) .pn { color: var(--cc); font-weight: 600; }
+.plate:not(.me) .ph { border-top-color: var(--cc); }
+.plate.down:not(.me) .pn { color: var(--red); }
+.plate.me { z-index: 1; }
+.plate.mini { width: 30px; margin-left: -15px; }
+.plate.mini .pn { display: none; }
+.plate.mini .ph { height: 4px; box-shadow: 0 0 0 1px var(--shade); }
+.plate.dim { opacity: .55; }
+.plate.under { opacity: .3; }
+/* VX-5 phone HUD: squad rows only for squadmates who need attention; quiet ghost sticks; horde glow sized to the screen */
+body.touch #hSquad .sq { display: none; }
+body.touch #hSquad .sq.alert { display: grid; }
+#touchUI.learned .stick:not(.on) { opacity: .16; }
+#touchUI.learned .stick .sl { display: none; }
+body.touch #hordeFx { box-shadow: inset 0 0 min(110px, 12vw) min(16px, 2vw) var(--horde); }
+@media (max-width: 600px) {
+  body.touch .obj-lab { display: none; }
+  body.touch .obj-box { padding: 5px 10px 6px; }
+  body.touch .obj-txt { font-size: 13px; }
+  body.touch .obj-bar { margin-top: 4px; }
+  body.touch #hSquad, body.touch #toasts { top: calc(100px + var(--st)); }
+  body.touch #banner { top: calc(27% + var(--st)); }
+  body.touch #banner .bm { font-size: clamp(24px, 7.4vw, 64px); }
+  body.touch #banner .bsub { letter-spacing: .16em; }
+}
+/* first-run coach: one line under the top HUD + a ghost thumb on the real control (transform / opacity only) */
+#coach { position: absolute; left: 50%; top: calc(70px + var(--st)); transform: translateX(-50%); display: none; align-items: center; gap: 10px;
+  padding: 4px 4px 4px 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); clip-path: var(--cut-s);
+  width: max-content; max-width: min(92vw, 520px); box-sizing: border-box; animation: coachIn .35s ease-out; }
+#coach:not([hidden]) { display: flex; }
+#coach .co-n { flex: none; font: 700 12px/1 var(--font-mono); color: var(--amber); }
+#coach .co-t { min-width: 0; font: 600 15px/1.15 var(--font-display); letter-spacing: .05em; text-transform: uppercase; color: var(--ink); }
+#coach .co-skip { flex: none; pointer-events: auto; border: 0; background: transparent; color: var(--ink-faint); font: 500 11px/1 var(--font-display);
+  letter-spacing: .1em; text-transform: uppercase; padding: 8px 8px; min-height: 36px; min-width: 44px; touch-action: none; }
+@keyframes coachIn { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
+body.touch #coach { top: calc(96px + var(--st)); }
+@media (max-height: 500px) { body.touch #coach { top: calc(58px + var(--st)); } }
+/* while the card shows, the squad alerts and toasts move below it */
+@media (max-width: 600px) { body.touch #hud.coaching #hSquad, body.touch #hud.coaching #toasts { top: calc(146px + var(--st)); } }
+@media (max-height: 500px) { body.touch #hud.coaching #toasts { top: calc(108px + var(--st)); } }
+#ghost { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; display: none; }
+#ghost.on { display: block; }
+#ghost::after { content: ""; position: absolute; left: -22px; top: -22px; width: 44px; height: 44px; border-radius: 50%; background: rgba(255, 255, 255, .22);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, .75), 0 0 18px rgba(255, 255, 255, .35); will-change: transform, opacity; }
+#ghost.drag::after { animation: ghDrag 1.6s ease-in-out infinite; }
+#ghost.tap::after { animation: ghTap 1.1s ease-in-out infinite; }
+@keyframes ghDrag { 0%, 100% { transform: translate(0, 0); } 30% { transform: translate(0, -34px); } 60% { transform: translate(30px, -10px); } }
+@keyframes ghTap { 0%, 100% { transform: scale(1); opacity: .9; } 50% { transform: scale(.7); opacity: .5; } }
+/* the target control pulses amber: an opacity-only ring on its own layer (no box-shadow animation, no repaint) */
+.tbtn.coach::after, .abil.coach::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 3px var(--amber), inset 0 0 18px var(--amber-glow);
+  animation: coachPulse .9s ease-in-out infinite; will-change: opacity; pointer-events: none; }
+#marker.coach .mk::after { content: ""; position: absolute; inset: -6px; border-radius: 50%; box-shadow: 0 0 0 3px var(--amber), 0 0 16px var(--amber-glow);
+  animation: coachRing .9s ease-in-out infinite; will-change: transform, opacity; }
+@keyframes coachPulse { 0%, 100% { opacity: .15; } 50% { opacity: 1; } }
+@keyframes coachRing { 0%, 100% { opacity: .2; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.15); } }
+@media (prefers-reduced-motion: reduce) {
+  #ghost.drag::after, #ghost.tap::after, .tbtn.coach::after, .abil.coach::after, #marker.coach .mk::after { animation-duration: 3s; }
+  #coach { animation: none; }
+}
+/* pause menu with «Обучение» (+ «Вибрация» in the iOS app): 8 rows fit a 320 px tall screen without scrolling */
+@media (max-height: 340px) {
+  #sPause .m-box { gap: 4px; padding-bottom: 8px; }
+  #sPause .m-box h2 { font-size: 20px; margin-top: 6px; }
+  #sPause .m-box .btn { min-height: 30px; padding: 6px 18px 5px; font-size: 13px; }
+}
 /* ==== v1.1 C hud+coach · end ==== */
 /* ==== v1.1 D meta · begin ==== */
 /* ==== v1.1 D meta · end ==== */
