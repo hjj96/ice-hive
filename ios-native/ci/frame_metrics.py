@@ -14,7 +14,8 @@ Reads results/app-<demo>.log for every demo named on the command line and prints
     drs       dynamic-resolution sweep steps logged (`quality: drs sweep step k/10`, the probe demo / -drsSweep)
 
 Gate (exit 1 with --gate), the plan's common gate for every package:
-  warm 60 Hz demos    loop avg >= 59.5, min >= 58 fps, worst loop tick <= 43 ms, no loop hitch > 50 ms after 1 s
+  warm 60 Hz demos    loop avg >= 59.5, min >= 58 fps, worst loop tick <= 43 ms (unless that tick is a logged host stall:
+                      a hitch line whose app work, upd + draw, is < 10 ms), no loop hitch > 50 ms after 1 s
   menu demos (30 Hz)  no loop hitch
   cold first launch   worst loop tick <= --cold-max-ms, loading <= --cold-load-s (1.6 s)
   gpu-drawn           avg >= 55 in --drawn-gated demos (swarm3x, release-combat)
@@ -56,6 +57,7 @@ rx_done = re.compile(r'demo done after (\d+)s avgFps=' + num + ' minFps=' + num 
                      r'(?: drawnAvg=' + num + ' drawnMin=' + num + ' worstGap=' + num + 'ms)?')
 rx_load = re.compile(r'loading took ' + num + ' s')
 rx_hitch = re.compile(r'hitch (\d+) ms td=' + num)
+rx_hitch_work = re.compile(r'upd=(\d+)ms draw=(\d+)ms')
 rx_cb = re.compile(r'cb=(\d+)ms')
 rx_hb = re.compile(r'hb t=.* td=' + num + r' .*gap=' + num + r'ms.* cbmax=' + num + 'ms')
 rx_hb_td = re.compile(r'hb t=' + num + ' td=' + num)
@@ -84,12 +86,16 @@ for d in demos:
     drawn_min = m.group(6) or '-'
     gap = m.group(7) or '-'
     lines = text.splitlines()
-    hitches = []
+    hitches, host_stalls = [], []
     for line in lines:
         h = rx_hitch.search(line)
         if h and 1.2 <= float(h.group(2)) <= secs:
             cb = rx_cb.search(line)
             hitches.append((int(h.group(1)), float(h.group(2)), cb.group(1) if cb else '-'))
+        # a long tick in which the app itself worked < 10 ms (update + draw): the simulator host did not schedule it
+        wk = rx_hitch_work.search(line) if h else None
+        if h and wk and int(wk.group(1)) + int(wk.group(2)) < 10 and 0.2 <= float(h.group(2)) <= secs:
+            host_stalls.append(int(h.group(1)))
     # GPU-side stalls in the window: heartbeats whose longest gap between completed frames exceeded 50 ms
     stalls, cbmax = 0, 0.0
     for line in lines:
@@ -131,7 +137,8 @@ for d in demos:
                 bad.append(f'avgFps {avg:.1f} < 59.5')
             if mn < 58:
                 bad.append(f'minFps {mn:.1f} < 58')
-            if worst > 43:
+            # (a worst tick that is a logged host stall — no app work in it — is the simulator's, not the app's)
+            if worst > 43 and not any(abs(worst - st) <= 1 for st in host_stalls):
                 bad.append(f'worstFrame {worst:.0f} ms > 43')
         if hitches:
             bad.append(f'{len(hitches)} loop hitch(es) > 50 ms after 1 s, worst {worst_h} ms')

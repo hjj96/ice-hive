@@ -103,9 +103,9 @@ final class PostChain {
     // ---------------------------------------------------------------- setup
     /// Pipeline descriptors of the post passes (the renderer compiles them with the world's, in parallel).
     func pipelineJobs(_ lib: MTLLibrary, drawableFormat: MTLPixelFormat) -> [(String, () throws -> MTLRenderPipelineState)] {
-        func desc(_ label: String, _ fs: MTLFunction?, _ format: MTLPixelFormat, additive: Bool) -> (() throws -> MTLRenderPipelineState) {
+        func desc(_ label: String, _ fs: @escaping () -> MTLFunction?, _ format: MTLPixelFormat, additive: Bool) -> (() throws -> MTLRenderPipelineState) {
             return { [device] in
-                guard let v = lib.makeFunction(name: "vs_post"), let f = fs else {
+                guard let v = lib.makeFunction(name: "vs_post"), let f = fs() else {
                     throw NSError(domain: "post", code: 1, userInfo: [NSLocalizedDescriptionKey: "\(label): missing function"])
                 }
                 let d = MTLRenderPipelineDescriptor()
@@ -132,11 +132,12 @@ final class PostChain {
         }
         let hdr = RenderTargets.colorFormat
         return [
-            ("bloomPrefilter", desc("bloomPrefilter", lib.makeFunction(name: "fs_bloom_prefilter"), hdr, additive: false)),
-            ("bloomDown", desc("bloomDown", lib.makeFunction(name: "fs_bloom_down"), hdr, additive: false)),
-            ("bloomUp", desc("bloomUp", lib.makeFunction(name: "fs_bloom_up"), hdr, additive: true)),
-            ("composite.high", desc("composite.high", composite(true), drawableFormat, additive: false)),
-            ("composite.efficient", desc("composite.efficient", composite(false), drawableFormat, additive: false)),
+            // (the function-constant specialisations compile inside the parallel jobs too)
+            ("bloomPrefilter", desc("bloomPrefilter", { lib.makeFunction(name: "fs_bloom_prefilter") }, hdr, additive: false)),
+            ("bloomDown", desc("bloomDown", { lib.makeFunction(name: "fs_bloom_down") }, hdr, additive: false)),
+            ("bloomUp", desc("bloomUp", { lib.makeFunction(name: "fs_bloom_up") }, hdr, additive: true)),
+            ("composite.high", desc("composite.high", { composite(true) }, drawableFormat, additive: false)),
+            ("composite.efficient", desc("composite.efficient", { composite(false) }, drawableFormat, additive: false)),
         ]
     }
 
@@ -202,24 +203,24 @@ final class PostChain {
 
     // ---------------------------------------------------------------- the built-in grade
     /// The "gameplay" grade on display-referred (sRGB) values: crisp's neutral-cool image with horror's deep blacks —
-    /// a black point that sinks the near-blacks, a gentle S-curve, cool shadows / neutral-warm highlights, a little
-    /// more colour in the mid-tones and highlights (one hue per class stays saturated) and less in the deep shadows.
+    /// a soft toe that sinks only the near-blacks (below ~4 %) and keeps the low mid-tones (dark chitin on a dark deck)
+    /// apart, a gentle S-curve, cool shadows / neutral-warm highlights, a little more colour from the mid-tones up (one
+    /// hue per class stays saturated) and a little less in the deep shadows.
     static func grade(_ c: F3) -> F3 {
         func luma(_ v: F3) -> Float { v.x * 0.2126 + v.y * 0.7152 + v.z * 0.0722 }
-        var x = c
-        // black point: values below ~4 % go to black, the rest is stretched back to 1
-        let bp: Float = 0.04
-        x = F3(max(0, (x.x - bp) / (1 - bp)), max(0, (x.y - bp) / (1 - bp)), max(0, (x.z - bp) / (1 - bp)))
-        // S-curve around the mid-tones (smoothstep blend 35 %)
-        func s(_ v: Float) -> Float { let t = min(max(v, 0), 1); return t + (t * t * (3 - 2 * t) - t) * 0.35 }
+        // toe: x − 0.03 · (1 − smoothstep(0, 0.3, x)) — 10/255 → ~3, 26 → 17, 51 → 44, ≥ 77 untouched
+        func toe(_ v: Float) -> Float { max(0, v - 0.03 * (1 - smooth01f(v / 0.3))) }
+        var x = F3(toe(c.x), toe(c.y), toe(c.z))
+        // S-curve around the mid-tones (smoothstep blend 22 %)
+        func s(_ v: Float) -> Float { let t = min(max(v, 0), 1); return t + (t * t * (3 - 2 * t) - t) * 0.22 }
         x = F3(s(x.x), s(x.y), s(x.z))
-        // saturation by luminance: 0.85 in the deep shadows → 1.12 from the mid-tones up
+        // saturation by luminance: 0.9 in the deep shadows → 1.06 from the mid-tones up
         let l = luma(x)
-        let sat = 0.85 + (1.12 - 0.85) * smooth01f((l - 0.04) / 0.3)
+        let sat = 0.9 + (1.06 - 0.9) * smooth01f((l - 0.04) / 0.3)
         x = F3(repeating: l) + (x - F3(repeating: l)) * sat
         // split tone: cool (blue-teal) shadows, neutral-warm highlights
         let sh = 1 - smooth01f(l / 0.45), hl = smooth01f((l - 0.55) / 0.45)
-        x += F3(-0.010, 0.002, 0.016) * sh + F3(0.012, 0.004, -0.010) * hl
+        x += F3(-0.006, 0.001, 0.008) * sh + F3(0.010, 0.004, -0.008) * hl
         return F3(min(max(x.x, 0), 1), min(max(x.y, 0), 1), min(max(x.z, 0), 1))
     }
 

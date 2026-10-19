@@ -123,7 +123,8 @@ final class RenderQuality {
         guard ms > 0 && ms < 1000 else { return }
         lock.lock()
         gpuSamples += 1
-        gpuEmaLocked += (ms - gpuEmaLocked) * (gpuSamples < 10 ? 0.5 : 0.1)
+        // the first second of frames (pipelines and textures warming up behind the loading cover) does not steer DRS
+        if gpuSamples > 60 { gpuEmaLocked += (ms - gpuEmaLocked) * (gpuSamples < 70 ? 0.5 : 0.1) }
         lock.unlock()
     }
 

@@ -330,15 +330,19 @@ final class MetalRenderer {
         var jobs: [(String, () throws -> MTLRenderPipelineState)] = specs.map { sp in (sp.label, { try make(sp) }) }
         jobs += post.pipelineJobs(lib, drawableFormat: drawableFormat)
         var states = [MTLRenderPipelineState?](repeating: nil, count: jobs.count)
+        var ms = [Double](repeating: 0, count: jobs.count)
         let lock = NSLock()
         DispatchQueue.concurrentPerform(iterations: jobs.count) { i in
+            let j0 = FrameTimer.now()
             do {
                 let st = try jobs[i].1()
-                lock.lock(); states[i] = st; lock.unlock()
+                lock.lock(); states[i] = st; ms[i] = (FrameTimer.now() - j0) * 1000; lock.unlock()
             } catch {
                 fail("\(jobs[i].0): \(error.localizedDescription)")
             }
         }
+        // the slowest compiles (a cold first launch compiles everything: CI gates its loading time)
+        let slow = ms.indices.sorted { ms[$0] > ms[$1] }.prefix(6).map { jobs[$0].0 + String(format: " %.0f", ms[$0]) }
         var postStates: [String: MTLRenderPipelineState] = [:]
         for (i, job) in jobs.enumerated() {
             guard let st = states[i] else { continue }
@@ -364,7 +368,8 @@ final class MetalRenderer {
         td.isDepthWriteEnabled = false
         dsTransparent = device.makeDepthStencilState(descriptor: td)
         ready = missingRequired.isEmpty && post.ready && dsOpaque != nil && dsTransparent != nil
-        return String(format: "pipelines built in %.0f ms (%d world + %d post)", (FrameTimer.now() - t0) * 1000, pipelineStates.count, postStates.count)
+        return String(format: "pipelines built in %.0f ms (%d world + %d post; slowest ms: ", (FrameTimer.now() - t0) * 1000, pipelineStates.count,
+                      postStates.count) + slow.joined(separator: ", ") + ")"
             + (pipelineErrors.isEmpty ? "" : " ERRORS: " + pipelineErrors.joined(separator: "; "))
     }
 
