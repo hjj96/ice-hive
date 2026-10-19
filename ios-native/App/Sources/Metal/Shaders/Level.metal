@@ -219,6 +219,15 @@ fragment float4 fs_level(KitOut in [[stage_in]],
         albedo = mix(albedo, float3(0.46, 0.52, 0.6), rime);
         rough = mix(rough, 0.72, rime);
         metal = mix(metal, 0.0, rime);
+        if ((fl & KF_PAINT) != 0u) {
+            // a crust of snow on the painted props' tops (crates): the drift's snow, broken up by the world mask's
+            // noise so no two lids match; lit only where a beam or a lamp reaches it
+            float cap = smoothstep(0.9, 0.985, Nv.y) * saturate(mk.r * 2.4 - 1.0) * P.look.x;
+            albedo = mix(albedo, float3(0.84, 0.9, 1.0) * P.look.w, cap);
+            rough = mix(rough, 0.9, cap);
+            metal = mix(metal, 0.0, cap);
+            N = normalize(mix(N, Nv, cap));
+        }
     }
     // contact shading near railings, crates and pillars (decks only)
     ao *= mix(1.0, mk.g, saturate(Nv.y) * P.look.y);
@@ -250,6 +259,9 @@ fragment float4 fs_level(KitOut in [[stage_in]],
         // High, a faint cyan glint of the edge strip just above them
         float fr = pow(1.0 - saturate(dot(Nv, V)), 3.0);
         c += float3(0.35, 0.6, 0.85) * fr * (F.hemiSky.rgb * PI_F) * 1.2;
+        // the edge strip's cyan carried down the ice (light-piping): a faint fringe of cyan slivers under each lip,
+        // so the icicles read against the abyss at phone size without a light of their own
+        c += float3(0.012, 0.075, 0.1) * (0.6 + fr);
         if (high) c += float3(0.02, 0.09, 0.12) * fr;
     }
     c += in.albedo * in.emis;

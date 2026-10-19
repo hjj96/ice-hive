@@ -4,10 +4,11 @@ import IceHiveCore
 
 // ================================================================
 //  WORLD LEVEL — the station (owned by WP6 «Станция и конвейер»).
-//  Built once per Level from its layout (LevelLayout: rects, crates,
-//  pillars, vents, pipes, beacons, lift — so a generated station gets
-//  the same kit) out of KitStore's pieces and runtime extrusions, in
-//  the user's blend of the concepts:
+//  Built from the level's layout (LevelLayout: rects, crates, pillars,
+//  vents, pipes, beacons, pad, lift — so a v1.1 generated station gets
+//  the same kit; `rebuild(level:)` switches stations behind a cover)
+//  out of KitStore's pieces and runtime extrusions, in the user's
+//  blend of the concepts:
 //    crisp «Кристалл»  bevelled hard surface, dark steel; a cyan light
 //                      strip in the skirt groove outlines every abyss
 //                      edge (only the walkable edge); one light colour
@@ -17,9 +18,12 @@ import IceHiveCore
 //                      squad's flashlights (and WP2's grid lights from
 //                      the lamps this module registers) are the light
 //    frost             rime on grating bars and rims near the edges
-//                      (world mask × trim receptivity, subtle), icicle
-//                      fringes under the deck lips, LOW drifts inside
-//                      the railings only (never past the rail line)
+//                      (world mask × trim receptivity, subtle), a snow
+//                      crust on crate lids, icicle fringes under the
+//                      deck lips (faintly cyan from the strip above),
+//                      LOW drifts banked against the railings, into
+//                      deck corners and against crates — inside the
+//                      rail lines only (never past one)
 //  The deck stays dark (no snow fill: frost's silver deck is out).
 //  Geometry: one KitMesh per 32 m cell of the XZ plane (frustum-culled
 //  chunks of one vertex / index buffer, fs_level, one pipeline); the
@@ -62,7 +66,8 @@ final class WorldLevel {
     /// Beacon heads vs_kit can spin (Level.metal LEVEL_HEADS).
     static let maxHeads = 8
 
-    let level: Level
+    /// The station drawn; `rebuild(level:)` switches it (v1.1 generated stations).
+    private(set) var level: Level
     private var renderer: MetalRenderer!
     private var kit: KitStore!
     // merged station
@@ -125,9 +130,31 @@ final class WorldLevel {
         psShadow = r.pipeline("shadowKit")
         psPad = r.pipeline("pad")
         psGlowQuads = r.pipeline("glowQuads")
+        assemble()
+        r.register(.opaque, order: 100, "station") { [unowned self] enc in self.encodeStation(enc) }
+        r.register(.shadowCasters, order: 50, "station casters") { [unowned self] enc in self.encodeCasters(enc) }
+        r.register(.transparent, order: 110, "pad mark") { [unowned self] enc in self.encodePad(enc) }
+        r.register(.transparent, order: 120, "floor glows") { [unowned self] enc in self.encodeGlows(enc) }
+    }
+
+    /// Switch to another station (v1.1 generated stations: `MetalWorld.setLevel`, behind a cover): the same kit,
+    /// pipelines and draw items; the geometry, the light pools, the pad mark and the station's grid lights are rebuilt
+    /// and the world mask is rewritten in place (≈ 40 ms on the CI simulator for «Кельвин-9»).
+    func rebuild(level newLevel: Level) {
+        level = newLevel
+        assemble()
+    }
+
+    /// World mask, station geometry, light pools, pad mark and the lamps registered with WP2's light grid.
+    private func assemble() {
+        let r = renderer!
         let t0 = FrameTimer.now()
-        worldMask = buildWorldMask(r.device)
-        r.passTextures[TextureIndex.snow] = worldMask
+        if let t = worldMask {
+            writeWorldMask(t)
+        } else {
+            worldMask = buildWorldMask(r.device)
+            r.passTextures[TextureIndex.snow] = worldMask
+        }
         if kit.ready {
             buildStation(r.device)
             // WP2's grid lights: the station's lamp lenses, pillar strips and vent slats (the beacons: LightGrid's own)
@@ -137,10 +164,6 @@ final class WorldLevel {
         }
         summary += String(format: " (%.0f ms)", (FrameTimer.now() - t0) * 1000)
         AppLog.info("metal: " + summary)
-        r.register(.opaque, order: 100, "station") { [unowned self] enc in self.encodeStation(enc) }
-        r.register(.shadowCasters, order: 50, "station casters") { [unowned self] enc in self.encodeCasters(enc) }
-        r.register(.transparent, order: 110, "pad mark") { [unowned self] enc in self.encodePad(enc) }
-        r.register(.transparent, order: 120, "floor glows") { [unowned self] enc in self.encodeGlows(enc) }
     }
 
     // ================================================================ per frame
@@ -326,6 +349,9 @@ final class WorldLevel {
     // ================================================================ station assembly
     /// Height of the beacon mast's top deck (the head sits there).
     static let mastTop: Float = 3.46
+    /// The drift pieces' placement scale (length x, height y, width z): the kit's drifts (2–2.7 × 0.56–0.7 × 0.15–0.19 m)
+    /// were a few pixels wide at the gameplay camera; frost's drifts banked against the railings read at phone size.
+    static let driftScale = F3(1.45, 1.4, 1.6)
 
     // palette (sRGB), kitgeo.py C
     private enum Col {
@@ -637,23 +663,38 @@ final class WorldLevel {
                     t += 12
                 }
             }
-            // low drifts INSIDE the railing (never past the rail line), not on hazard platforms
+            // low drifts INSIDE the railing (never past the rail line, never past the run's ends), not on hazard
+            // platforms: the kit's pieces scaled up (WorldLevel.driftScale) so a drift reads at phone size — about
+            // 3–4 m long, 0.9–1.1 m wide, 0.2–0.27 m high, its crest against the kick plate
             if !r.haz && !drifts.isEmpty && len >= 3 {
-                var t: Float = 1.2
-                while t < len - 1.2 {
-                    if rng.next() < 0.62 {
-                        let (x, z) = P(t, 0.48)
-                        let c = level.cellOf(x, z)
-                        if c >= 0 && level.walkValue(c) == 1 && !level.isLiftCell(c) && !level.isStairCell(c) {
-                            let pc = drifts[Int(rng.next() * Float(drifts.count)) % drifts.count]
-                            // the piece's ridge leans to its -z side, i.e. against the rail
-                            m.place(pc, at: F3(x, level.groundY(x, z), z), yaw: yawAlong)
-                            edgeStats.drifts += 1
+                let S = WorldLevel.driftScale
+                var t: Float = 0.4
+                while t < len {
+                    let pc = drifts[Int(rng.next() * Float(drifts.count)) % drifts.count]
+                    let half = pc.halfLength * S.x, wide = pc.halfWidth * S.z
+                    let tc = t + half
+                    if tc + half > len - 0.4 { break }
+                    if rng.next() < 0.7 {
+                        // crest side (the piece's -z) 0.12 m inside this rail line: centre = 0.12 + half width; the far
+                        // side + 0.12 m must still be on deck, so a narrow spur's opposite rail line is never crossed
+                        let off = 0.12 + wide
+                        let ok = [tc - half + 0.3, tc, tc + half - 0.3].allSatisfy { tt in
+                            [off, off + wide + 0.12].allSatisfy { o in
+                                let (x, z) = P(tt, o), c = level.cellOf(x, z)
+                                return c >= 0 && level.walkValue(c) == 1 && !level.isLiftCell(c) && !level.isStairCell(c)
+                            }
                         }
-                        t += 2.8
-                    } else {
-                        t += 1.6
+                        // flat deck only (a sloped catwalk would leave the ends floating or buried)
+                        let flat = abs(H(tc - half + 0.3) - H(tc)) < 0.05 && abs(H(tc + half - 0.3) - H(tc)) < 0.05
+                        if ok && flat {
+                            let (x, z) = P(tc, off)
+                            m.place(pc, at: F3(x, level.groundY(x, z), z), yaw: yawAlong, scaleY: S.y, scaleX: S.x, scaleZ: S.z)
+                            edgeStats.drifts += 1
+                            t = tc + half + 0.6 + rng.next() * 2.4
+                            continue
+                        }
                     }
+                    t += 1.5
                 }
             }
         }
@@ -663,8 +704,9 @@ final class WorldLevel {
     /// the wind packs snow there first. The piece's ridge (its -z side) faces the corner; never on the lift, stairs or
     /// hazard platforms, always inside the rail lines.
     private func buildCornerDrifts() {
-        // the short drift only: 1.4 m across the corner, centred 0.25 m in from the cell centre, keeps both ends ≥ 0.1 m
-        // inside the two rail lines (the rail line is 0.38 m from the cell centre)
+        // the short drift only: 1.4 m across the corner (never longer: its ends would reach the rail lines), centred
+        // 0.25 m in from the cell centre, widened × 1.45 toward the corner and raised × 1.4; its outline stays ≤ 0.33 m
+        // past the cell centre on either axis, inside both rail lines (0.38 m from the centre)
         guard let pc = piece("drift_c") else { return }
         var rng = StationRNG(seed: 77)
         let G = GRID
@@ -682,10 +724,41 @@ final class WorldLevel {
                 if level.walkValue(c - Int(sx)) == 0 || level.walkValue(c - Int(sz) * G) == 0 { continue }
                 let x = Float(i) - GRID_HALF + 0.5 - sx * 0.25, z = Float(j) - GRID_HALF + 0.5 - sz * 0.25
                 // place() maps the piece's -z (its ridge) to (-sin yaw, -cos yaw): point it along (sx, sz)
-                cell(x, z).place(pc, at: F3(x, level.groundY(x, z), z), yaw: atan2f(-sx, -sz))
+                cell(x, z).place(pc, at: F3(x, level.groundY(x, z), z), yaw: atan2f(-sx, -sz), scaleY: 1.4, scaleZ: 1.45)
                 edgeStats.drifts += 1
             }
         }
+    }
+
+    /// A low drift banked against one side of a crate (half of them): its crest on the crate face, the whole footprint
+    /// on open deck (never on the lift, stairs, hazard platforms or another obstacle, never past a rail line).
+    private func crateDrift(_ c: CrateSpec, _ rng: inout StationRNG) {
+        guard rng.next() < 0.5, let long = piece("drift_a"), let short = piece("drift_c") else { return }
+        let w = Float(c.w), d = Float(c.d)
+        // sides: outward normal, side length, side midpoint
+        let sides: [(F3, Float, F3)] = [(F3(0, 0, -1), w, F3(c.x0 + w / 2, 0, c.z0)), (F3(0, 0, 1), w, F3(c.x0 + w / 2, 0, c.z0 + d)),
+                                        (F3(-1, 0, 0), d, F3(c.x0, 0, c.z0 + d / 2)), (F3(1, 0, 0), d, F3(c.x0 + w, 0, c.z0 + d / 2))]
+        let (nrm, L, mid) = sides[Int(rng.next() * 4) % 4]
+        let pc = L >= 2 ? long : short
+        let sx = min(1.3, (L + 0.2) / (2 * pc.halfLength)), sz: Float = 1.4
+        let half = pc.halfLength * sx, wide = pc.halfWidth * sz
+        let along = F3(-nrm.z, 0, nrm.x)
+        let ctr = mid + nrm * (0.03 + wide)
+        // footprint probes: both ends and the middle, at the centre line and the far side + 0.12 m, on flat deck
+        let y0 = level.groundY(ctr.x, ctr.z)
+        for t in [-half + 0.25, 0, half - 0.25] {
+            for o in [Float(0), wide + 0.12] {
+                let q = ctr + along * t + nrm * o
+                let cc = level.cellOf(q.x, q.z)
+                if cc < 0 || level.walkValue(cc) != 1 || level.isLiftCell(cc) || level.isStairCell(cc) || level.isHazardCell(cc)
+                    || abs(level.groundY(q.x, q.z) - y0) > 0.05 {
+                    return
+                }
+            }
+        }
+        // place() turns the piece's -z (the crest) to (-sin yaw, -cos yaw): toward the crate (−nrm)
+        cell(ctr.x, ctr.z).place(pc, at: F3(ctr.x, y0, ctr.z), yaw: atan2f(nrm.x, nrm.z), scaleY: 1.3, scaleX: sx, scaleZ: sz)
+        edgeStats.drifts += 1
     }
 
     /// Polygon ordered counter-clockwise seen from `up` (its facing direction).
@@ -765,6 +838,7 @@ final class WorldLevel {
     // ---------------------------------------------------------------- props: crates, pillars, pipes, vents, beacons, pad
     private func buildProps() {
         var rng = StationRNG(seed: 57)
+        var driftRng = StationRNG(seed: 91)    // own stream: the crates' colours and yaws stay as they were
         for c in level.layout.crates {
             let cx = c.x0 + Float(c.w) / 2, cz = c.z0 + Float(c.d) / 2
             let y = level.groundY(cx, cz)
@@ -778,6 +852,7 @@ final class WorldLevel {
             default: name = "crate_1x1"; rot = 0
             }
             if let p = piece(name) { cell(cx, cz).place(p, at: F3(cx, y, cz), yaw: rot + yaw, scaleY: c.h, paint: col, caster: true) }
+            crateDrift(c, &driftRng)
         }
         if let p = piece("pillar") {
             for q in level.layout.pillars {
@@ -831,15 +906,24 @@ final class WorldLevel {
                 lights.append(StationLight(kind: .beacon, pos: F3(b.x, y + WorldLevel.mastTop + 0.16, b.z), color: linearRGB(Col.red)))
             }
         }
-        // landing-pad edge lights (around the start pad)
+        // landing-pad edge lights, 0.6 m inside the layout's pad rect, every 2 m (a pinwheel: each side starts at its
+        // own corner; «Кельвин-9»'s 16 m pad gives 8 per side at ±7.4 m)
         if let p = piece("pad_light") {
-            let s = level.layout.start
-            for k in 0..<8 {
-                let o = Float(k) * 2 - 7.4
-                for (x, z) in [(s.x + o, s.y - 7.4), (s.x + o, s.y + 7.4), (s.x - 7.4, s.y + o), (s.x + 7.4, s.y + o)] {
-                    let c = level.cellOf(x, z)
-                    if c >= 0 && level.walkValue(c) != 0 { cell(x, z).place(p, at: F3(x, level.groundY(x, z), z)) }
-                }
+            let (c, hx, hz) = padFrame()
+            let ax = hx - 0.6, az = hz - 0.6
+            let nx = max(1, Int(ax.rounded(.up))), nz = max(1, Int(az.rounded(.up)))
+            var spots: [(Float, Float)] = []
+            for k in 0..<nx {
+                let o = Float(k) * 2 - ax
+                spots += [(c.x + o, c.y - az), (c.x + o, c.y + az)]
+            }
+            for k in 0..<nz {
+                let o = Float(k) * 2 - az
+                spots += [(c.x - ax, c.y + o), (c.x + ax, c.y + o)]
+            }
+            for (x, z) in spots {
+                let cc = level.cellOf(x, z)
+                if cc >= 0 && level.walkValue(cc) != 0 { cell(x, z).place(p, at: F3(x, level.groundY(x, z), z)) }
             }
         }
     }
@@ -901,10 +985,17 @@ final class WorldLevel {
         glowI = idx.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: $0.count, options: []) }
     }
 
-    /// The landing-pad marking: an 11 × 11 m quad at the start point.
+    /// The layout's landing pad: centre (x, z) and half extents (v1.1 `LevelLayout.pad`; «Кельвин-9»: 22…38, centred on
+    /// the start point).
+    private func padFrame() -> (Vec2, Float, Float) {
+        let p = level.layout.pad
+        return (Vec2((p.x + p.z) / 2, (p.y + p.w) / 2), max(1, (p.z - p.x) / 2), max(1, (p.w - p.y) / 2))
+    }
+
+    /// The landing-pad marking: a square quad at the pad's centre, 5 m smaller than the pad (11 m on «Кельвин-9»).
     private func buildPadQuad(_ device: MTLDevice) {
-        let s = level.layout.start
-        let y = level.groundY(s.x, s.y) + 0.01, h: Float = 5.5
+        let (s, hx, hz) = padFrame()
+        let y = level.groundY(s.x, s.y) + 0.01, h = max(2, min(5.5, min(hx, hz) - 2.5))
         var v: [Float] = []
         for (dx, dz, u, w) in [(-h, h, Float(0), Float(1)), (h, h, 1, 1), (h, -h, 1, 0), (-h, -h, 0, 0)] {
             // worn paint on the dark deck: 0.6 of the texture's albedo (full strength read as a pale overlay)
@@ -919,7 +1010,20 @@ final class WorldLevel {
     /// 256² RGBA8 over the 128 m grid (0.5 m texels): R frost — value noise plus a ramp toward railings and props,
     /// G contact AO — darker beside blocked cells (crates, pillars, beacons) and along the railings.
     private func buildWorldMask(_ device: MTLDevice) -> MTLTexture? {
-        let G = GRID, S = 256
+        let S = WorldLevel.maskSize
+        let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba8Unorm, width: S, height: S, mipmapped: false)
+        desc.usage = .shaderRead
+        guard let t = device.makeTexture(descriptor: desc) else { return nil }
+        t.label = "world mask"
+        writeWorldMask(t)
+        return t
+    }
+
+    static let maskSize = 256
+
+    /// Fill the world mask from the current level (also in place on a rebuild).
+    private func writeWorldMask(_ t: MTLTexture) {
+        let G = GRID, S = WorldLevel.maskSize
         var dist = [Float](repeating: 99, count: G * G), distBlocked = [Float](repeating: 99, count: G * G)
         var q: [Int] = [], qb: [Int] = []
         for c in 0..<(G * G) where level.walkValue(c) != 0 {
@@ -972,12 +1076,7 @@ final class WorldLevel {
                 px[o + 3] = 255
             }
         }
-        let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba8Unorm, width: S, height: S, mipmapped: false)
-        desc.usage = .shaderRead
-        guard let t = device.makeTexture(descriptor: desc) else { return nil }
         px.withUnsafeBytes { t.replace(region: MTLRegionMake2D(0, 0, S, S), mipmapLevel: 0, withBytes: $0.baseAddress!, bytesPerRow: S * 4) }
-        t.label = "world mask"
-        return t
     }
 
     static func makeTexture(_ device: MTLDevice, _ size: Int, _ v: [UInt8]) -> MTLTexture? {

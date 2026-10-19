@@ -102,6 +102,9 @@ struct KitPiece {
     var indices: [UInt16] = []
     var boundsMin = F3(repeating: 0), boundsMax = F3(repeating: 0)
     var triangles: Int { indices.count / 3 }
+    /// Largest |x| / |z| of the piece's bounds (a drift's half length / half width, its crest side included).
+    var halfLength: Float { max(-boundsMin.x, boundsMax.x) }
+    var halfWidth: Float { max(-boundsMin.z, boundsMax.z) }
 }
 
 /// Growing merged geometry (one vertex / index stream; WorldLevel splits it into culling chunks).
@@ -379,23 +382,27 @@ final class KitMesh {
     }
 
     // ---------------------------------------------------------------- pieces
-    /// A kit piece placed with a yaw, an optional vertical scale and a paint colour (KitFlag.paint faces take it).
+    /// A kit piece placed with a yaw, an optional scale (`scaleY` vertical, `scaleX` / `scaleZ` along the piece's own
+    /// axes, all before the yaw) and a paint colour (KitFlag.paint faces take it).
     /// `headIndex`: the piece is beacon head k (KitFlag.head on every vertex, k in extra.w; vs_kit spins it).
-    func place(_ p: KitPiece, at t: F3, yaw: Float = 0, scaleY: Float = 1, paint: UInt32? = nil, headIndex: UInt32? = nil,
-               caster: Bool = false) {
+    func place(_ p: KitPiece, at t: F3, yaw: Float = 0, scaleY: Float = 1, scaleX: Float = 1, scaleZ: Float = 1,
+               paint: UInt32? = nil, headIndex: UInt32? = nil, caster: Bool = false) {
         let c = cosf(yaw), s = sinf(yaw)
         @inline(__always) func rot(_ v: F3) -> F3 { F3(c * v.x + s * v.z, v.y, -s * v.x + c * v.z) }
         let base = UInt32(vertices.count)
         let paintTint: UInt32? = paint
+        // non-uniform scale: positions × k, normals × 1 / k (inverse transpose), tangents × k
+        let k = F3(scaleX, scaleY, scaleZ)
+        let scaled = k != F3(1, 1, 1)
         for i in 0..<p.positions.count {
             let q = p.positions[i]
-            let w = rot(F3(q.x, q.y * scaleY, q.z)) + t
+            let w = rot(q * k) + t
             var n = p.normals[i]
             var tg = p.tangents[i]
-            if scaleY != 1 {
-                n = F3(n.x, n.y / scaleY, n.z)
+            if scaled {
+                n /= k
                 n /= max(1e-6, (n * n).sum().squareRoot())
-                var tt = F3(tg.x, tg.y * scaleY, tg.z)
+                var tt = F3(tg.x, tg.y, tg.z) * k
                 tt /= max(1e-6, (tt * tt).sum().squareRoot())
                 tg = F4(tt.x, tt.y, tt.z, tg.w)
             }
