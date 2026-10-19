@@ -44,7 +44,8 @@ public struct GameConfig {
     public var quality: QualityTier = .med
     /// Explicit live-bug cap (overrides `quality`).
     public var bugCap: Int? = nil
-    public var difficulty: Difficulty = .standard
+    /// The tier of this mission (web TH); the app passes `Difficulty.tier(effectiveTier)`.
+    public var difficulty: Difficulty = .veteran
     public var levelSource: any LevelSource = KelvinStation()
     /// Title-screen attract mode: autopilot, invulnerable squad, no objectives, endless trickle.
     public var attract: Bool = false
@@ -54,7 +55,59 @@ public struct GameConfig {
     public var autoPickUpgrades: Bool = false
     /// Squad invulnerable.
     public var god: Bool = false
+    /// Run the first-run coach «Учебная высадка» (the app: the first mission ever, or the pause «Обучение»).
+    public var coach: Bool = false
+    /// The revive line («Кекс ранен — встаньте рядом, чтобы поднять») may show once in this mission (app: profile.runs < 3).
+    public var reviveLineArmed: Bool = false
+    /// Debug: seconds of counted hold before the Матка's warning (overrides `difficulty.queen.at`; `-queen` → 0).
+    public var queenAt: Float? = nil
+    /// Debug / tests: her absolute health (not × hpMul; web `__dbg.queen(hp)`).
+    public var queenHp: Float? = nil
     public init() {}
+}
+
+/// Public view of the Матка (web DIR.q + the HUD fields of QSTATE). `uid` stays after her death (uids are never reused).
+public struct QueenState {
+    public internal(set) var uid: Int32 = 0
+    public internal(set) var spawned = false
+    public internal(set) var alive = false
+    public internal(set) var done = false
+    public internal(set) var enraged = false
+    /// Mission time of her spawn, seconds she lived (set at her death).
+    public internal(set) var t0: Float = 0
+    public internal(set) var killT: Float = 0
+    /// Health 0…1 (boss bar = 1 − hpFraction).
+    public internal(set) var hpFraction: Float = 1
+    /// Seconds left of the warning ring before she climbs up, -1 = none.
+    public internal(set) var warning: Float = -1
+    public internal(set) var position = Vec2(0, 0)
+    public init() {}
+}
+
+/// What the coach card shows (web CO). Steps 0…4: run, aim + fire, ability, dash, beacon.
+public enum CoachTarget: Int {
+    case moveStick, aimStick, ability, dash, objective
+}
+
+public struct CoachState {
+    public internal(set) var active = false
+    /// 0…4 while active, -1 otherwise.
+    public internal(set) var step = -1
+    public internal(set) var stepTime: Float = 0
+    /// The control the card points at (nil = no card).
+    public var target: CoachTarget? { active ? CoachTarget(rawValue: step) : nil }
+    /// «{name} ранен — встаньте рядом, чтобы поднять» for `reviveTime` s after the first bot went down (once per run).
+    public internal(set) var reviveLine: String? = nil
+    public internal(set) var reviveTime: Float = 0
+    public init() {}
+}
+
+/// A practice group of the coach (runners at half HP climbing over one stretch of railing).
+struct CoachGroup {
+    var edge = 0
+    var n = 0
+    var rate: Float = 0
+    var acc: Float = 0
 }
 
 /// Pending explosion (deferred so chain reactions ripple tick by tick).
@@ -184,7 +237,10 @@ public final class Game {
     public let playerClass: MarineClass
     public let config: GameConfig
     public let level: Level
+    /// The tier of this mission (fixed for the mission).
     public let difficulty: Difficulty
+    /// The lift-pulse hint of this tier (built once).
+    let holdHintLine: HintLine
     /// Gameplay cap on live bugs (only an explicit quality choice changes it).
     public internal(set) var bugCap: Int
     var rng: SeededRNG
@@ -279,6 +335,49 @@ public final class Game {
     public internal(set) var hordes = 0
     var pulseT: Float = 5
 
+    // ---------- v1.1: player downs, AFK (GS) ----------
+    /// Downs of the PLAYER this mission (score «Без падений»).
+    public internal(set) var downs = 0
+    /// Source of the last hit the player took / of the hit that downed the player.
+    public internal(set) var lastHit: DamageSource = .environment
+    public internal(set) var downBy: DamageSource = .environment
+    /// Seconds without any player input (never counts on autopilot).
+    public internal(set) var afkTime: Float = 0
+
+    // ---------- v1.1: hive pressure, coach hooks (DIR) ----------
+    /// Hive pressure clock (s of loitering with no beacon running / on the way to the lift).
+    public internal(set) var pressure: Float = 0
+    /// Trickle / horde-clock multiplier from the pressure past its grace (1…4).
+    public internal(set) var idleMul: Float = 1
+    /// The coach holds the swarm back (no trickle, no hordes, pressure frozen).
+    public internal(set) var calm = false
+    /// × the next beacon horde (coach: 0.65 until the first beacon starts).
+    public internal(set) var beaconHordeMul: Float = 1
+    /// Part of the swarm hunts the player (web HUNT[0] pressure, HUNT[1] AFK), set once per tick.
+    var huntPressure = false, huntAfk = false
+    var heartAt: Float = -9
+
+    // ---------- v1.1: the Матка ----------
+    public internal(set) var queen = QueenState()
+    var qWarn: Float = -1, qEdge = -1, qSlot = -1
+    var qBrood: Float = 0, qVolley: Float = 0, qRam: Float = 0, qMeleeCd: Float = 0
+    var qArmed = false
+
+    // ---------- v1.1: the coach ----------
+    public internal(set) var coach = CoachState()
+    var coachStartX: Float = 0, coachStartZ: Float = 0, coachFire: Float = 0
+    var coachGroups = [CoachGroup](repeating: CoachGroup(), count: 2)
+    var coachGroupCount = 0
+    var coachReviveArmed = false
+    var coachSeenSent = false
+
+    // ---------- v1.1: calibration ledger (fixed arrays, index = DamageSource.rawValue + 1) ----------
+    /// Damage taken by the whole squad per source.
+    public internal(set) var hurtBy = [Float](repeating: 0, count: 6)
+    /// Squad downs (all four marines) by the source of each marine's last hit.
+    public internal(set) var squadDownBy = [Int](repeating: 0, count: 6)
+    var marineLastSrc = [Int](repeating: -1, count: 4)
+
     // ---------- input ----------
     var inMove = Vec2(0, 0)
     var inAim: Float? = nil
@@ -302,6 +401,7 @@ public final class Game {
         self.config = config
         self.level = level ?? Level(source: config.levelSource, seed: seed)
         self.difficulty = config.difficulty
+        self.holdHintLine = HintLine(text: Game.holdHintText(config.difficulty), urgent: false)
         self.bugCap = config.bugCap ?? config.quality.bugCap
         self.rng = SeededRNG(seed: seed == 0 ? 0x9E37_79B9 : seed)
         self.attract = config.attract
@@ -339,6 +439,9 @@ public final class Game {
         resetDirector()
         phase = .playing
         time = 0; kills = 0; playerKills = 0; shots = 0; hits = 0; combo = 0; comboT = 0; bestCombo = 0
+        downs = 0; lastHit = .environment; downBy = .environment; afkTime = 0
+        for k in 0..<6 { hurtBy[k] = 0; squadDownBy[k] = 0 }
+        for k in 0..<4 { marineLastSrc[k] = -1 }
         xpLevel = 1; xp = 0; xpNext = xpFor(1); pendingLevels = 0; upgradeCounts = [:]
         seen = [true, false, false, false]
         simTime = 0; flowTimer = 0; tickCount = 0
@@ -350,7 +453,8 @@ public final class Game {
                 if e >= 0 { _ = spawnBug(T_RUN, level.edgeX[e] - level.edgeNX[e] * 1.5, level.edgeZ[e] - level.edgeNZ[e] * 1.5) }
             }
         }
-        if !attract { emit(.banner(title: "Высадка", subtitle: "Кельвин-9 · запустите три маяка", teal: true)) }
+        coachBegin()
+        if !attract && !coach.active { emit(.banner(title: "Высадка", subtitle: stationName + " · запустите три маяка", teal: true)) }
     }
 
     func setupSquad() {
@@ -394,7 +498,7 @@ public final class Game {
         updateGlobs(dt)
         updateAbilities(dt)
         updateMedkits(dt)
-        if !simOnly && !benchCombat && directorEnabled { tickDirector(dt) }
+        if !simOnly && !benchCombat && directorEnabled { tickCoach(dt); tickDirector(dt) }
         updateTelegraphs(dt)
         if autoPickUpgrades {
             while pendingLevels > 0 && phase == .playing {

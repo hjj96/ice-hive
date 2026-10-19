@@ -98,6 +98,8 @@ final class WorldSwarm {
         let ST = S.states, TT = S.stateTimers, VR = S.variations
         let swell = BugState.swell.rawValue, wind = BugState.wind.rawValue, climb = BugState.climb.rawValue
         let brute = UInt8(BugType.brute.rawValue)
+        // v1.1 the Матка: a brute instance at scale 4.2 (core), tinted deep violet here (handoff M1 to the swarm look)
+        let U = S.uids, queenUid: Int32 = game.queen.alive ? game.queen.uid : -1
         var vis = 0
         // shadow proxies: bugs inside the player's flashlight cone (cos 0.6, 32 m), «высокая» only
         proxies = Region()
@@ -142,7 +144,8 @@ final class WorldSwarm {
             let k = bugCnt[t]
             // built once and written to both slots: the arena is write-combined memory, never read it back
             let inst = BugInstance(pos: F4(bx, gy, bz, s), rot: F4(cosf(HD[i]), sinf(HD[i]), sp, cp),
-                                   color: F4(v, v * (0.92 + vr * 0.1), v, sy), anim: F4(PH[i], flash, burn, frz))
+                                   color: U[i] == queenUid ? F4(0.75, 0.40, 2.6, sy) : F4(v, v * (0.92 + vr * 0.1), v, sy),
+                                   anim: F4(PH[i], flash, burn, frz))
             out[k] = inst
             if let pp = proxyPtr, proxyN < WorldSwarm.shadowProxyMax {
                 let o = F3(bx, gy + 0.3 * sc, bz) - sp0

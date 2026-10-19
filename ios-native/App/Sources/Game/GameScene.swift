@@ -745,6 +745,9 @@ final class GameScene: SKScene {
                 noteFirst(5, "horde")
             case .downed:
                 noteFirst(6, "downed")
+            case .queenKilled:
+                // v1.1: the Матка's death always gets its hit-stop (the core emits it right after this event)
+                hitStopCd = 0
             default:
                 break
             }
