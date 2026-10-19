@@ -76,10 +76,22 @@ const plR = new Float32Array(16);   // placed rects this frame: x0, y0, x1, y1
 const PL_DX = [18, -18, 36, -36], PL_SLIDE = 42, PL_HOLD = 0.35;
 const plTx = new Int32Array(4), plTy = new Int32Array(4), plHpQ = new Int16Array(4), plSegQ = new Int16Array(4), plRvQ = new Int16Array(4), sqHpQ = new Int16Array(4);
 const PLK = [0, 1, 2, 3].map(k => ({ mini: 'pmini' + k, dim: 'pdim' + k, under: 'phint' + k, low: 'plow' + k, down: 'pdown' + k, sqd: 'sqdown' + k, alert: 'sqalert' + k }));
-let plN = 0, plLast = 0;
+const plT = new Float64Array(1), plHint = new Float64Array(4);   // last frame time; hint rect (l, t, r, b)
+let plN = 0;
 function plHit(x0, y0, x1, y1) { for (let q = 0; q < plN; q++) { const o = q * 4; if (x0 < plR[o + 2] && x1 > plR[o] && y0 < plR[o + 3] && y1 > plR[o + 1]) return true; } return false; }
 function plPut(x0, y0, x1, y1) { const o = plN * 4; plR[o] = x0; plR[o + 1] = y0; plR[o + 2] = x1; plR[o + 3] = y1; plN++; }
 // right of way: the player, then downed squadmates, then the lowest HP fraction
+// screen position (CSS px) of a point `upCm` cm above a marine into plS[0], plS[1], NDC depth into plS[2]: the same
+// math as Vector3.project, without passing or returning boxed numbers
+const plS = new Float64Array(3);
+function plProject(m, upCm) {
+  const p = m.mesh.position, e = camera.matrixWorldInverse.elements, q = camera.projectionMatrix.elements;
+  const x = p.x, y = p.y + upCm * 0.01, z = p.z;
+  const vx = e[0] * x + e[4] * y + e[8] * z + e[12], vy = e[1] * x + e[5] * y + e[9] * z + e[13], vz = e[2] * x + e[6] * y + e[10] * z + e[14];
+  const cx = q[0] * vx + q[4] * vy + q[8] * vz + q[12], cy = q[1] * vx + q[5] * vy + q[9] * vz + q[13];
+  const cz = q[2] * vx + q[6] * vy + q[10] * vz + q[14], cw = q[3] * vx + q[7] * vy + q[11] * vz + q[15];
+  plS[0] = (cx / cw * 0.5 + 0.5) * viewW; plS[1] = (-cy / cw * 0.5 + 0.5) * viewH; plS[2] = cz / cw;
+}
 function plBefore(a, b) {
   if (a === 0) return true;
   if (b === 0) return false;
@@ -105,15 +117,15 @@ function readHudLayout() {
 }
 function updatePlates() {
   if (plateTopDirty) readHudLayout();
-  const now = performance.now(), pdt = Math.min(0.25, (now - plLast) / 1000); plLast = now;
+  const now = performance.now(), dtf = (now - plT[0]) / 1000, pdt = dtf < 0.25 ? dtf : 0.25; plT[0] = now;
   const n = M.length;
   for (let k = 0; k < n; k++) {
     const m = M[k];
-    const v = project(m.mesh.position.x, m.mesh.position.y + (m.downed ? 1.3 : 2.55), m.mesh.position.z);
-    const sx = (v.x * 0.5 + 0.5) * viewW, sy = (-v.y * 0.5 + 0.5) * viewH;
+    plProject(m, m.downed ? 130 : 255);
+    const sx = plS[0], sy = plS[1];
     // off screen (or hidden under the top HUD): the phone squad list shows that squadmate instead
-    plOff[k] = sx < 0 || sx > viewW || sy < plateTop || sy > viewH || v.z > 1 ? 1 : 0;
-    plX[k] = clamp(sx, 40, viewW - 40); plY[k] = Math.max(plateTop, sy - 30);
+    plOff[k] = sx < 0 || sx > viewW || sy < plateTop || sy > viewH || plS[2] > 1 ? 1 : 0;
+    plX[k] = sx < 40 ? 40 : sx > viewW - 40 ? viewW - 40 : sx; plY[k] = sy - 30 < plateTop ? plateTop : sy - 30;
     // insertion sort into the right-of-way order (4 entries, no allocation)
     let q = k;
     while (q > 0 && plBefore(k, plOrd[q - 1])) { plOrd[q] = plOrd[q - 1]; q--; }
@@ -123,15 +135,17 @@ function updatePlates() {
   for (let q = 0; q < n; q++) {
     const k = plOrd[q], m = M[k], force = k === 0 || m.downed || m.hp < m.maxHp * 0.35;
     const hw = k === 0 ? 48 : 38;
-    plHold[k] = Math.max(0, plHold[k] - pdt);
-    let x = plX[k], y = plY[k], mini = false;
+    plHold[k] = plHold[k] > pdt ? plHold[k] - pdt : 0;
+    // whole pixels: every rect test below runs on small integers (no boxed numbers per call)
+    const ax = plX[k] | 0, ay = plY[k] | 0;
+    let x = ax, y = ay, mini = false;
     if (!force) {
       // a full plate may first slide sideways (never up), then folds
       if (plHit(x - hw - 4, y - 2, x + hw + 4, y + 26)) {
         if (x + PL_SLIDE <= viewW - hw && !plHit(x + PL_SLIDE - hw - 4, y - 2, x + PL_SLIDE + hw + 4, y + 26)) x += PL_SLIDE;
         else if (x - PL_SLIDE >= hw && !plHit(x - PL_SLIDE - hw - 4, y - 2, x - PL_SLIDE + hw + 4, y + 26)) x -= PL_SLIDE;
       }
-      if (plHold[k] > 0 || plHit(x - hw - 4, y - 2, x + hw + 4, y + 26)) { mini = true; x = plX[k]; }
+      if (plHold[k] > 0 || plHit(x - hw - 4, y - 2, x + hw + 4, y + 26)) { mini = true; x = ax; }
     }
     if (mini) {
       // the bar hugs its own marine's head; it slides ±18 / ±36 px to clear the others, else drops 10 px
@@ -143,7 +157,7 @@ function updatePlates() {
       }
       // hysteresis: stay folded until the full plate's spot (with a margin) has been clear for 0.35 s
       // (tested before this bar is placed, so a bar never blocks its own plate)
-      if (plHit(plX[k] - hw - 14, plY[k] - 8, plX[k] + hw + 14, plY[k] + 30)) plHold[k] = PL_HOLD;
+      if (plHit(ax - hw - 14, ay - 8, ax + hw + 14, ay + 30)) plHold[k] = PL_HOLD;
       plPut(x - 17, y - 2, x + 17, y + 8);
     } else {
       // forced plates that still collide (two hurt squadmates side by side): up while below the objective box,
@@ -158,10 +172,10 @@ function updatePlates() {
   }
   // the contextual hint wins over plates that end up under it (they fade while it shows)
   const hintOn = !!uiCache.hint;
-  if (hintOn && !hintRect) hintRect = UI.hint.getBoundingClientRect();
+  if (hintOn && !hintRect) { hintRect = UI.hint.getBoundingClientRect(); plHint[0] = hintRect.left; plHint[1] = hintRect.top; plHint[2] = hintRect.right; plHint[3] = hintRect.bottom; }
   // a bot plate drawn over the player's own marine fades so the player stays visible
-  const me = M[0] ? project(M[0].mesh.position.x, M[0].mesh.position.y + 1.0, M[0].mesh.position.z) : null;
-  const meX = me ? (me.x * 0.5 + 0.5) * viewW : -1e4, meY = me ? (-me.y * 0.5 + 0.5) * viewH : -1e4;
+  plProject(M[0], 100);
+  const meX = plS[0], meY = plS[1];
   const touch = IN.mode === 'touch';
   for (let k = 0; k < n; k++) {
     const m = M[k], p = plates[k], K = PLK[k];
@@ -170,10 +184,10 @@ function updatePlates() {
     if (tx !== plTx[k] || ty !== plTy[k]) { plTx[k] = tx; plTy[k] = ty; p.el.style.transform = 'translate3d(' + tx / 10 + 'px, ' + ty / 10 + 'px, 0)'; }
     setCls(p.el, K.mini, 'mini', plMini[k] === 1);
     setCls(p.el, K.dim, 'dim', k > 0 && Math.abs(meX - plX[k]) < 40 && meY > plY[k] - 4 && meY < plY[k] + 28);
-    setCls(p.el, K.under, 'under', hintOn && plX[k] + 40 > hintRect.left && plX[k] - 40 < hintRect.right && plY[k] + 26 > hintRect.top && plY[k] < hintRect.bottom);
-    const hq = Math.round(clamp(m.hp / m.maxHp, 0, 1) * 1000);
+    setCls(p.el, K.under, 'under', hintOn && plX[k] + 40 > plHint[0] && plX[k] - 40 < plHint[2] && plY[k] + 26 > plHint[1] && plY[k] < plHint[3]);
+    const hf = m.hp / m.maxHp, hq = Math.round((hf < 0 ? 0 : hf > 1 ? 1 : hf) * 1000);
     if (hq !== plHpQ[k]) { plHpQ[k] = hq; p.hp.style.transform = 'scaleX(' + hq / 1000 + ')'; }
-    const sq = Math.round((1 - clamp(m.bar, 0, 1)) * 1000);
+    const sq = Math.round((1 - (m.bar < 0 ? 0 : m.bar > 1 ? 1 : m.bar)) * 1000);
     if (sq !== plSegQ[k]) { plSegQ[k] = sq; p.seg.style.clipPath = 'inset(0 ' + sq / 10 + '% 0 0)'; }
     setCls(p.el, K.low, 'low', m.over > 0 || m.reload > 0);
     setCls(p.el, K.down, 'down', m.downed);

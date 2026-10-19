@@ -2,7 +2,7 @@
 //   node harness/run.mjs --file dist/artifact.html --mobile [--landscape] --scenario harness/scenarios/v11-hud.mjs
 //   ... --width 375 --height 667 --mobile --part rects        (iPhone SE: banner vs objective only)
 //   ... --www --fake-ios --width 568 --height 320 --part pause (pause menu with «Обучение» + «Вибрация»)
-// Options: --part all|rects|pause, --noshot. Portrait runs the HUD rects, plates, horde glow and the camera zoom;
+// Options: --part all|rects|pause|alloc, --noshot. Portrait runs the HUD rects, plates, horde glow and the camera zoom;
 // landscape runs the plates and the off-screen marker against РЫВОК / the ability button in 8 directions.
 export default async (page, h) => {
   const ev = (f, a) => page.evaluate(f, a);
@@ -230,9 +230,34 @@ export default async (page, h) => {
     await ev(() => { window.__dbg.timeScale(1); window.__dbg.god(false); });
   }
 
+  // ---------- allocation sample of updatePlates (CDP sampling heap profiler, collected objects included) ----------
+  if ((part === 'all' || part === 'alloc') && portrait) {
+    await ev(() => { const d = window.__dbg; d.start('assault'); d.god(true); d.fast(2); d.tp(30, -8); d.fast(0.3); d.timeScale(0.05); });
+    await h.sleep(500);
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('HeapProfiler.enable');
+    const sample = async (n, move) => {
+      await ev(([n, move]) => window.__dbg.platesBench(n, move), [3000, move]);   // warm-up (JIT tiers)
+      await cdp.send('HeapProfiler.startSampling', { samplingInterval: 32, includeObjectsCollectedByMajorGC: true, includeObjectsCollectedByMinorGC: true });
+      const us = await ev(([n, move]) => window.__dbg.platesBench(n, move), [n, move]);
+      const { profile } = await cdp.send('HeapProfiler.stopSampling');
+      let total = 0;
+      const walk = (node, inUP) => { const here = inUP || node.callFrame.functionName === 'updatePlates'; if (here) total += node.selfSize; for (const c of node.children || []) walk(c, here); };
+      walk(profile.head, false);
+      return { calls: n, usPerCall: us, bytesPerCall: +(total / n).toFixed(1) };
+    };
+    const still = await sample(40000, false), moving = await sample(40000, true);
+    await cdp.send('HeapProfiler.disable');
+    h.log('[updatePlates alloc]', JSON.stringify({ still, moving }), '(moving = the transform strings of plates that moved)');
+    // a few boxed numbers (performance.now) are sampling noise; anything object-sized per plate is a regression
+    if (still.bytesPerCall > 128) fail('updatePlates allocates ' + still.bytesPerCall + ' B per call with nothing moving');
+    await ev(() => { window.__dbg.timeScale(1); window.__dbg.god(false); });
+    if (part === 'alloc') return;
+  }
+
   // ---------- portrait camera: no zoom pumping with ~200-260 bugs near ----------
   if (h.mobile && portrait) {
-    await ev(() => { window.__dbg.start('gunner'); window.__dbg.god(true); window.__dbg.fast(1); window.__dbg.spawn(240, 'runner'); });
+    await ev(() => { window.__dbg.start('cryo'); window.__dbg.god(true); window.__dbg.fast(1); window.__dbg.spawn(300, 'runner'); });
     const zs = await ev(() => new Promise((res) => {
       const d = window.__dbg, log = [];
       const t0 = performance.now();
@@ -241,19 +266,20 @@ export default async (page, h) => {
         const t = performance.now() - t0, c = d.cam();
         log.push([Math.round(t), c.zoom, c.near, c.want]);
         // keep about 200-260 bugs near the camera (the squad keeps killing them)
-        if (t - topUp > 400 && c.near < 240) { topUp = t; d.spawn(Math.min(150, 280 - c.near), 'runner'); }
+        if (t - topUp > 300 && c.near < 245) { topUp = t; d.spawn(Math.min(200, 300 - c.near), 'runner'); }
         if (t < 10000) requestAnimationFrame(f); else res(log);
       };
       requestAnimationFrame(f);
     }));
-    let flips = 0, rev = 0, lastD = 0, zmin = 9, zmax = 0, nmin = 1e9, nmax = 0;
+    let flips = 0, rev = 0, lastD = 0, zmin = 9, zmax = 0, nmin = 1e9, nmax = 0, band = 0;
     for (let i = 1; i < zs.length; i++) {
       if (zs[i][3] !== zs[i - 1][3]) flips++;
       const dz = zs[i][1] - zs[i - 1][1];
       if (Math.abs(dz) > 1e-4) { if (lastD && Math.sign(dz) !== Math.sign(lastD)) rev++; lastD = dz; }
+      if (zs[i][2] >= 200 && zs[i][2] <= 260) band++;
       zmin = Math.min(zmin, zs[i][1]); zmax = Math.max(zmax, zs[i][1]); nmin = Math.min(nmin, zs[i][2]); nmax = Math.max(nmax, zs[i][2]);
     }
-    h.log('[camera zoom 10 s]', JSON.stringify({ frames: zs.length, near: [nmin, nmax], zoom: [+zmin.toFixed(3), +zmax.toFixed(3)], wantFlips: flips, zoomReversals: rev, last: zs[zs.length - 1] }));
+    h.log('[camera zoom 10 s]', JSON.stringify({ frames: zs.length, near: [nmin, nmax], framesIn200to260: band, zoom: [+zmin.toFixed(3), +zmax.toFixed(3)], wantFlips: flips, zoomReversals: rev, last: zs[zs.length - 1] }));
     if (flips > 2 || rev > 2) fail('camera zoom pumps (' + flips + ' target flips, ' + rev + ' reversals in 10 s)');
     await ev(() => window.__dbg.god(false));
   }
