@@ -932,23 +932,19 @@ final class GameScene: SKScene {
         }
         // (a menu the game itself opened meanwhile — a slow first launch, a demo — is left alone)
         let menuUp = mode == .levelUp || mode == .paused || mode == .ended
-        // the report twice: a won run (record, medal, rank-up) and a lost one (tips, chip)
-        if coverStage == 1 && menuWarm == 1 && coverFrames >= 5, let g = game {
-            if !menuUp { menu.showEnd(size: size, insets: insets, report: DemoFixtures.warmReport(cls: selectedClass, won: true, stats: g.stats, station: g.stationName)) }
+        // the report once: a first evacuation (strip, breakdown, rank-up, medal, a tip, the goal)
+        if coverStage == 1 && menuWarm == 1 && coverFrames >= 6, let g = game {
+            if !menuUp { menu.showEnd(size: size, insets: insets, report: DemoFixtures.warmReport(cls: selectedClass, stats: g.stats, station: g.stationName)) }
             menuWarm = 2
         }
-        if coverStage == 1 && menuWarm == 2 && coverFrames >= 8, let g = game {
-            if !menuUp { menu.showEnd(size: size, insets: insets, report: DemoFixtures.warmReport(cls: selectedClass, won: false, stats: g.stats, station: g.stationName)) }
-            menuWarm = 4
-        }
-        if coverStage == 1 && menuWarm == 4 && coverFrames >= 11 {
+        if coverStage == 1 && menuWarm == 2 && coverFrames >= 10 {
             if !menuUp {
                 menu.hide()
                 levelUpScreen.show(level: 2, offer: Array(UPGRADES.prefix(3)), counts: [:], cls: selectedClass, size: size, insets: insets)
             }
             menuWarm = 3
         }
-        if coverStage == 1 && coverFrames >= hold - 4 {
+        if coverStage == 1 && coverFrames >= hold - 5 {
             coverStage = 2
             hud.warmUp(false)
             hud.visible = hudWasVisible

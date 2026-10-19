@@ -626,8 +626,8 @@ final class HUD {
     private var warming = false
     /// Texts of the glyph labels that start empty (combo, marker distance), kept while the warm-up shows every glyph.
     private var warmTexts = ("", "")
-    /// v1.1 warm-up: every new objective string in its colour and size, the panel variants, the hold hints, the revive
-    /// lines, the coach card, the ghost thumb, the target rings and the urgent marker, drawn once behind the cover.
+    /// v1.1 warm-up: the objective box's new text styles, its panel / edge / bar variants, the coach card, the ghost
+    /// thumb, the target rings and the urgent marker, drawn once behind the cover.
     private var warmNode: SKNode?
     private func warmV11(_ on: Bool) {
         warmNode?.removeFromParent()
@@ -646,17 +646,16 @@ final class HUD {
         let n = SKNode()
         let W = size.width
         var y: CGFloat = size.height / 2 - 140
-        let objStrings: [(String, SKColor)] = [
-            ("Улей просыпается — к маяку", UIPalette.amber), ("Рой стягивается — к маяку!", UIPalette.red),
-            ("Улей просыпается — к лифту!", UIPalette.amber), ("Рой стягивается — к лифту!", UIPalette.red),
-            ("Убейте Матку · лифт ждёт", UIPalette.ink), ("Лифт заблокирован — Матка жива", UIPalette.ink)]
-        for (t, c) in objStrings {
-            for sz in [13, 16] as [CGFloat] {
-                let l = Label(t.uppercased(), font: Fonts.semibold, size: sz, color: c, kern: 0.6)
-                l.node.position = CGPoint(x: 0, y: y)
-                n.addChild(l.node)
-                y -= 18
-            }
+        // one label per new font / size / colour of the objective box (every text texture is new anyway: what is warmed
+        // is the style; few labels, so the warm-up creates and frees as few text textures as possible)
+        let objStyles: [(String, CGFloat, SKColor)] = [
+            ("Улей просыпается — к маяку", 13, UIPalette.amber), ("Рой стягивается — к маяку!", 13, UIPalette.red),
+            ("Улей просыпается — к лифту!", 16, UIPalette.amber), ("Рой стягивается — к лифту!", 16, UIPalette.red)]
+        for (t, sz, c) in objStyles {
+            let l = Label(t.uppercased(), font: Fonts.semibold, size: sz, color: c, kern: 0.6)
+            l.node.position = CGPoint(x: 0, y: y)
+            n.addChild(l.node)
+            y -= 18
         }
         for cap in [UIPalette.red, UIPalette.queen] {
             let l = Label("ЗАДАЧА", font: Fonts.medium, size: 12, color: cap, kern: 2.4)
@@ -676,12 +675,7 @@ final class HUD {
                     Bar(width: 180, height: 4, fill: UIPalette.queen, track: UIPalette.queenTrack)]
         bars[2].style(fill: UIPalette.queen, track: UIPalette.queenTrack, texture: Shapes.hGradient(UIPalette.queen, UIPalette.red))
         for b in bars { b.set(0.6); b.node.position = CGPoint(x: -90, y: y); n.addChild(b.node); y -= 8 }
-        var hints = Difficulty.tiers.map { Game.holdHintText($0) } + CoachText.reviveLines
-        hints.append(contentsOf: ["Вы ранены — союзники идут на помощь", "Встаньте рядом с раненым, чтобы поднять его"])
-        for t in hints {
-            let l = Label(t.uppercased(), font: Fonts.semibold, size: 14, color: UIPalette.amber, kern: 1.1)
-            l.node.position = CGPoint(x: 0, y: y); n.addChild(l.node); y -= 18
-        }
+        // the hint line's style (hold hints, revive lines) is the existing amber / red hint label's
         root.addChild(n)
         warmNode = n
         // the card with a two-line text, the thumb, the rings, the red marker

@@ -89,11 +89,10 @@ enum DemoFixtures {
         g.debugEnd(won: r.won)
     }
 
-    /// The report pre-built behind the loading cover (every element of the screen drawn once): a won run with a
-    /// record, a medal and a rank-up, or a lost one with both tips and the chip. `stats` (the mini row) comes from the
-    /// game on screen (MissionStats has no public initialiser).
-    static func warmReport(cls: MarineClass, won: Bool, stats: MissionStats, station: String) -> MissionReport {
-        guard let r = report(won ? "win" : "chip") else { fatalError("report fixture") }
+    /// The report pre-built behind the loading cover: a first evacuation (strip, breakdown, rank-up, medal, the promo
+    /// tip, the goal). `stats` (the mini row) comes from the game on screen (MissionStats has no public initialiser).
+    static func warmReport(cls: MarineClass, stats: MissionStats, station: String) -> MissionReport {
+        guard let r = report("first") else { fatalError("report fixture") }
         var p = r.meta.profile
         let d = Difficulty.tier(r.tier)
         let run = RunSummary(cls: cls, won: r.won, surrendered: false, time: r.time, playerKills: r.playerKills, beaconsDone: r.beacons,
