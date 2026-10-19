@@ -87,6 +87,17 @@ final class LightingHub {
     var prepare: ((FrameUniforms) -> Void)?
     /// Lights other modules emit for this frame (effects: blasts, muzzles, flames …), taken by the next LightGrid.fill.
     private(set) var emitted: [(GridLight, Float)] = []
+    /// The station's lamps (the level module registers them once per assembled level: lamp position, unit linear colour);
+    /// nil = LightGrid reads the legacy floor light pools of Meshes/level_glow.mesh.
+    private(set) var stationLamps: [(F3, F3)]?
+    private(set) var stationLampsVersion = 0
+
+    /// Register the station's lamps (the level module, after it assembled the level): each becomes a short-range grid
+    /// light while it is within 30 m of the player (no specular; teal walkway lamps, red vents, amber pads …).
+    func setStationLamps(_ lamps: [(F3, F3)]) {
+        stationLamps = lamps
+        stationLampsVersion += 1
+    }
 
     /// A light for this frame only (call before MetalWorld fills the frame uniforms, e.g. from the effects' update):
     /// `color` linear, `intensity` like a three.js PointLight's, `range` (m); `priority` weighs it against the other
@@ -204,6 +215,7 @@ final class LightGrid {
     /// Static lamps of the station (from the level's floor light pools): position, unit colour.
     private var lamps: [(F3, F3)] = []
     private var lampsFor: ObjectIdentifier?
+    private var lampsVersion = -1
     private var candidates: [(GridLight, Float)] = []
     private var fogRadiance = F3(0, 0, 0)
     private var abyssRadiance = F3(0, 0, 0)
@@ -398,9 +410,14 @@ final class LightGrid {
         }
     }
 
-    /// Station lamps from the level's floor light pools (the IHM1 mesh `level_glow`: quads under lamps, pillars, vents):
-    /// teal walkway lamps 2.6 m above their pool, red vent glows just above the grate. Read once per level.
+    /// Station lamps: the ones the level module registered (LightingHub.setStationLamps), else the legacy floor light
+    /// pools (the IHM1 mesh `level_glow`: quads under lamps, pillars, vents): teal walkway lamps 2.6 m above their pool,
+    /// red vent glows just above the grate. Read once per level.
     private func lightsFromLevel(_ level: Level) {
+        if let s = hub.stationLamps {
+            if lampsVersion != hub.stationLampsVersion { lampsVersion = hub.stationLampsVersion; lamps = s }
+            return
+        }
         let id = ObjectIdentifier(level)
         if lampsFor == id { return }
         lampsFor = id
