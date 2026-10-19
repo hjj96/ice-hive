@@ -226,8 +226,10 @@ fragment float4 fs_cone(ConeOut in [[stage_in]],
         float dist = max(length(q), 1e-3);
         float h = dot(q, D);
         float cosT = h / dist;
-        float lit = spotCookie(cosT, cone.x, cone.y, cone.w * 0.6) * spotAtten(dist, cone.z);
-        lit *= smoothstep(0.15, 1.1, h) * (1.0 - smoothstep(beam.y * 0.55, beam.y, h));
+        // the air keeps a gentler falloff than the deck pool (1 / (1 + 0.05 d²): 0.44 at 5 m, 0.2 at 10 m): from the
+        // steep game camera the beam's air sits over its own pool, so the shaft has to outlast the pool to read as one
+        float lit = spotCookie(cosT, cone.x, cone.y, cone.w * 0.6) / (1.0 + 0.05 * dist * dist);
+        lit *= smoothstep(0.15, 1.1, h) * (1.0 - smoothstep(beam.y * 0.45, beam.y, h));
         if (lit <= 0.0) continue;
         // drifting dust: shafts with structure, not milk
         float n1 = noise.sample(repeatSampler, p.xz * 0.21 + float2(time * 0.031, -time * 0.047) + p.y * 0.09).r;
