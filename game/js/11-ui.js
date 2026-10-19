@@ -80,7 +80,6 @@ const plT = new Float64Array(1), plHint = new Float64Array(4);   // last frame t
 let plN = 0;
 function plHit(x0, y0, x1, y1) { for (let q = 0; q < plN; q++) { const o = q * 4; if (x0 < plR[o + 2] && x1 > plR[o] && y0 < plR[o + 3] && y1 > plR[o + 1]) return true; } return false; }
 function plPut(x0, y0, x1, y1) { const o = plN * 4; plR[o] = x0; plR[o + 1] = y0; plR[o + 2] = x1; plR[o + 3] = y1; plN++; }
-// right of way: the player, then downed squadmates, then the lowest HP fraction
 // screen position (CSS px) of a point `upCm` cm above a marine into plS[0], plS[1], NDC depth into plS[2]: the same
 // math as Vector3.project, without passing or returning boxed numbers
 const plS = new Float64Array(3);
@@ -92,6 +91,7 @@ function plProject(m, upCm) {
   const cz = q[2] * vx + q[6] * vy + q[10] * vz + q[14], cw = q[3] * vx + q[7] * vy + q[11] * vz + q[15];
   plS[0] = (cx / cw * 0.5 + 0.5) * viewW; plS[1] = (-cy / cw * 0.5 + 0.5) * viewH; plS[2] = cz / cw;
 }
+// right of way: the player, then downed squadmates, then the lowest HP fraction
 function plBefore(a, b) {
   if (a === 0) return true;
   if (b === 0) return false;

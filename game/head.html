@@ -496,7 +496,12 @@ body.touch #coach { top: calc(96px + var(--st)); }
   #ghost.drag::after, #ghost.tap::after, .tbtn.coach::after, .abil.coach::after, #marker.coach .mk::after { animation-duration: 3s; }
   #coach { animation: none; }
 }
-/* pause menu with «Обучение» (+ «Вибрация» in the iOS app): 8 rows fit a 320 px tall screen without scrolling */
+/* pause menu with «Обучение» (+ «Вибрация» in the iOS app): short portrait screens (iPhone SE 1st gen 320x568) and
+   320 px tall landscape keep every row on screen without scrolling */
+@media (min-height: 501px) and (max-height: 640px) {
+  #sPause .m-box { gap: 7px; }
+  #sPause .m-box .btn { min-height: 40px; padding: 11px 22px 10px; }
+}
 @media (max-height: 340px) {
   #sPause .m-box { gap: 4px; padding-bottom: 8px; }
   #sPause .m-box h2 { font-size: 20px; margin-top: 6px; }
