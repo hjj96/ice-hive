@@ -21,9 +21,12 @@ import IceHiveCore
 //                      the railings only (never past the rail line)
 //  The deck stays dark (no snow fill: frost's silver deck is out).
 //  Geometry: one KitMesh per 32 m cell of the XZ plane (frustum-culled
-//  chunks of one vertex / index buffer, fs_level, one pipeline), the
-//  lift deck as its own chunk raised by the extraction rise, the
-//  beacon heads instanced (rotation + state colour). Dynamic props
+//  chunks of one vertex / index buffer, fs_level, one pipeline); the
+//  visible chunks are drawn as a few contiguous index ranges (a small
+//  hidden chunk between two visible ones is drawn with them rather
+//  than split into another draw call); the lift deck is its own chunk
+//  raised by the extraction rise; the beacon heads are in the buffer
+//  too (vs_kit spins them, lens in the state colour). Dynamic props
 //  (globs, grenades, medkits, the turret) stay IHM1 mesh batches.
 //  Transparent: the landing-pad mark and the floor light pools.
 // ================================================================
@@ -33,26 +36,29 @@ struct LevelParams {
     /// x = vertical offset of the draw (lift rise).
     var lift = F4(0, 0, 0, 0)
     /// x rime strength, y contact-AO strength, z chamfer wear, w snow albedo.
-    var look = F4(1, 0.65, 0.55, 0.62)
-    /// Occupancy map (WP2): xy world origin, z 1 / size (m), w = 1 bound.
-    var occ = F4(0, 0, 0, 0)
+    var look = F4(1, 0.65, 0.55, 0.42)
+    /// x = 1 on the High tier (wet trails, ice rim, grid-light specular).
+    var misc = F4(0, 0, 0, 0)
     /// World mask: xy world origin, z 1 / size (m).
     var mask = F4(-GRID_HALF, -GRID_HALF, 1 / (2 * GRID_HALF), 0)
 }
 
 final class WorldLevel {
     static let pipelines: [PipelineSpec] = [
-        .world("level", "vs_kit", "fs_level", .none, nil, required: true, tiered: true),
-        .world("levelInst", "vs_kit_inst", "fs_level", .none, nil, tiered: true),
+        .world("level", "vs_kit", "fs_level", .none, nil, required: true),
         .world("pad", "vs_static", "fs_textured", .alpha, .ihm1),
         .world("glowQuads", "vs_static", "fs_basic_textured", .add, .ihm1),
     ]
     /// Fragment texture slots of fs_level (above the pass-wide ones).
     enum Slot {
-        static let trimNormal = 8, trimORM = 9, ao = 10, occupancy = 11
+        static let trimNormal = 8, trimORM = 9, ao = 10
     }
     /// Culling cell (m).
     static let chunkSize: Float = 32
+    /// Hidden chunks between two visible ones are drawn with them (one draw call) below this many triangles.
+    static let mergeGapTriangles = 6000
+    /// Beacon heads vs_kit can spin (Level.metal LEVEL_HEADS).
+    static let maxHeads = 8
 
     let level: Level
     private var renderer: MetalRenderer!
@@ -61,27 +67,29 @@ final class WorldLevel {
     private struct Chunk { let start: Int; let count: Int; let lo: F3; let hi: F3; let lift: Bool }
     private var chunks: [Chunk] = []
     private var vbuf: MTLBuffer?, ibuf: MTLBuffer?
-    private var headV: MTLBuffer?, headI: MTLBuffer?, headIndexCount = 0
     private var glowV: MTLBuffer?, glowI: MTLBuffer?, glowCount = 0
     private var padV: MTLBuffer?, padI: MTLBuffer?
-    private var worldMask: MTLTexture?, dummy: MTLTexture?
+    private var worldMask: MTLTexture?
     private var texPad: MTLTexture!, texGlow: MTLTexture!
-    private var psLevel = TieredPipeline(high: nil, efficient: nil), psInst = TieredPipeline(high: nil, efficient: nil)
+    private var psLevel: MTLRenderPipelineState?
     private var psPad: MTLRenderPipelineState?, psGlowQuads: MTLRenderPipelineState?
     var params = LevelParams()
-    /// WP2's occupancy map (R contact shadow, G wet ichor) with its world mapping: set it (and `params.occ`) once it
-    /// exists; fs_level samples it on High.
-    var occupancy: MTLTexture?
     // dynamic props (mesh batches) and the beacon heads
     private let turretBase: MeshBatch, turretHead: MeshBatch, medkit: MeshBatch
     private let glob: MeshBatch, grenade: MeshBatch
     private let propBatches: [MeshBatch]
-    private var heads: [MeshInstance] = []
-    private var headRegion = Region()
+    /// vs_kit's head table (Level.metal LevelHeads): pivot + yaw ×8, then the lens colours ×8.
+    private var headTable = [F4](repeating: F4(0, 0, 0, 0), count: 2 * WorldLevel.maxHeads)
     /// The lift deck's rise this frame (the extraction).
     private var liftRise: Float = 0
     /// Built station: vertices / triangles / chunks / build ms (log).
     private(set) var summary = ""
+    /// Draw calls of the station in the last frame (runs of visible chunks + the lift).
+    private(set) var stationDraws = 0
+    /// The station's fixed light sources as built (for LightGrid's grid lights, WP2): lamp lenses, pillar strips, vent
+    /// slats and beacon heads — world position (m) and linear colour (× nominal intensity 1).
+    struct StationLight { let kind: Kind; let pos: F3; let color: F3; enum Kind { case lamp, pillar, vent, beacon } }
+    private(set) var lights: [StationLight] = []
 
     init(level: Level, store: MeshStore) {
         self.level = level
@@ -103,11 +111,9 @@ final class WorldLevel {
         kit = r.store.kit
         texPad = r.store.texture("pad")
         texGlow = r.store.texture("glow")
-        psLevel = r.tieredPipeline("level")
-        psInst = r.tieredPipeline("levelInst")
+        psLevel = r.pipeline("level")
         psPad = r.pipeline("pad")
         psGlowQuads = r.pipeline("glowQuads")
-        dummy = WorldLevel.makeTexture(r.device, 1, [0, 0, 0, 0])
         let t0 = FrameTimer.now()
         worldMask = buildWorldMask(r.device)
         r.passTextures[TextureIndex.snow] = worldMask
@@ -119,7 +125,6 @@ final class WorldLevel {
         summary += String(format: " (%.0f ms)", (FrameTimer.now() - t0) * 1000)
         AppLog.info("metal: " + summary)
         r.register(.opaque, order: 100, "station") { [unowned self] enc in self.encodeStation(enc) }
-        r.register(.opaque, order: 110, "beacon heads") { [unowned self] enc in self.encodeHeads(enc) }
         r.register(.transparent, order: 110, "pad mark") { [unowned self] enc in self.encodePad(enc) }
         r.register(.transparent, order: 120, "floor glows") { [unowned self] enc in self.encodeGlows(enc) }
     }
@@ -156,22 +161,20 @@ final class WorldLevel {
             turretHead.instances.append(MeshInstance(model: Mat4.translation(T.x, ty + 0.95, T.z) * Mat4.rotationY(T.angle), tint: one, emissive: none))
         }
         // beacon heads: on the mast top, rotating, lens in the state colour (idle red, charging amber, done teal)
-        heads.removeAll(keepingCapacity: true)
-        for (k, b) in game.beacons.enumerated() {
+        for (k, b) in game.beacons.enumerated() where k < WorldLevel.maxHeads {
             let gy = level.groundY(b.x, b.z)
             let col: F3 = b.state == 2 ? linearRGB(0x2af5e0) : (b.state == 1 ? linearRGB(0xffa21a) : linearRGB(0xff2a3a))
-            let m = Mat4.translation(b.x, gy + WorldLevel.mastTop, b.z) * Mat4.rotationY(time * (b.state == 1 ? 4 : 1.2) + Float(k))
-            heads.append(MeshInstance(model: m, tint: F4(col.x, col.y, col.z, 0), emissive: F4(0, 0, 0, 0)))
+            headTable[k] = F4(b.x, gy + WorldLevel.mastTop, b.z, time * (b.state == 1 ? 4 : 1.2) + Float(k))
+            headTable[WorldLevel.maxHeads + k] = F4(col.x, col.y, col.z, 0)
         }
     }
 
-    /// The dynamic props into the batch service; the heads into the arena.
+    /// The dynamic props into the batch service.
     func upload(_ r: MetalRenderer) {
         for b in propBatches where !b.instances.isEmpty {
             b.region = r.upload(b.instances)
             r.list.batches.append(b)
         }
-        headRegion = heads.isEmpty ? Region() : r.upload(heads)
     }
 
     // ================================================================ draw items
@@ -179,46 +182,65 @@ final class WorldLevel {
         enc.setFragmentTexture(kit.trimNormal, index: Slot.trimNormal)
         enc.setFragmentTexture(kit.trimORM, index: Slot.trimORM)
         enc.setFragmentTexture(kit.aoAtlas, index: Slot.ao)
-        enc.setFragmentTexture(occupancy ?? dummy, index: Slot.occupancy)
     }
 
-    /// Opaque item 100: the visible chunks of the station, then the lift (raised by the extraction).
+    /// Opaque item 100: the visible chunks of the station as a few contiguous index ranges, then the lift (raised by
+    /// the extraction).
     private func encodeStation(_ enc: MTLRenderCommandEncoder) {
         let r = renderer!
-        guard let ps = psLevel(r.frameTier), let vb = vbuf, let ib = ibuf, !chunks.isEmpty else { return }
+        stationDraws = 0
+        guard let ps = psLevel, let vb = vbuf, let ib = ibuf, !chunks.isEmpty else { return }
         r.use(enc, ps)
         bindLevel(enc)
         enc.setVertexBuffer(vb, offset: 0, index: BufferIndex.vertices)
+        headTable.withUnsafeBytes { enc.setVertexBytes($0.baseAddress!, length: $0.count, index: BufferIndex.instances) }
         let planes = WorldLevel.frustumPlanes(r.frame.viewProj)
         var p = params
-        p.occ.w = occupancy == nil ? 0 : p.occ.w
-        for c in chunks {
-            let rise: Float = c.lift ? liftRise : 0
+        p.misc.x = r.frameTier == .high ? 1 : 0
+        p.lift.x = 0
+        enc.setVertexBytes(&p, length: MemoryLayout<LevelParams>.stride, index: BufferIndex.material)
+        enc.setFragmentBytes(&p, length: MemoryLayout<LevelParams>.stride, index: BufferIndex.material)
+        for (start, count) in WorldLevel.drawRuns(chunks.lazy.filter { !$0.lift }.map {
+            (start: $0.start, count: $0.count, visible: WorldLevel.visible(planes, $0.lo, $0.hi))
+        }, mergeGap: WorldLevel.mergeGapTriangles * 3) {
+            enc.drawIndexedPrimitives(type: .triangle, indexCount: count, indexType: .uint32, indexBuffer: ib, indexBufferOffset: start * 4)
+            r.count(triangles: count / 3)
+            stationDraws += 1
+        }
+        for c in chunks where c.lift {
+            let rise = liftRise
             if !WorldLevel.visible(planes, c.lo + F3(0, rise, 0), c.hi + F3(0, rise, 0)) { continue }
             p.lift.x = rise
             enc.setVertexBytes(&p, length: MemoryLayout<LevelParams>.stride, index: BufferIndex.material)
-            enc.setFragmentBytes(&p, length: MemoryLayout<LevelParams>.stride, index: BufferIndex.material)
             enc.drawIndexedPrimitives(type: .triangle, indexCount: c.count, indexType: .uint32, indexBuffer: ib,
                                       indexBufferOffset: c.start * 4)
             r.count(triangles: c.count / 3)
+            stationDraws += 1
         }
     }
 
-    /// Opaque item 110: the beacon heads (instanced kit piece).
-    private func encodeHeads(_ enc: MTLRenderCommandEncoder) {
-        let r = renderer!
-        guard headRegion.count > 0, let ps = psInst(r.frameTier), let vb = headV, let ib = headI else { return }
-        r.use(enc, ps)
-        bindLevel(enc)
-        var p = params
-        p.lift.x = 0
-        p.occ.w = 0
-        enc.setFragmentBytes(&p, length: MemoryLayout<LevelParams>.stride, index: BufferIndex.material)
-        enc.setVertexBuffer(vb, offset: 0, index: BufferIndex.vertices)
-        enc.setVertexBuffer(headRegion.buffer ?? r.arena, offset: headRegion.offset, index: BufferIndex.instances)
-        enc.drawIndexedPrimitives(type: .triangle, indexCount: headIndexCount, indexType: .uint32, indexBuffer: ib, indexBufferOffset: 0,
-                                  instanceCount: headRegion.count)
-        r.count(instances: headRegion.count, triangles: headIndexCount / 3 * headRegion.count)
+    /// Contiguous index ranges to draw for chunks laid out back to back in the index buffer (in order): runs of
+    /// visible chunks, a hidden stretch inside a run kept when it has at most `mergeGap` indices (cheaper than another
+    /// draw call: the GPU clips it).
+    static func drawRuns<S: Sequence>(_ chunks: S, mergeGap: Int) -> [(Int, Int)] where S.Element == (start: Int, count: Int, visible: Bool) {
+        var out: [(Int, Int)] = []
+        var runStart = -1, runEnd = 0, gap = 0
+        for c in chunks {
+            if c.visible {
+                if runStart >= 0 && gap <= mergeGap && c.start == runEnd + gap {
+                    runEnd = c.start + c.count
+                } else {
+                    if runStart >= 0 { out.append((runStart, runEnd - runStart)) }
+                    runStart = c.start
+                    runEnd = c.start + c.count
+                }
+                gap = 0
+            } else if runStart >= 0 {
+                gap += c.count
+            }
+        }
+        if runStart >= 0 { out.append((runStart, runEnd - runStart)) }
+        return out
     }
 
     /// Transparent item 110: the landing-pad mark (alpha).
@@ -272,15 +294,16 @@ final class WorldLevel {
 
     // palette (sRGB), kitgeo.py C
     private enum Col {
-        static let steel: UInt32 = 0x343e48, steelD: UInt32 = 0x1f262d, steelL: UInt32 = 0x56626e, rail: UInt32 = 0x66737f
-        static let girder: UInt32 = 0x1a2027, support: UInt32 = 0x161c23, deck: UInt32 = 0x2b333c, plate: UInt32 = 0x323a43
+        static let steel: UInt32 = 0x46515c, steelD: UInt32 = 0x29313a, steelL: UInt32 = 0x6a7784, rail: UInt32 = 0x73808c
+        static let girder: UInt32 = 0x1f262e, support: UInt32 = 0x1a2129, deck: UInt32 = 0x3d4651, plate: UInt32 = 0x434c57
         static let teal: UInt32 = 0x2af5e0, cyan: UInt32 = 0x38d8ff, amber: UInt32 = 0xffa21a, red: UInt32 = 0xff2a3a
         static let green: UInt32 = 0x3dff9a, orange: UInt32 = 0xff5a1a, dark: UInt32 = 0x0d1115, nosing: UInt32 = 0x8d99a6
-        static let crate: [UInt32] = [0x48553a, 0x30425a, 0x6e4419]
+        static let crate: [UInt32] = [0x5d6b48, 0x3f587a, 0x8a5726]
         static let tower: UInt32 = 0x10161d
     }
 
     private var cells: [Int: KitMesh] = [:]
+    private var edgeStats = (posts: 0, icicles: 0, drifts: 0, lamps: 0)
     private var liftMesh = KitMesh()
     private var glowQuads: [(F3, Float, UInt32, Float)] = []    // centre, size, colour, strength
 
@@ -301,12 +324,16 @@ final class WorldLevel {
         cells.removeAll()
         liftMesh = KitMesh(reserve: 8192)
         glowQuads.removeAll()
+        lights.removeAll()
         let t0 = FrameTimer.now()
-        buildDecks()
-        buildEdges()
-        buildSupports()
-        buildProps()
-        buildLift()
+        func tris() -> Int { cells.values.reduce(liftMesh.triangles) { $0 + $1.triangles } }
+        var parts: [(String, Int)] = []
+        func step(_ name: String, _ f: () -> Void) { let a = tris(); f(); parts.append((name, tris() - a)) }
+        step("decks") { buildDecks() }
+        step("edges") { buildEdges() }
+        step("supports") { buildSupports() }
+        step("props") { buildProps() }
+        step("lift") { buildLift() }
         let tBuild = (FrameTimer.now() - t0) * 1000
         // one vertex / index stream: the cells (sorted), then the lift
         var verts: [KitVertex] = []
@@ -329,27 +356,23 @@ final class WorldLevel {
         ibuf = idx.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: max(16, $0.count), options: []) }
         vbuf?.label = "station.v"
         ibuf?.label = "station.i"
-        // the beacon head (instanced)
-        if let h = piece("beacon_head") {
-            let m = KitMesh()
-            m.place(h, at: F3(0, 0, 0))
-            headV = m.vertices.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: $0.count, options: []) }
-            headI = m.indices.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: $0.count, options: []) }
-            headIndexCount = m.indices.count
-        }
         buildGlowQuads(device)
         buildPadQuad(device)
         cells.removeAll()
         let mb = Double(verts.count * MemoryLayout<KitVertex>.stride + idx.count * 4) / 1_048_576
         summary = String(format: "station: %d vertices, %d triangles in %d chunks (%.1f MB; assembled in %.0f ms) glows %d",
                          verts.count, idx.count / 3, chunks.count, mb, tBuild, glowCount)
+            + " | triangles " + parts.map { "\($0.0) \($0.1)" }.joined(separator: ", ")
+            + " | edges: \(edgeStats.posts) posts, \(edgeStats.icicles) icicle fringes, \(edgeStats.drifts) drifts, \(edgeStats.lamps) lamps"
         liftMesh = KitMesh()
     }
 
     // ---------------------------------------------------------------- decks
     private func deckMat(_ kind: FloorKind) -> KitMat {
-        kind == .slab ? KitMat(tint: Col.plate, metal: 0.7, layer: Trim.panels, flags: KitFlag.frost)
-            : KitMat(tint: Col.deck, metal: 0.75, layer: Trim.gratings, flags: KitFlag.frost)
+        // painted / galvanised steel: low metalness (× the trim's metal mask) so the flashlight pools read as light on
+        // the deck, not as a dark mirror
+        kind == .slab ? KitMat(tint: Col.plate, metal: 0.35, layer: Trim.panels, flags: KitFlag.frost)
+            : KitMat(tint: Col.deck, metal: 0.5, layer: Trim.gratings, flags: KitFlag.frost)
     }
 
     /// Top quad x0..x1 × z0..z1 at height y (counter-clockwise seen from above).
@@ -382,7 +405,7 @@ final class WorldLevel {
                 if stairs {
                     let n = max(1, Int(((b - a) / stepD).rounded()))
                     let bot = min(ha, hb) - 0.5
-                    let tread = KitMat(tint: Col.plate, metal: 0.7, layer: Trim.panels, flags: KitFlag.frost)
+                    let tread = KitMat(tint: Col.plate, metal: 0.35, layer: Trim.panels, flags: KitFlag.frost)
                     let side = KitMat(tint: Col.steelD, metal: 0.7, layer: Trim.panels)
                     for s in 0..<n {
                         let za = a + Float(s) * stepD, zb = za + stepD
@@ -413,8 +436,8 @@ final class WorldLevel {
                     // sloped catwalk: sloped top, side walls, a centre girder
                     m.face([F3(r.x0, ha, a), F3(r.x0, hb, b), F3(r.x1, hb, b), F3(r.x1, ha, a)], mat)
                     let side = KitMat(tint: Col.steelD, metal: 0.75, layer: Trim.rails, uv: .strip(Trim.skirt, F3(0, 0, 1)))
-                    m.face([F3(r.x0, ha - 0.5, a), F3(r.x0, hb - 0.5, b), F3(r.x0, hb, b), F3(r.x0, ha, a)].reversed(), side)
-                    m.face([F3(r.x1, ha - 0.5, a), F3(r.x1, hb - 0.5, b), F3(r.x1, hb, b), F3(r.x1, ha, a)], side)
+                    m.face(orient([F3(r.x0, ha - 0.5, a), F3(r.x0, hb - 0.5, b), F3(r.x0, hb, b), F3(r.x0, ha, a)], up: F3(-1, 0, 0)), side)
+                    m.face(orient([F3(r.x1, ha - 0.5, a), F3(r.x1, hb - 0.5, b), F3(r.x1, hb, b), F3(r.x1, ha, a)], up: F3(1, 0, 0)), side)
                     m.beam(F3((r.x0 + r.x1) / 2, ha - 0.3, a), F3((r.x0 + r.x1) / 2, hb - 0.3, b), w: r.x1 - r.x0 - 0.3, h: 0.5, c: 0.04,
                            KitMat(tint: Col.girder, metal: 0.6, layer: Trim.rails, uv: .strip(Trim.girder, F3(0, 0, 1))))
                 }
@@ -460,9 +483,10 @@ final class WorldLevel {
     private func buildEdges() {
         var rng = StationRNG(seed: 31)
         var lampN = 0
-        let railMat = KitMat(tint: Col.rail, metal: 0.9, layer: Trim.rails, uv: .strip(Trim.railbar, F3(1, 0, 0)))
+        edgeStats = (0, 0, 0, 0)
+        let railMat = KitMat(tint: Col.rail, metal: 0.7, layer: Trim.rails, uv: .strip(Trim.railbar, F3(1, 0, 0)))
         let kickMat = KitMat(tint: Col.steelD, metal: 0.7, layer: Trim.rails, uv: .strip(Trim.chequer, F3(1, 0, 0)))
-        let lipMat = KitMat(tint: Col.steelL, metal: 0.85, layer: Trim.rails, flags: KitFlag.chamfer | KitFlag.frost,
+        let lipMat = KitMat(tint: Col.steelL, metal: 0.55, layer: Trim.rails, flags: KitFlag.chamfer | KitFlag.frost,
                             uv: .strip(Trim.brushed, F3(1, 0, 0)))
         let skirtMat = KitMat(tint: Col.steelD, metal: 0.75, layer: Trim.rails, uv: .strip(Trim.skirt, F3(1, 0, 0)))
         let underMat = KitMat(tint: Col.girder, metal: 0.6, layer: Trim.rails, uv: .strip(Trim.brushed, F3(1, 0, 0)))
@@ -531,6 +555,7 @@ final class WorldLevel {
                             let iy = (ya + (yb - ya) * (t - ta) / max(tb - ta, 1e-3)) - 0.56
                             let pc = icicles[Int(rng.next() * Float(icicles.count)) % icicles.count]
                             m.place(pc, at: F3(ix, iy, iz), yaw: yawAlong)
+                            edgeStats.icicles += 1
                         }
                         t += 1.05
                     }
@@ -543,6 +568,7 @@ final class WorldLevel {
                     let t = Float(k) * len / Float(n)
                     let (x, z) = P(t)
                     m.place(pp, at: F3(x, H(t), z))
+                    edgeStats.posts += 1
                 }
             }
             // hazard stripe inside the edge (flat hazard platforms)
@@ -562,8 +588,10 @@ final class WorldLevel {
                     let lc: UInt32 = (lampN % 3 == 2) ? Col.green : Col.teal
                     lampN += 1
                     m.place(lp, at: F3(x, y, z), yaw: yawAlong, paint: lc)
+                    edgeStats.lamps += 1
+                    lights.append(StationLight(kind: .lamp, pos: F3(x, y + 2.95, z) + inw * 0.85, color: linearRGB(lc)))
                     let (gx, gz) = P(t, 1.4)
-                    glowQuads.append((F3(gx, level.groundY(gx, gz), gz), 4.2, lc, 0.38))
+                    glowQuads.append((F3(gx, level.groundY(gx, gz), gz), 3.8, lc, 0.24))
                     t += 12
                 }
             }
@@ -578,6 +606,7 @@ final class WorldLevel {
                             let pc = drifts[Int(rng.next() * Float(drifts.count)) % drifts.count]
                             // the piece's ridge leans to its -z side, i.e. against the rail
                             m.place(pc, at: F3(x, level.groundY(x, z), z), yaw: yawAlong)
+                            edgeStats.drifts += 1
                         }
                         t += 2.8
                     } else {
@@ -613,7 +642,7 @@ final class WorldLevel {
                 let top = r.height.height(atZ: z) - 0.5
                 let h = 46 + rng.next() * 10
                 let m = cell(x, z)
-                m.beam(F3(x, top - h, z), F3(x, top, z), w: 0.72, h: 0.72, c: 0.08, colMat, bottom: false)
+                m.beam(F3(x, top - h, z), F3(x, top, z), w: 0.72, h: 0.72, c: 0.08, colMat)
                 if let cp = cap { m.place(cp, at: F3(x, top, z)) }
                 if rng.next() < 0.35 {
                     m.cbox(o: F3(x + 0.4, top - 3.5 - rng.next() * 6, z), w: 0.08, h: 0.5, d: 0.08, c: 0,
@@ -635,7 +664,7 @@ final class WorldLevel {
         for k in 0..<8 {
             let a = Float(k) / 8 * 2 * .pi
             let x = L.x + cosf(a) * (L.r + 0.9), z = L.z + sinf(a) * (L.r + 0.9)
-            m.beam(F3(x, L.y - 51, z), F3(x, L.y - 1, z), w: 0.8, h: 0.8, c: 0.08, colMat, bottom: false)
+            m.beam(F3(x, L.y - 51, z), F3(x, L.y - 1, z), w: 0.8, h: 0.8, c: 0.08, colMat)
         }
         for k in 0..<16 {
             let a = Float(k) / 16 * 2 * .pi
@@ -683,7 +712,8 @@ final class WorldLevel {
             for q in level.layout.pillars {
                 let y = level.groundY(q.x, q.y)
                 cell(q.x, q.y).place(p, at: F3(q.x, y, q.y))
-                glowQuads.append((F3(q.x, y, q.y), 3.6, Col.teal, 0.35))
+                glowQuads.append((F3(q.x, y, q.y), 3.2, Col.teal, 0.22))
+                lights.append(StationLight(kind: .pillar, pos: F3(q.x, y + 1.9, q.y), color: linearRGB(Col.teal)))
             }
         }
         // pipe bundles hanging off platform sides (brackets every 2 m)
@@ -713,14 +743,21 @@ final class WorldLevel {
             for v in level.layout.vents {
                 let y = level.groundY(v.x, v.y)
                 cell(v.x, v.y).place(p, at: F3(v.x, y, v.y))
-                glowQuads.append((F3(v.x, y, v.y), 3.0, Col.orange, 0.42))
+                glowQuads.append((F3(v.x, y, v.y), 2.8, Col.orange, 0.3))
+                lights.append(StationLight(kind: .vent, pos: F3(v.x, y + 0.3, v.y), color: linearRGB(Col.orange)))
             }
         }
+        let head = piece("beacon_head")
         if let p = piece("beacon_mast") {
-            for b in level.layout.beacons {
+            for (k, b) in level.layout.beacons.enumerated() {
                 let y = level.groundY(b.x, b.z)
                 cell(b.x, b.z).place(p, at: F3(b.x, y, b.z), yaw: Float.pi / 4)
-                glowQuads.append((F3(b.x, y, b.z), 5.0, Col.amber, 0.35))
+                // the head rides on the mast top; vs_kit spins it about this pivot (headTable[k])
+                if let h = head, k < WorldLevel.maxHeads {
+                    cell(b.x, b.z).place(h, at: F3(b.x, y + WorldLevel.mastTop, b.z), headIndex: UInt32(k))
+                }
+                glowQuads.append((F3(b.x, y, b.z), 4.6, Col.amber, 0.24))
+                lights.append(StationLight(kind: .beacon, pos: F3(b.x, y + WorldLevel.mastTop + 0.16, b.z), color: linearRGB(Col.red)))
             }
         }
         // landing-pad edge lights (around the start pad)
@@ -739,7 +776,7 @@ final class WorldLevel {
     // ---------------------------------------------------------------- the lift (one chunk, raised at the extraction)
     private func buildLift() {
         let L = level.layout.lift, Y = L.y, m = liftMesh
-        let deck = KitMat(tint: Col.deck, metal: 0.75, layer: Trim.gratings, flags: KitFlag.frost)
+        let deck = KitMat(tint: Col.deck, metal: 0.5, layer: Trim.gratings, flags: KitFlag.frost)
         m.disc(o: F3(L.x, 0, L.z), r: L.r, y: Y + 0.03, seg: 64, deck)
         // rim: chamfered lip + skirt, teal ring under it
         m.lathe(o: F3(L.x, Y, L.z), [(L.r, -0.7), (L.r + 0.15, -0.55), (L.r + 0.15, -0.05), (L.r, 0.03)], seg: 64,
@@ -797,7 +834,8 @@ final class WorldLevel {
         let y = level.groundY(s.x, s.y) + 0.01, h: Float = 5.5
         var v: [Float] = []
         for (dx, dz, u, w) in [(-h, h, Float(0), Float(1)), (h, h, 1, 1), (h, -h, 1, 0), (-h, -h, 0, 0)] {
-            v += [s.x + dx, y, s.y + dz, 0, 1, 0, 1, 1, 1, 0, u, w, 0]
+            // worn paint on the dark deck: 0.6 of the texture's albedo (full strength read as a pale overlay)
+            v += [s.x + dx, y, s.y + dz, 0, 1, 0, 0.6, 0.6, 0.6, 0, u, w, 0]
         }
         let idx: [UInt32] = [0, 1, 2, 0, 2, 3]
         padV = v.withUnsafeBytes { device.makeBuffer(bytes: $0.baseAddress!, length: $0.count, options: []) }

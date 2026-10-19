@@ -48,6 +48,8 @@ struct KitVertex {
 enum KitFlag {
     static let snow: UInt32 = 1, ice: UInt32 = 2, hazard: UInt32 = 4, chamfer: UInt32 = 8, frost: UInt32 = 16
     static let strip: UInt32 = 32, paint: UInt32 = 64
+    /// A beacon head vertex (WorldLevel): extra.w holds the head index instead of the AO strength; vs_kit spins it.
+    static let head: UInt32 = 128
 }
 
 /// Trim-sheet layers (kitgeo.py).
@@ -375,7 +377,8 @@ final class KitMesh {
 
     // ---------------------------------------------------------------- pieces
     /// A kit piece placed with a yaw, an optional vertical scale and a paint colour (KitFlag.paint faces take it).
-    func place(_ p: KitPiece, at t: F3, yaw: Float = 0, scaleY: Float = 1, paint: UInt32? = nil) {
+    /// `headIndex`: the piece is beacon head k (KitFlag.head on every vertex, k in extra.w; vs_kit spins it).
+    func place(_ p: KitPiece, at t: F3, yaw: Float = 0, scaleY: Float = 1, paint: UInt32? = nil, headIndex: UInt32? = nil) {
         let c = cosf(yaw), s = sinf(yaw)
         @inline(__always) func rot(_ v: F3) -> F3 { F3(c * v.x + s * v.z, v.y, -s * v.x + c * v.z) }
         let base = UInt32(vertices.count)
@@ -399,8 +402,10 @@ final class KitMesh {
                 tint = KitMesh.tint(pt, metal: Float((tint >> 24) & 255) / 255)
             }
             let uv = p.uv0[i]
+            var ex = p.extra[i]
+            if let k = headIndex { ex = (ex & 0x00ff_ffff) | (KitFlag.head << 16) | ((k & 255) << 24) }
             _ = add(KitVertex(px: w.x, py: w.y, pz: w.z, nrm: KitMesh.snorm(n), tan: KitMesh.snorm(tr, tg.w),
-                              u: uv.x, v: uv.y, uv1: p.uv1[i], tint: tint, extra: p.extra[i]))
+                              u: uv.x, v: uv.y, uv1: p.uv1[i], tint: tint, extra: ex))
         }
         for ix in p.indices { indices.append(base + UInt32(ix)) }
     }
@@ -430,7 +435,8 @@ final class KitStore {
             ?? Bundle.main.url(forResource: name, withExtension: ext, subdirectory: "Kit")
     }
 
-    /// Everything, synchronously (call off the main thread). Returns a one-line summary for the log.
+    /// Everything, synchronously (call off the main thread). Returns a one-line summary for the log. The three
+    /// textures go up in ONE blit command buffer with one wait (each wait can sit behind the loading cover's frames).
     func loadAll(queue: MTLCommandQueue?) -> String {
         let t0 = FrameTimer.now()
         if let u = url("station", "ihk"), let d = try? Data(contentsOf: u) {
@@ -439,15 +445,24 @@ final class KitStore {
         } else {
             missing.append("station.ihk")
         }
+        let tPieces = FrameTimer.now()
         let astc = device.supportsFamily(.apple2)
         astcFallback = !astc
-        trimNormal = loadIHT("trim_normal", queue: queue, astc: astc, fallback: [128, 128, 255, 128])
-        trimORM = loadIHT("trim_orm", queue: queue, astc: astc, fallback: [255, 150, 180, 70])
-        aoAtlas = loadIHT("kit_ao", queue: queue, astc: astc, fallback: [255, 255, 255, 255])
+        let cb = queue?.makeCommandBuffer()
+        let blit = cb?.makeBlitCommandEncoder()
+        trimNormal = loadIHT("trim_normal", blit: blit, astc: astc, fallback: [128, 128, 255, 128])
+        trimORM = loadIHT("trim_orm", blit: blit, astc: astc, fallback: [255, 150, 180, 70])
+        aoAtlas = loadIHT("kit_ao", blit: blit, astc: astc, fallback: [255, 255, 255, 255])
+        blit?.endEncoding()
+        let tEncode = FrameTimer.now()
+        cb?.commit()
+        cb?.waitUntilCompleted()
+        let t1 = FrameTimer.now()
         var tris = 0
         for p in pieces.values { tris += p.triangles }
-        return String(format: "kit %d pieces (%d triangles), trims %@, %.1f MB in %.0f ms", pieces.count, tris,
-                      astc ? "ASTC" : "FLAT (no ASTC on this GPU)", Double(bytesLoaded) / 1_048_576, (FrameTimer.now() - t0) * 1000)
+        return String(format: "kit %d pieces (%d triangles), trims %@, %.1f MB in %.0f ms (pieces %.0f, textures read %.0f, GPU upload wait %.0f)",
+                      pieces.count, tris, astc ? "ASTC" : "FLAT (no ASTC on this GPU)", Double(bytesLoaded) / 1_048_576,
+                      (t1 - t0) * 1000, (tPieces - t0) * 1000, (tEncode - tPieces) * 1000, (t1 - tEncode) * 1000)
             + (missing.isEmpty ? "" : " MISSING: " + missing.joined(separator: ", "))
     }
 
@@ -501,7 +516,9 @@ final class KitStore {
     }
 
     // ---------------------------------------------------------------- IHT1
-    private func loadIHT(_ name: String, queue: MTLCommandQueue?, astc: Bool, fallback: [UInt8]) -> MTLTexture? {
+    /// An IHT1 file into a private texture: its levels are copied by `blit` from a shared staging buffer (the caller
+    /// commits and waits once for all of them).
+    private func loadIHT(_ name: String, blit: MTLBlitCommandEncoder?, astc: Bool, fallback: [UInt8]) -> MTLTexture? {
         guard let u = url(name, "iht"), let d = try? Data(contentsOf: u) else {
             missing.append(name + ".iht")
             return nil
@@ -532,9 +549,8 @@ final class KitStore {
             desc.mipmapLevelCount = mips
             desc.usage = .shaderRead
             desc.storageMode = .private
-            guard let tex = device.makeTexture(descriptor: desc), let q = queue,
-                  let staging = device.makeBuffer(bytes: base, length: raw.count, options: .storageModeShared),
-                  let cb = q.makeCommandBuffer(), let blit = cb.makeBlitCommandEncoder() else {
+            guard let tex = device.makeTexture(descriptor: desc), let blit = blit,
+                  let staging = device.makeBuffer(bytes: base, length: raw.count, options: .storageModeShared) else {
                 return block > 1 ? flat(layers: layers, fallback, label: name) : nil
             }
             for L in 0..<layers {
@@ -548,9 +564,6 @@ final class KitStore {
                               destinationOrigin: MTLOrigin(x: 0, y: 0, z: 0))
                 }
             }
-            blit.endEncoding()
-            cb.commit()
-            cb.waitUntilCompleted()
             tex.label = name
             return tex
         }
