@@ -34,6 +34,8 @@ public enum SoundID: String, CaseIterable {
     case throwGrenade = "throw"
     case napalm, shock, thud
     case kill, combo, hordeRoar, nova, turret, heal, spit, acid, roar, swell, siren, beacon, beaconDone, lift, levelup, click, heart, victory, defeat
+    /// The Матка climbs onto the deck (v1.1; non-positional).
+    case queen
 }
 
 public enum HapticKind: Int {
@@ -94,6 +96,22 @@ public enum GameEvent {
     case victory
     case defeat
 
+    // --- v1.1 «Ставки»: the Матка and the first-run coach ---
+    /// 2 s red ring where the Матка will climb over the lift rim.
+    case queenWarning(pos: Vec2)
+    /// She is on the deck (banner, siren + queen sound, shake and haptic come as their own events).
+    case queenSpawned(pos: Vec2)
+    /// Below half health once: faster, and the hive answers with a horde.
+    case queenEnraged(pos: Vec2)
+    /// She died (emitted before its `.hitStop`: the app resets its hit-stop cooldown so this one always plays).
+    case queenKilled(pos: Vec2)
+    /// The coach moved to step `index` (0…4).
+    case coachStep(index: Int)
+    /// The coach was seen far enough (end of step 4, skip, early end): the app stores `tut = 1`. Once per Game.
+    case coachSeen
+    /// The coach finished (any way).
+    case coachEnded
+
     // --- presentation ---
     case toast(text: String, kind: ToastKind)
     /// Big centred banner (teal = good news, otherwise red/amber).
@@ -129,6 +147,8 @@ public enum TelegraphShape: Int {
 
 public enum TelegraphCause: Int {
     case acidTarget, bruteLane, boomerSwell, napalm, nova, pulse, other
+    /// v1.1: where the Матка will climb up (red, 2 s) / her acid volley (one ring + fill per marine).
+    case queenRim, queenVolley
 }
 
 public struct Telegraph {

@@ -22,26 +22,46 @@ public struct MissionStats {
     public let bestCombo: Int
     public let level: Int
     public let won: Bool
+    // v1.1
+    /// Player downs, and what downed the player last.
+    public let downs: Int
+    public let downBy: DamageSource
+    /// Tier index (0…2, -1 legacy).
+    public let tierIndex: Int
+    public let beaconsDone: Int
+    public let queenSpawned: Bool
+    public let queenDone: Bool
+    /// Stage reached.
+    public let stage: MissionStage
 }
 
 extension Game {
     public var player: Marine { marines[0] }
 
-    /// Objective line (top centre), empty in attract mode.
+    /// Objective line (top centre), empty in attract mode (the app uppercases it).
     public var objectiveText: String {
         if attract { return "" }
+        let ts = threatState
         switch stage {
         case .beacons:
             if activeBeacon >= 0 { return "Удерживайте маяк «" + beacons[activeBeacon].name + "»" }
+            if ts == .converging { return "Рой стягивается — к маяку!" }
+            if ts == .waking { return "Улей просыпается — к маяку" }
             return "Запустите маяки \(beaconsDone)/\(beacons.count)"
-        case .toLift: return "Лифт вызван — к платформе"
-        case .hold: return "Держитесь на лифте · " + formatTime(liftT.rounded(.up))
+        case .toLift:
+            return ts == .converging ? "Рой стягивается — к лифту!" : (ts == .waking ? "Улей просыпается — к лифту!" : "Лифт вызван — к платформе")
+        case .hold:
+            if ts == .queen { return liftT <= 0.011 ? "Лифт заблокирован — Матка жива" : "Убейте Матку · лифт ждёт" }
+            return "Держитесь на лифте · " + formatTime(liftT.rounded(.up))
         case .extract: return "Эвакуация!"
         }
     }
 
-    /// Objective progress bar 0...1, or -1 = hidden.
+    /// Objective progress bar 0...1, or -1 = hidden (the Матка: her lost health; pressure: press / grace).
     public var objectiveProgress: Float {
+        let ts = threatState
+        if ts == .queen { return 1 - queenHpFraction }
+        if ts != .calm { return min(1, pressure / difficulty.pressureGrace) }
         if stage == .beacons && activeBeacon >= 0 { return beacons[activeBeacon].progress }
         if stage == .hold { return 1 - liftT / liftDur }
         return -1
@@ -61,11 +81,16 @@ extension Game {
         return t
     }
 
-    /// The game's own contextual hint (the app shows its control hint during the first 7 s itself).
+    /// The app's own control hint («Левый палец — бег · …») shows during the first 7 s unless the coach runs.
+    public var showControlHint: Bool { !attract && !coach.active && time < 7 }
+
+    /// The game's own contextual hint (web updateHUD order; the control hint of the first 7 s is the app's).
     public var contextHint: HintLine? {
         let P = marines[0]
         if attract { return nil }
         if P.downed { return HintLine(text: "Вы ранены — союзники идут на помощь", urgent: true) }
+        if let r = coach.reviveLine, coach.reviveTime > 0 { return HintLine(text: r, urgent: false) }
+        if coach.active { return nil }
         if time < 7 { return nil }
         for k in 1..<marines.count where marines[k].downed && hypotf2(marines[k].x - P.x, marines[k].z - P.z) < 6 {
             return HintLine(text: "Встаньте рядом с раненым, чтобы поднять его", urgent: false)
@@ -82,8 +107,16 @@ extension Game {
             return nil
         }
         if stage == .hold && !level.onLift(P.x, P.z) { return HintLine(text: "На платформу! Отсчёт стоит", urgent: true) }
-        if stage == .hold && liftT > LIFT_TIME - 8 { return HintLine(text: "Защитный контур лифта бьёт током каждые 5 секунд", urgent: false) }
+        if stage == .hold && liftT > LIFT_TIME - 8 { return holdHintLine }
         return nil
+    }
+
+    /// The lift-pulse hint of this tier («Защитный контур лифта бьёт током каждые 5 с» / «Контур бьёт каждые 6 с — …»).
+    public var holdHint: String { holdHintLine.text }
+
+    static func holdHintText(_ d: Difficulty) -> String {
+        let n = Int(d.pulseInterval)
+        return d.pulseFalloff > 0 ? "Контур бьёт каждые \(n) с — у края слабее, держитесь центра" : "Защитный контур лифта бьёт током каждые \(n) с"
     }
 
     /// Combo counter shown from ×5.
@@ -102,7 +135,19 @@ extension Game {
     public var accuracy: Int { shots > 0 ? Int((100 * min(1, hits / shots)).rounded()) : 0 }
 
     public var stats: MissionStats {
-        MissionStats(time: time, kills: kills, playerKills: playerKills, accuracy: accuracy, bestCombo: bestCombo, level: xpLevel, won: phase == .won)
+        MissionStats(time: time, kills: kills, playerKills: playerKills, accuracy: accuracy, bestCombo: bestCombo, level: xpLevel, won: phase == .won,
+                     downs: downs, downBy: downBy, tierIndex: difficulty.index, beaconsDone: beaconsDone, queenSpawned: queen.spawned,
+                     queenDone: queen.done, stage: stage)
+    }
+
+    /// What the profile and the mission report need from this run (call at mission end; surrender counts as a loss).
+    public func runSummary(won: Bool, surrendered: Bool) -> RunSummary {
+        RunSummary(cls: playerClass, won: won, surrendered: surrendered && !won, time: time, playerKills: playerKills,
+                   beaconsDone: beaconsDone, queenSpawned: queen.spawned, queenDone: queen.done, downs: downs, downBy: downBy,
+                   tierIndex: difficulty.index, tierMul: difficulty.scoreMul, tierName: difficulty.name, stage: stage,
+                   pressureLoss: pressure >= difficulty.pressureGrace && idleMul > 1,
+                   shots: Int(shots.rounded()), hits: Int(hits.rounded()), accuracy: accuracy, bestCombo: bestCombo, level: xpLevel,
+                   station: stationName)
     }
 
     /// Visual laser length of a marine (first bug along the aim, max 24 m), measured on the current hash.

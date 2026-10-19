@@ -25,7 +25,12 @@ extension Game {
         let k = 0.88 + rng.next() * 0.24
         S.type[i] = type; S.ms[i] = T.mass; S.dead[i] = 0; S.hit[i] = 0; S.bsrc[i] = -1; S.uid[i] = S.uidSeq; S.uidSeq &+= 1
         S.r[i] = T.radius * k; S.sc[i] = T.scale * k; S.spd[i] = T.speed * (0.85 + rng.next() * 0.3)
-        let hpv = T.hp * hpMul * (type == T_BRUTE ? 1 : k)
+        // fodder is fodder: runners keep the tier's flat runner HP (13.2–16.8), so one rifle bolt always kills them; every
+        // other type scales with the director's HP multiplier (the bench keeps its 1e5 multiplier on every type; the legacy
+        // v1.0 row scales runners too)
+        let rh = difficulty.runnerHp
+        let base: Float = type == T_RUN ? (rh > 0 ? rh * (simOnly ? hpMul : 1) : 18 * hpMul) : T.hp * hpMul
+        let hpv = base * (type == T_BRUTE ? 1 : k)
         S.hp[i] = hpv; S.hpMax[i] = hpv
         S.vx[i] = 0; S.vz[i] = 0; S.cd[i] = rng.next() * T.atkCd
         S.chill[i] = 0; S.frz[i] = 0; S.burn[i] = 0; S.fl[i] = 0
@@ -64,8 +69,11 @@ extension Game {
         S.dead[i] = 1; S.deadPending += 1
         let x = S.x[i], z = S.z[i], ty = S.type[i]
         let frozen = S.frz[i] > 0
+        let isQueen = queen.alive && S.uid[i] == queen.uid
+        if isQueen { xp += 60 }   // before onBugKilled, so its level-up loop counts the bounty
         onBugKilled(ty, src, x, z)
-        if ty == T_BOOM { queueBoom(x, z, 3.1, 70, src, .boomer) }
+        if isQueen { queenKilled(x, z) }
+        else if ty == T_BOOM { queueBoom(x, z, 3.1, 70, src, .boomer) }
         else if ty == T_BRUTE && !simOnly && src >= 0 && hypotf2(x - marines[0].x, z - marines[0].z) < 16 { hitStop(0.085, 0.12) }
         else if frozen {
             let sh: Float = (src >= 0 && src < 4) ? marines[src].mods.shatter : 1
@@ -80,7 +88,7 @@ extension Game {
                 sound(.squish, x, z)
             }
         }
-        if ty == T_BRUTE && rng.next() < difficulty.medkitChance { dropMedkit(x, z) }
+        if ty == T_BRUTE && !isQueen && rng.next() < difficulty.medkitChance { dropMedkit(x, z) }
     }
 
     // ---------- explosions (deferred, so chain reactions ripple tick by tick) ----------
@@ -92,22 +100,28 @@ extension Game {
         let n = booms.count
         if n == 0 { return }
         let S = bugs
+        let qUid = queen.uid
         do {
             var k = 0
             while k < n {
                 defer { k += 1 }
                 let e = booms[k]
                 let cnt = hash.queryCircle(S, e.x, e.z, e.r)
-                let knock: Float = e.kind == .frost ? 2 : (e.kind == .pulse ? 5 : 11)
+                let pulse = e.kind == .pulse
+                let knock: Float = e.kind == .frost ? 2 : (pulse ? 5 : 11)
                 let falloff = difficulty.pulseFalloff
                 do {
                     var q = 0
                     while q < cnt {
                         defer { q += 1 }
                         let b = hash.qb[q]
+                        // the Матка shrugs off the lift pulse, frost and knockback
+                        let qb = S.uid[b] == qUid
+                        if qb && pulse { continue }
                         let dx = S.x[b] - e.x, dz = S.z[b] - e.z, d = (dx * dx + dz * dz).squareRoot() + 1e-4
-                        let f: Float = e.kind == .pulse ? 1 - falloff * minf(1, d / e.r) : 1 - 0.55 * minf(1, d / e.r)
-                        if e.kind == .frost { S.chill[b] = minf(1, S.chill[b] + 0.45) }
+                        // the lift pulse fades toward the rim on the harder tiers (no binary deck wipe)
+                        let f: Float = pulse ? 1 - falloff * minf(1, d / e.r) : 1 - 0.55 * minf(1, d / e.r)
+                        if e.kind == .frost && !qb { S.chill[b] = minf(1, S.chill[b] + 0.45) }
                         if S.type[b] != T_BRUTE { S.vx[b] += dx / d * knock * f; S.vz[b] += dz / d * knock * f }
                         hitBug(b, e.dmg * f, e.src)
                     }
@@ -116,7 +130,7 @@ extension Game {
                     for m in marines {
                         let dx = m.x - e.x, dz = m.z - e.z, d = hypotf2(dx, dz)
                         if d < e.r + 0.4 {
-                            hurtMarine(m, BUG_SPECS[3].dmg * dmgMul * (1 - 0.5 * d / (e.r + 0.4)), dx / (d + 0.01) * 7, dz / (d + 0.01) * 7)
+                            hurtMarine(m, BUG_SPECS[3].dmg * dmgMul * (1 - 0.5 * d / (e.r + 0.4)), dx / (d + 0.01) * 7, dz / (d + 0.01) * 7, .boomer)
                         }
                     }
                 }
@@ -169,7 +183,8 @@ extension Game {
             let x = G.x1[k], z = G.z1[k]
             for m in marines {
                 let d = hypotf2(m.x - x, m.z - z)
-                if d < 1.5 { hurtMarine(m, BUG_SPECS[1].dmg * dmgMul, 0, 0) }
+                // (the Матка's volley globs count as spitter acid, like the web)
+                if d < 1.5 { hurtMarine(m, BUG_SPECS[1].dmg * dmgMul, 0, 0, .spitter) }
             }
             if !simOnly { emit(.acidSplash(pos: Vec2(x, z))); sound(.acid, x, z) }
             G.count -= 1
@@ -221,6 +236,12 @@ extension Game {
         let quiet = simOnly
         let liftFall = stage == .extract && extractT > 0.4
         let dmgMulL = dmgMul
+        let UID = S.uid
+        // the Матка: her melee runs on its own clock (qMeleeCd), her charge hits count as hers
+        let qUid = queen.uid
+        // hive pressure / AFK: part of the swarm hunts the player (even uids at idleMul ≥ 1.5, uid % 3 ≠ 0 after 12 s AFK)
+        let huntP = huntPressure, huntA = huntAfk
+        let anyHunt = MUP[0] != 0 && (huntP || huntA)
 
         let burnDps = CLASS_SPECS[1].burnDps
         var iNext = 0
@@ -275,8 +296,10 @@ extension Game {
             var best = 0
             var bd: Float = 1e9
             var k = 0
+            let u = UID[i]
+            let hunt = anyHunt && ((huntP && (u & 1) == 0) || (huntA && u % 3 != 0))
             while k < 4 {
-                if !(anyUp && MUP[k] == 0) {
+                if !(anyUp && MUP[k] == 0) && !(hunt && k != 0) {
                     let dx = MX[k] - x, dz = MZ[k] - z, d2 = dx * dx + dz * dz
                     if d2 < bd { bd = d2; best = k }
                 }
@@ -331,7 +354,7 @@ extension Game {
                             let rr = R[i] + 0.6
                             if dx * dx + dz * dz < rr * rr {
                                 HIT[i] |= UInt8(1 << k)
-                                hurtMarine(marines[k], 16 * dmgMulL, AX[i] * 13, AZ[i] * 13)
+                                hurtMarine(marines[k], 16 * dmgMulL, AX[i] * 13, AZ[i] * 13, u == qUid ? .queen : .brute)
                             }
                         }
                     }
@@ -408,14 +431,17 @@ extension Game {
             }
             X[i] = nx; Z[i] = nz; VX[i] = vx; VZ[i] = vz
             // --- melee ---
-            if dist < ri + 0.62 && CD[i] <= 0 && ST[i] == S_MOVE && ty != T_BOOM && MUP[best] != 0 {
+            // (the Матка bites ×1.6 on her own clock: her cd only gates the ram, see queenTick)
+            let qm = u == qUid
+            if dist < ri + 0.62 && (qm ? qMeleeCd <= 0 : CD[i] <= 0) && ST[i] == S_MOVE && ty != T_BOOM && MUP[best] != 0 {
                 // attack slots: only a few small bugs can land a bite per second on one marine
                 let mm = marines[best]
                 if ty == T_BRUTE || mm.bite >= 1 {
                     if ty != T_BRUTE { mm.bite -= 1 }
                     let kb: Float = ty == T_BRUTE ? 6 : 0.6
-                    hurtMarine(mm, BUG_SPECS[Int(ty)].dmg * dmgMulL, tx * kb, tz * kb)
-                    CD[i] = BUG_SPECS[Int(ty)].atkCd * (0.8 + rng.next() * 0.4)
+                    hurtMarine(mm, BUG_SPECS[Int(ty)].dmg * dmgMulL * (qm ? 1.6 : 1), tx * kb, tz * kb, qm ? .queen : DamageSource(bugType: ty))
+                    let cd = BUG_SPECS[Int(ty)].atkCd * (0.8 + rng.next() * 0.4)
+                    if qm { qMeleeCd = cd } else { CD[i] = cd }
                     PH[i] += 1.5
                 } else { CD[i] = 0.15 + rng.next() * 0.2 }
             }
