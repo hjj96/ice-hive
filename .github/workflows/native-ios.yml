@@ -408,6 +408,11 @@ jobs:
           # baseline: no swarm, no events — what is left is the simulator host (its GPU stalls show up here too)
           run_demo calm 8 "-demo calm" 0
           run_demo title 6 "-demo title" 0
+          # v1.1 title: a fresh profile (НОВОБРАНЕЦ selected, premise, no profile line) and a returning one (ВЕТЕРАН,
+          # profile line, rank chips + medal pips), portrait and landscape; -layoutCheck logs overlaps / off-screen
+          run_demo title-fresh 5 "-demo title -profile fresh -layoutCheck" 0
+          run_demo title-return 5 "-demo title -profile veteran -layoutCheck" 0
+          run_demo title-land 5 "-demo title -profile veteran -orient landscape -layoutCheck" 0
           run_demo landscape 10 "-demo combat -orient landscape -seed 7" 0
           # horde ingredients one by one (overlay, banner, shake, sounds, haptic, horde) every 4 s: hitch attribution
           run_demo probe 26 "-demo probe -seed 7"
@@ -415,11 +420,24 @@ jobs:
           run_demo hold 8 "-demo hold -seed 3" 0
           run_demo extract 10 "-demo extract -seed 3" 0
           # v1.1: the Матка (boss of the hold) on the deck — a brute instance at scale 4.2, violet tint, volley rings
-          run_demo queen 10 "-demo queen -seed 3" 0 3
+          run_demo queen 10 "-demo queen -tier 1 -seed 3" 0 3
+          # the countdown ran out with her alive: «ЛИФТ ЗАБЛОКИРОВАН — МАТКА ЖИВА»
+          run_demo queenlock 8 "-demo queenlock -queenHp 1000000 -seed 3" 0
+          # v1.1 coach «Учебная высадка» on the fresh demo profile: step 1 (portrait), step 3 (landscape, 18 runners)
+          run_demo coach 6 "-demo coach -profile fresh -seed 7" 0
+          run_demo coach3-land 6 "-demo coach -coachStep 2 -orient landscape -seed 7" 0
+          # hive pressure: red (converging, urgent marker) and amber (waking)
+          run_demo pressure 8 "-demo pressure -pressure red -tier 1 -seed 7" 0
+          run_demo pressure-amber 6 "-demo pressure -pressure amber -seed 7" 0
           # menus: upgrade cards, pause menu, mission report (30 Hz over the frozen world)
           run_demo levelup 4 "-demo levelup -seed 5" 0
-          run_demo pause 4 "-demo pause -seed 5" 0
+          run_demo pause 4 "-demo pause -seed 5 -layoutCheck" 0
           run_demo end 4 "-demo end -seed 5" 0
+          # v1.1 mission report fixtures (committed into the demo's in-memory profile)
+          run_demo report-first 4 "-demo report -report first -seed 5 -layoutCheck" 0
+          run_demo report-win 4 "-demo report -report win -seed 5 -layoutCheck" 0
+          run_demo report-loss 4 "-demo report -report loss -seed 5 -layoutCheck" 0
+          run_demo report-chip-land 4 "-demo report -report chip -orient landscape -seed 5 -layoutCheck" 0
           # Metal unusable (-failMetal): a readable message instead of an endless loading screen
           xcrun simctl launch --terminate-running-process \
             --stdout="$PWD/results/app-failmetal.log" --stderr="$PWD/results/app-failmetal-stderr.log" \
@@ -446,7 +464,7 @@ jobs:
           sleep 2
           run_demo release-combat 10 "-demo combat -seed 7" 0
           xcrun simctl spawn "$UDID" launchctl list | grep -i icehive | tee results/launchctl.txt || true
-          demos="firstlaunch combat beacon swarmshot swarmshot-dots swarm swarm3x calm title landscape probe hold extract queen levelup pause end release-combat"
+          demos="firstlaunch combat beacon swarmshot swarmshot-dots swarm swarm3x calm title title-fresh title-return title-land landscape probe hold extract queen queenlock coach coach3-land pressure pressure-amber levelup pause end report-first report-win report-loss report-chip-land release-combat"
           for d in $demos; do
             f=results/app-$d.log
             { echo "== $f"; grep -h -E 'loading took|pipelines built|metal world ready|demo done' "$f" || true; } >> results/fps.txt
@@ -456,8 +474,10 @@ jobs:
           # GPU-side seconds: frames completed, longest gap between two, slowest command buffer (commit -> done)
           echo "== GPU-side stalls (hb lines with gap > 50 ms)" >> results/hitches.txt
           for d in $demos; do grep -H -E 'hb t=.* gap=([5-9][0-9]|[0-9]{3,})ms' "results/app-$d.log" | sed -E 's/ (mode|bugs|vis|parts|stage|hp|kills|mem|avail|demo|rend|cpu|main|dc|inst|tris)=[^ ]*//g' >> results/hitches.txt || true; done
-          python3 ios-native/ci/frame_metrics.py --cold firstlaunch --cold-max-ms 150 --menus levelup,pause,end results $demos > results/metrics.txt || true
-          cat results/alive.txt results/loading.txt results/fps.txt results/shots.txt results/hitches.txt results/metrics.txt
+          python3 ios-native/ci/frame_metrics.py --cold firstlaunch --cold-max-ms 150 --menus levelup,pause,end,report-first,report-win,report-loss,report-chip-land results $demos > results/metrics.txt || true
+          # v1.1 lines (start, title, threat, queen, lift lock, coach, run) and the layout checks
+          for d in $demos; do grep -H -E 'v11 |layout (ok|FAIL)|report: tightest' "results/app-$d.log" >> results/v11.txt || true; done
+          cat results/alive.txt results/loading.txt results/fps.txt results/shots.txt results/hitches.txt results/metrics.txt results/v11.txt
       - name: Verify app is alive and rendered
         run: |
           echo "--- combat stdout ---"; cat results/app-combat.log || true
@@ -474,11 +494,70 @@ jobs:
             grep -q 'rend=metal' "results/app-$d.log" || { echo "::error::$d: no Metal heartbeat lines"; exit 1; }
             if grep -q 'ERROR' "results/app-$d.log"; then echo "::error::$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; exit 1; fi
           done
+          for d in title-fresh title-return title-land queenlock coach coach3-land pressure pressure-amber report-first report-win report-loss report-chip-land; do
+            grep -q 'scene ready' "results/app-$d.log" || { echo "::error::$d: no 'scene ready'"; exit 1; }
+            if grep -q 'ERROR' "results/app-$d.log"; then echo "::error::$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; exit 1; fi
+          done
+          # v1.1 log checks (spec §7.2)
+          need() { grep -q -E "$2" "results/app-$1.log" || { echo "::error::$1: no line matching '$2'"; exit 1; }; }
+          need title-fresh 'v11 title tier=rec runs=0'
+          need title-return 'v11 title tier=vet'
+          need title-land 'v11 title tier=vet'
+          need coach 'v11 start .*coach=1'
+          need coach 'v11 coach step=0'
+          need coach3-land 'v11 coach step=2'
+          need pressure 'v11 threat 2'
+          need pressure-amber 'v11 threat 1'
+          need queen 'v11 queen spawn .*uid=[1-9][0-9]* hp='
+          need queen 'v11 threat 3'
+          need queenlock 'v11 lift locked'
+          need report-first 'v11 run tier=rec won=1 .*medal=1'
+          need report-win 'v11 run tier=vet won=1 .*rank=2→3'
+          need report-loss 'v11 run tier=vet won=0 .*downBy=4'
+          need report-chip-land 'v11 run .*recTip=1'
+          need combat 'v11 start tier=vet coach=0'
+          for d in title-fresh title-return title-land pause report-first report-win report-loss report-chip-land; do
+            need "$d" 'layout (ok|FAIL)'
+            if grep -q 'layout FAIL' "results/app-$d.log"; then echo "::error::$d: $(grep -m 2 'layout FAIL' "results/app-$d.log" | tr '\n' ' ')"; exit 1; fi
+          done
           grep -q 'failure screen shown' results/app-failmetal.log || { echo "::error::-failMetal: no failure screen"; exit 1; }
           if [ -s results/app-release-quiet.log ]; then echo "::error::plain Release launch wrote to stdout: $(head -3 results/app-release-quiet.log)"; exit 1; fi
       # warm demos: minFps >= 55 on the game loop and no loop hitch > 50 ms after the first second (metrics.txt)
       - name: Frame metrics gate
-        run: python3 ios-native/ci/frame_metrics.py --gate --cold firstlaunch --cold-max-ms 150 --menus levelup,pause,end results firstlaunch combat beacon swarmshot swarmshot-dots swarm swarm3x calm title landscape probe hold extract queen levelup pause end release-combat
+        run: python3 ios-native/ci/frame_metrics.py --gate --cold firstlaunch --cold-max-ms 150 --menus levelup,pause,end,report-first,report-win,report-loss,report-chip-land results firstlaunch combat beacon swarmshot swarmshot-dots swarm swarm3x calm title title-fresh title-return title-land landscape probe hold extract queen queenlock coach coach3-land pressure pressure-amber levelup pause end report-first report-win report-loss report-chip-land release-combat
+      # v1.1 small screens (spec §7.2): the tightest iOS 16 phone, 375 x 667, when the runtime offers an iPhone SE —
+      # the title, the report and the pause in both orientations with -layoutCheck (informational: results/se-layout.txt)
+      - name: Small-screen layout check (iPhone SE)
+        if: always()
+        env:
+          UDID: ${{ steps.sim.outputs.udid }}
+        run: |
+          set -x
+          mkdir -p results
+          : > results/se-layout.txt
+          rt=$(sed -n 3p sim.txt)
+          dtype=$(xcrun simctl list devicetypes | grep -o 'com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation' | head -1)
+          if [ -z "$dtype" ]; then echo "no iPhone SE (3rd generation) device type: small-screen layouts not run" | tee -a results/se-layout.txt; exit 0; fi
+          se=$(xcrun simctl create "SE layout" "$dtype" "$rt" 2>/dev/null) || { echo "iPhone SE not available on $rt" | tee -a results/se-layout.txt; exit 0; }
+          xcrun simctl shutdown "$UDID" || true
+          xcrun simctl boot "$se" && xcrun simctl bootstatus "$se" -b
+          xcrun simctl install "$se" IceHive.app
+          for o in portrait landscape; do
+            for d in "title-return|-demo title -profile veteran" "report-win|-demo report -report win -seed 5" "pause|-demo pause -seed 5"; do
+              label="se-${d%%|*}-$o"; args="${d#*|}"
+              # shellcheck disable=SC2086
+              xcrun simctl launch --terminate-running-process --stdout="$PWD/results/app-$label.log" --stderr="$PWD/results/app-$label-stderr.log" \
+                "$se" "$BUNDLE_ID" $args -orient "$o" -layoutCheck -seconds 3
+              for _ in $(seq 1 60); do grep -q 'demo done' "results/app-$label.log" 2>/dev/null && break; sleep 1; done
+              xcrun simctl io "$se" screenshot "results/$label-0s.png" || true
+              { echo "== $label"; grep -h -E 'layout (ok|FAIL)|report: tightest' "results/app-$label.log" || echo "no layout line"; } >> results/se-layout.txt
+              xcrun simctl terminate "$se" "$BUNDLE_ID" || true
+              sleep 2
+            done
+          done
+          cat results/se-layout.txt
+          xcrun simctl shutdown "$se" || true
+          xcrun simctl delete "$se" || true
       - name: Collect crash logs and stop
         if: always()
         env:
