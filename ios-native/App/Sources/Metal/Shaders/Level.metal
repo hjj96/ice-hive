@@ -269,35 +269,53 @@ vertex MeshOut vs_static(MeshIn v [[stage_in]],
     return meshOut(F, w, v.normal, v.color, v.glow, v.leg.xy, float3(0.0));
 }
 
-/// makeGlowMaterial: vertex colours, aGlow emissive, optional snow caps (the batch service: marines, turret, medkit)
+/// makeGlowMaterial: vertex colours, aGlow emissive, optional snow caps (the batch service: marines, turret, medkit) —
+/// on WP2's full light model (grid lights, the four spots' atlas shadows, probe, contact AO, height fog) when present.
 fragment float4 fs_props(MeshOut in [[stage_in]],
                          constant Frame& F [[buffer(1)]],
-                         constant Material& M [[buffer(3)]],
-                         depth2d<float> shadowMap [[texture(3)]]) {
+                         constant Material& M [[buffer(3)]]
+                         LEVEL_LIGHT_PARAMS) {
     float3 N = normalize(in.normal);
     float3 V = normalize(F.camPos.xyz - in.world);
     float3 albedo = in.color;
     if (M.pbr.z > 0.5) {
         albedo = mix(albedo, float3(0.80, 0.86, 0.93), smoothstep(0.72, 0.97, N.y) * (1.0 - in.glow) * 0.8);
     }
+#if defined(LIGHTING_PARAMS)
+    LitSurface s;
+    s.P = in.world; s.N = N; s.V = V; s.albedo = albedo; s.rough = M.pbr.x; s.metal = M.pbr.y;
+    s.coat = 0.0; s.coatRough = 0.3; s.ao = 1.0; s.shadow = M.floor.w;
+    float3 c = shadeLit(LIGHTING_ARGS, s, LB.info.y > 0.5);
+    c += in.color * in.glow * M.pbr.w + in.extra;
+    return float4(heightFog(F, LB, c, in.world, in.depth), 1.0);
+#else
     float sh = M.floor.w > 0.5 ? spotShadow(F, shadowMap, in.world) : 1.0;
     float3 c = standardLight(F, in.world, N, V, albedo, M.pbr.x, M.pbr.y, sh);
     c += in.color * in.glow * M.pbr.w + in.extra;
     return float4(encodeColor(F, c, in.depth, true), 1.0);
+#endif
 }
 
-/// textured standard material (the landing-pad mark with its alpha)
+/// textured standard material (the landing-pad mark with its alpha), lit like the deck under it
 fragment float4 fs_textured(MeshOut in [[stage_in]],
                             constant Frame& F [[buffer(1)]],
                             constant Material& M [[buffer(3)]],
-                            texture2d<float> map [[texture(0)]],
-                            depth2d<float> shadowMap [[texture(3)]]) {
+                            texture2d<float> map [[texture(0)]]
+                            LEVEL_LIGHT_PARAMS) {
     float3 N = normalize(in.normal);
     float3 V = normalize(F.camPos.xyz - in.world);
     float4 t = map.sample(repeatSampler, in.uv);
+#if defined(LIGHTING_PARAMS)
+    LitSurface s;
+    s.P = in.world; s.N = N; s.V = V; s.albedo = t.rgb * in.color; s.rough = M.pbr.x; s.metal = M.pbr.y;
+    s.coat = 0.0; s.coatRough = 0.3; s.ao = 1.0; s.shadow = 1.0;
+    float3 c = shadeLit(LIGHTING_ARGS, s, LB.info.y > 0.5);
+    return float4(heightFog(F, LB, c, in.world, in.depth), t.a);
+#else
     float sh = M.floor.w > 0.5 ? spotShadow(F, shadowMap, in.world) : 1.0;
     float3 c = standardLight(F, in.world, N, V, t.rgb * in.color, M.pbr.x, M.pbr.y, sh);
     return float4(encodeColor(F, c, in.depth, true), t.a);
+#endif
 }
 
 /// floor light pools (additive, unlit, no fog)

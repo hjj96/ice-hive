@@ -632,7 +632,7 @@ final class WorldLevel {
                     edgeStats.lamps += 1
                     lights.append(StationLight(kind: .lamp, pos: F3(x, y + 2.95, z) + inw * 0.85, color: linearRGB(lc)))
                     let (gx, gz) = P(t, 1.4)
-                    glowQuads.append((F3(gx, level.groundY(gx, gz), gz), 3.8, lc, 0.24))
+                    glowQuads.append((F3(gx, level.groundY(gx, gz), gz), 3.8, lc, 0.15))
                     t += 12
                 }
             }
@@ -782,7 +782,7 @@ final class WorldLevel {
             for q in level.layout.pillars {
                 let y = level.groundY(q.x, q.y)
                 cell(q.x, q.y).place(p, at: F3(q.x, y, q.y), caster: true)
-                glowQuads.append((F3(q.x, y, q.y), 3.2, Col.teal, 0.22))
+                glowQuads.append((F3(q.x, y, q.y), 3.2, Col.teal, 0.14))
                 lights.append(StationLight(kind: .pillar, pos: F3(q.x, y + 1.9, q.y), color: linearRGB(Col.teal)))
             }
         }
@@ -813,7 +813,7 @@ final class WorldLevel {
             for v in level.layout.vents {
                 let y = level.groundY(v.x, v.y)
                 cell(v.x, v.y).place(p, at: F3(v.x, y, v.y))
-                glowQuads.append((F3(v.x, y, v.y), 2.8, Col.orange, 0.3))
+                glowQuads.append((F3(v.x, y, v.y), 2.8, Col.orange, 0.18))
                 lights.append(StationLight(kind: .vent, pos: F3(v.x, y + 0.3, v.y), color: linearRGB(Col.orange)))
             }
         }
@@ -826,7 +826,7 @@ final class WorldLevel {
                 if let h = head, k < WorldLevel.maxHeads {
                     cell(b.x, b.z).place(h, at: F3(b.x, y + WorldLevel.mastTop, b.z), headIndex: UInt32(k))
                 }
-                glowQuads.append((F3(b.x, y, b.z), 4.6, Col.amber, 0.24))
+                glowQuads.append((F3(b.x, y, b.z), 4.6, Col.amber, 0.15))
                 lights.append(StationLight(kind: .beacon, pos: F3(b.x, y + WorldLevel.mastTop + 0.16, b.z), color: linearRGB(Col.red)))
             }
         }
@@ -879,7 +879,9 @@ final class WorldLevel {
     }
 
     // ---------------------------------------------------------------- transparent quads (IHM1 layout)
-    /// Floor light pools (additive): pillars, lamps, vents, beacons; colours pre-scaled like the web (× strength).
+    /// Floor light pools (additive): pillars, lamps, vents, beacons; colours pre-scaled like the web (× strength). The
+    /// lamps, pillars and vents are real grid lights now (WP2, setStationLamps): the fake pools stay at ~40 % of the web's
+    /// as a soft halo.
     private func buildGlowQuads(_ device: MTLDevice) {
         var v: [Float] = []
         var idx: [UInt32] = []

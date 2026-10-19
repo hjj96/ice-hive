@@ -12,7 +12,7 @@
 #   BLENDER_PY=/path/to/python          another venv
 # Steps: kit/build_kit.py (pieces, AO atlas, station.ihk, kit_ao.iht) → kit/trims.py (kit/trims_src → trim_*.iht) →
 # creatures/, characters/, env/ build.sh when present (WP3 / WP4 / WP2 own them; each writes into $OUT/<Folder> and a
-# gates report into reports/) → gates.py.
+# gates report into reports/; without env/build.sh, env/bake_probe.py → Env/station_probe.ihe) → gates.py.
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../.." && pwd)
@@ -33,6 +33,11 @@ build() {
   for d in creatures characters env; do
     if [ -x "$d/build.sh" ]; then BLENDER_PY="$PY" "$d/build.sh" "$out" "$work/$d"; fi
   done
+  # WP2's environment probe (deterministic Cycles bake, ~15 s) until env/ has its own build.sh
+  if [ ! -x env/build.sh ] && [ -f env/bake_probe.py ]; then
+    mkdir -p "$out/Env"
+    "$PY" env/bake_probe.py "$out/Env/station_probe.ihe" > "$work/env.log" 2>&1 || { tail -30 "$work/env.log"; exit 1; }
+  fi
   grep -h '^\[' "$work/kit.log" "$work/trims.log" | grep -v 'Info' | tail -12
 }
 
