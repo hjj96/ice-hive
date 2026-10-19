@@ -184,12 +184,13 @@ final class LightGrid {
     /// 0.42 / 0.5 already show the unlit deck as a dark navy (luma ~22); half of it (horror's "ambient halved", CI
     /// 82f523c) sank the deck into the toe — black on black, the walkways lost against the void, the swarm a black
     /// carpet. The darkness comes from the void, the toe and the light discipline instead; hemisphere and moon a little
-    /// stronger than the web's (CI 1631618 at 0.42 / 0.55: unlit deck luma ~25, world-band median 25 against the blend's
-    /// 35–50) so chamfers, rails and chitin keep a cold edge outside the beams (crisp's readability).
+    /// stronger than the web's (CI 1631618 at 0.42 / 0.55: unlit deck luma ~25, world-band median 25; 858bcdb at 0.55 /
+    /// 0.75: HUD-off swarmshot median 30 against the blend's 35–50) so chamfers, rails and chitin keep a cold edge outside
+    /// the beams and the walkways read off the void (crisp's readability).
     static let skyColor: UInt32 = 0x4a5f86, groundColor: UInt32 = 0x030509
-    static let hemiIntensity: Float = 0.55
+    static let hemiIntensity: Float = 0.68
     static let moonColor: UInt32 = 0x7d98c8
-    static let moonIntensity: Float = 0.75
+    static let moonIntensity: Float = 0.9
     /// Flashlight intensity: about half the web's LDR-tuned 62 player / 42 squad (horror's light discipline — in linear
     /// HDR the old values put the pool on the tone curve's shoulder, a flat pale wedge). The shader's flattened falloff
     /// is normalised to the web's d^-1.35 at 5 m, so the near field (a bug at the barrel, a marine in a squadmate's
@@ -199,14 +200,16 @@ final class LightGrid {
     /// Cool fill light over the squad (readability in the dark): height above the squad's centre, range, intensity.
     static let fillHeight: Float = 4.5, fillRange: Float = 10, fillIntensity: Float = 10
     static let fillColor = F3(0.62, 0.76, 1.0)
-    /// Fog colour of the frame (display value at 0 EV before the grade) and the void the world pass clears to: a deep
-    /// navy between crisp's (16, 29, 45) and horror's near-black (2, 6, 19) — after the grade's toe the void shows
-    /// about (9, 20, 40), the distance fog (10, 21, 41); the abyss below the decks sinks darker (5, 15, 32), so the
-    /// piers stand as silhouettes against the void and the walkways read against both.
-    static let fogDisplay = displayRGB(0x141f34)
-    static let voidDisplay = displayRGB(0x131e33)
+    /// Fog colour of the frame (display value at 0 EV before the grade) and the void the world pass clears to: crisp's
+    /// deep navy — after the grade's toe the void shows about (15, 30, 58), the distance fog (16, 31, 59), in the frame
+    /// with the haze and the motes about (18, 35, 62) (crisp's concept void (20, 36, 57)–(22, 42, 66)); the abyss below
+    /// the decks sinks darker (9, 21, 42), so the near-black piers stand as silhouettes against the void and the
+    /// walkways read against both. The darkness is in the unlit structure, not in the void (CI 858bcdb: a void at
+    /// (9, 20, 40) put half the world band in the toe — median 30).
+    static let fogDisplay = displayRGB(0x192741)
+    static let voidDisplay = displayRGB(0x182640)
     /// Height fog of the abyss: below the lowest deck (the lift, −6 m) the piers sink into this (display) colour.
-    static let abyssDisplay = displayRGB(0x0e1828)
+    static let abyssDisplay = displayRGB(0x121e32)
     static let abyssTop: Float = -6.5, abyssDepth: Float = 9, abyssDensity: Float = 0.92
 
     let hub = LightingHub()
