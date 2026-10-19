@@ -30,14 +30,16 @@ import IceHiveCore
 final class VolumeCones {
     /// In-scatter gain per beam (× the spot's intensity / π) and the beam's visible length (m); the player's is a little
     /// denser. The saturation cap is LightBlock.fogColor.w (radiance a beam adds at most: ~0.13 shows about 95 of 255
-    /// over the dark deck, a veil, never a white-out — four crossed beams stay under the tone curve's shoulder).
+    /// over the dark deck, 0.17 about 110 — a veil, never a white-out: four crossed beams stay under the tone curve's
+    /// shoulder). CI 858bcdb at 0.017 / 0.13: the shafts only lifted their own pools (≤ 35 levels in the calm A/B) and
+    /// vanished in the swarmshot's fire — horror's beams have to read as shafts at phone size, so 0.024 / 0.17.
     /// With the flashlights at half the web's intensity the beams, not the pools, carry the light (horror's discipline):
     /// the air's gentler falloff (Atmosphere.metal fs_cone) puts ~0.08 over the near pool (~0.2), ~0.05 at 9 m where the
     /// pool has dropped to ~0.04, and the shaft fades out from 7 to 16 m (CI 82f523c: with the pool's own falloff the
     /// in-scatter hid inside the pool).
-    static let gain: Float = 0.017, playerGain: Float = 1.15
+    static let gain: Float = 0.024, playerGain: Float = 1.15
     static let length: Float = 16
-    static let cap: Float = 0.13
+    static let cap: Float = 0.17
     /// Cookie and cone of the spots (Lighting.h SPOT_COS_OUT / SPOT_COS_IN, 32 m range).
     static let cosOut: Float = 0.87758, cosIn: Float = 0.97479, range: Float = 32, cookie: Float = 1
 
@@ -110,7 +112,7 @@ final class Atmosphere {
 
     // ---- the look
     /// Fog sheets under the decks: height (m), opacity, noise scale (1/m), drift (m/s), display colour.
-    static let decks: [(Float, Float, Float, Float, UInt32)] = [(-9, 0.5, 0.045, 0.35, 0x0e1622), (-21, 0.7, 0.03, 0.22, 0x0a111b)]
+    static let decks: [(Float, Float, Float, Float, UInt32)] = [(-9, 0.5, 0.045, 0.35, 0x111a28), (-21, 0.7, 0.03, 0.22, 0x0c1420)]
     /// Gains of the weather: snow / mist (× the flashlight in-scatter), motes (× their pink).
     static let snowGain: Float = 0.16, mistGain: Float = 0.15, moteGain: Float = 0.55
     /// Height of the haze plane (level_haze, m): fog decks below it draw before it, the ones above after it.
