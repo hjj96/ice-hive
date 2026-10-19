@@ -36,6 +36,15 @@ enum UIPalette {
     static let bannerRed = rgba(30, 0, 0, 0.55)
     static let bannerTeal = rgba(0, 25, 25, 0.55)
     static let bg = Tone.hex(0x05070a)
+    // v1.1 (web head.html regions A / C / D)
+    static let tealDim = Tone.hex(0x135c57)
+    static let redDim = Tone.hex(0x5c1515)
+    static let cardSel = rgba(20, 30, 40, 0.96)
+    /// The Матка's violet (--thr-queen) and its bar track.
+    static let queen = Tone.hex(0xb866ff)
+    static let queenTrack = rgba(184, 102, 255, 0.16)
+    /// The converging objective box (--thr-red-bg).
+    static let redPanel = rgba(40, 5, 7, 0.9)
     /// Class colours (--c-assault …), index = MarineClass.rawValue.
     static let classColors: [SKColor] = [Tone.hex(0xff4b3e), Tone.hex(0xffb42a), Tone.hex(0x4cc9ff), Tone.hex(0x62ff70)]
 }
@@ -112,7 +121,7 @@ final class Label {
 /// Horizontal bar: track + fill (+ optional top line), anchored at its left-centre.
 final class Bar {
     let node = SKNode()
-    private let track: SKSpriteNode
+    let track: SKSpriteNode
     let fill: SKSpriteNode
     private var topLine: SKSpriteNode?
     private(set) var width: CGFloat
@@ -140,6 +149,14 @@ final class Bar {
         if abs(v - value) < 0.002 { return }
         value = v
         fill.xScale = max(0.0001, v)
+    }
+
+    /// Recolour (the objective bar's threat variants); `texture` = a horizontal gradient for the fill (nil = flat colour).
+    func style(fill c: SKColor, track t: SKColor, texture: SKTexture? = nil) {
+        fill.texture = texture
+        fill.color = texture == nil ? c : .white
+        fill.colorBlendFactor = texture == nil ? 1 : 0
+        track.color = t
     }
 
     func resize(width w: CGFloat) {
@@ -310,14 +327,87 @@ enum Shapes {
     /// A plain panel of any width from one texture per height: the `baseWidth` panel stretched across its uniform
     /// middle with a nine-part centerRect (the cut corners keep their pixels, the middle columns are all the same), so
     /// a panel that follows a growing number gets no new texture per width. Same image as panel(width:height:).
-    static func stretchedPanel(width w0: CGFloat, height h: CGFloat, baseWidth: CGFloat, cut c: CGFloat = 7) -> SKSpriteNode {
+    static func stretchedPanel(width w0: CGFloat, height h: CGFloat, baseWidth: CGFloat, cut c: CGFloat = 7, fill: SKColor = UIPalette.panel,
+                               stroke: SKColor? = nil, lineWidth lw: CGFloat = 1) -> SKSpriteNode {
         let w = max(2, w0.rounded()), bw = max(2, min(baseWidth.rounded(), w))
-        let n = panel(width: bw, height: h, cut: c)
-        let edge = c + 2
-        guard w > bw, bw > 2 * edge else { return bw == w ? n : panel(width: w, height: h, cut: c) }
+        let n = panel(width: bw, height: h, cut: c, fill: fill, stroke: stroke, lineWidth: lw)
+        let edge = c + 2 + (stroke == nil ? 0 : lw)
+        guard w > bw, bw > 2 * edge else { return bw == w ? n : panel(width: w, height: h, cut: c, fill: fill, stroke: stroke, lineWidth: lw) }
         n.centerRect = CGRect(x: edge / bw, y: 0, width: (bw - 2 * edge) / bw, height: 1)
         n.xScale = w / bw
         return n
+    }
+
+    /// Ring with a soft glow (coach target pulse on a round button: `inner` glow toward the centre; around the
+    /// objective marker: outward), cached per look.
+    static func glowRing(radius r: CGFloat, color: SKColor, lineWidth lw: CGFloat = 3, glow: CGFloat = 14, inner: Bool) -> SKTexture {
+        let k = "ring\(Int(r * 10))" + key(color) + "l\(Int(lw * 10))g\(Int(glow))" + (inner ? "i" : "o")
+        if let t = panelCache[k] { return t }
+        let side = ((r + (inner ? 0 : glow)) * 2 + lw).rounded(.up)
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: side, height: side))
+        let image = renderer.image { ctx in
+            let cg = ctx.cgContext
+            let c = CGPoint(x: side / 2, y: side / 2)
+            let steps = 7
+            for i in stride(from: steps, through: 1, by: -1) {
+                let d = glow * CGFloat(i) / CGFloat(steps)
+                let rr = inner ? r - lw / 2 - d : r + lw / 2 + d
+                if rr <= 1 { continue }
+                cg.setStrokeColor(color.withAlphaComponent(0.22 * (1 - CGFloat(i) / CGFloat(steps + 1))).cgColor)
+                cg.setLineWidth(glow / CGFloat(steps) + 1)
+                cg.strokeEllipse(in: CGRect(x: c.x - rr, y: c.y - rr, width: rr * 2, height: rr * 2))
+            }
+            cg.setStrokeColor(color.cgColor)
+            cg.setLineWidth(lw)
+            let rr = r - lw / 2
+            cg.strokeEllipse(in: CGRect(x: c.x - rr, y: c.y - rr, width: rr * 2, height: rr * 2))
+        }
+        let t = SKTexture(image: image)
+        panelCache[k] = t
+        return t
+    }
+
+    /// The coach's ghost thumb (web #ghost::after): a 44 pt disc, white 22 %, 2 pt white 75 % ring, soft white glow.
+    static func ghostThumb() -> SKTexture {
+        let k = "ghostThumb"
+        if let t = panelCache[k] { return t }
+        let r: CGFloat = 22, glow: CGFloat = 18
+        let side = (r + glow) * 2
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: side, height: side))
+        let image = renderer.image { ctx in
+            let cg = ctx.cgContext
+            let c = CGPoint(x: side / 2, y: side / 2)
+            for i in stride(from: 9, through: 1, by: -1) {
+                let rr = r + glow * CGFloat(i) / 9
+                cg.setFillColor(UIColor(white: 1, alpha: 0.035 * (1 - CGFloat(i) / 10)).cgColor)
+                cg.fillEllipse(in: CGRect(x: c.x - rr, y: c.y - rr, width: rr * 2, height: rr * 2))
+            }
+            let disc = CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)
+            cg.setFillColor(UIColor(white: 1, alpha: 0.22).cgColor)
+            cg.fillEllipse(in: disc)
+            cg.setStrokeColor(UIColor(white: 1, alpha: 0.75).cgColor)
+            cg.setLineWidth(2)
+            cg.strokeEllipse(in: disc.insetBy(dx: 1, dy: 1))
+        }
+        let t = SKTexture(image: image)
+        panelCache[k] = t
+        return t
+    }
+
+    /// Horizontal two-colour gradient (the Матка's bar: violet → red), 64 × 4 px, stretched by the bar.
+    static func hGradient(_ a: SKColor, _ b: SKColor) -> SKTexture {
+        let k = "grad" + key(a) + key(b)
+        if let t = panelCache[k] { return t }
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 64, height: 4))
+        let image = renderer.image { ctx in
+            let colors = [a.cgColor, b.cgColor] as CFArray
+            if let g = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1]) {
+                ctx.cgContext.drawLinearGradient(g, start: .zero, end: CGPoint(x: 64, y: 0), options: [])
+            }
+        }
+        let t = SKTexture(image: image)
+        panelCache[k] = t
+        return t
     }
 
     /// Objective marker chevron (points up), amber stroke with a soft glow, as one cached texture.

@@ -94,11 +94,12 @@ final class StickView {
         node.addChild(caption.node)
     }
 
-    func idle(at p: CGPoint) {
+    /// `learned` (VX-5 ghost sticks, after 6 s of stick use): the resting stick is a whisper without its caption.
+    func idle(at p: CGPoint, learned: Bool = false) {
         node.position = p
         knob.position = .zero
-        node.alpha = 0.45
-        caption.node.isHidden = false
+        node.alpha = learned ? 0.16 : 0.45
+        caption.node.isHidden = learned
     }
 
     func active(origin: CGPoint, knob offset: CGPoint) {
@@ -138,6 +139,24 @@ final class HUD {
     private let objText = Label("—", font: Fonts.semibold, size: 16, color: UIPalette.ink, kern: 0.6)
     private let objBar = Bar(width: 200, height: 4, fill: UIPalette.teal, track: UIPalette.tealTrack)
     private var objBottom: CGFloat = 0
+    // v1.1: threat variants of the objective box (waking amber, converging red, the Матка violet) — left edge, colours,
+    // the converging fill; the portrait box is trimmed to one line (VX-5: no «ЗАДАЧА», 13 pt, ≈ 32 pt tall)
+    private let objEdge = SKSpriteNode(color: UIPalette.amber, size: CGSize(width: 3, height: 39))
+    private var objStyle: ObjectiveStyle = .normal
+    private var objRect = CGRect.zero   // x, y = top-left in view points (y down), size
+    private var objTrim = false
+    private var objBarShown = true
+    // coach «Учебная высадка»: card under the objective, ghost thumb, pulsing target
+    let coachCard = CoachCard()
+    private let ghost = CoachGhost()
+    private let abilityRing = SKSpriteNode(texture: nil)
+    private let dashRing = SKSpriteNode(texture: nil)
+    private let markerRing = SKSpriteNode(texture: Shapes.glowRing(radius: 19, color: UIPalette.amber, lineWidth: 3, glow: 12, inner: false))
+    private var coachTarget: CoachTarget? = nil
+    /// Bottom of the top HUD band (objective box, or the coach card under it), view points from the top.
+    private var bandBottom: CGFloat = 0
+    /// VX-5 ghost sticks: the resting sticks fade after 6 s of stick use.
+    var sticksLearned = false
     // squad
     private final class SquadRow {
         let node = SKNode()
@@ -225,6 +244,10 @@ final class HUD {
     private let marker = SKNode()
     private let markerArrow = SKSpriteNode(texture: Shapes.chevron(color: UIPalette.amber))
     private let markerLabel = GlyphLabel("", font: Fonts.monoBold, size: 12, color: UIPalette.amber, charset: GlyphLabel.digits + "м")
+    private static let chevronAmber = Shapes.chevron(color: UIPalette.amber)
+    private static let chevronRed = Shapes.chevron(color: UIPalette.red)
+    /// The swarm converges: red marker throbbing 1 ↔ 1.3 (web #marker.urge).
+    private var markerUrgent = false
     // debug
     /// -debugHUD text: two compact lines in the bottom-left corner.
     let debugLabel = GlyphLabel("", font: Fonts.mono, size: 9, color: UIPalette.teal, charset: GlyphLabel.debugCharset, align: .left, valign: .bottom,
@@ -251,7 +274,13 @@ final class HUD {
         }
         root.addChild(pauseBars)
         root.addChild(objPanel)
+        objEdge.anchorPoint = CGPoint(x: 0, y: 1)
+        objEdge.isHidden = true
+        root.addChild(objEdge)
         root.addChild(objCap.node); root.addChild(objText.node); root.addChild(objBar.node)
+        root.addChild(coachCard.node)
+        for r in [abilityRing, dashRing, markerRing] { r.isHidden = true }
+        markerRing.zPosition = -1
         root.addChild(toastRoot)
         root.addChild(hint.node)
         banner.addChild(bannerBand)
@@ -268,6 +297,14 @@ final class HUD {
         for n in [hpCap.node, hpVal.node, hpBar.node, lvl.node, xpBar.node] as [SKNode] { root.addChild(n) }
         root.addChild(stickL.node); root.addChild(stickR.node)
         root.addChild(dashButton.node); root.addChild(abilityButton.node)
+        abilityRing.texture = Shapes.glowRing(radius: abilityButton.radius, color: UIPalette.amber, lineWidth: 3, glow: 16, inner: true)
+        abilityRing.size = abilityRing.texture?.size() ?? .zero
+        dashRing.texture = Shapes.glowRing(radius: dashButton.radius, color: UIPalette.amber, lineWidth: 3, glow: 14, inner: true)
+        dashRing.size = dashRing.texture?.size() ?? .zero
+        abilityButton.node.addChild(abilityRing); abilityRing.zPosition = 2
+        dashButton.node.addChild(dashRing); dashRing.zPosition = 2
+        root.addChild(ghost.thumb)
+        ghost.thumb.zPosition = 30
         vignette.texture = GeneratedTextures.vignette(edge: UIColor(red: 0.01, green: 0.02, blue: 0.04, alpha: 0.75), inner: 0.42)
         damage.texture = GeneratedTextures.vignette(edge: UIColor(red: 0.86, green: 0.04, blue: 0.04, alpha: 0.9), inner: 0.3)
         horde.texture = damage.texture
@@ -281,6 +318,8 @@ final class HUD {
         plates.root.zPosition = -10
         root.addChild(plates.root)
         marker.addChild(markerArrow)
+        markerRing.size = markerRing.texture?.size() ?? .zero
+        marker.addChild(markerRing)
         markerLabel.node.position = CGPoint(x: 0, y: -22)
         marker.addChild(markerLabel.node)
         marker.isHidden = true
@@ -298,6 +337,7 @@ final class HUD {
         for r in squad { r.node.removeFromParent() }
         squad = marines.map { m in
             let r = SquadRow(name: m.isPlayer ? "ВЫ" : m.name)
+            r.node.isHidden = true   // VX-5: shown only while that squadmate needs attention
             r.chip.color = UIPalette.classColors[m.cls.rawValue]
             r.node.addChild(r.panel); r.node.addChild(r.chip); r.node.addChild(r.name.node); r.node.addChild(r.bar.node)
             root.addChild(r.node)
@@ -314,6 +354,7 @@ final class HUD {
     func layout(size: CGSize, insets: UIEdgeInsets) {
         self.size = size
         self.insets = insets
+        layoutGen += 1
         let W = size.width, H = size.height
         let landscape = W > H
         let sl = max(16, insets.left), sr = max(16, insets.right), st = insets.top, sb = insets.bottom
@@ -341,26 +382,24 @@ final class HUD {
         pauseRect = CGRect(x: W - sr - 52, y: top - 8, width: 60, height: 60)
 
         // objective box: own row in portrait, between the stats and the pause button in landscape
-        objText.size = W <= 600 ? 14 : 16
         objLayoutStatsRight = -1
         fitStats()
 
-        // squad list
+        // squad list (VX-5: rows only for squadmates who need attention, stacked under the top band each frame)
         let rowW: CGFloat = 117, rowH: CGFloat = 22
-        let squadTop = landscape ? top + statsH + 8 : objBottom + 8
-        for (k, r) in squad.enumerated() {
-            let y = squadTop + CGFloat(k) * (rowH + 4)
+        for r in squad {
             r.panel.removeFromParent()
             r.panel = Shapes.panel(width: rowW, height: rowH, cut: 5)
             r.panel.zPosition = -1
             r.node.addChild(r.panel)
-            r.node.position = hp(sl, y)
             r.panel.position = .zero
             r.chip.position = CGPoint(x: 1.5, y: -rowH / 2)
             r.name.node.position = CGPoint(x: 9, y: -rowH / 2)
             r.bar.node.position = CGPoint(x: rowW - 46, y: -rowH / 2)
         }
-        toastRoot.position = hp(W - sr, landscape ? top + 52 : objBottom + 8)
+        squadShown = -1
+        bandBottom = objBottom
+        placeBand()
 
         // bottom: armour + level
         let boxW = landscape ? min(260, W * 0.32) : min(300, W * 0.52)
@@ -394,10 +433,11 @@ final class HUD {
         stickL.idle(at: stickRestL)
         stickR.idle(at: stickRestR)
 
-        // banner
+        // banner (VX-5 portrait: lower, under the trimmed HUD, top at 27 % + safe top; title clamp(24, 7.4 vw, 64))
         let bw = min(560, W * 0.86)
-        banner.position = hp(W / 2, H * (landscape ? 0.24 : 0.17) + st + 40)
-        bannerTitle.size = max(30, min(64, W * 0.08))
+        banner.position = hp(W / 2, H * (landscape ? 0.24 : 0.27) + st + 40)
+        bannerTitle.size = landscape ? max(30, min(64, W * 0.08)) : max(24, min(64, W * 0.074))
+        bannerSub.kern = landscape ? 3.6 : 1.9
         bannerBand.size = CGSize(width: W, height: bannerTitle.size + 22)
         bannerTitle.node.position = CGPoint(x: 0, y: 0)
         bannerSub.node.position = CGPoint(x: 0, y: -bannerTitle.size * 0.5 - 14)
@@ -465,18 +505,77 @@ final class HUD {
             objX = sl
             objY = top + statsH + 8
         }
-        let objH: CGFloat = 46
-        objPanel.removeFromParent()
-        objPanel = Shapes.stretchedPanel(width: objW, height: objH, baseWidth: 160)
-        objPanel.position = hp(objX, objY)
-        objPanel.zPosition = -1
-        root.addChild(objPanel)
+        // VX-5 portrait (≤ 600 pt): one line, no «ЗАДАЧА», 13 pt, ≈ 32 pt tall (web padding 5 / 10 / 6)
+        objTrim = !landscape && W <= 600
+        let objH: CGFloat = objTrim ? 32 : 46
+        objRect = CGRect(x: objX, y: objY, width: objW, height: objH)
+        objCap.node.isHidden = objTrim
+        objText.size = objTrim ? 13 : (W <= 600 ? 14 : 16)
+        objBar.resize(width: objW - (objTrim ? 20 : 32))
+        objBar.node.position = hp(objX + (objTrim ? 10 : 16), objY + objH - (objTrim ? 6 : 5))
         objCap.node.position = hp(objX + objW / 2, objY + 11)
-        objText.node.position = hp(objX + objW / 2, objY + 27)
-        objBar.resize(width: objW - 32)
-        objBar.node.position = hp(objX + 16, objY + objH - 5)
+        placeObjText()
+        objEdge.size = CGSize(width: 3, height: objH - 7)
+        objEdge.position = hp(objX, objY)
+        rebuildObjPanel()
         objBottom = objY + objH
         plates.topLimit = hp(0, objBottom + 4).y
+    }
+
+    /// The objective text: centred in the trimmed box (a little higher while the bar shows), under the caption else.
+    private func placeObjText() {
+        let r = objRect
+        let y = objTrim ? (objBarShown ? r.minY + 13 : r.minY + r.height / 2) : r.minY + 27
+        objText.node.position = hp(r.midX, y)
+    }
+
+    /// Panel texture of the current style (the converging box is filled dark red; one texture per height).
+    private func rebuildObjPanel() {
+        let r = objRect
+        guard r.width > 0 else { return }
+        objPanel.removeFromParent()
+        objPanel = Shapes.stretchedPanel(width: r.width, height: r.height, baseWidth: 160,
+                                         fill: objStyle == .converging ? UIPalette.redPanel : UIPalette.panel)
+        objPanel.position = hp(r.minX, r.minY)
+        objPanel.zPosition = -1
+        root.addChild(objPanel)
+    }
+
+    /// v1.1 objective variants (web .obj-box.press1 / .press2 / .boss): edge, caption / text colours, bar, fill.
+    private func applyObjStyle(_ st: ObjectiveStyle) {
+        let was = objStyle
+        objStyle = st
+        switch st {
+        case .normal:
+            objEdge.isHidden = true
+            objCap.color = UIPalette.amber
+            objText.color = UIPalette.ink
+            objBar.style(fill: UIPalette.teal, track: UIPalette.tealTrack)
+        case .waking:
+            objEdge.isHidden = false; objEdge.color = UIPalette.amber
+            objCap.color = UIPalette.amber
+            objText.color = UIPalette.amber
+            objBar.style(fill: UIPalette.amber, track: UIPalette.amberTrack)
+        case .converging:
+            objEdge.isHidden = false; objEdge.color = UIPalette.red
+            objCap.color = UIPalette.red
+            objText.color = UIPalette.red
+            objBar.style(fill: UIPalette.red, track: UIPalette.amberTrack)
+        case .boss:
+            objEdge.isHidden = false; objEdge.color = UIPalette.queen
+            objCap.color = UIPalette.queen
+            objText.color = UIPalette.ink
+            objBar.style(fill: UIPalette.queen, track: UIPalette.queenTrack, texture: Shapes.hGradient(UIPalette.queen, UIPalette.red))
+        }
+        objBar.fill.alpha = 1
+        if (was == .converging) != (st == .converging) { rebuildObjPanel() }
+    }
+
+    /// Squad alert rows and toasts start under the top band: the objective box, or the coach card while it shows.
+    private func placeBand() {
+        let landscape = size.width > size.height
+        let sr = max(16, insets.right), top = 10 + insets.top
+        toastRoot.position = hp(size.width - sr, landscape ? max(top + 52, bandBottom + 6) : bandBottom + 8)
     }
 
     // ---------------------------------------------------------------- events
@@ -525,8 +624,71 @@ final class HUD {
     private var warming = false
     /// Texts of the glyph labels that start empty (combo, marker distance), kept while the warm-up shows every glyph.
     private var warmTexts = ("", "")
+    /// v1.1 warm-up: every new objective string in its colour and size, the panel variants, the hold hints, the revive
+    /// lines, the coach card, the ghost thumb, the target rings and the urgent marker, drawn once behind the cover.
+    private var warmNode: SKNode?
+    private func warmV11(_ on: Bool) {
+        warmNode?.removeFromParent()
+        warmNode = nil
+        coachCard.hide()
+        ghost.set(.none, at: .zero)
+        abilityRing.isHidden = true; dashRing.isHidden = true; markerRing.isHidden = true
+        markerArrow.texture = HUD.chevronAmber
+        markerLabel.color = UIPalette.amber
+        guard on else { return }
+        let n = SKNode()
+        let W = size.width
+        var y: CGFloat = size.height / 2 - 140
+        let objStrings: [(String, SKColor)] = [
+            ("Улей просыпается — к маяку", UIPalette.amber), ("Рой стягивается — к маяку!", UIPalette.red),
+            ("Улей просыпается — к лифту!", UIPalette.amber), ("Рой стягивается — к лифту!", UIPalette.red),
+            ("Убейте Матку · лифт ждёт", UIPalette.ink), ("Лифт заблокирован — Матка жива", UIPalette.ink)]
+        for (t, c) in objStrings {
+            for sz in [13, 16] as [CGFloat] {
+                let l = Label(t.uppercased(), font: Fonts.semibold, size: sz, color: c, kern: 0.6)
+                l.node.position = CGPoint(x: 0, y: y)
+                n.addChild(l.node)
+                y -= 18
+            }
+        }
+        for cap in [UIPalette.red, UIPalette.queen] {
+            let l = Label("ЗАДАЧА", font: Fonts.medium, size: 12, color: cap, kern: 2.4)
+            l.node.position = CGPoint(x: -W / 4, y: y); n.addChild(l.node); y -= 16
+        }
+        for (fill, edge) in [(UIPalette.panel, UIPalette.amber), (UIPalette.redPanel, UIPalette.red), (UIPalette.panel, UIPalette.queen)] {
+            for h in [32, 46] as [CGFloat] {
+                let pnl = Shapes.stretchedPanel(width: 220, height: h, baseWidth: 160, fill: fill)
+                pnl.position = CGPoint(x: -110, y: y); n.addChild(pnl)
+                let e = SKSpriteNode(color: edge, size: CGSize(width: 3, height: h - 7)); e.anchorPoint = CGPoint(x: 0, y: 1)
+                e.position = CGPoint(x: -110, y: y); n.addChild(e)
+                y -= h + 2
+            }
+        }
+        let bars = [Bar(width: 180, height: 4, fill: UIPalette.amber, track: UIPalette.amberTrack),
+                    Bar(width: 180, height: 4, fill: UIPalette.red, track: UIPalette.amberTrack),
+                    Bar(width: 180, height: 4, fill: UIPalette.queen, track: UIPalette.queenTrack)]
+        bars[2].style(fill: UIPalette.queen, track: UIPalette.queenTrack, texture: Shapes.hGradient(UIPalette.queen, UIPalette.red))
+        for b in bars { b.set(0.6); b.node.position = CGPoint(x: -90, y: y); n.addChild(b.node); y -= 8 }
+        var hints = Difficulty.tiers.map { Game.holdHintText($0) } + CoachText.reviveLines
+        hints.append(contentsOf: ["Вы ранены — союзники идут на помощь", "Встаньте рядом с раненым, чтобы поднять его"])
+        for t in hints {
+            let l = Label(t.uppercased(), font: Fonts.semibold, size: 14, color: UIPalette.amber, kern: 1.1)
+            l.node.position = CGPoint(x: 0, y: y); n.addChild(l.node); y -= 18
+        }
+        root.addChild(n)
+        warmNode = n
+        // the card with a two-line text, the thumb, the rings, the red marker
+        coachCard.show(step: 1, text: CoachText.text(step: 1, abilityShort: "Граната", keyboard: false).uppercased(), centerX: 0,
+                       top: hp(0, objBottom + 2).y, maxWidth: min(W * 0.92, 520))
+        ghost.set(.drag, at: stickRestL)
+        abilityRing.isHidden = false; dashRing.isHidden = false; markerRing.isHidden = false
+        markerArrow.texture = HUD.chevronRed
+        markerLabel.color = UIPalette.red
+    }
+
     func warmUp(_ on: Bool) {
         warming = on
+        warmV11(on)
         if on {
             // every glyph atlas drawn once (an atlas texture is uploaded on its first draw; these two start empty)
             warmTexts = (comboVal.text, markerLabel.text)
@@ -568,8 +730,12 @@ final class HUD {
     /// HUD point inside the pause button?
     func pauseHit(viewPoint p: CGPoint) -> Bool { pauseRect.contains(p) }
 
+    /// HUD point on the coach card's «Пропустить»?
+    func coachSkipHit(_ p: CGPoint) -> Bool { !root.isHidden && coachCard.contains(p) }
+
     // ---------------------------------------------------------------- per frame
-    func update(game: Game, dt: Float, projection: HUDProjection, input: InputController) {
+    /// `keyboard`: the last input was a hardware keyboard (the coach names keys, no ghost thumb).
+    func update(game: Game, dt: Float, projection: HUDProjection, input: InputController, keyboard: Bool = false) {
         let P = game.player
         // fast-changing numbers at 10 Hz (glyph labels: a new value only re-points sprites)
         textT -= dt
@@ -599,23 +765,59 @@ final class HUD {
         let sec = Int(max(0, game.time))
         if sec != timeSec { timeSec = sec; timeVal.set(formatTime(game.time)) }
         let ok = objectiveKey(game)
-        if ok != objKey { objKey = ok; objText.set(game.objectiveText.uppercased()) }
+        if ok != objKey {
+            objKey = ok
+            let st = game.objectiveStyle
+            if st != objStyle { applyObjStyle(st) }
+            objText.set(game.objectiveText.uppercased())
+        }
         let prog = game.objectiveProgress
+        if (prog >= 0) != objBarShown { objBarShown = prog >= 0; placeObjText() }
         objBar.node.isHidden = prog < 0
         objBar.set(CGFloat(max(0, prog)))
-        // contextual hint (the control hint during the first 7 s is the app's job)
+        // the converging bar throbs 1 ↔ 0.45 every 0.6 s (web thr-throb; none with Reduce Motion)
+        if objStyle == .converging && !reducedMotion {
+            objBar.fill.alpha = CGFloat(0.725 + 0.275 * cos(FrameTimer.now() * .pi / 0.6))
+        }
+        updateCoach(game, keyboard: keyboard)
+        // contextual hint (the control hint during the first 7 s is the app's job, not while the coach runs)
         var h = ""
         var urgent = false
-        if let c = game.contextHint { h = c.text; urgent = c.urgent } else if game.time < 7 && !P.downed { h = "Левый палец — бег · правый — прицел и огонь" }
+        if let c = game.contextHint { h = c.text; urgent = c.urgent } else if game.showControlHint && !P.downed { h = "Левый палец — бег · правый — прицел и огонь" }
         if h != hintRaw { hintRaw = h; hint.set(h.uppercased()) }
         if urgent != hintUrgent { hintUrgent = urgent; hint.color = urgent ? UIPalette.red : UIPalette.amber }
         hint.node.alpha = urgent ? (sinf(game.time * 7.85) > 0 ? 1 : 0.35) : 1
 
+        // VX-5: a squadmate's row only while downed, under 35 % armour, or with its plate off screen / under the top band
+        var shown = 0
+        let halfW = size.width / 2, halfH = size.height / 2, bandY = hp(0, bandBottom + 4).y
         for (k, r) in squad.enumerated() where k < game.marines.count {
             let m = game.marines[k]
+            var alert = false
+            if k > 0 {
+                if m.downed || m.hp < m.maxHp * 0.35 { alert = true } else {
+                    let f = projection.feet(k)
+                    let a = projection.hudPoint(f.0, f.1 + 2.55, f.2)
+                    alert = a.x < -halfW || a.x > halfW || a.y > bandY || a.y < -halfH
+                }
+            }
+            if alert { shown |= 1 << k }
+            if !alert { continue }
             r.bar.set(CGFloat(m.hp / max(1, m.maxHp)))
             r.name.color = m.downed ? UIPalette.red : UIPalette.ink
             r.name.node.alpha = m.downed && sinf(game.time * 10.5) < 0 ? 0.3 : 1
+        }
+        if shown != squadShown || bandBottom != squadBand {
+            squadShown = shown
+            squadBand = bandBottom
+            let landscape = size.width > size.height
+            let top0 = landscape ? 10 + insets.top + 40 + 8 : bandBottom + 8
+            var y = top0
+            for (k, r) in squad.enumerated() {
+                let on = shown & (1 << k) != 0
+                r.node.isHidden = !on
+                if on { r.node.position = hp(max(16, insets.left), y); y += 26 }
+            }
         }
         hpBar.set(CGFloat(P.hp / max(1, P.maxHp)))
         if game.xpLevel != levelShown { levelShown = game.xpLevel; lvl.set("УР \(game.xpLevel)") }
@@ -628,12 +830,12 @@ final class HUD {
         if let l = input.left {
             stickL.active(origin: hp(l.origin.x, l.origin.y), knob: input.knobOffset(l))
         } else {
-            stickL.idle(at: stickRestL)
+            stickL.idle(at: stickRestL, learned: sticksLearned)
         }
         if let r = input.right {
             stickR.active(origin: hp(r.origin.x, r.origin.y), knob: input.knobOffset(r))
         } else {
-            stickR.idle(at: stickRestR)
+            stickR.idle(at: stickRestR, learned: sticksLearned)
         }
 
         // toasts
@@ -669,7 +871,8 @@ final class HUD {
         let low: Float = !P.downed && P.hp < P.maxHp * 0.3 ? 0.35 + 0.15 * sinf(wall * 6.25) : 0
         damage.alpha = CGFloat(min(1, max(damageA, low, P.downed ? 0.5 : 0)))
         flash.alpha = CGFloat(flashA * 0.45)
-        horde.alpha = CGFloat(hordeA * (0.6 + 0.4 * sinf(wall * 11.1)))
+        // VX-5: the horde glow peaks at 0.7 on a phone screen
+        horde.alpha = CGFloat(hordeA * (0.6 + 0.4 * sinf(wall * 11.1)) * 0.7)
         // full-screen quads: skip the fill entirely while invisible
         for n in overlays { n.isHidden = n.alpha < 0.004 }
         banner.isHidden = banner.alpha < 0.004
@@ -678,7 +881,8 @@ final class HUD {
         updateMarker(game: game, projection: projection)
     }
 
-    /// Changes whenever objectiveText would (stage, active beacon, beacons done, lift countdown second).
+    /// Changes whenever objectiveText / objectiveStyle would (stage, active beacon, beacons done, threat state, the lift
+    /// lock, lift countdown second).
     private func objectiveKey(_ g: Game) -> Int {
         if g.attract { return -1 }
         let st: Int
@@ -689,8 +893,66 @@ final class HUD {
         case .extract: st = 4
         }
         let lift = st == 3 ? Int(g.liftT.rounded(.up)) : 0
-        return ((st * 16 + (g.activeBeacon + 1)) * 16 + g.beaconsDone) * 100_000 + lift
+        let threat = g.threatState.rawValue, locked = g.liftLocked ? 1 : 0
+        return ((((st * 16 + (g.activeBeacon + 1)) * 16 + g.beaconsDone) * 4 + threat) * 2 + locked) * 100_000 + lift
     }
+
+    private var squadShown = -1
+    private var squadBand: CGFloat = -1
+
+    /// «Учебная высадка»: the card for the current step (touch or keyboard text), under it the alerts and toasts; the
+    /// ghost thumb on the control of the step, its target pulsing (wall time; slower with Reduce Motion).
+    private func updateCoach(_ game: Game, keyboard: Bool) {
+        coachCard.reducedMotion = reducedMotion
+        ghost.reducedMotion = reducedMotion
+        let target = warming ? nil : game.coach.target
+        let W = size.width
+        if let t = target {
+            let step = game.coach.step
+            let top = objBottom + 2
+            // the card text is built only when the step, the input mode or the layout changes (no per-frame strings)
+            if step != cardStep || keyboard != cardKeyboard || layoutGen != cardLayoutGen || !coachCard.visible {
+                cardStep = step; cardKeyboard = keyboard; cardLayoutGen = layoutGen
+                let text = CoachText.text(step: step, abilityShort: game.player.spec.abilityShort, keyboard: keyboard).uppercased()
+                coachCard.show(step: step, text: text, centerX: 0, top: hp(0, top).y, maxWidth: min(W * 0.92, 520))
+            }
+            coachCard.update(top: hp(0, top).y)
+            let bb = top + coachCard.height
+            if bb != bandBottom { bandBottom = bb; placeBand() }
+            if t != coachTarget || keyboard != coachKeyboard {
+                coachTarget = t
+                coachKeyboard = keyboard
+                switch t {
+                case .moveStick: ghost.set(keyboard ? .none : .drag, at: stickRestL)
+                case .aimStick: ghost.set(keyboard ? .none : .drag, at: stickRestR)
+                case .ability: ghost.set(keyboard ? .none : .tap, at: abilityButton.node.position)
+                case .dash: ghost.set(keyboard ? .none : .tap, at: dashButton.node.position)
+                case .objective: ghost.set(.none, at: .zero)
+                }
+                abilityRing.isHidden = t != .ability
+                dashRing.isHidden = t != .dash
+                markerRing.isHidden = t != .objective
+            }
+            ghost.update()
+            // target pulses: the button ring 0.15 ↔ 1 (0.9 s), the marker ring 0.8 ↔ 1.15 with 0.2 ↔ 1
+            let p = ghost.pulse(0.9)
+            if t == .ability { abilityRing.alpha = 0.15 + 0.85 * p }
+            if t == .dash { dashRing.alpha = 0.15 + 0.85 * p }
+            if t == .objective { markerRing.alpha = 0.2 + 0.8 * p; markerRing.setScale(0.8 + 0.35 * p) }
+        } else if coachTarget != nil || coachCard.visible {
+            if !warming {
+                coachTarget = nil
+                coachCard.hide()
+                ghost.set(.none, at: .zero)
+                abilityRing.isHidden = true; dashRing.isHidden = true; markerRing.isHidden = true
+                if bandBottom != objBottom { bandBottom = objBottom; placeBand() }
+            }
+        }
+    }
+    private var coachKeyboard = false
+    private var cardStep = -1, cardKeyboard = false, cardLayoutGen = -1
+    /// Bumped by every layout (rotation, safe area): the coach card is laid out again.
+    private var layoutGen = 0
 
     /// Metres last written into the marker label (the string is only formatted when it changes).
     private var markerDist = -1
@@ -698,14 +960,28 @@ final class HUD {
     private func updateMarker(game: Game, projection: HUDProjection) {
         guard let t = game.objectiveMarker else { marker.isHidden = true; return }
         marker.isHidden = false
+        let urgent = game.markerUrgent
+        if urgent != markerUrgent {
+            markerUrgent = urgent
+            markerArrow.texture = urgent ? HUD.chevronRed : HUD.chevronAmber
+            markerLabel.color = urgent ? UIPalette.red : UIPalette.amber
+            if !urgent { marker.setScale(1) }
+        }
+        // web thr-urge: 1 ↔ 1.3 every 0.6 s (none with Reduce Motion)
+        if urgent && !reducedMotion { marker.setScale(1.15 - 0.15 * CGFloat(cos(FrameTimer.now() * .pi / 0.6))) }
         let gy = game.level.groundY(t.x, t.y)
         let s = projection.hudPoint(t.x, gy + 1.2, t.y)
         let P = game.player
         let dist = hypotf(t.x - P.x, t.y - P.z)
         let dm = Int(dist.rounded())
         if dm != markerDist { markerDist = dm; markerLabel.set("\(dm) м") }
-        let mx = size.width / 2 - 40, myTop = size.height / 2 - objBottom - 30, myBot = -size.height / 2 + 150
-        let inside = abs(s.x) < mx && s.y < myTop && s.y > myBot
+        let mx = size.width / 2 - 40, myTop = size.height / 2 - bandBottom - 30, myBot = -size.height / 2 + 150
+        // VX-5: the block holding РЫВОК and the ability button (+ 20 pt): an on-screen marker there counts as off screen,
+        // an edge arrow that would land in it stops where its ray enters it (web mkBlockX / mkBlockY)
+        let ar = abilityButton.radius, dr = dashButton.radius
+        let blockX = min(abilityButton.node.position.x - ar, dashButton.node.position.x - dr) - 20
+        let blockTop = max(abilityButton.node.position.y + ar, dashButton.node.position.y + dr) + 20
+        let inside = abs(s.x) < mx && s.y < myTop && s.y > myBot && !(s.x > blockX && s.y < blockTop)
         if inside {
             marker.position = CGPoint(x: s.x, y: s.y + 18)
             markerArrow.zRotation = .pi
@@ -718,6 +994,12 @@ final class HUD {
             if abs(dx) > 1e-4 { k = min(k, mx / abs(dx)) }
             if dy > 1e-4 { k = min(k, myTop / dy) }
             if dy < -1e-4 { k = min(k, -myBot / -dy) }
+            if dx * k > blockX && dy * k < blockTop {
+                var ke: CGFloat = 0
+                if blockX > 0 && dx > 1e-4 { ke = blockX / dx }
+                if blockTop < 0 && dy < -1e-4 { ke = max(ke, blockTop / dy) }
+                k = ke
+            }
             marker.position = CGPoint(x: dx * k, y: dy * k)
             markerArrow.zRotation = CGFloat(atan2(Double(dy), Double(dx))) - .pi / 2
             markerArrow.setScale(1)

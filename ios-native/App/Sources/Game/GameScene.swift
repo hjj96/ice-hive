@@ -35,10 +35,26 @@ final class GameScene: SKScene {
     private var demo: DemoScript?
     private var selectedClass: MarineClass = .assault
     private var surrendered = false
-    /// Settings and records (UserDefaults, v1 values migrated on the first launch).
-    private let settings = SettingsStore()
-    /// Menu / card / title buttons fire when the finger lifts over the target it went down on (web onTap).
-    private enum TapTarget: Equatable { case title(TitleScreen.Action), card(Int), menu(MenuScreen.Action) }
+    /// Settings and records (UserDefaults, v1 values migrated on the first launch). Demos keep the v1.1 meta keys
+    /// (profile, tier pick, coach flag, stick seconds) in memory, seeded by `-profile` / `-report` (DemoFixtures).
+    private let settings: SettingsStore
+    /// Menu / card / title buttons fire when the finger lifts over the target it went down on (web onTap); so does the
+    /// coach card's «Пропустить» (a tap target, not a stick touch: it works while a thumb rests on the move stick).
+    private enum TapTarget: Equatable { case title(TitleScreen.Action), card(Int), menu(MenuScreen.Action), coachSkip }
+    /// How a mission starts (v1.1): an explicit tier / coach, else the rules of `startMission`.
+    struct MissionOptions {
+        var tier: Int? = nil
+        var coach: Bool? = nil
+    }
+    /// The report of the mission that just ended (its buttons act on it).
+    private var report: MissionReport?
+    /// Rank-up haptic, 0.65 s after the report (scene time), -1 = none.
+    private var rankUpHapticAt: Double = -1
+    /// Cumulative thumb-stick seconds (VX-5 ghost sticks fade at 6; saved per whole second until then).
+    private var stickUse: Float = 0
+    /// Last logged threat state / lift lock (diagnostics lines on change).
+    private var threatLogged = -1
+    private var liftLockLogged = false
     private var taps: [ObjectIdentifier: TapTarget] = [:]
     /// Combo count of the last `.combo` event (pitch of the combo chime that follows it).
     private var comboForSound = 0
@@ -99,6 +115,7 @@ final class GameScene: SKScene {
         self.metalPreload = metalPreload
         self.options = options
         self.host = host
+        settings = options.demo != nil ? SettingsStore(volatileMeta: DemoFixtures.meta(options: options)) : SettingsStore()
         super.init(size: size)
         // the scene only draws the HUD / menus / loading cover over the composited world
         backgroundColor = .clear
@@ -111,6 +128,15 @@ final class GameScene: SKScene {
         if !settings.migrated.isEmpty { AppLog.info("settings: migrated from v1: " + settings.migrated.joined(separator: ",")) }
         AppLog.info("settings: cls=\(settings.cls) best=\(settings.bestKills)/\(settings.bestWin)s muted=\(settings.muted) vol=\(settings.vol) "
                     + "haptics=\(settings.haptics) quality=\(settings.quality)")
+        let p = settings.profile
+        AppLog.info("v11 meta: runs=\(p.runs) wins=\(p.wins) pick=\(settings.diffPick.map { String($0) } ?? "-") tut=\(settings.tutSeen ? 1 : 0) "
+                    + "sticks=\(settings.stickSeconds) tier=\(Difficulty.tier(settings.effectiveTier).id) first=\(settings.isFirstMission ? 1 : 0)"
+                    + (settings.volatileMeta ? " (demo, in memory)" : ""))
+        stickUse = Float(settings.stickSeconds)
+        hud.sticksLearned = settings.stickSeconds >= 6
+        if let st = options.station {
+            AppLog.info("v11 station \(st) ignored: generated stations are off (AppFeatures.generatedStations)")
+        }
     }
 
     required init?(coder aDecoder: NSCoder) {
@@ -279,18 +305,18 @@ final class GameScene: SKScene {
         AppLog.info("memory warning: " + before + " → " + Memory.summary)
     }
 
-    /// «Рекорд: N убито · лучшая эвакуация M:SS» (web tBest), nil before the first mission.
-    private var recordLine: String? {
-        if settings.bestKills == 0 && settings.bestWin == 0 { return nil }
-        var s = "Рекорд: \(settings.bestKills) убито"
-        if settings.bestWin > 0 { s += " · лучшая эвакуация " + formatTime(Float(settings.bestWin)) }
-        return s
-    }
-
     private var insets: UIEdgeInsets { host?.safeAreaInsets ?? .zero }
 
+    /// Station of the title and the missions («Кельвин-9» while generated stations are off).
+    private var stationName: String { level?.layout.name ?? "Кельвин-9" }
+
+    /// The title (v1.1): profile line instead of the record, rank chips + medal pips on the class cards, the tier row.
     private func layoutTitle() {
-        titleScreen.layout(size: size, insets: insets, selected: selectedClass, soundOn: !settings.muted, record: recordLine)
+        let t = settings.effectiveTier
+        titleScreen.layout(size: size, insets: insets, selected: selectedClass, soundOn: !settings.muted,
+                           meta: TitleScreen.Meta(profile: settings.profile, tier: t, station: stationName),
+                           layoutCheck: options.layoutCheck)
+        AppLog.info("v11 title tier=\(Difficulty.tier(t).id) runs=\(settings.profile.runs) pick=\(settings.diffPick.map { String($0) } ?? "-")")
     }
 
     private func startAfterLoading() {
@@ -313,6 +339,9 @@ final class GameScene: SKScene {
         input.viewSize = size
         hud.layout(size: size, insets: insets)
         if mode == .title { layoutTitle() }
+        // a rotation under the pause menu or the report lays it out again for the new size
+        if mode == .paused { menu.showPause(size: size, state: pauseState, layoutCheck: options.layoutCheck, insets: insets) }
+        if mode == .ended, let r = report { menu.showEnd(size: size, insets: insets, report: r, layoutCheck: options.layoutCheck) }
     }
 
     override func didChangeSize(_ oldSize: CGSize) {
@@ -321,11 +350,17 @@ final class GameScene: SKScene {
     }
 
     // ---------------------------------------------------------------- modes
-    private func newGame(attract: Bool) -> Game? {
+    private func newGame(attract: Bool, tier: Int = 1, coach: Bool = false) -> Game? {
         guard let lv = level else { return nil }
         var cfg = GameConfig()
         cfg.quality = QualityTier(rawValue: qualityName) ?? .med
         cfg.attract = attract
+        // v1.1: the tier is fixed for the mission; the coach and the revive line only in real missions
+        cfg.difficulty = Difficulty.tier(tier)
+        cfg.coach = coach && !attract
+        cfg.reviveLineArmed = !attract && settings.profile.runs < 3
+        if options.queen { cfg.queenAt = 0 }
+        cfg.queenHp = options.queenHp
         let seed: UInt32 = options.seed ?? UInt32(truncatingIfNeeded: Int(Date().timeIntervalSince1970 * 1000) & 0x7fff_ffff)
         return Game(seed: seed, playerClass: selectedClass, config: cfg, level: lv)
     }
@@ -348,12 +383,21 @@ final class GameScene: SKScene {
         AppLog.info("mode title")
     }
 
-    private func startMission(_ cls: MarineClass) {
+    /// «В бой», «Ещё раз», pause «Обучение» (coach), the report chip (after `setDiff(0)`): the tier is re-evaluated
+    /// for every mission (spec §1.2) unless given; the coach runs on the first mission ever (or when asked).
+    private func startMission(_ cls: MarineClass, _ mo: MissionOptions = MissionOptions()) {
         selectedClass = cls
         if demo == nil { settings.setClass(cls.id) }
-        guard let g = newGame(attract: false) else { return }
+        let tier: Int
+        if let t = mo.tier { tier = t } else if let d = demo { tier = options.tier ?? d.defaultTier ?? settings.effectiveTier } else { tier = settings.effectiveTier }
+        let coach = mo.coach ?? options.coach ?? ((demo == nil || demo?.name == "coach") ? settings.isFirstMission : false)
+        guard let g = newGame(attract: false, tier: tier, coach: coach) else { return }
         game = g
         surrendered = false
+        report = nil
+        rankUpHapticAt = -1
+        threatLogged = -1
+        liftLockLogged = false
         world?.reset()
         cameraCtl.reset()
         input.reset()
@@ -371,6 +415,7 @@ final class GameScene: SKScene {
         applyFrameRate()
         demo?.begin(game: g)
         AppLog.info("mode playing class=\(cls.id) seed=\(g.seed) demo=\(demo?.name ?? "-")")
+        AppLog.info("v11 start tier=\(g.difficulty.id) coach=\(g.coach.active ? 1 : 0) station=\(g.stationName) seed=\(g.seed)")
     }
 
     /// Thumbs held through a level-up or the pause menu keep steering afterwards (web showScreen): the sticks stay,
@@ -400,14 +445,15 @@ final class GameScene: SKScene {
     }
 
     private var pauseState: MenuScreen.PauseState {
-        MenuScreen.PauseState(soundOn: !settings.muted, volume: settings.vol, quality: settings.quality, hapticsOn: settings.haptics)
+        MenuScreen.PauseState(soundOn: !settings.muted, volume: settings.vol, quality: settings.quality, hapticsOn: settings.haptics,
+                              tierName: game?.difficulty.name ?? Difficulty.veteran.name)
     }
 
     private func pause() {
         guard mode == .playing else { return }
         mode = .paused
         input.consumePresses()
-        menu.showPause(size: size, state: pauseState)
+        menu.showPause(size: size, state: pauseState, layoutCheck: options.layoutCheck, insets: insets)
         audio?.play(.click, pos: nil, listener: listener())
         applyFrameRate()
     }
@@ -419,20 +465,30 @@ final class GameScene: SKScene {
         applyFrameRate()
     }
 
+    /// Mission end (v1.1 spec §2.11): the run is committed into the profile once (surrender counts as a loss; demos
+    /// commit into their in-memory profile), then the report (MissionReport, built in the core) is laid out.
     private func showEnd() {
-        guard let g = game else { return }
+        guard let g = game, mode != .ended else { return }
         mode = .ended
         input.reset()
         taps.removeAll()
-        var newRecord = false
-        if demo == nil {
-            newRecord = settings.recordMission(kills: g.kills, won: g.phase == .won, time: g.time)
-        } else if demo?.name == "end" {
-            newRecord = true   // CI screenshot of the record highlight
-        }
-        menu.showEnd(size: size, stats: g.stats, surrendered: surrendered, newRecord: newRecord)
+        let won = g.phase == .won
+        if demo == nil { settings.recordMission(kills: g.kills, won: won, time: g.time) }
+        let run = g.runSummary(won: won, surrendered: surrendered)
+        var prof = settings.profile
+        let res = prof.commit(run, diffPicked: settings.diffPick != nil)
+        settings.saveProfile(prof)
+        let rep = MissionReport.make(run: run, result: res, profile: prof, stats: g.stats, newStationShown: AppFeatures.generatedStations)
+        report = rep
+        menu.showEnd(size: size, insets: insets, report: rep, layoutCheck: options.layoutCheck)
+        if res.rankUp { rankUpHapticAt = lastTime + 0.65 }
         applyFrameRate()
-        AppLog.info("mission over won=\(g.phase == .won) time=\(formatTime(g.time)) kills=\(g.kills) record=\(newRecord)")
+        let q = !run.queenSpawned ? "none" : (run.queenDone ? "killed" : "alive")
+        AppLog.info("mission over won=\(won) time=\(formatTime(g.time)) kills=\(g.kills) record=\(res.record)")
+        AppLog.info("v11 run tier=\(g.difficulty.id) won=\(won ? 1 : 0) surrendered=\(run.surrendered ? 1 : 0) downs=\(run.downs) "
+                    + "downBy=\(run.downBy.rawValue) stage=\(run.stage.rawValue) beacons=\(run.beaconsDone) queen=\(q) score=\(res.score.total) "
+                    + "xp=\(res.xp) rank=\(res.rank0)→\(res.rank1) medal=\(res.medal ? 1 : 0) recTip=\(res.recTip ? 1 : 0) record=\(res.record ? 1 : 0) "
+                    + String(format: "t=%.0f", g.time))
     }
 
     /// App went to the background: pause like the web game.
@@ -458,7 +514,7 @@ final class GameScene: SKScene {
             case .paused, .ended:
                 if let a = menu.hit(h) { taps[id] = .menu(a) }
             case .playing:
-                if hud.pauseHit(viewPoint: p) { pause() } else { input.began(t, at: p) }
+                if hud.pauseHit(viewPoint: p) { pause() } else if hud.coachSkipHit(h) { taps[id] = .coachSkip } else { input.began(t, at: p) }
             }
         }
     }
@@ -482,6 +538,8 @@ final class GameScene: SKScene {
                 if mode == .levelUp && levelUpScreen.hit(h) == k { chooseCard(k) }
             case .menu(let a):
                 if (mode == .paused || mode == .ended) && menu.hit(h) == a { menuAction(a) }
+            case .coachSkip:
+                if mode == .playing && hud.coachSkipHit(h) { game?.coachSkip() }
             }
         }
     }
@@ -509,6 +567,12 @@ final class GameScene: SKScene {
             audio?.master = settings.masterVolume
             layoutTitle()
             audio?.play(.click, pos: nil, listener: listener())
+        case .tier(let i):
+            // one tap = the player's pick (stored), the row redrawn
+            settings.setDiff(i)
+            layoutTitle()
+            audio?.play(.click, pos: nil, listener: listener())
+            haptics.play(.select)
         }
     }
 
@@ -540,27 +604,31 @@ final class GameScene: SKScene {
             settings.setMuted(!settings.muted)
             audio?.master = settings.masterVolume
             audio?.play(.click, pos: nil, listener: listener())
-            menu.showPause(size: size, state: pauseState)
+            menu.showPause(size: size, state: pauseState, layoutCheck: options.layoutCheck, insets: insets)
         case .volume:
             settings.cycleVolume()
             if settings.muted { settings.setMuted(false) }
             audio?.master = settings.masterVolume
             audio?.play(.click, pos: nil, listener: listener())
-            menu.showPause(size: size, state: pauseState)
+            menu.showPause(size: size, state: pauseState, layoutCheck: options.layoutCheck, insets: insets)
         case .quality:
             let order = ["auto", "low", "med", "high"]
             let k = order.firstIndex(of: settings.quality) ?? 0
             settings.setQuality(order[(k + 1) % order.count])
             applyQuality()
             audio?.play(.click, pos: nil, listener: listener())
-            menu.showPause(size: size, state: pauseState)
+            menu.showPause(size: size, state: pauseState, layoutCheck: options.layoutCheck, insets: insets)
             AppLog.info("quality \(settings.quality) bugCap=\(game?.bugCap ?? 0)")
         case .haptics:
             settings.setHaptics(!settings.haptics)
             haptics.enabled = settings.haptics
             audio?.play(.click, pos: nil, listener: listener())
             haptics.play(.select)
-            menu.showPause(size: size, state: pauseState)
+            menu.showPause(size: size, state: pauseState, layoutCheck: options.layoutCheck, insets: insets)
+        case .tutorial:
+            // «Обучение»: the current class again, with «Учебная высадка» (the abandoned mission is not committed)
+            audio?.play(.click, pos: nil, listener: listener())
+            startMission(selectedClass, MissionOptions(coach: true))
         case .quit:
             // web endGame(false, true): the defeat sting, no error haptic
             surrendered = true
@@ -568,12 +636,19 @@ final class GameScene: SKScene {
             audio?.play(.click, pos: nil, listener: listener())
             audio?.play(.defeat, pos: nil, listener: listener())
             showEnd()
-        case .again:
+        case .again, .newStation:
+            // (no «Новая станция» while generated stations are off: same station either way)
             audio?.play(.click, pos: nil, listener: listener())
             startMission(selectedClass)
         case .changeClass:
             audio?.play(.click, pos: nil, listener: listener())
             showTitle()
+        case .chip:
+            // «Попробуйте «Новобранец»» (only on the report of a loss): the pick becomes Новобранец, same class again
+            guard mode == .ended, report?.won == false else { return }
+            settings.setDiff(0)
+            audio?.play(.click, pos: nil, listener: listener())
+            startMission(selectedClass)
         }
     }
 
@@ -633,6 +708,7 @@ final class GameScene: SKScene {
                 switch rq {
                 case .pause: pause()
                 case .surrender: if mode == .playing { pause(); menuAction(.quit) }
+                case .end: if mode == .playing { showEnd() }
                 }
             }
             acc += Double(dt * ts)
@@ -648,6 +724,8 @@ final class GameScene: SKScene {
         drainEvents(g, r)
         sceneTimer.mark()
 
+        if mode == .playing { trackV11(g, dt) }
+        if rankUpHapticAt > 0 && lastTime >= rankUpHapticAt { rankUpHapticAt = -1; haptics.play(.success) }
         if mode == .playing && g.wantsLevelUp && !g.autoPickUpgrades { openLevelUp() }
         // the report comes up at once over the frozen world, like the web endGame()
         if mode == .playing && g.phase != .playing && demo == nil { showEnd() }
@@ -665,14 +743,14 @@ final class GameScene: SKScene {
         renderTime += vdt
         let P = g.player
         let feet = (P.px + (P.x - P.px) * alpha, g.level.groundY(P.x, P.z), P.pz + (P.z - P.pz) * alpha)
-        cameraCtl.update(game: g, feet: feet, dt: max(dt, 0.0001), viewSize: size, title: mode == .title, liftRise: g.liftRise)
+        let near = g.bugCountNear(Vec2(cameraCtl.tx, cameraCtl.tz))
+        cameraCtl.update(game: g, feet: feet, dt: max(dt, 0.0001), viewSize: size, title: mode == .title, liftRise: g.liftRise, bugsNear: near)
         sceneTimer.mark()
         let t1r = FrameTimer.now()
         r.update(game: g, alpha: alpha, dt: vdt, time: renderTime, camera: cameraCtl, viewSize: size, frozen: !live)
         sceneTimer.mark()
-        if mode != .title { hud.update(game: g, dt: dt, projection: r, input: input) }
+        if mode != .title { hud.update(game: g, dt: dt, projection: r, input: input, keyboard: input.keyboardMode) }
         sceneTimer.mark()
-        let near = g.bugCountNear(Vec2(cameraCtl.tx, cameraCtl.tz))
         audio?.update(dt: dt, game: g, bugsNear: near, listener: listener(), title: mode == .title, live: live)
         sceneTimer.mark()
         let t2 = FrameTimer.now()
@@ -748,10 +826,56 @@ final class GameScene: SKScene {
             case .queenKilled:
                 // v1.1: the Матка's death always gets its hit-stop (the core emits it right after this event)
                 hitStopCd = 0
+                logQueen("kill", g)
+            case .queenWarning:
+                logQueen("warn", g)
+            case .queenSpawned:
+                logQueen("spawn", g)
+            case .queenEnraged:
+                logQueen("enrage", g)
+            case .coachStep(let k):
+                if diag { AppLog.info("v11 coach step=\(k)") }
+            case .coachSeen:
+                // «Учебная высадка» seen enough: never forced again (memory only in demos)
+                settings.setTutSeen()
+                if diag { AppLog.info("v11 coach seen") }
+            case .coachEnded:
+                if diag { AppLog.info("v11 coach end") }
             default:
                 break
             }
         }
+    }
+
+    /// v1.1 per frame while playing: diagnostics lines on threat / lift-lock changes, and the thumb-stick seconds
+    /// (stored per whole second until 6, then the resting sticks fade: VX-5 ghost sticks).
+    private func trackV11(_ g: Game, _ dt: Float) {
+        if AppLog.diagnostics {
+            let ts = g.threatState.rawValue
+            if ts != threatLogged {
+                threatLogged = ts
+                AppLog.info(String(format: "v11 threat %d t=%.1f", ts, g.time) + String(format: " pressure=%.1f", g.pressure))
+            }
+            let locked = g.liftLocked
+            if locked != liftLockLogged {
+                liftLockLogged = locked
+                if locked { AppLog.info(String(format: "v11 lift locked t=%.1f", g.time)) }
+            }
+        }
+        if stickUse < 6 && (input.left != nil || input.right != nil) {
+            stickUse += dt
+            let whole = Int(stickUse)
+            if whole > settings.stickSeconds { settings.setStickSeconds(whole) }
+            if stickUse >= 6 { hud.sticksLearned = true }
+        }
+    }
+
+    /// «v11 queen warn|spawn|enrage|kill t= uid= hp=» (diagnostics; her health from the core's threat view).
+    private func logQueen(_ what: String, _ g: Game) {
+        guard AppLog.diagnostics else { return }
+        let td = g.threatDebug
+        AppLog.info(String(format: "v11 queen %@ t=%.1f uid=%d hp=%.0f", what, g.time, Int(g.queen.uid), td.queenHpMax)
+                    + " tier=\(g.difficulty.id)")
     }
 
     /// `-demo probe`: one ingredient of a horde at a time, logged, so CI can tell which one hitches.
@@ -803,22 +927,28 @@ final class GameScene: SKScene {
             // the menus too (their first build + first draw cost 40–80 ms: CI pause / end): pause, then the report,
             // then level-up cards, each drawn a few frames under the cover
             if mode == .playing || mode == .title { menu.showPause(size: size, state: pauseState) }
+            // the title with its tier row and profile line is on screen behind the cover in a normal launch already
             menuWarm = 1
         }
         // (a menu the game itself opened meanwhile — a slow first launch, a demo — is left alone)
         let menuUp = mode == .levelUp || mode == .paused || mode == .ended
-        if coverStage == 1 && menuWarm == 1 && coverFrames >= 6, let g = game {
-            if !menuUp { menu.showEnd(size: size, stats: g.stats, surrendered: false, newRecord: true) }
+        // the report twice: a won run (record, medal, rank-up) and a lost one (tips, chip)
+        if coverStage == 1 && menuWarm == 1 && coverFrames >= 5, let g = game {
+            if !menuUp { menu.showEnd(size: size, insets: insets, report: DemoFixtures.warmReport(cls: selectedClass, won: true, stats: g.stats, station: g.stationName)) }
             menuWarm = 2
         }
-        if coverStage == 1 && menuWarm == 2 && coverFrames >= 10 {
+        if coverStage == 1 && menuWarm == 2 && coverFrames >= 8, let g = game {
+            if !menuUp { menu.showEnd(size: size, insets: insets, report: DemoFixtures.warmReport(cls: selectedClass, won: false, stats: g.stats, station: g.stationName)) }
+            menuWarm = 4
+        }
+        if coverStage == 1 && menuWarm == 4 && coverFrames >= 11 {
             if !menuUp {
                 menu.hide()
                 levelUpScreen.show(level: 2, offer: Array(UPGRADES.prefix(3)), counts: [:], cls: selectedClass, size: size, insets: insets)
             }
             menuWarm = 3
         }
-        if coverStage == 1 && coverFrames >= hold - 5 {
+        if coverStage == 1 && coverFrames >= hold - 4 {
             coverStage = 2
             hud.warmUp(false)
             hud.visible = hudWasVisible

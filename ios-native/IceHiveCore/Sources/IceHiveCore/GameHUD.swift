@@ -114,7 +114,8 @@ extension Game {
     /// The lift-pulse hint of this tier («Защитный контур лифта бьёт током каждые 5 с» / «Контур бьёт каждые 6 с — …»).
     public var holdHint: String { holdHintLine.text }
 
-    static func holdHintText(_ d: Difficulty) -> String {
+    /// The hold hint of a tier (public: the HUD warms all three).
+    public static func holdHintText(_ d: Difficulty) -> String {
         let n = Int(d.pulseInterval)
         return d.pulseFalloff > 0 ? "Контур бьёт каждые \(n) с — у края слабее, держитесь центра" : "Защитный контур лифта бьёт током каждые \(n) с"
     }

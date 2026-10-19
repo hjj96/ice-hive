@@ -1,0 +1,432 @@
+import SpriteKit
+import UIKit
+import IceHiveCore
+
+// ================================================================
+//  PAUSE / END — boxes with buttons (web .m-box with the hazard band).
+//  Pause (v1.1): «ПАУЗА · ВЕТЕРАН» and «Обучение» after «Графика».
+//  End (v1.1, web D report): the core's MissionReport laid out in two
+//  columns — A: tag, title, subtitle, the stage strip, the score with its
+//  breakdown and the tier line, the mini numbers; B: the class rank card,
+//  a new medal, tips (loss cause, «дольше», promo), the «Новобранец» chip,
+//  the next goal and the buttons. Portrait stacks A over B; landscape puts
+//  them side by side with the buttons above the fold. When the screen is
+//  short the layout tightens, then drops the subtitle, then the second tip.
+// ================================================================
+final class MenuScreen {
+    enum Action: Equatable { case resume, sound, volume, quality, tutorial, haptics, quit, again, newStation, changeClass, chip }
+    struct PauseState {
+        var soundOn: Bool
+        var volume: Float
+        var quality: String
+        var hapticsOn: Bool
+        /// The mission's tier («Ветеран»), shown after «ПАУЗА».
+        var tierName: String = Difficulty.veteran.name
+    }
+    let root = SKNode()
+    private let shade = SKSpriteNode(color: UIPalette.rgba(5, 7, 10, 0.7), size: CGSize(width: 10, height: 10))
+    private var content = SKNode()
+    private var buttons: [(MenuButton, Action)] = []
+
+    init() {
+        root.zPosition = ZBand.hud + 180
+        shade.zPosition = -2   // ignoresSiblingOrder: equal z draws in any order
+        root.addChild(shade)
+        root.addChild(content)
+        root.isHidden = true
+    }
+
+    private func reset(size: CGSize) {
+        root.isHidden = false
+        content.removeFromParent()
+        content = SKNode()
+        root.addChild(content)
+        buttons.removeAll()
+        shade.size = size
+    }
+
+    /// The report's line under the title: won / surrendered / lost (TextWarmup lays them out at launch).
+    static let endSubtitles = [MetaText.subtitle(won: true, surrendered: false, station: "Кельвин-9"),
+                               MetaText.subtitle(won: false, surrendered: true, station: "Кельвин-9"),
+                               MetaText.subtitle(won: false, surrendered: false, station: "Кельвин-9")]
+
+    /// Web qualityLabel(): «Графика: авто (средняя)» / «Графика: низкая» …
+    static func qualityLabel(_ q: String) -> String {
+        if q == "auto" { return "Графика: авто (" + QualityTier.med.label.lowercased() + ")" }
+        return "Графика: " + (QualityTier(rawValue: q) ?? .med).label.lowercased()
+    }
+
+    /// Box background + hazard band, top-left at (x, top).
+    private func box(x: CGFloat, top: CGFloat, width: CGFloat, height: CGFloat, edge: SKColor? = nil) {
+        let p = Shapes.panel(width: width, height: height, fill: UIPalette.panel2, stroke: edge ?? UIPalette.line)
+        p.position = CGPoint(x: x, y: top)
+        p.zPosition = -3
+        content.addChild(p)
+        let hz = hazardBand(width: width, height: 8)
+        hz.position = CGPoint(x: x, y: top)
+        hz.zPosition = -2.5
+        content.addChild(hz)
+    }
+
+    // ---------------------------------------------------------------- pause
+    func showPause(size: CGSize, state: PauseState, layoutCheck: Bool = false, insets: UIEdgeInsets = .zero) {
+        reset(size: size)
+        let compact = size.height < 520
+        let w = min(320, size.width - 84)
+        let bh: CGFloat = compact ? 34 : 44, step: CGFloat = compact ? 39 : 52
+        let items: [(String, MenuButton.Style, Action)] = [
+            ("Продолжить", .normal, .resume),
+            ("Звук: " + (state.soundOn ? "вкл" : "выкл"), .ghost, .sound),
+            ("Громкость: \(Int((state.volume * 100).rounded()))%", .ghost, .volume),
+            (MenuScreen.qualityLabel(state.quality), .ghost, .quality),
+            ("Обучение", .ghost, .tutorial),
+            ("Вибрация: " + (state.hapticsOn ? "вкл" : "выкл"), .ghost, .haptics),
+            ("Сдаться", .danger, .quit)]
+        let titleH: CGFloat = compact ? 44 : 64
+        let boxH = 8 + titleH + CGFloat(items.count) * step + (compact ? 6 : 14)
+        let top = boxH / 2
+        box(x: -(w + 44) / 2, top: top, width: w + 44, height: boxH)
+        var check = LayoutCheck("pause")
+        check.add("box", CGRect(x: -(w + 44) / 2, y: top - boxH, width: w + 44, height: boxH))
+        // «ПАУЗА · ВЕТЕРАН» (web .p-tier: half size, ink-dim)
+        let ts: CGFloat = compact ? 24 : 34
+        let title = Label("ПАУЗА", font: Fonts.bold, size: ts, color: UIPalette.ink, kern: 4, align: .left)
+        title.node.position = CGPoint(x: -w / 2, y: top - 8 - titleH / 2)
+        content.addChild(title.node)
+        let tier = Label("· " + state.tierName.uppercased(), font: Fonts.semibold, size: ts * 0.5, color: UIPalette.inkDim, kern: ts * 0.06, align: .left)
+        tier.node.position = CGPoint(x: -w / 2 + title.width + ts * 0.4, y: top - 8 - titleH / 2)
+        content.addChild(tier.node)
+        var y = top - 8 - titleH - bh / 2
+        for it in items {
+            let b = MenuButton(it.0, style: it.1, fontSize: compact ? 13 : 15)
+            b.layout(center: CGPoint(x: 0, y: y), size: CGSize(width: w, height: bh))
+            content.addChild(b.node)
+            buttons.append((b, it.2))
+            check.add("btn." + String(describing: it.2), b.rect)
+            y -= step
+        }
+        if layoutCheck { check.report(size: size, insets: insets) }
+    }
+
+    // ---------------------------------------------------------------- report
+    /// One laid-out piece of a report column: `node` has its top-left corner at its origin (content grows downward).
+    private struct Block {
+        let name: String
+        let node: SKNode
+        let height: CGFloat
+        /// Space above it (0 for the first block of a column).
+        var gapAbove: CGFloat
+        /// Rects of tappable children (relative to the block origin) and their actions.
+        var taps: [(MenuButton, Action)] = []
+    }
+
+    /// Fonts and spacing of one density step (web media queries for short / narrow screens).
+    private struct Density {
+        let title: CGFloat, total: CGFloat, line: CGFloat, lineH: CGFloat, tip: CGFloat, gap: CGFloat, strip: CGFloat
+        let mini: CGFloat, miniH: CGFloat, btn: CGFloat, btn2: CGFloat, chipH: CGFloat
+        static let normal = Density(title: 30, total: 34, line: 13, lineH: 17, tip: 13, gap: 9, strip: 22, mini: 16, miniH: 43,
+                                    btn: 52, btn2: 46, chipH: 44)
+        static let tight = Density(title: 26, total: 28, line: 12, lineH: 15.5, tip: 12.5, gap: 7, strip: 20, mini: 15, miniH: 39,
+                                   btn: 46, btn2: 40, chipH: 40)
+        static let landscape = Density(title: 24, total: 26, line: 12, lineH: 15, tip: 12, gap: 6, strip: 18, mini: 14, miniH: 34,
+                                       btn: 44, btn2: 38, chipH: 38)
+        static let landscapeTight = Density(title: 22, total: 22, line: 11, lineH: 13.5, tip: 11, gap: 5, strip: 16, mini: 13, miniH: 30,
+                                            btn: 38, btn2: 34, chipH: 34)
+    }
+
+    func showEnd(size: CGSize, insets: UIEdgeInsets, report: MissionReport, layoutCheck: Bool = false) {
+        reset(size: size)
+        let W = size.width, H = size.height
+        let landscape = W > H && H <= 500
+        let sl = max(12, insets.left), sr = max(12, insets.right)
+        let availH = H - insets.top - insets.bottom - 16
+        // box: portrait min(560, width − 24), landscape two columns up to 860
+        let bw = landscape ? min(860, W - sl - sr) : min(560, W - sl - sr)
+        let padX: CGFloat = landscape ? 16 : 18
+        let colGap: CGFloat = 20
+        let colW = landscape ? (bw - 2 * padX - colGap) / 2 : bw - 2 * padX
+        let densities: [Density] = landscape ? [.landscape, .landscapeTight] : [.normal, .tight]
+        // each density is built once; the subtitle and the second tip are dropped by filtering its blocks
+        var pick: ([Block], [Block], Density)? = nil
+        var last: ([Block], [Block], Density)? = nil
+        outer: for d in densities {
+            let a0 = columnA(report: report, d: d, colW: colW, subtitle: !landscape)   // web: no subtitle on landscape phones
+            let b0 = columnB(report: report, d: d, colW: colW)
+            for (sub, tips2) in [(true, true), (false, true), (false, false)] {
+                let a = sub ? a0 : a0.filter { $0.name != "subtitle" }
+                let b = tips2 ? b0 : b0.filter { $0.name != "tip1" }
+                last = (a, b, d)
+                if boxHeight(a, b, d, landscape) <= availH { pick = (a, b, d); break outer }
+            }
+        }
+        guard let (a, b, d) = pick ?? last else { return }
+        if pick == nil { AppLog.info("report: tightest layout \(Int(boxHeight(a, b, d, landscape))) pt for \(Int(availH)) pt") }
+        let hA = stackHeight(a), hB = stackHeight(b)
+        let topPad: CGFloat = 8 + (landscape ? 10 : 14), botPad: CGFloat = landscape ? 14 : 18
+        let boxH = topPad + (landscape ? max(hA, hB) : hA + d.gap + hB) + botPad
+        // centred, never above the safe top or below the safe bottom
+        var top = boxH / 2
+        top = min(top, H / 2 - insets.top - 8)
+        top = max(top, -H / 2 + insets.bottom + 8 + boxH)
+        let x0 = -bw / 2
+        box(x: x0, top: top, width: bw, height: boxH, edge: report.won ? UIPalette.rgba(63, 227, 210, 0.45) : UIPalette.rgba(255, 59, 59, 0.45))
+        var check = LayoutCheck("report")
+        let ax = x0 + padX, bx = landscape ? x0 + padX + colW + colGap : ax
+        let yA = top - topPad
+        place(a, x: ax, top: yA, check: &check)
+        place(b, x: bx, top: landscape ? yA : yA - hA - d.gap, check: &check)
+        if layoutCheck { check.report(size: size, insets: insets) }
+    }
+
+    private func stackHeight(_ blocks: [Block]) -> CGFloat {
+        var h: CGFloat = 0
+        for b in blocks { h += b.gapAbove + b.height }
+        return h
+    }
+
+    private func place(_ blocks: [Block], x: CGFloat, top: CGFloat, check: inout LayoutCheck) {
+        var y = top
+        for b in blocks {
+            y -= b.gapAbove
+            b.node.position = CGPoint(x: x, y: y)
+            content.addChild(b.node)
+            check.add(b.name, CGRect(x: x, y: y - b.height, width: b.node.calculateAccumulatedFrame().width, height: b.height))
+            for (btn, act) in b.taps {
+                // the button rects become screen rects (block origin + the button's own rect)
+                btn.offset(by: CGPoint(x: x, y: y))
+                buttons.append((btn, act))
+            }
+            y -= b.height
+        }
+    }
+
+    private func boxHeight(_ a: [Block], _ b: [Block], _ d: Density, _ landscape: Bool) -> CGFloat {
+        let topPad: CGFloat = 8 + (landscape ? 10 : 14), botPad: CGFloat = landscape ? 14 : 18
+        return topPad + (landscape ? max(stackHeight(a), stackHeight(b)) : stackHeight(a) + d.gap + stackHeight(b)) + botPad
+    }
+
+    /// Column A: tag, title, subtitle, strip, score, breakdown + tier line, mini numbers.
+    private func columnA(report r: MissionReport, d: Density, colW: CGFloat, subtitle: Bool) -> [Block] {
+        var out: [Block] = []
+        let tagN = SKNode()
+        let tag = Label(r.tag.uppercased(), font: Fonts.mono, size: 12, color: UIPalette.inkDim, kern: 2.4, align: .left)
+        tag.node.position = CGPoint(x: 0, y: -6)
+        tagN.addChild(tag.node)
+        out.append(Block(name: "tag", node: tagN, height: 12, gapAbove: 0))
+        let tN = SKNode()
+        let title = Label(r.title.uppercased(), font: Fonts.bold, size: d.title, color: r.won ? UIPalette.teal : UIPalette.red, kern: d.title * 0.1, align: .left)
+        title.node.position = CGPoint(x: 0, y: -d.title * 0.5)
+        tN.addChild(title.node)
+        out.append(Block(name: "title", node: tN, height: d.title, gapAbove: 6))
+        if subtitle {
+            let sN = SKNode()
+            let p = paragraph(r.subtitle, font: Fonts.regular, size: 14, color: UIPalette.inkDim, width: colW, align: .left)
+            p.horizontalAlignmentMode = .left
+            sN.addChild(p)
+            out.append(Block(name: "subtitle", node: sN, height: p.frame.height, gapAbove: 4))
+        }
+        // the stage strip (web .r-strip: 4 × 1fr, 1.2fr, 1.75fr; 3 pt top border; teal on a win, amber on a loss)
+        let stN = SKNode()
+        let fr: [CGFloat] = [1, 1, 1, 1, 1.2, 1.75]
+        let unit = (colW - 15) / fr.reduce(0, +)
+        var x: CGFloat = 0
+        let onColor = r.won ? UIPalette.teal : UIPalette.amber
+        for (k, it) in r.strip.enumerated() {
+            let w = unit * fr[k]
+            let bar = SKSpriteNode(color: it.on ? onColor : UIPalette.line, size: CGSize(width: w, height: 3))
+            bar.anchorPoint = CGPoint(x: 0, y: 1)
+            bar.position = CGPoint(x: x, y: 0)
+            stN.addChild(bar)
+            let l = Label(it.label.uppercased(), font: Fonts.medium, size: d.strip < 18 ? 9 : 10, color: it.on ? onColor : UIPalette.inkFaint, kern: 0.6)
+            l.node.position = CGPoint(x: x + w / 2, y: -3 - (d.strip - 3) / 2)
+            stN.addChild(l.node)
+            x += w + 3
+        }
+        out.append(Block(name: "strip", node: stN, height: d.strip, gapAbove: d.gap))
+        // ОЧКИ 6 228 + «НОВЫЙ РЕКОРД» / «рекорд N»
+        let scN = SKNode()
+        let base = -d.total * 0.86
+        let lab = Label(r.scoreLabel.uppercased(), font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 2.4, align: .left, valign: .baseline)
+        lab.node.position = CGPoint(x: 0, y: base)
+        scN.addChild(lab.node)
+        let tot = Label(r.scoreTotal, font: Fonts.monoBold, size: d.total, color: UIPalette.ink, align: .left, valign: .baseline)
+        tot.node.position = CGPoint(x: lab.width + 10, y: base)
+        scN.addChild(tot.node)
+        if let note = r.scoreNote {
+            let nx = lab.width + 10 + tot.width + 10
+            if r.record {
+                let nl = Label(note.uppercased(), font: Fonts.bold, size: 11, color: UIPalette.bg, kern: 1.5, align: .left)
+                let bwid = nl.width + 14
+                let chip = Shapes.panel(width: bwid, height: 21, cut: 0, fill: UIPalette.amber)
+                chip.position = CGPoint(x: nx, y: -d.total * 0.5 + 10.5)
+                scN.addChild(chip)
+                nl.node.position = CGPoint(x: nx + 7, y: -d.total * 0.5)
+                nl.node.zPosition = 1
+                scN.addChild(nl.node)
+            } else {
+                let nl = Label(note, font: Fonts.mono, size: 12, color: UIPalette.inkFaint, align: .left, valign: .baseline)
+                nl.node.position = CGPoint(x: nx, y: base)
+                scN.addChild(nl.node)
+            }
+        }
+        out.append(Block(name: "score", node: scN, height: d.total, gapAbove: d.gap - 1))
+        // breakdown (web .r-lines): 2 pt rule on the left, label left, «+N» right; the tier line in amber
+        let lnN = SKNode()
+        var ly: CGFloat = 0
+        let rows = r.parts.map { ($0.label, $0.value, false) } + [(r.tierLine, r.tierDelta, true)]
+        for (lbl, val, amber) in rows {
+            let cy = ly - d.lineH / 2
+            let a = Label(lbl, font: Fonts.regular, size: d.line, color: amber ? UIPalette.amber : UIPalette.inkDim, kern: 0.2, align: .left)
+            a.node.position = CGPoint(x: 12, y: cy)
+            lnN.addChild(a.node)
+            if !val.isEmpty {
+                let v = Label(val, font: Fonts.monoBold, size: d.line, color: amber ? UIPalette.amber : UIPalette.ink, align: .right)
+                v.node.position = CGPoint(x: colW, y: cy)
+                lnN.addChild(v.node)
+            }
+            ly -= d.lineH + 1
+        }
+        let rule = SKSpriteNode(color: UIPalette.line, size: CGSize(width: 2, height: -ly - 1))
+        rule.anchorPoint = CGPoint(x: 0, y: 1)
+        lnN.addChild(rule)
+        out.append(Block(name: "lines", node: lnN, height: -ly - 1, gapAbove: d.gap - 1))
+        // mini numbers (web .stats.mini): Время / Комбо / Точность / Уровень
+        let mN = SKNode()
+        let cellW = colW / 4
+        for (k, m) in r.mini.enumerated() {
+            let cx = CGFloat(k) * cellW
+            let cell = Shapes.panel(width: cellW - 1, height: d.miniH, cut: 0, fill: UIPalette.panel, stroke: UIPalette.line)
+            cell.position = CGPoint(x: cx, y: 0)
+            cell.zPosition = -1
+            mN.addChild(cell)
+            let a = Label(m.label.uppercased(), font: Fonts.medium, size: 10, color: UIPalette.inkDim, kern: 0.6, align: .left)
+            a.node.position = CGPoint(x: cx + 8, y: -d.miniH * 0.3)
+            mN.addChild(a.node)
+            let v = Label(m.value, font: Fonts.monoBold, size: d.mini, color: UIPalette.ink, align: .left)
+            v.node.position = CGPoint(x: cx + 8, y: -d.miniH * 0.68)
+            mN.addChild(v.node)
+        }
+        out.append(Block(name: "mini", node: mN, height: d.miniH, gapAbove: d.gap))
+        return out
+    }
+
+    /// Column B: rank card, medal, tips, chip, goal, buttons.
+    private func columnB(report r: MissionReport, d: Density, colW: CGFloat) -> [Block] {
+        var out: [Block] = []
+        // rank card (web .r-rank): «ШТУРМОВИК · СЕРЖАНТ» + «+623 выслуги», teal bar, «НОВОЕ ЗВАНИЕ: …»
+        let rkN = SKNode()
+        let padT: CGFloat = d.gap >= 9 ? 9 : 7
+        let rt = Label(r.rankTitle.uppercased(), font: Fonts.semibold, size: d.line, color: UIPalette.ink, kern: 1, align: .left)
+        rt.node.position = CGPoint(x: 10, y: -padT - 7)
+        rkN.addChild(rt.node)
+        let xp = Label(r.xpLine, font: Fonts.mono, size: 12, color: UIPalette.teal, align: .right)
+        xp.node.position = CGPoint(x: colW - 10, y: -padT - 7)
+        rkN.addChild(xp.node)
+        var ry = -padT - 14 - (d.gap >= 9 ? 8 : 6)
+        let bar = Bar(width: colW - 20, height: 6, fill: UIPalette.teal, track: UIPalette.tealTrack)
+        bar.set(CGFloat(r.rankFill))
+        bar.node.position = CGPoint(x: 10, y: ry - 3)
+        rkN.addChild(bar.node)
+        ry -= 6
+        if let up = r.rankUp {
+            ry -= d.gap >= 9 ? 7 : 5
+            let u = Label(up.uppercased(), font: Fonts.bold, size: d.line, color: UIPalette.amber, kern: 1.5, align: .left)
+            u.node.position = CGPoint(x: 10, y: ry - d.line * 0.5)
+            rkN.addChild(u.node)
+            ry -= d.line
+        }
+        let rkH = -ry + padT
+        let card = Shapes.panel(width: colW, height: rkH, cut: 0, fill: UIPalette.panel, stroke: UIPalette.line)
+        card.zPosition = -1
+        rkN.addChild(card)
+        out.append(Block(name: "rank", node: rkN, height: rkH, gapAbove: 0))
+        if let m = r.medal {
+            let mN = SKNode()
+            let l = Label("◆ " + m.uppercased(), font: Fonts.semibold, size: d.line, color: UIPalette.amber, kern: 0.8, align: .left)
+            l.node.position = CGPoint(x: 0, y: -d.line * 0.6)
+            mN.addChild(l.node)
+            out.append(Block(name: "medal", node: mN, height: d.line * 1.25, gapAbove: d.gap))
+        }
+        // tips: the loss cause on red-dim, «дольше» / promo on teal-dim (wrapped; TextWarmup lays them out at launch)
+        for (k, t) in r.tips.enumerated() {
+            let tN = SKNode()
+            let padY: CGFloat = d.gap >= 9 ? 7 : 5
+            let p = paragraph(t.text, font: Fonts.regular, size: d.tip, color: UIPalette.ink, width: colW - 18, align: .left)
+            p.horizontalAlignmentMode = .left
+            p.position = CGPoint(x: 9, y: -padY)
+            tN.addChild(p)
+            let h = p.frame.height + 2 * padY
+            let bg = SKSpriteNode(color: t.good ? UIPalette.tealDim : UIPalette.redDim, size: CGSize(width: colW, height: h))
+            bg.anchorPoint = CGPoint(x: 0, y: 1)
+            bg.zPosition = -1
+            tN.addChild(bg)
+            out.append(Block(name: "tip\(k)", node: tN, height: h, gapAbove: d.gap))
+        }
+        if let c = r.chip {
+            let cN = SKNode()
+            let b = MenuButton(c, style: .chip, fontSize: 14)
+            let w = b.label.width + 28
+            b.layout(center: CGPoint(x: w / 2, y: -d.chipH / 2), size: CGSize(width: w, height: d.chipH))
+            cN.addChild(b.node)
+            out.append(Block(name: "chip", node: cN, height: d.chipH, gapAbove: d.gap, taps: [(b, .chip)]))
+        }
+        // the next goal: «▸ » amber + the goal in teal (one paragraph, may wrap)
+        let gN = SKNode()
+        let g = goalParagraph(r.goal, size: d.line, width: colW)
+        gN.addChild(g)
+        out.append(Block(name: "goal", node: gN, height: g.frame.height, gapAbove: d.gap))
+        // buttons: the primary one full width, the others side by side under it
+        let bN = SKNode()
+        var taps: [(MenuButton, Action)] = []
+        let prim = MenuButton(r.primary.title, style: .go, fontSize: d.btn >= 50 ? 20 : 17)
+        prim.layout(center: CGPoint(x: colW / 2, y: -d.btn / 2), size: CGSize(width: colW, height: d.btn))
+        bN.addChild(prim.node)
+        taps.append((prim, MenuScreen.action(r.primary)))
+        let others = r.buttons.filter { $0 != r.primary }
+        let ow = (colW - CGFloat(max(0, others.count - 1)) * 8) / CGFloat(max(1, others.count))
+        for (k, o) in others.enumerated() {
+            let b = MenuButton(o.title, style: .ghost, fontSize: d.btn >= 50 ? 14 : 13)
+            b.layout(center: CGPoint(x: CGFloat(k) * (ow + 8) + ow / 2, y: -d.btn - 8 - d.btn2 / 2), size: CGSize(width: ow, height: d.btn2))
+            bN.addChild(b.node)
+            taps.append((b, MenuScreen.action(o)))
+        }
+        let bh = d.btn + (others.isEmpty ? 0 : 8 + d.btn2)
+        out.append(Block(name: "buttons", node: bN, height: bh, gapAbove: d.gap + 2, taps: taps))
+        return out
+    }
+
+    private static func action(_ b: ReportButton) -> Action {
+        switch b {
+        case .again: return .again
+        case .newStation: return .newStation
+        case .changeClass: return .changeClass
+        }
+    }
+
+    /// «▸ » in amber, then the goal in teal (web .r-goal), left-aligned, wrapping at `width`.
+    private func goalParagraph(_ text: String, size: CGFloat, width: CGFloat) -> SKLabelNode {
+        let l = SKLabelNode()
+        l.numberOfLines = 0
+        l.preferredMaxLayoutWidth = width
+        l.horizontalAlignmentMode = .left
+        l.verticalAlignmentMode = .top
+        let style = NSMutableParagraphStyle()
+        style.alignment = .left
+        style.lineSpacing = 2
+        let s = NSMutableAttributedString(string: MetaText.goalPrefix, attributes: [
+            .font: Fonts.font(Fonts.medium, size), .foregroundColor: UIPalette.amber, .paragraphStyle: style])
+        s.append(NSAttributedString(string: text, attributes: [.font: Fonts.font(Fonts.medium, size), .foregroundColor: UIPalette.teal,
+                                                              .paragraphStyle: style]))
+        l.attributedText = s
+        LabelStats.textsSet += 1
+        return l
+    }
+
+    func hide() { root.isHidden = true }
+
+    func hit(_ p: CGPoint) -> Action? {
+        if root.isHidden { return nil }
+        for (b, a) in buttons where b.hit(p) { return a }
+        return nil
+    }
+}
