@@ -5,6 +5,10 @@
 // sim, marines). This file holds the Матка — the boss of the lift hold — plus the pressure / boss HUD states and the
 // debug helpers. Everything here works on fixed fields: no allocations per tick or per frame.
 
+// who hunts the player this tick (simBugs reads it per bug): [0] even uids — hive pressure at idleMul ≥ 1.5,
+// [1] uid % 3 ≠ 0 — the player has been AFK for more than 12 s. Set by tickDirector; typed so the per-bug test is
+// two integer reads.
+const HUNT = new Uint8Array(2);
 // private Матка state (DIR.q is the shared view: B reads uid, D reads spawned / alive / done)
 const QSTATE = { warn: -1, edge: -1, i: -1, x: 0, z: 0, hpFrac: 1, brood: 0, volley: 0, ram: 0, mcd: 0, armed: false, enr: false };
 

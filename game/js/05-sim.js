@@ -328,9 +328,10 @@ function simBugs(dt) {
       continue;
     }
     // --- pick target marine ---
-    // hive pressure / AFK: part of the swarm hunts the player (even uids at idleMul ≥ 1.5, uid%3 ≠ 0 after 12 s AFK)
+    // hive pressure / AFK: part of the swarm hunts the player (even uids at idleMul ≥ 1.5, uid%3 ≠ 0 after 12 s AFK;
+    // HUNT is set once per tick by tickDirector, so this is integer reads only)
     let best = 0, bd = 1e9;
-    const hunt = mUp[0] && ((DIR.idleMul >= 1.5 && (B.uid[i] & 1) === 0) || (GS.afkT > 12 && B.uid[i] % 3 !== 0));
+    const hunt = mUp[0] && ((HUNT[0] && (B.uid[i] & 1) === 0) || (HUNT[1] && B.uid[i] % 3 !== 0));
     for (let k = 0; k < 4; k++) {
       if (anyUp && !mUp[k]) continue;
       if (hunt && k !== 0) continue;

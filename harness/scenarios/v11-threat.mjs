@@ -50,10 +50,10 @@ export default async (page, h) => {
   t = await ev(() => { window.__dbg.fast(1.5); return window.__dbg.threat(); });
   u = await hud();
   expect(t.state === 1 && u.cls === 'press1' && u.text === 'Улей просыпается — к маяку' && u.bar, `15.5 s: amber press1 «${u.text}» (press ${t.press})`);
+  if (h.args.shots) await h.shot('pressure-amber');
   t = await ev(() => { window.__dbg.fast(10); return window.__dbg.threat(); });
   u = await hud();
   expect(t.state === 2 && u.cls === 'press2' && u.urge && u.text === 'Рой стягивается — к маяку!', `25.5 s: red press2 + marker urge «${u.text}» (press ${t.press}, idleMul ${t.idleMul})`);
-  if (h.args.shots) await h.shot('pressure');
   // AFK clock: counting with no input, reset by a key
   expect(t.afkT > 12, `AFK clock counts with no input: ${t.afkT} s`);
   await page.keyboard.down('KeyW');

@@ -24,7 +24,7 @@ function resetDirector(attract) {
   for (const b of LV.beacons) DIR.beacons.push({ x: b.x, z: b.z, name: b.name, state: 0, progress: 0, contested: false });
   DIR.calm = false; DIR.beaconHordeMul = 1; DIR.press = 0; DIR.idleMul = 1;
   const q = DIR.q; q.uid = 0; q.alive = false; q.spawned = false; q.done = false; q.t0 = 0; q.killT = 0;
-  queenReset();
+  queenReset(); HUNT.fill(0);
   liftGroup.position.y = 0;
 }
 function nextBeacon() {
@@ -203,6 +203,7 @@ function tickDirector(dt) {
     DIR.idleMul = 1 + Math.min(3, 0.05 * over);
     stageMul *= DIR.idleMul;
     if (over > 0) DIR.hordeT -= dt * (DIR.idleMul - 1);
+    HUNT[0] = DIR.idleMul >= 1.5 ? 1 : 0; HUNT[1] = GS.afkT > 12 ? 1 : 0;
   }
   // the first-run coach holds the swarm back (no trickle, no hordes)
   if (DIR.calm) { stageMul = 0; DIR.hordeT = Math.max(DIR.hordeT, 25); }
