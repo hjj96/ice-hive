@@ -1,0 +1,25 @@
+firstlaunch     load 4.15 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 47.1 min 8.0 gap 420 ms stall-s 10 cbmax 655 ms | gpu ema 0.21 ms allocs 1 tier efficient scale 1.25/1.45/1.60 | FAIL: cold load 4.15 s, 2.65 s over the warm median (> 2.5; renderer wait 0.00 s + compiler start-up 2.43 s, cover GPU frames/s 48/57/27/25)
+combat          load 1.58 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 56.6 min 45.0 gap 59 ms stall-s 3 cbmax 89 ms | gpu ema 0.18 ms allocs 1 tier efficient scale 1.60 | ok
+beacon          load 1.32 s | loop avg 59.9 min 58.0 worst 48 ms hitches 0 | gpu drawn avg 59.3 min 51.0 gap 72 ms stall-s 1 cbmax 35 ms | gpu ema 0.17 ms allocs 1 tier efficient scale 1.60 | FAIL: worstFrame 48 ms > 43
+swarmshot       load 1.79 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 60.0 min 60.0 gap 33 ms stall-s 0 cbmax 22 ms | gpu ema 0.22 ms allocs 1 tier high scale 2.00 | ok
+swarmshot-dots  load 1.76 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 57.8 min 54.0 gap 65 ms stall-s 1 cbmax 82 ms | gpu ema 0.20 ms allocs 1 tier high scale 2.00 | ok
+swarm           load 1.42 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 59.5 min 57.0 gap 60 ms stall-s 1 cbmax 46 ms | gpu ema 0.17 ms allocs 1 tier efficient scale 1.60 | ok
+swarm3x         load 1.38 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 58.8 min 51.0 gap 78 ms stall-s 3 cbmax 72 ms | gpu ema 0.15 ms allocs 1 tier efficient scale 3.00 | ok
+calm            load 1.43 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 59.5 min 56.0 gap 50 ms stall-s 0 cbmax 36 ms | gpu ema 0.17 ms allocs 1 tier efficient scale 1.60 | ok
+title           load 1.57 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 55.2 min 50.0 gap 79 ms stall-s 4 cbmax 79 ms | gpu ema 0.17 ms allocs 1 tier efficient scale 1.60 | ok
+landscape       load 1.68 s | loop avg 59.5 min 55.0 worst 100 ms hitches 0 host-stalls 1 (100 ms) | gpu drawn avg 57.9 min 52.0 gap 100 ms stall-s 3 cbmax 61 ms | gpu ema 0.18 ms allocs 1 tier efficient scale 1.60 | ok (loop fps 60.0 avg / 60 min without 1 host-stall second(s))
+probe           load 1.50 s | loop avg 59.8 min 57.0 worst 70 ms hitches 0 host-stalls 1 (70 ms) | gpu drawn avg 58.4 min 50.0 gap 163 ms stall-s 5 cbmax 142 ms | gpu ema 0.18 ms allocs 1 tier efficient scale 1.20/1.60 drs 10/10 worst 70 ms | FAIL: drs sweep: worst tick 70 ms > 34 in a second with a scale step
+hold            load 1.52 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 50.9 min 26.0 gap 231 ms stall-s 5 cbmax 424 ms | gpu ema 0.21 ms allocs 1 tier efficient scale 1.60 | ok
+extract         load 1.50 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 59.8 min 58.0 gap 41 ms stall-s 0 cbmax 42 ms | gpu ema 0.17 ms allocs 1 tier efficient scale 1.60 | ok
+queen           load 1.43 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 58.7 min 53.0 gap 74 ms stall-s 3 cbmax 64 ms | gpu ema 0.15 ms allocs 1 tier efficient scale 1.60 | ok
+levelup         load 1.82 s | loop avg 30.0 min 30.0 worst 33 ms hitches 0 | gpu drawn avg 30.0 min 30.0 gap 43 ms stall-s 0 cbmax 10 ms | gpu ema 0.00 ms allocs 1 tier efficient scale 1.60 | ok
+pause           load 1.63 s | loop avg 30.0 min 30.0 worst 33 ms hitches 0 | gpu drawn avg 28.5 min 25.0 gap 106 ms stall-s 2 cbmax 72 ms | gpu ema 0.19 ms allocs 1 tier efficient scale 1.60 | ok
+end             load 1.38 s | loop avg 30.0 min 30.0 worst 33 ms hitches 0 | gpu drawn avg 26.2 min 15.0 gap 1269 ms stall-s 1 cbmax 1192 ms | gpu ema 0.00 ms allocs 1 tier efficient scale 1.60 | ok
+release-combat  load 1.46 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 58.8 min 53.0 gap 72 ms stall-s 2 cbmax 64 ms | gpu ema 0.19 ms allocs 1 tier efficient scale 1.60 | ok
+
+GPU side (gated only in release-combat, swarm3x, floor 55.0): drawn avg < 55/s in hold 50.9 (calm baseline 59.5)
+
+GATE: would fail
+  firstlaunch: cold load 4.15 s, 2.65 s over the warm median (> 2.5; renderer wait 0.00 s + compiler start-up 2.43 s, cover GPU frames/s 48/57/27/25)
+  beacon: worstFrame 48 ms > 43
+  probe: drs sweep: worst tick 70 ms > 34 in a second with a scale step
