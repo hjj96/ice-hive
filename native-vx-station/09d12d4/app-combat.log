@@ -1,0 +1,806 @@
+[IceHive] launch v2.0.0 (1) core=2.0.0 options=demo=combat seconds=18.0 debugHUD=true seed=7
+[IceHive] view ready maxFPS=60 scale=3.0 worldScale=2.0
+[IceHive] frame loop resumed
+[IceHive] metal: view 402x874 pt, drawable 1206x2622 px (scale 3.0)
+[IceHive] settings: cls=assault best=0/0s muted=false vol=0.8 haptics=true quality=auto
+[IceHive] text warm-up: 86 wrapped strings in 410 ms
+[IceHive] glyph calibration in 284 ms: JetBrainsMono-Bold 17pt 1/1 dx=+0px dy=+4px width-1px bottom+0px; JetBrainsMono-Bold 17pt 1/1 dx=+0px dy=+4px width-1px bottom+0px; JetBrainsMono-Bold 16pt 1/1 dx=+0px dy=+4px width+0px bottom-1px; JetBrainsMono-Bold 13pt 2/1 dx=-4px dy=+3px width-1px bottom+0px; JetBrainsMono-Bold 12pt 1/1 dx=+4px dy=+3px width-1px bottom+0px; JetBrainsMono-Bold 12pt 0/1 dx=+0px dy=+3px width-1px bottom+0px; JetBrainsMono-Medium 9pt 1/3 2 lines dx=+3px dy=+10px width+0px bottom-1px
+[IceHive] frame loop: display link started, 2 frames in flight, max 60 Hz
+[IceHive] fonts: Oswald + JetBrains Mono registered
+[IceHive] scene presented size=402x874
+[IceHive] scene active
+[IceHive] metal: meshes 24 (5446 triangles, 0.4 MB) textures 9 in 744 ms glints 3/4/3/3 | kit 20 pieces (4001 triangles), trims ASTC, 6.7 MB in 524 ms (pieces 2, textures read 328, GPU upload wait 194)
+[IceHive] metal: pipelines built in 143 ms (24 world + 5 post; first request 5 ms, then 28 in parallel 129 ms, slowest: glint 42, pad 30, decal 28, meshLambert 22, particleAdd 20) device=Apple iOS simulator GPU
+[IceHive] metal: post: grade LUTs built-in, exposure table none in 15 ms | counters command-buffer totals | device class a13OrOlder (simulator) bug cap 900 default tier efficient | world encodes > 2 ms logged
+[IceHive] metal: station: 206206 vertices, 108205 triangles in 27 chunks (9.3 MB; assembled in 29 ms) glows 72 | casters 17866 triangles | triangles decks 2310, edges 70103, supports 14948, props 15694, lift 5150 | edges: 360 posts, 197 icicle fringes, 46 drifts, 48 lamps (51 ms)
+[IceHive] metal: environment probe 64x64, 5 mips, 256 KB in 3.9 ms
+[IceHive] metal: lighting: shadow atlas 2048x1024 D32F (8.0 MB), occupancy 2x256² RG8, probe 5 mips, 32 grid lights / 16² cells of 3 m
+[IceHive] metal world ready in 270 ms (preload 769 ms, started 557 ms before the scene) mem=44MB avail=0MB
+[IceHive] demo combat: spawned 600 bugs around the squad
+[IceHive] mode playing class=assault seed=7 demo=combat
+[IceHive] metal: world target 804x1748 px (allocation 1, RG11B10F, 4x MSAA, MSAA private (simulator), scene + bloom 7.3 MB) in 2.1 ms
+[IceHive] first banner td=-1.00
+[IceHive] first ability.grenade td=-1.00
+[IceHive] first ability.napalm td=-1.00
+[IceHive] first telegraph.ring td=-1.00
+[IceHive] first levelUp td=-1.00
+[IceHive] first ability.nova td=-1.00
+[IceHive] first ability.turret td=-1.00
+[IceHive] first toast td=-1.00
+[IceHive] first explosion.frost td=-1.00
+[IceHive] hb gpu frame=0.00 max=0.00 passes=- (no counter sampling: command-buffer totals only) | ema=0.00 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=24 cells=181 tiles=1 beams=4 occ=410 tier=efficient
+[IceHive] hb t=1.0 fps=41.4 drawn=6 mode=playing demo=combat
+[IceHive] first explosion.frag td=-1.00
+[IceHive] first screenFlash td=-1.00
+[IceHive] audio: 38 sounds, 6 loops, 20 voices (886 ms)
+[IceHive] hb gpu frame=3.14 max=33.79 passes=- (no counter sampling: command-buffer totals only) | ema=0.00 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.16
+[IceHive] hb light lights=30 cells=191 tiles=1 beams=4 occ=384 tier=efficient
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.7 ms) wall=1792445382.618
+[IceHive] loading took 1.73 s (from the first frame)
+[IceHive] scene ready mode=playing size=402x874 renderer=metal
+[IceHive] first explosion.mini td=0.00
+[IceHive] hb t=2.0 td=0.3 fps=57.0 worst=17ms drawn=17 gap=26ms sim=0.21ms world=0.21ms mode=playing bugs=581 vis=258 parts=1054 stage=0 hp=100 kills=472 mem=43MB avail=0MB demo=combat rend=metal cpu=23 main=15 dc=48 inst=3684 tris=206742 enc=0.22ms gpu=0.21ms gpumax=0.3ms skip=9 nodraw=0 drw=3ms cbmax=16ms sk=24ms/18 skcpu=14ms skslow=1/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 39 | max sim=3 ev=11 world=2 au=4 / -
+[IceHive] hb gpu frame=0.18 max=1.33 passes=- (no counter sampling: command-buffer totals only) | ema=0.14 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=24 cells=195 tiles=1 beams=4 occ=553 tier=efficient
+[IceHive] hb t=3.0 td=1.3 fps=60.0 worst=17ms drawn=57 gap=50ms sim=0.25ms world=0.35ms mode=playing bugs=571 vis=262 parts=1159 stage=0 hp=100 kills=620 mem=43MB avail=0MB demo=combat rend=metal cpu=16 main=8 dc=48 inst=4121 tris=240873 enc=0.21ms gpu=0.17ms gpumax=1.3ms skip=3 nodraw=0 drw=0ms cbmax=71ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.4 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.2 up=0.1 | sfx 79 | max world=4 / fx=3
+[IceHive] hb gpu frame=0.16 max=0.32 passes=- (no counter sampling: command-buffer totals only) | ema=0.16 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=27 cells=197 tiles=1 beams=4 occ=532 tier=efficient
+[IceHive] hb t=4.0 td=2.3 fps=60.0 worst=17ms drawn=57 gap=57ms sim=0.23ms world=0.22ms mode=playing bugs=588 vis=278 parts=924 stage=0 hp=100 kills=754 mem=43MB avail=0MB demo=combat rend=metal cpu=15 main=8 dc=49 inst=4086 tris=264596 enc=0.21ms gpu=0.18ms gpumax=0.3ms skip=3 nodraw=0 drw=0ms cbmax=71ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 122 | max - / -
+[IceHive] hb gpu frame=0.16 max=0.32 passes=- (no counter sampling: command-buffer totals only) | ema=0.16 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=32 cells=217 tiles=1 beams=4 occ=533 tier=efficient
+[IceHive] demo combat: alive 600, topped up 903 in the last 5 s
+[IceHive] hb t=5.0 td=3.3 fps=60.0 worst=17ms drawn=58 gap=47ms sim=0.25ms world=0.22ms mode=playing bugs=580 vis=295 parts=1143 stage=0 hp=100 kills=933 mem=43MB avail=0MB demo=combat rend=metal cpu=16 main=8 dc=49 inst=4475 tris=269238 enc=0.22ms gpu=0.15ms gpumax=0.3ms skip=2 nodraw=0 drw=0ms cbmax=55ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.0 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 171 | max - / -
+[IceHive] hb gpu frame=0.15 max=0.29 passes=- (no counter sampling: command-buffer totals only) | ema=0.14 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=32 cells=218 tiles=1 beams=4 occ=532 tier=efficient
+[IceHive] hb t=6.0 td=4.3 fps=60.0 worst=17ms drawn=57 gap=66ms sim=0.27ms world=0.24ms mode=playing bugs=592 vis=321 parts=812 stage=0 hp=100 kills=1066 mem=43MB avail=0MB demo=combat rend=metal cpu=16 main=8 dc=48 inst=4326 tris=274718 enc=0.24ms gpu=0.18ms gpumax=0.7ms skip=3 nodraw=0 drw=0ms cbmax=77ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.0 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 225 | max - / -
+[IceHive] hb gpu frame=0.17 max=0.74 passes=- (no counter sampling: command-buffer totals only) | ema=0.15 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=32 cells=216 tiles=1 beams=4 occ=525 tier=efficient
+[IceHive] hb t=7.0 td=5.3 fps=60.0 worst=17ms drawn=58 gap=51ms sim=0.21ms world=0.20ms mode=playing bugs=588 vis=297 parts=771 stage=0 hp=100 kills=1215 mem=43MB avail=0MB demo=combat rend=metal cpu=15 main=7 dc=49 inst=4408 tris=269843 enc=0.19ms gpu=0.14ms gpumax=0.3ms skip=2 nodraw=0 drw=0ms cbmax=59ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 271 | max - / -
+[IceHive] hb gpu frame=0.16 max=0.69 passes=- (no counter sampling: command-buffer totals only) | ema=0.16 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=30 cells=214 tiles=1 beams=4 occ=541 tier=efficient
+[IceHive] hb t=8.0 td=6.3 fps=60.0 worst=17ms drawn=58 gap=46ms sim=0.23ms world=0.20ms mode=playing bugs=593 vis=296 parts=766 stage=0 hp=100 kills=1341 mem=43MB avail=0MB demo=combat rend=metal cpu=16 main=8 dc=49 inst=4519 tris=269575 enc=0.18ms gpu=0.13ms gpumax=0.7ms skip=2 nodraw=0 drw=0ms cbmax=37ms sk=1ms/1 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 310 | max - / -
+[IceHive] hb gpu frame=0.15 max=0.31 passes=- (no counter sampling: command-buffer totals only) | ema=0.15 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=31 cells=209 tiles=1 beams=4 occ=602 tier=efficient
+[IceHive] hb t=9.0 td=7.3 fps=60.0 worst=17ms drawn=57 gap=57ms sim=0.26ms world=0.21ms mode=playing bugs=588 vis=230 parts=920 stage=0 hp=100 kills=1481 mem=43MB avail=0MB demo=combat rend=metal cpu=15 main=8 dc=49 inst=4628 tris=239587 enc=0.18ms gpu=0.15ms gpumax=0.3ms skip=1 nodraw=1 drw=4ms cbmax=59ms sk=1ms/1 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.0 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 354 | max - / -
+[IceHive] hb gpu frame=0.15 max=0.28 passes=- (no counter sampling: command-buffer totals only) | ema=0.15 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=32 cells=185 tiles=1 beams=4 occ=592 tier=efficient
+[IceHive] first horde td=7.87
+[IceHive] demo combat: alive 586, topped up 632 in the last 5 s
+[IceHive] hb t=10.0 td=8.3 fps=60.0 worst=17ms drawn=58 gap=20ms sim=0.22ms world=0.18ms mode=playing bugs=586 vis=192 parts=856 stage=0 hp=100 kills=1631 mem=43MB avail=0MB demo=combat rend=metal cpu=16 main=8 dc=49 inst=4538 tris=229891 enc=0.19ms gpu=0.14ms gpumax=0.3ms skip=2 nodraw=0 drw=0ms cbmax=17ms sk=2ms/4 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 413 | max - / -
+[IceHive] hb gpu frame=0.15 max=0.30 passes=- (no counter sampling: command-buffer totals only) | ema=0.15 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=30 cells=159 tiles=1 beams=4 occ=597 tier=efficient
+[IceHive] hb t=11.0 td=9.3 fps=60.0 worst=17ms drawn=58 gap=60ms sim=0.21ms world=0.21ms mode=playing bugs=616 vis=261 parts=714 stage=0 hp=100 kills=1755 mem=43MB avail=0MB demo=combat rend=metal cpu=16 main=8 dc=49 inst=4432 tris=246431 enc=0.22ms gpu=0.14ms gpumax=0.5ms skip=3 nodraw=0 drw=2ms cbmax=67ms sk=1ms/1 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 466 | max - / -
+[IceHive] hb gpu frame=0.16 max=0.46 passes=- (no counter sampling: command-buffer totals only) | ema=0.17 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=28 cells=166 tiles=1 beams=4 occ=645 tier=efficient
+[IceHive] hb t=12.0 td=10.3 fps=60.0 worst=17ms drawn=57 gap=52ms sim=0.26ms world=0.22ms mode=playing bugs=653 vis=256 parts=554 stage=0 hp=100 kills=1838 mem=43MB avail=0MB demo=combat rend=metal cpu=15 main=8 dc=49 inst=4281 tris=228956 enc=0.24ms gpu=0.15ms gpumax=0.3ms skip=3 nodraw=0 drw=0ms cbmax=73ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 515 | max - / -
+[IceHive] hb gpu frame=0.16 max=0.33 passes=- (no counter sampling: command-buffer totals only) | ema=0.17 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=27 cells=169 tiles=1 beams=4 occ=628 tier=efficient
+[IceHive] hb t=13.0 td=11.3 fps=60.0 worst=17ms drawn=53 gap=43ms sim=0.29ms world=0.22ms mode=playing bugs=581 vis=337 parts=1180 stage=0 hp=100 kills=1987 mem=43MB avail=0MB demo=combat rend=metal cpu=16 main=8 dc=50 inst=5014 tris=264772 enc=0.20ms gpu=0.17ms gpumax=0.4ms skip=1 nodraw=6 drw=8ms cbmax=45ms sk=1ms/1 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.0 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 561 | max sim=2 / -
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.3 ms) wall=1792445394.220
+[IceHive] hb gpu frame=0.20 max=0.37 passes=- (no counter sampling: command-buffer totals only) | ema=0.22 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.34
+[IceHive] hb light lights=32 cells=162 tiles=1 beams=4 occ=554 tier=efficient
+[IceHive] hb t=14.0 td=12.3 fps=60.0 worst=17ms drawn=56 gap=72ms sim=0.21ms world=0.22ms mode=playing bugs=558 vis=250 parts=1070 stage=0 hp=100 kills=2171 mem=43MB avail=0MB demo=combat rend=metal cpu=18 main=10 dc=49 inst=4834 tris=228849 enc=0.20ms gpu=0.17ms gpumax=0.4ms skip=3 nodraw=1 drw=6ms cbmax=73ms sk=3ms/0 skcpu=3ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 615 | max - / -
+[IceHive] hb gpu frame=0.18 max=0.44 passes=- (no counter sampling: command-buffer totals only) | ema=0.16 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=32 cells=175 tiles=1 beams=4 occ=507 tier=efficient
+[IceHive] demo combat: alive 546, topped up 318 in the last 5 s
+[IceHive] hb t=15.0 td=13.3 fps=60.0 worst=17ms drawn=56 gap=48ms sim=0.23ms world=0.21ms mode=playing bugs=537 vis=310 parts=1146 stage=0 hp=100 kills=2308 mem=43MB avail=0MB demo=combat rend=metal cpu=16 main=8 dc=49 inst=4964 tris=258818 enc=0.22ms gpu=0.18ms gpumax=0.4ms skip=3 nodraw=1 drw=4ms cbmax=71ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 661 | max - / -
+[IceHive] hb gpu frame=0.18 max=0.47 passes=- (no counter sampling: command-buffer totals only) | ema=0.19 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=30 cells=160 tiles=1 beams=4 occ=552 tier=efficient
+[IceHive] hb t=16.0 td=14.3 fps=60.0 worst=17ms drawn=56 gap=57ms sim=0.25ms world=0.23ms mode=playing bugs=566 vis=402 parts=809 stage=0 hp=100 kills=2410 mem=49MB avail=0MB demo=combat rend=metal cpu=17 main=9 dc=48 inst=4702 tris=279362 enc=0.24ms gpu=0.16ms gpumax=0.5ms skip=4 nodraw=0 drw=0ms cbmax=68ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 697 | max - / -
+[IceHive] hb gpu frame=0.16 max=0.68 passes=- (no counter sampling: command-buffer totals only) | ema=0.17 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=27 cells=162 tiles=1 beams=4 occ=570 tier=efficient
+[IceHive] hb t=17.0 td=15.3 fps=60.0 worst=17ms drawn=57 gap=44ms sim=0.27ms world=0.24ms mode=playing bugs=566 vis=333 parts=799 stage=0 hp=100 kills=2527 mem=50MB avail=0MB demo=combat rend=metal cpu=17 main=9 dc=48 inst=4592 tris=248210 enc=0.23ms gpu=0.16ms gpumax=0.7ms skip=3 nodraw=0 drw=0ms cbmax=47ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 725 | max - / -
+[IceHive] first telegraph.fill td=15.35
+[IceHive] hb gpu frame=0.16 max=0.30 passes=- (no counter sampling: command-buffer totals only) | ema=0.15 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=30 cells=162 tiles=1 beams=4 occ=555 tier=efficient
+[IceHive] first acid td=15.85
+[IceHive] hb t=18.0 td=16.3 fps=60.0 worst=17ms drawn=58 gap=44ms sim=0.24ms world=0.23ms mode=playing bugs=578 vis=449 parts=809 stage=0 hp=100 kills=2653 mem=50MB avail=0MB demo=combat rend=metal cpu=16 main=8 dc=50 inst=4745 tris=291877 enc=0.19ms gpu=0.14ms gpumax=0.3ms skip=1 nodraw=1 drw=6ms cbmax=49ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 763 | max - / -
+[IceHive] hb gpu frame=0.16 max=0.36 passes=- (no counter sampling: command-buffer totals only) | ema=0.15 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=27 cells=166 tiles=1 beams=4 occ=540 tier=efficient
+[IceHive] hb t=19.0 td=17.3 fps=60.0 worst=17ms drawn=58 gap=41ms sim=0.24ms world=0.26ms mode=playing bugs=561 vis=456 parts=818 stage=0 hp=100 kills=2775 mem=50MB avail=0MB demo=combat rend=metal cpu=19 main=10 dc=52 inst=4766 tris=294932 enc=0.28ms gpu=0.19ms gpumax=0.4ms skip=2 nodraw=0 drw=1ms cbmax=53ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 807 | max - / -
+[IceHive] hb gpu frame=0.19 max=0.39 passes=- (no counter sampling: command-buffer totals only) | ema=0.20 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=26 cells=154 tiles=1 beams=4 occ=566 tier=efficient
+[IceHive] demo combat: alive 587, topped up 566 in the last 5 s
+[IceHive] hb t=20.0 td=18.3 fps=60.0 worst=17ms drawn=58 gap=36ms sim=0.27ms world=0.27ms mode=playing bugs=583 vis=511 parts=532 stage=0 hp=100 kills=2873 mem=50MB avail=0MB demo=combat rend=metal cpu=19 main=9 dc=52 inst=4524 tris=306775 enc=0.24ms gpu=0.17ms gpumax=0.7ms skip=2 nodraw=0 drw=2ms cbmax=53ms sk=3ms/1 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 844 | max - / -
+[IceHive] demo done after 18s avgFps=60.0 minFps=60.0 worstFrame=17ms drawnAvg=57.1 drawnMin=53.0 worstGap=72ms mem=50MB avail=0MB
+[IceHive] hb gpu frame=0.18 max=0.66 passes=- (no counter sampling: command-buffer totals only) | ema=0.19 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.3 ms) wall=1792445401.619
+[IceHive] hb light lights=28 cells=163 tiles=1 beams=4 occ=575 tier=efficient
+[IceHive] hb t=21.0 td=19.3 fps=60.0 worst=17ms drawn=55 gap=51ms sim=0.33ms world=0.33ms mode=playing bugs=578 vis=523 parts=1102 stage=0 hp=100 kills=3005 mem=50MB avail=0MB demo=combat rend=metal cpu=21 main=11 dc=53 inst=5135 tris=310675 enc=0.32ms gpu=0.18ms gpumax=0.8ms skip=4 nodraw=1 drw=4ms cbmax=70ms sk=3ms/2 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 901 | max - / -
+[IceHive] hb gpu frame=0.18 max=0.76 passes=- (no counter sampling: command-buffer totals only) | ema=0.18 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=30 cells=170 tiles=1 beams=4 occ=563 tier=efficient
+[IceHive] hb t=22.0 td=20.3 fps=60.0 worst=17ms drawn=57 gap=59ms sim=0.23ms world=0.23ms mode=playing bugs=514 vis=246 parts=2103 stage=0 hp=100 kills=3264 mem=50MB avail=0MB demo=combat rend=metal cpu=19 main=10 dc=53 inst=5881 tris=230378 enc=0.20ms gpu=0.16ms gpumax=0.5ms skip=2 nodraw=1 drw=4ms cbmax=48ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 955 | max - / -
+[IceHive] hb gpu frame=0.17 max=0.33 passes=- (no counter sampling: command-buffer totals only) | ema=0.17 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=25 cells=165 tiles=1 beams=4 occ=532 tier=efficient
+[IceHive] hb t=23.0 td=21.3 fps=60.0 worst=17ms drawn=57 gap=43ms sim=0.25ms world=0.29ms mode=playing bugs=550 vis=378 parts=912 stage=0 hp=100 kills=3375 mem=50MB avail=0MB demo=combat rend=metal cpu=20 main=10 dc=52 inst=4835 tris=259888 enc=0.26ms gpu=0.17ms gpumax=0.4ms skip=3 nodraw=0 drw=1ms cbmax=53ms sk=2ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 1016 | max - / -
+[IceHive] hb gpu frame=0.19 max=0.50 passes=- (no counter sampling: command-buffer totals only) | ema=0.21 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=28 cells=176 tiles=1 beams=4 occ=523 tier=efficient
+[IceHive] hb t=24.0 td=22.3 fps=60.0 worst=17ms drawn=57 gap=49ms sim=0.24ms world=0.28ms mode=playing bugs=556 vis=421 parts=812 stage=0 hp=100 kills=3502 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=11 dc=52 inst=4749 tris=284881 enc=0.25ms gpu=0.20ms gpumax=0.5ms skip=3 nodraw=0 drw=1ms cbmax=69ms sk=15ms/0 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.1 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 1071 | max - / -
+[IceHive] hb gpu frame=0.17 max=0.41 passes=- (no counter sampling: command-buffer totals only) | ema=0.16 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=27 cells=145 tiles=1 beams=4 occ=541 tier=efficient
+[IceHive] demo combat: alive 546, topped up 756 in the last 5 s
+[IceHive] hb t=25.0 td=23.3 fps=60.0 worst=17ms drawn=57 gap=53ms sim=0.27ms world=0.24ms mode=playing bugs=526 vis=423 parts=1743 stage=0 hp=100 kills=3733 mem=51MB avail=0MB demo=combat rend=metal cpu=17 main=9 dc=52 inst=5702 tris=287787 enc=0.25ms gpu=0.18ms gpumax=0.4ms skip=3 nodraw=0 drw=0ms cbmax=80ms sk=2ms/0 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 1122 | max - / -
+[IceHive] hb gpu frame=0.16 max=0.57 passes=- (no counter sampling: command-buffer totals only) | ema=0.18 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=28 cells=160 tiles=1 beams=4 occ=540 tier=efficient
+[IceHive] hb t=26.0 td=24.3 fps=60.0 worst=17ms drawn=58 gap=50ms sim=0.28ms world=0.30ms mode=playing bugs=560 vis=403 parts=1124 stage=0 hp=100 kills=3872 mem=51MB avail=0MB demo=combat rend=metal cpu=21 main=11 dc=52 inst=5029 tris=280614 enc=0.34ms gpu=0.20ms gpumax=0.6ms skip=2 nodraw=0 drw=0ms cbmax=59ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 1165 | max - / -
+[IceHive] hb gpu frame=0.19 max=0.34 passes=- (no counter sampling: command-buffer totals only) | ema=0.18 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=26 cells=160 tiles=1 beams=4 occ=517 tier=efficient
+[IceHive] hb t=27.0 td=25.3 fps=60.0 worst=17ms drawn=58 gap=33ms sim=0.28ms world=0.25ms mode=playing bugs=531 vis=410 parts=1357 stage=0 hp=100 kills=4044 mem=51MB avail=0MB demo=combat rend=metal cpu=19 main=10 dc=53 inst=5185 tris=286618 enc=0.23ms gpu=0.17ms gpumax=0.6ms skip=2 nodraw=0 drw=0ms cbmax=40ms sk=3ms/2 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 1209 | max - / -
+[IceHive] first explosion.boomer td=25.30
+[IceHive] hb gpu frame=0.18 max=0.59 passes=- (no counter sampling: command-buffer totals only) | ema=0.17 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=32 cells=171 tiles=1 beams=4 occ=488 tier=efficient
+[IceHive] hb t=28.0 td=26.3 fps=60.0 worst=17ms drawn=57 gap=57ms sim=0.28ms world=0.28ms mode=playing bugs=554 vis=467 parts=1170 stage=0 hp=100 kills=4226 mem=51MB avail=0MB demo=combat rend=metal cpu=19 main=10 dc=53 inst=5154 tris=297729 enc=0.27ms gpu=0.19ms gpumax=0.4ms skip=3 nodraw=0 drw=1ms cbmax=71ms sk=1ms/1 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 1249 | max - / -
+[IceHive] hb gpu frame=0.19 max=1.93 passes=- (no counter sampling: command-buffer totals only) | ema=0.33 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=32 cells=174 tiles=1 beams=4 occ=523 tier=efficient
+[IceHive] hb t=29.0 td=27.3 fps=60.0 worst=17ms drawn=58 gap=39ms sim=0.25ms world=0.26ms mode=playing bugs=520 vis=398 parts=2207 stage=0 hp=100 kills=4455 mem=51MB avail=0MB demo=combat rend=metal cpu=18 main=9 dc=54 inst=6214 tris=283859 enc=0.24ms gpu=0.18ms gpumax=1.9ms skip=1 nodraw=0 drw=0ms cbmax=43ms sk=2ms/0 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 1286 | max - / -
+[IceHive] hb gpu frame=0.20 max=1.14 passes=- (no counter sampling: command-buffer totals only) | ema=0.27 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.32
+[IceHive] hb light lights=28 cells=158 tiles=1 beams=4 occ=527 tier=efficient
+[IceHive] demo combat: alive 551, topped up 806 in the last 5 s
+[IceHive] hb t=30.0 td=28.3 fps=60.0 worst=17ms drawn=58 gap=33ms sim=0.80ms world=0.26ms mode=playing bugs=527 vis=381 parts=1190 stage=0 hp=100 kills=4606 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=11 dc=53 inst=4938 tris=279410 enc=0.24ms gpu=0.18ms gpumax=1.1ms skip=2 nodraw=0 drw=1ms cbmax=56ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=1.3 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 1340 | max sim=13 / -
+[IceHive] hb gpu frame=0.18 max=0.54 passes=- (no counter sampling: command-buffer totals only) | ema=0.18 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.12
+[IceHive] hb light lights=31 cells=180 tiles=1 beams=4 occ=455 tier=efficient
+[IceHive] hb t=31.0 td=29.3 fps=60.0 worst=17ms drawn=59 gap=51ms sim=0.26ms world=0.27ms mode=playing bugs=553 vis=323 parts=723 stage=0 hp=100 kills=4870 mem=51MB avail=0MB demo=combat rend=metal cpu=19 main=10 dc=53 inst=4575 tris=242618 enc=0.22ms gpu=0.17ms gpumax=0.6ms skip=2 nodraw=0 drw=0ms cbmax=66ms sk=4ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 1402 | max - / -
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.2 ms) wall=1792445412.403
+[IceHive] hb gpu frame=0.16 max=0.60 passes=- (no counter sampling: command-buffer totals only) | ema=0.15 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.30
+[IceHive] hb light lights=32 cells=171 tiles=1 beams=4 occ=542 tier=efficient
+[IceHive] hb t=32.0 td=30.3 fps=60.0 worst=17ms drawn=57 gap=63ms sim=0.23ms world=0.27ms mode=playing bugs=541 vis=415 parts=1851 stage=0 hp=100 kills=5063 mem=51MB avail=0MB demo=combat rend=metal cpu=17 main=9 dc=53 inst=5784 tris=284932 enc=0.22ms gpu=0.18ms gpumax=0.3ms skip=3 nodraw=0 drw=0ms cbmax=71ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 1455 | max - / -
+[IceHive] hb gpu frame=0.17 max=0.32 passes=- (no counter sampling: command-buffer totals only) | ema=0.17 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.09
+[IceHive] hb light lights=25 cells=169 tiles=1 beams=4 occ=522 tier=efficient
+[IceHive] hb t=33.0 td=31.3 fps=60.0 worst=17ms drawn=58 gap=51ms sim=0.22ms world=0.38ms mode=playing bugs=577 vis=352 parts=547 stage=0 hp=100 kills=5301 mem=51MB avail=0MB demo=combat rend=metal cpu=19 main=10 dc=53 inst=4413 tris=267086 enc=0.29ms gpu=0.18ms gpumax=0.4ms skip=2 nodraw=0 drw=4ms cbmax=56ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.2 fx=0.0 up=0.1 | sfx 1498 | max world=6 / cam=5
+[IceHive] hb gpu frame=0.19 max=0.83 passes=- (no counter sampling: command-buffer totals only) | ema=0.18 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=31 cells=163 tiles=1 beams=4 occ=595 tier=efficient
+[IceHive] hb t=34.0 td=32.3 fps=60.0 worst=17ms drawn=58 gap=50ms sim=0.25ms world=0.25ms mode=playing bugs=586 vis=454 parts=599 stage=0 hp=100 kills=5343 mem=51MB avail=0MB demo=combat rend=metal cpu=19 main=10 dc=51 inst=4525 tris=291551 enc=0.20ms gpu=0.20ms gpumax=1.3ms skip=2 nodraw=0 drw=0ms cbmax=42ms sk=3ms/0 skcpu=3ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 1541 | max - / -
+[IceHive] hb gpu frame=0.20 max=1.30 passes=- (no counter sampling: command-buffer totals only) | ema=0.17 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.31
+[IceHive] hb light lights=32 cells=167 tiles=1 beams=4 occ=528 tier=efficient
+[IceHive] demo combat: alive 570, topped up 827 in the last 5 s
+[IceHive] hb t=35.0 td=33.3 fps=60.0 worst=17ms drawn=58 gap=54ms sim=0.26ms world=0.25ms mode=playing bugs=541 vis=494 parts=1394 stage=0 hp=100 kills=5488 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=10 dc=51 inst=5172 tris=308587 enc=0.27ms gpu=0.22ms gpumax=1.1ms skip=2 nodraw=0 drw=0ms cbmax=46ms sk=3ms/2 skcpu=3ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 1592 | max ev=2 / -
+[IceHive] hb gpu frame=0.22 max=1.10 passes=- (no counter sampling: command-buffer totals only) | ema=0.24 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.01
+[IceHive] hb light lights=31 cells=175 tiles=1 beams=4 occ=453 tier=efficient
+[IceHive] hb t=36.0 td=34.3 fps=60.0 worst=17ms drawn=58 gap=47ms sim=0.22ms world=0.27ms mode=playing bugs=537 vis=345 parts=468 stage=0 hp=100 kills=5800 mem=51MB avail=0MB demo=combat rend=metal cpu=18 main=9 dc=52 inst=4346 tris=250319 enc=0.22ms gpu=0.22ms gpumax=1.0ms skip=2 nodraw=0 drw=0ms cbmax=50ms sk=2ms/2 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 1623 | max - / -
+[IceHive] hb gpu frame=0.17 max=0.70 passes=- (no counter sampling: command-buffer totals only) | ema=0.16 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.23
+[IceHive] hb light lights=30 cells=164 tiles=1 beams=4 occ=516 tier=efficient
+[IceHive] hb t=37.0 td=35.3 fps=60.0 worst=17ms drawn=57 gap=65ms sim=0.22ms world=0.24ms mode=playing bugs=546 vis=401 parts=1200 stage=0 hp=100 kills=6024 mem=51MB avail=0MB demo=combat rend=metal cpu=17 main=8 dc=53 inst=5135 tris=279625 enc=0.21ms gpu=0.16ms gpumax=0.5ms skip=3 nodraw=0 drw=0ms cbmax=76ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 1671 | max - / -
+[IceHive] hb gpu frame=0.18 max=0.57 passes=- (no counter sampling: command-buffer totals only) | ema=0.21 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.06
+[IceHive] hb light lights=32 cells=168 tiles=1 beams=4 occ=452 tier=efficient
+[IceHive] hb t=38.0 td=36.3 fps=60.0 worst=17ms drawn=57 gap=61ms sim=0.23ms world=0.23ms mode=playing bugs=526 vis=365 parts=1356 stage=0 hp=100 kills=6267 mem=51MB avail=0MB demo=combat rend=metal cpu=19 main=9 dc=53 inst=5256 tris=271939 enc=0.20ms gpu=0.16ms gpumax=0.6ms skip=3 nodraw=0 drw=4ms cbmax=70ms sk=7ms/0 skcpu=4ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 1726 | max - / -
+[IceHive] hb gpu frame=0.18 max=0.35 passes=- (no counter sampling: command-buffer totals only) | ema=0.18 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.03
+[IceHive] hb light lights=30 cells=159 tiles=1 beams=4 occ=505 tier=efficient
+[IceHive] hb t=39.0 td=37.3 fps=60.0 worst=17ms drawn=56 gap=44ms sim=0.25ms world=0.26ms mode=playing bugs=532 vis=359 parts=1255 stage=0 hp=100 kills=6446 mem=51MB avail=0MB demo=combat rend=metal cpu=18 main=9 dc=53 inst=5131 tris=270401 enc=0.23ms gpu=0.19ms gpumax=0.3ms skip=3 nodraw=0 drw=0ms cbmax=43ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 1777 | max - / -
+[IceHive] hb gpu frame=0.20 max=0.92 passes=- (no counter sampling: command-buffer totals only) | ema=0.20 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=28 cells=175 tiles=1 beams=4 occ=536 tier=efficient
+[IceHive] demo combat: alive 572, topped up 1123 in the last 5 s
+[IceHive] hb t=40.0 td=38.3 fps=60.0 worst=17ms drawn=59 gap=45ms sim=0.22ms world=0.23ms mode=playing bugs=572 vis=414 parts=556 stage=0 hp=100 kills=6628 mem=51MB avail=0MB demo=combat rend=metal cpu=17 main=8 dc=53 inst=4477 tris=282864 enc=0.21ms gpu=0.15ms gpumax=0.9ms skip=2 nodraw=0 drw=0ms cbmax=62ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 1822 | max - / -
+[IceHive] hb gpu frame=0.15 max=0.47 passes=- (no counter sampling: command-buffer totals only) | ema=0.18 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.25
+[IceHive] hb light lights=32 cells=170 tiles=1 beams=4 occ=524 tier=efficient
+[IceHive] hb t=41.0 td=39.3 fps=60.0 worst=17ms drawn=57 gap=58ms sim=0.22ms world=0.24ms mode=playing bugs=545 vis=459 parts=1284 stage=0 hp=100 kills=6746 mem=51MB avail=0MB demo=combat rend=metal cpu=19 main=9 dc=53 inst=5267 tris=294365 enc=0.26ms gpu=0.17ms gpumax=0.5ms skip=3 nodraw=0 drw=2ms cbmax=66ms sk=2ms/0 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 1870 | max - / -
+[IceHive] hb gpu frame=0.19 max=0.77 passes=- (no counter sampling: command-buffer totals only) | ema=0.20 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.34
+[IceHive] hb light lights=32 cells=153 tiles=1 beams=4 occ=391 tier=efficient
+[IceHive] hb t=42.0 td=40.3 fps=60.0 worst=17ms drawn=58 gap=36ms sim=0.25ms world=0.32ms mode=playing bugs=518 vis=383 parts=2145 stage=0 hp=100 kills=7009 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=10 dc=54 inst=6070 tris=278410 enc=0.29ms gpu=0.18ms gpumax=0.8ms skip=1 nodraw=1 drw=8ms cbmax=46ms sk=2ms/1 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 1932 | max - / -
+[IceHive] hb gpu frame=0.16 max=0.39 passes=- (no counter sampling: command-buffer totals only) | ema=0.13 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.19
+[IceHive] hb light lights=32 cells=169 tiles=1 beams=4 occ=445 tier=efficient
+[IceHive] hb t=43.0 td=41.3 fps=60.0 worst=17ms drawn=57 gap=44ms sim=0.20ms world=0.33ms mode=playing bugs=541 vis=236 parts=1193 stage=0 hp=100 kills=7301 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=10 dc=53 inst=4980 tris=223484 enc=0.29ms gpu=0.18ms gpumax=0.5ms skip=3 nodraw=0 drw=4ms cbmax=74ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 1983 | max - / -
+[IceHive] hb gpu frame=0.18 max=0.65 passes=- (no counter sampling: command-buffer totals only) | ema=0.21 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.27
+[IceHive] hb light lights=32 cells=163 tiles=1 beams=4 occ=428 tier=efficient
+[IceHive] hb t=44.0 td=42.3 fps=60.0 worst=17ms drawn=56 gap=36ms sim=0.24ms world=0.29ms mode=playing bugs=518 vis=301 parts=1629 stage=0 hp=100 kills=7469 mem=51MB avail=0MB demo=combat rend=metal cpu=21 main=11 dc=53 inst=5481 tris=242390 enc=0.29ms gpu=0.18ms gpumax=0.7ms skip=3 nodraw=0 drw=0ms cbmax=48ms sk=2ms/0 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 2026 | max - / -
+[IceHive] hb gpu frame=0.18 max=0.79 passes=- (no counter sampling: command-buffer totals only) | ema=0.24 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.32
+[IceHive] hb light lights=30 cells=161 tiles=1 beams=4 occ=405 tier=efficient
+[IceHive] demo combat: alive 525, topped up 968 in the last 5 s
+[IceHive] hb t=45.0 td=43.3 fps=60.0 worst=17ms drawn=59 gap=44ms sim=0.26ms world=0.48ms mode=playing bugs=524 vis=233 parts=2008 stage=0 hp=100 kills=7692 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=10 dc=54 inst=5841 tris=225148 enc=0.28ms gpu=0.24ms gpumax=0.9ms skip=2 nodraw=0 drw=0ms cbmax=55ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.2 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 2077 | max world=12 / cam=12
+[IceHive] hb gpu frame=0.21 max=0.85 passes=- (no counter sampling: command-buffer totals only) | ema=0.19 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=32 cells=154 tiles=1 beams=4 occ=448 tier=efficient
+[IceHive] hb t=46.0 td=44.3 fps=60.0 worst=17ms drawn=55 gap=49ms sim=0.24ms world=0.23ms mode=playing bugs=518 vis=387 parts=2059 stage=0 hp=100 kills=7897 mem=51MB avail=0MB demo=combat rend=metal cpu=19 main=9 dc=54 inst=5990 tris=279506 enc=0.23ms gpu=0.16ms gpumax=0.8ms skip=5 nodraw=0 drw=0ms cbmax=64ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 2132 | max - / -
+[IceHive] first telegraph.lane td=44.48
+[IceHive] hb gpu frame=0.18 max=0.62 passes=- (no counter sampling: command-buffer totals only) | ema=0.16 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.21
+[IceHive] hb light lights=32 cells=168 tiles=1 beams=4 occ=335 tier=efficient
+[IceHive] hb t=47.0 td=45.3 fps=60.0 worst=17ms drawn=60 gap=30ms sim=0.20ms world=0.25ms mode=playing bugs=500 vis=370 parts=1664 stage=0 hp=100 kills=8159 mem=51MB avail=0MB demo=combat rend=metal cpu=19 main=9 dc=55 inst=5613 tris=275308 enc=0.22ms gpu=0.16ms gpumax=0.4ms skip=0 nodraw=0 drw=0ms cbmax=20ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 2193 | max - / -
+[IceHive] hb gpu frame=0.20 max=0.85 passes=- (no counter sampling: command-buffer totals only) | ema=0.28 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.31
+[IceHive] hb light lights=32 cells=180 tiles=1 beams=4 occ=326 tier=efficient
+[IceHive] hb t=48.0 td=46.3 fps=60.0 worst=17ms drawn=58 gap=41ms sim=0.21ms world=0.37ms mode=playing bugs=514 vis=231 parts=1316 stage=0 hp=100 kills=8563 mem=51MB avail=0MB demo=combat rend=metal cpu=21 main=11 dc=57 inst=5120 tris=240684 enc=0.23ms gpu=0.17ms gpumax=0.9ms skip=2 nodraw=0 drw=0ms cbmax=47ms sk=4ms/1 skcpu=4ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.1 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 2258 | max world=5 / cam=5
+[IceHive] hb gpu frame=0.18 max=0.44 passes=- (no counter sampling: command-buffer totals only) | ema=0.19 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.27
+[IceHive] hb light lights=28 cells=163 tiles=1 beams=4 occ=555 tier=efficient
+[IceHive] hb t=49.0 td=47.3 fps=60.0 worst=17ms drawn=60 gap=23ms sim=0.22ms world=0.23ms mode=playing bugs=568 vis=359 parts=686 stage=0 hp=100 kills=8608 mem=51MB avail=0MB demo=combat rend=metal cpu=18 main=9 dc=57 inst=4424 tris=271163 enc=0.21ms gpu=0.15ms gpumax=0.4ms skip=0 nodraw=0 drw=0ms cbmax=14ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 2301 | max - / -
+[IceHive] hb gpu frame=0.18 max=0.36 passes=- (no counter sampling: command-buffer totals only) | ema=0.18 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=31 cells=181 tiles=1 beams=4 occ=523 tier=efficient
+[IceHive] demo combat: alive 579, topped up 1019 in the last 5 s
+[IceHive] hb t=50.0 td=48.3 fps=60.0 worst=17ms drawn=60 gap=22ms sim=0.21ms world=0.22ms mode=playing bugs=579 vis=480 parts=568 stage=0 hp=100 kills=8725 mem=51MB avail=0MB demo=combat rend=metal cpu=19 main=9 dc=57 inst=4545 tris=299168 enc=0.20ms gpu=0.16ms gpumax=0.4ms skip=0 nodraw=0 drw=0ms cbmax=13ms sk=3ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 2339 | max - / -
+[IceHive] hb gpu frame=0.16 max=0.36 passes=- (no counter sampling: command-buffer totals only) | ema=0.16 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=32 cells=159 tiles=1 beams=4 occ=507 tier=efficient
+[IceHive] hb t=51.0 td=49.3 fps=60.0 worst=17ms drawn=60 gap=22ms sim=0.24ms world=0.24ms mode=playing bugs=541 vis=396 parts=1645 stage=0 hp=100 kills=8926 mem=51MB avail=0MB demo=combat rend=metal cpu=18 main=9 dc=57 inst=5626 tris=284301 enc=0.25ms gpu=0.17ms gpumax=0.4ms skip=0 nodraw=0 drw=0ms cbmax=10ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 2389 | max - / -
+[IceHive] hb gpu frame=0.20 max=0.42 passes=- (no counter sampling: command-buffer totals only) | ema=0.19 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=29 cells=148 tiles=1 beams=4 occ=557 tier=efficient
+[IceHive] hb t=52.0 td=50.3 fps=60.0 worst=17ms drawn=60 gap=25ms sim=0.25ms world=0.26ms mode=playing bugs=568 vis=403 parts=828 stage=0 hp=100 kills=8972 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=10 dc=57 inst=4682 tris=268023 enc=0.31ms gpu=0.20ms gpumax=0.4ms skip=0 nodraw=0 drw=1ms cbmax=16ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 2448 | max - / -
+[IceHive] hb gpu frame=0.19 max=0.42 passes=- (no counter sampling: command-buffer totals only) | ema=0.17 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.06
+[IceHive] hb light lights=31 cells=145 tiles=1 beams=4 occ=560 tier=efficient
+[IceHive] hb t=53.0 td=51.3 fps=60.0 worst=17ms drawn=60 gap=29ms sim=0.24ms world=0.31ms mode=playing bugs=441 vis=213 parts=2482 stage=0 hp=100 kills=9210 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=10 dc=55 inst=5727 tris=231314 enc=0.28ms gpu=0.19ms gpumax=0.5ms skip=0 nodraw=0 drw=0ms cbmax=22ms sk=4ms/2 skcpu=3ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 2503 | max - / -
+[IceHive] hb gpu frame=0.19 max=0.48 passes=- (no counter sampling: command-buffer totals only) | ema=0.20 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=31 cells=167 tiles=1 beams=4 occ=493 tier=efficient
+[IceHive] hb t=54.0 td=52.3 fps=60.0 worst=17ms drawn=59 gap=45ms sim=0.19ms world=0.27ms mode=playing bugs=549 vis=347 parts=859 stage=0 hp=100 kills=9315 mem=50MB avail=0MB demo=combat rend=metal cpu=20 main=10 dc=55 inst=4728 tris=254458 enc=0.28ms gpu=0.20ms gpumax=0.9ms skip=1 nodraw=0 drw=0ms cbmax=39ms sk=2ms/1 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 2561 | max ev=3 / -
+[IceHive] hb gpu frame=0.24 max=0.90 passes=- (no counter sampling: command-buffer totals only) | ema=0.23 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.34
+[IceHive] hb light lights=32 cells=156 tiles=1 beams=4 occ=385 tier=efficient
+[IceHive] demo combat: alive 556, topped up 770 in the last 5 s
+[IceHive] hb t=55.0 td=53.3 fps=60.0 worst=17ms drawn=58 gap=38ms sim=0.29ms world=0.27ms mode=playing bugs=557 vis=183 parts=2554 stage=0 hp=100 kills=9544 mem=50MB avail=0MB demo=combat rend=metal cpu=20 main=10 dc=56 inst=6279 tris=216572 enc=0.27ms gpu=0.25ms gpumax=0.9ms skip=2 nodraw=0 drw=2ms cbmax=58ms sk=2ms/1 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 2622 | max - / -
+[IceHive] hb gpu frame=0.27 max=1.27 passes=- (no counter sampling: command-buffer totals only) | ema=0.35 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.30
+[IceHive] hb light lights=32 cells=162 tiles=1 beams=4 occ=510 tier=efficient
+[IceHive] hb t=56.0 td=54.3 fps=60.0 worst=17ms drawn=57 gap=58ms sim=0.21ms world=0.26ms mode=playing bugs=508 vis=192 parts=2268 stage=0 hp=100 kills=9885 mem=51MB avail=0MB demo=combat rend=metal cpu=18 main=9 dc=57 inst=6063 tris=220472 enc=0.29ms gpu=0.26ms gpumax=1.3ms skip=2 nodraw=1 drw=4ms cbmax=67ms sk=3ms/0 skcpu=0ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 2685 | max - / -
+[IceHive] hb gpu frame=0.18 max=0.44 passes=- (no counter sampling: command-buffer totals only) | ema=0.16 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.32
+[IceHive] hb light lights=32 cells=151 tiles=1 beams=4 occ=504 tier=efficient
+[IceHive] hb t=57.0 td=55.3 fps=60.0 worst=17ms drawn=58 gap=45ms sim=0.23ms world=0.28ms mode=playing bugs=476 vis=170 parts=2784 stage=0 hp=100 kills=10124 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=10 dc=57 inst=6515 tris=216266 enc=0.34ms gpu=0.22ms gpumax=0.5ms skip=2 nodraw=0 drw=0ms cbmax=47ms sk=5ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 2740 | max - / -
+[IceHive] hb gpu frame=0.21 max=0.55 passes=- (no counter sampling: command-buffer totals only) | ema=0.19 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=32 cells=172 tiles=1 beams=4 occ=505 tier=efficient
+[IceHive] hb t=58.0 td=56.3 fps=60.0 worst=17ms drawn=59 gap=37ms sim=0.25ms world=0.29ms mode=playing bugs=499 vis=115 parts=1721 stage=0 hp=100 kills=10344 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=10 dc=57 inst=5394 tris=202339 enc=0.30ms gpu=0.20ms gpumax=0.5ms skip=0 nodraw=0 drw=2ms cbmax=26ms sk=18ms/0 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 2809 | max world=2 / -
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.5 ms) wall=1792445439.771
+[IceHive] hb gpu frame=0.22 max=1.49 passes=- (no counter sampling: command-buffer totals only) | ema=0.20 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.23
+[IceHive] hb light lights=28 cells=164 tiles=1 beams=4 occ=576 tier=efficient
+[IceHive] hb t=59.0 td=57.3 fps=60.0 worst=17ms drawn=59 gap=49ms sim=0.29ms world=0.27ms mode=playing bugs=558 vis=338 parts=1234 stage=0 hp=100 kills=10460 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=10 dc=57 inst=5183 tris=257550 enc=0.25ms gpu=0.19ms gpumax=1.5ms skip=2 nodraw=0 drw=1ms cbmax=59ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 2877 | max - / -
+[IceHive] hb gpu frame=0.18 max=0.46 passes=- (no counter sampling: command-buffer totals only) | ema=0.20 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.19
+[IceHive] demo combat: alive 450, topped up 1109 in the last 5 s
+[IceHive] hb light lights=32 cells=135 tiles=1 beams=4 occ=411 tier=efficient
+[IceHive] hb t=60.0 td=58.3 fps=60.0 worst=17ms drawn=58 gap=36ms sim=0.23ms world=0.24ms mode=playing bugs=406 vis=123 parts=3257 stage=0 hp=100 kills=10873 mem=51MB avail=0MB demo=combat rend=metal cpu=19 main=10 dc=57 inst=6969 tris=206580 enc=0.24ms gpu=0.17ms gpumax=0.5ms skip=0 nodraw=2 drw=6ms cbmax=25ms sk=3ms/1 skcpu=3ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.2 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 2948 | max - / -
+[IceHive] hb gpu frame=0.18 max=0.37 passes=- (no counter sampling: command-buffer totals only) | ema=0.20 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=28 cells=173 tiles=1 beams=4 occ=569 tier=efficient
+[IceHive] hb t=61.0 td=59.3 fps=60.0 worst=17ms drawn=58 gap=41ms sim=0.21ms world=0.22ms mode=playing bugs=565 vis=252 parts=809 stage=0 hp=100 kills=10948 mem=51MB avail=0MB demo=combat rend=metal cpu=17 main=8 dc=58 inst=4606 tris=233562 enc=0.25ms gpu=0.19ms gpumax=0.4ms skip=2 nodraw=0 drw=3ms cbmax=55ms sk=1ms/1 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 3006 | max - / -
+[IceHive] hb gpu frame=0.19 max=0.33 passes=- (no counter sampling: command-buffer totals only) | ema=0.20 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=25 cells=137 tiles=1 beams=4 occ=567 tier=efficient
+[IceHive] hb t=62.0 td=60.3 fps=60.0 worst=17ms drawn=56 gap=46ms sim=0.21ms world=0.27ms mode=playing bugs=563 vis=319 parts=692 stage=0 hp=100 kills=11201 mem=51MB avail=0MB demo=combat rend=metal cpu=18 main=9 dc=57 inst=4579 tris=249948 enc=0.28ms gpu=0.19ms gpumax=0.3ms skip=2 nodraw=2 drw=5ms cbmax=46ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 3062 | max world=2 / cam=2
+[IceHive] hb gpu frame=0.17 max=0.34 passes=- (no counter sampling: command-buffer totals only) | ema=0.17 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.34
+[IceHive] hb t=63.0 td=61.3 fps=60.0 worst=17ms drawn=60 gap=30ms sim=0.24ms world=0.27ms mode=playing bugs=410 vis=71 parts=2729 stage=0 hp=100 kills=11585 mem=51MB avail=0MB demo=combat rend=metal cpu=17 main=9 dc=57 inst=6375 tris=193430 enc=0.25ms gpu=0.18ms gpumax=0.3ms skip=0 nodraw=0 drw=0ms cbmax=22ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 3099 | max sim=2 / -
+[IceHive] hb light lights=32 cells=124 tiles=1 beams=4 occ=414 tier=efficient
+[IceHive] hb gpu frame=0.22 max=1.21 passes=- (no counter sampling: command-buffer totals only) | ema=0.30 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.31
+[IceHive] hb t=64.0 td=62.3 fps=60.0 worst=17ms drawn=47 gap=81ms sim=0.26ms world=0.26ms mode=playing bugs=574 vis=283 parts=748 stage=0 hp=100 kills=11647 mem=51MB avail=0MB demo=combat rend=metal cpu=17 main=9 dc=57 inst=4562 tris=242190 enc=0.27ms gpu=0.24ms gpumax=1.2ms skip=4 nodraw=10 drw=33ms cbmax=86ms sk=11ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.1 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 3154 | max ev=3 / -
+[IceHive] hb light lights=31 cells=163 tiles=1 beams=4 occ=578 tier=efficient
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.4 ms) wall=1792445445.821
+[IceHive] hb gpu frame=0.25 max=1.37 passes=- (no counter sampling: command-buffer totals only) | ema=0.30 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.30
+[IceHive] demo combat: alive 582, topped up 979 in the last 5 s
+[IceHive] hb t=65.0 td=63.3 fps=60.0 worst=17ms drawn=42 gap=52ms sim=0.23ms world=0.25ms mode=playing bugs=477 vis=330 parts=1985 stage=0 hp=100 kills=11851 mem=51MB avail=0MB demo=combat rend=metal cpu=19 main=10 dc=57 inst=5876 tris=256201 enc=0.44ms gpu=0.27ms gpumax=1.4ms skip=10 nodraw=7 drw=16ms cbmax=78ms sk=2ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.1 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 3219 | max - / -
+[IceHive] hb light lights=32 cells=171 tiles=1 beams=4 occ=478 tier=efficient
+[IceHive] hb gpu frame=0.26 max=2.08 passes=- (no counter sampling: command-buffer totals only) | ema=0.45 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.25
+[IceHive] hb t=66.0 td=64.3 fps=60.0 worst=17ms drawn=48 gap=46ms sim=0.27ms world=0.26ms mode=playing bugs=555 vis=377 parts=1547 stage=0 hp=100 kills=12005 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=10 dc=57 inst=5490 tris=268314 enc=0.26ms gpu=0.31ms gpumax=2.1ms skip=4 nodraw=8 drw=7ms cbmax=70ms sk=2ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 3286 | max - / -
+[IceHive] hb light lights=29 cells=173 tiles=1 beams=4 occ=559 tier=efficient
+[IceHive] hb gpu frame=0.21 max=0.63 passes=- (no counter sampling: command-buffer totals only) | ema=0.25 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.00
+[IceHive] hb t=67.0 td=65.3 fps=60.0 worst=17ms drawn=39 gap=115ms sim=0.27ms world=0.31ms mode=playing bugs=435 vis=316 parts=2194 stage=0 hp=100 kills=12365 mem=51MB avail=0MB demo=combat rend=metal cpu=15 main=9 dc=58 inst=6138 tris=250792 enc=0.29ms gpu=0.25ms gpumax=0.6ms skip=3 nodraw=18 drw=107ms cbmax=104ms sk=12ms/0 skcpu=3ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.1 world=0.2 hud=0.1 au=0.1 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 3355 | max - / -
+[IceHive] hb light lights=30 cells=181 tiles=1 beams=4 occ=439 tier=efficient
+[IceHive] hb gpu frame=0.35 max=3.05 passes=- (no counter sampling: command-buffer totals only) | ema=0.47 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.27
+[IceHive] hb t=68.0 td=66.3 fps=60.0 worst=17ms drawn=48 gap=69ms sim=0.22ms world=0.23ms mode=playing bugs=546 vis=415 parts=1845 stage=0 hp=100 kills=12528 mem=51MB avail=0MB demo=combat rend=metal cpu=18 main=9 dc=57 inst=5916 tris=293839 enc=0.25ms gpu=0.46ms gpumax=3.0ms skip=6 nodraw=6 drw=9ms cbmax=79ms sk=3ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 3411 | max - / -
+[IceHive] hb light lights=32 cells=161 tiles=1 beams=4 occ=546 tier=efficient
+[IceHive] hb gpu frame=0.35 max=0.81 passes=- (no counter sampling: command-buffer totals only) | ema=0.28 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.05
+[IceHive] hb t=69.0 td=67.3 fps=60.0 worst=17ms drawn=35 gap=64ms sim=0.30ms world=0.35ms mode=playing bugs=531 vis=207 parts=855 stage=0 hp=100 kills=12845 mem=51MB avail=0MB demo=combat rend=metal cpu=18 main=10 dc=57 inst=4600 tris=224934 enc=0.40ms gpu=0.29ms gpumax=0.8ms skip=4 nodraw=20 drw=39ms cbmax=53ms sk=23ms/0 skcpu=1ms skslow=0/1
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.1 mar=0.0 bug=0.1 fx=0.1 up=0.1 | sfx 3473 | max - / -
+[IceHive] hb light lights=32 cells=158 tiles=1 beams=4 occ=535 tier=efficient
+[IceHive] hb gpu frame=0.29 max=0.86 passes=- (no counter sampling: command-buffer totals only) | ema=0.25 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] demo combat: alive 579, topped up 1112 in the last 5 s
+[IceHive] hb t=70.0 td=68.3 fps=60.0 worst=17ms drawn=36 gap=132ms sim=0.35ms world=0.31ms mode=playing bugs=561 vis=424 parts=935 stage=0 hp=100 kills=12907 mem=51MB avail=0MB demo=combat rend=metal cpu=17 main=10 dc=57 inst=4856 tris=294970 enc=0.35ms gpu=0.24ms gpumax=0.9ms skip=10 nodraw=15 drw=17ms cbmax=108ms sk=2ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 3530 | max ev=2 / -
+[IceHive] hb light lights=32 cells=161 tiles=1 beams=4 occ=518 tier=efficient
+[IceHive] hb gpu frame=0.50 max=10.89 passes=- (no counter sampling: command-buffer totals only) | ema=0.51 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.21
+[IceHive] hb t=71.0 td=69.3 fps=60.0 worst=17ms drawn=40 gap=126ms sim=0.32ms world=0.70ms mode=playing bugs=520 vis=349 parts=1654 stage=0 hp=100 kills=13137 mem=51MB avail=0MB demo=combat rend=metal cpu=21 main=11 dc=57 inst=5712 tris=276653 enc=0.40ms gpu=0.47ms gpumax=10.9ms skip=7 nodraw=13 drw=20ms cbmax=119ms sk=2ms/0 skcpu=0ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.6 hud=0.2 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.1 up=0.8 | sfx 3591 | max world=8 hud=3 / up=7
+[IceHive] hb light lights=32 cells=171 tiles=1 beams=4 occ=504 tier=efficient
+[IceHive] hb gpu frame=0.27 max=1.29 passes=- (no counter sampling: command-buffer totals only) | ema=0.24 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb t=72.0 td=70.3 fps=60.0 worst=17ms drawn=26 gap=267ms sim=0.30ms world=0.32ms mode=playing bugs=558 vis=409 parts=1144 stage=0 hp=100 kills=13265 mem=51MB avail=0MB demo=combat rend=metal cpu=15 main=8 dc=55 inst=4857 tris=295255 enc=0.41ms gpu=15.00ms gpumax=164.2ms skip=24 nodraw=9 drw=26ms cbmax=251ms sk=2ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.1 hud=0.2 au=0.1 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.2 | sfx 3639 | max - / -
+[IceHive] hb light lights=32 cells=151 tiles=1 beams=4 occ=522 tier=efficient
+[IceHive] hb gpu frame=4.63 max=164.24 passes=- (no counter sampling: command-buffer totals only) | ema=0.64 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.23
+[IceHive] hb t=73.0 td=71.3 fps=60.0 worst=17ms drawn=38 gap=82ms sim=0.27ms world=0.31ms mode=playing bugs=482 vis=294 parts=2538 stage=0 hp=100 kills=13648 mem=51MB avail=0MB demo=combat rend=metal cpu=19 main=10 dc=55 inst=6449 tris=251734 enc=0.32ms gpu=0.58ms gpumax=0.9ms skip=9 nodraw=15 drw=15ms cbmax=121ms sk=7ms/1 skcpu=3ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.1 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 3693 | max - / -
+[IceHive] hb light lights=32 cells=141 tiles=1 beams=4 occ=486 tier=efficient
+[IceHive] hb gpu frame=0.25 max=0.72 passes=- (no counter sampling: command-buffer totals only) | ema=0.24 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.18
+[IceHive] hb t=74.0 td=72.3 fps=60.0 worst=17ms drawn=43 gap=67ms sim=0.28ms world=0.32ms mode=playing bugs=544 vis=292 parts=1221 stage=0 hp=100 kills=13740 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=11 dc=56 inst=5067 tris=246248 enc=0.36ms gpu=0.22ms gpumax=0.7ms skip=4 nodraw=12 drw=13ms cbmax=66ms sk=2ms/0 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.1 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 3742 | max hud=2 / -
+[IceHive] hb light lights=32 cells=152 tiles=1 beams=4 occ=545 tier=efficient
+[IceHive] demo combat: alive 565, topped up 880 in the last 5 s
+[IceHive] hb gpu frame=0.27 max=0.91 passes=- (no counter sampling: command-buffer totals only) | ema=0.27 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.22
+[IceHive] hb t=75.0 td=73.3 fps=60.0 worst=17ms drawn=32 gap=169ms sim=0.32ms world=0.31ms mode=playing bugs=563 vis=445 parts=1206 stage=0 hp=100 kills=13855 mem=51MB avail=0MB demo=combat rend=metal cpu=17 main=10 dc=57 inst=5306 tris=298702 enc=0.46ms gpu=0.32ms gpumax=0.9ms skip=14 nodraw=14 drw=18ms cbmax=172ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.3 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.1 up=0.1 | sfx 3785 | max - / -
+[IceHive] hb light lights=32 cells=173 tiles=1 beams=4 occ=563 tier=efficient
+[IceHive] hb gpu frame=0.32 max=1.01 passes=- (no counter sampling: command-buffer totals only) | ema=0.28 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb t=76.0 td=74.3 fps=60.0 worst=17ms drawn=39 gap=77ms sim=0.28ms world=0.26ms mode=playing bugs=538 vis=346 parts=820 stage=0 hp=100 kills=13977 mem=51MB avail=0MB demo=combat rend=metal cpu=18 main=10 dc=57 inst=4715 tris=259774 enc=0.29ms gpu=0.27ms gpumax=1.0ms skip=6 nodraw=15 drw=24ms cbmax=61ms sk=12ms/0 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 3855 | max hud=4 / -
+[IceHive] hb light lights=32 cells=145 tiles=1 beams=4 occ=374 tier=efficient
+[IceHive] hb gpu frame=0.19 max=0.64 passes=- (no counter sampling: command-buffer totals only) | ema=0.24 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.29
+[IceHive] hb t=77.0 td=75.3 fps=60.0 worst=17ms drawn=35 gap=99ms sim=0.31ms world=0.29ms mode=playing bugs=535 vis=196 parts=1126 stage=0 hp=100 kills=14219 mem=51MB avail=0MB demo=combat rend=metal cpu=15 main=8 dc=57 inst=5011 tris=241852 enc=0.38ms gpu=0.24ms gpumax=0.6ms skip=4 nodraw=21 drw=139ms cbmax=94ms sk=2ms/0 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.1 au=0.1 | cam=0.1 mar=0.0 bug=0.1 fx=0.1 up=0.1 | sfx 3904 | max - / -
+[IceHive] hb gpu frame=0.00 max=0.00 passes=- (no counter sampling: command-buffer totals only) | ema=0.24 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.04
+[IceHive] hb t=78.0 td=76.3 fps=60.0 worst=17ms drawn=0 gap=0ms sim=0.35ms world=0.11ms mode=playing bugs=549 vis=187 parts=1083 stage=0 hp=100 kills=14332 mem=51MB avail=0MB demo=combat rend=metal cpu=8 main=5 dc=57 inst=4868 tris=224861 enc=0.40ms gpu=0.24ms gpumax=0.0ms skip=59 nodraw=0 drw=10ms cbmax=0ms sk=0ms/0 skcpu=0ms skslow=0/0
+[IceHive] hb ms sim=0.4 ev=0.1 cam=0.0 world=0.0 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.1 up=0.1 | sfx 3967 | max sim=3 / -
+[IceHive] hb light lights=30 cells=169 tiles=1 beams=4 occ=552 tier=efficient
+[IceHive] hb gpu frame=0.25 max=0.91 passes=- (no counter sampling: command-buffer totals only) | ema=0.21 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.34
+[IceHive] hb t=79.0 td=77.3 fps=60.0 worst=17ms drawn=25 gap=1248ms sim=0.38ms world=0.19ms mode=playing bugs=382 vis=333 parts=1995 stage=0 hp=100 kills=14588 mem=51MB avail=0MB demo=combat rend=metal cpu=12 main=7 dc=57 inst=4827 tris=296480 enc=0.30ms gpu=0.21ms gpumax=0.9ms skip=25 nodraw=10 drw=39ms cbmax=1227ms sk=4ms/2 skcpu=3ms skslow=0/0
+[IceHive] hb ms sim=0.4 ev=0.3 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.1 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 4018 | max sim=3 / -
+[IceHive] hb light lights=32 cells=144 tiles=1 beams=4 occ=366 tier=efficient
+[IceHive] demo combat: alive 533, topped up 796 in the last 5 s
+[IceHive] hb gpu frame=0.30 max=1.61 passes=- (no counter sampling: command-buffer totals only) | ema=0.26 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.34
+[IceHive] hb t=80.0 td=78.3 fps=60.0 worst=17ms drawn=43 gap=146ms sim=0.28ms world=0.26ms mode=playing bugs=482 vis=219 parts=1542 stage=0 hp=100 kills=14761 mem=51MB avail=0MB demo=combat rend=metal cpu=16 main=9 dc=58 inst=4870 tris=242563 enc=0.28ms gpu=0.26ms gpumax=1.6ms skip=8 nodraw=10 drw=13ms cbmax=133ms sk=5ms/1 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 4079 | max - / -
+[IceHive] hb light lights=32 cells=160 tiles=1 beams=4 occ=443 tier=efficient
+[IceHive] hb gpu frame=0.28 max=1.07 passes=- (no counter sampling: command-buffer totals only) | ema=0.39 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb t=81.0 td=79.3 fps=60.0 worst=17ms drawn=46 gap=49ms sim=0.30ms world=0.37ms mode=playing bugs=549 vis=387 parts=909 stage=0 hp=100 kills=14872 mem=51MB avail=0MB demo=combat rend=metal cpu=21 main=11 dc=57 inst=4870 tris=287321 enc=0.39ms gpu=0.39ms gpumax=1.1ms skip=2 nodraw=11 drw=12ms cbmax=50ms sk=2ms/0 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.3 hud=0.1 au=0.1 | cam=0.1 mar=0.0 bug=0.1 fx=0.1 up=0.1 | sfx 4119 | max - / -
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1792445462.219
+[IceHive] hb light lights=29 cells=187 tiles=1 beams=4 occ=545 tier=efficient
+[IceHive] hb gpu frame=0.39 max=1.45 passes=- (no counter sampling: command-buffer totals only) | ema=0.41 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb t=82.0 td=80.3 fps=60.0 worst=17ms drawn=51 gap=44ms sim=0.28ms world=0.40ms mode=playing bugs=570 vis=372 parts=974 stage=0 hp=100 kills=15002 mem=51MB avail=0MB demo=combat rend=metal cpu=23 main=12 dc=57 inst=4963 tris=272012 enc=0.32ms gpu=0.41ms gpumax=1.5ms skip=2 nodraw=8 drw=9ms cbmax=55ms sk=4ms/0 skcpu=4ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.3 hud=0.1 au=0.1 | cam=0.1 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 4171 | max - / -
+[IceHive] hb light lights=25 cells=168 tiles=1 beams=4 occ=554 tier=efficient
+[IceHive] metal: slow world encode 3 ms (thread cpu 1.1 ms) wall=1792445463.438
+[IceHive] hb t=83.0 td=81.3 fps=60.0 worst=17ms drawn=51 gap=92ms sim=0.24ms world=0.30ms mode=playing bugs=519 vis=376 parts=2302 stage=0 hp=100 kills=15212 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=11 dc=57 inst=6224 tris=290092 enc=0.33ms gpu=0.23ms gpumax=0.8ms skip=3 nodraw=6 drw=63ms cbmax=54ms sk=2ms/0 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.1 up=0.1 | sfx 4237 | max - / -
+[IceHive] hb gpu frame=0.31 max=0.82 passes=- (no counter sampling: command-buffer totals only) | ema=0.23 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.05
+[IceHive] hb light lights=31 cells=161 tiles=1 beams=4 occ=487 tier=efficient
+[IceHive] metal: slow world encode 4 ms (thread cpu 0.6 ms) wall=1792445464.338
+[IceHive] hb t=84.0 td=82.3 fps=60.0 worst=17ms drawn=46 gap=149ms sim=0.26ms world=0.28ms mode=playing bugs=541 vis=348 parts=1066 stage=0 hp=100 kills=15331 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=11 dc=57 inst=4830 tris=264758 enc=0.24ms gpu=0.70ms gpumax=20.4ms skip=1 nodraw=13 drw=113ms cbmax=34ms sk=22ms/0 skcpu=2ms skslow=0/1
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 4293 | max ev=2 / -
+[IceHive] hb gpu frame=0.94 max=20.37 passes=- (no counter sampling: command-buffer totals only) | ema=0.62 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.32
+[IceHive] hb light lights=32 cells=135 tiles=1 beams=4 occ=419 tier=efficient
+[IceHive] metal: slow world encode 7 ms (thread cpu 6.5 ms) wall=1792445465.674
+[IceHive] demo combat: alive 572, topped up 767 in the last 5 s
+[IceHive] hb t=85.0 td=83.3 fps=60.0 worst=17ms drawn=41 gap=194ms sim=0.30ms world=0.24ms mode=playing bugs=568 vis=379 parts=1040 stage=0 hp=100 kills=15510 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=10 dc=57 inst=5129 tris=269418 enc=0.60ms gpu=0.23ms gpumax=0.9ms skip=17 nodraw=1 drw=8ms cbmax=190ms sk=4ms/1 skcpu=4ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.1 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 4361 | max hud=3 / -
+[IceHive] hb gpu frame=0.24 max=0.91 passes=- (no counter sampling: command-buffer totals only) | ema=0.22 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.04
+[IceHive] hb light lights=30 cells=166 tiles=1 beams=4 occ=537 tier=efficient
+[IceHive] hb t=86.0 td=84.3 fps=60.0 worst=17ms drawn=18 gap=428ms sim=0.31ms world=0.24ms mode=playing bugs=554 vis=242 parts=2146 stage=0 hp=100 kills=15741 mem=51MB avail=0MB demo=combat rend=metal cpu=13 main=7 dc=58 inst=5968 tris=240713 enc=0.33ms gpu=0.29ms gpumax=1.5ms skip=38 nodraw=4 drw=5ms cbmax=423ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 4434 | max - / -
+[IceHive] hb gpu frame=0.37 max=1.54 passes=- (no counter sampling: command-buffer totals only) | ema=0.30 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.17
+[IceHive] hb light lights=32 cells=169 tiles=1 beams=4 occ=532 tier=efficient
+[IceHive] hb t=87.0 td=85.3 fps=60.0 worst=17ms drawn=42 gap=117ms sim=0.27ms world=0.29ms mode=playing bugs=600 vis=220 parts=1746 stage=0 hp=100 kills=15924 mem=51MB avail=0MB demo=combat rend=metal cpu=18 main=10 dc=57 inst=5575 tris=233062 enc=0.32ms gpu=0.53ms gpumax=6.6ms skip=8 nodraw=11 drw=14ms cbmax=138ms sk=5ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.0 cam=0.0 world=0.1 hud=0.1 au=0.1 | cam=0.0 mar=0.0 bug=0.0 fx=0.1 up=0.1 | sfx 4476 | max ev=9 / -
+[IceHive] hb gpu frame=0.38 max=6.65 passes=- (no counter sampling: command-buffer totals only) | ema=0.46 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.08
+[IceHive] hb light lights=32 cells=176 tiles=1 beams=4 occ=598 tier=efficient
+[IceHive] hb t=88.0 td=86.3 fps=60.0 worst=17ms drawn=44 gap=69ms sim=0.33ms world=0.25ms mode=playing bugs=592 vis=373 parts=1265 stage=0 hp=100 kills=16016 mem=51MB avail=0MB demo=combat rend=metal cpu=16 main=9 dc=57 inst=5221 tris=271986 enc=0.32ms gpu=0.22ms gpumax=0.4ms skip=5 nodraw=12 drw=10ms cbmax=64ms sk=5ms/1 skcpu=4ms skslow=0/0
+[IceHive] hb ms sim=0.4 ev=0.1 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.1 up=0.1 | sfx 4539 | max - / -
+[IceHive] hb gpu frame=0.21 max=0.39 passes=- (no counter sampling: command-buffer totals only) | ema=0.23 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.08
+[IceHive] hb light lights=32 cells=184 tiles=1 beams=4 occ=494 tier=efficient
+[IceHive] hb t=89.0 td=87.3 fps=60.0 worst=17ms drawn=51 gap=46ms sim=0.50ms world=0.28ms mode=playing bugs=535 vis=407 parts=1614 stage=0 hp=100 kills=16237 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=11 dc=57 inst=5584 tris=295692 enc=0.31ms gpu=0.30ms gpumax=3.4ms skip=2 nodraw=6 drw=14ms cbmax=57ms sk=2ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.5 ev=0.1 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 4596 | max sim=4 / -
+[IceHive] hb gpu frame=0.32 max=3.37 passes=- (no counter sampling: command-buffer totals only) | ema=0.26 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.34
+[IceHive] hb light lights=32 cells=140 tiles=1 beams=4 occ=371 tier=efficient
+[IceHive] demo combat: alive 600, topped up 940 in the last 5 s
+[IceHive] hb t=90.0 td=88.3 fps=60.0 worst=17ms drawn=54 gap=53ms sim=0.33ms world=0.26ms mode=playing bugs=599 vis=390 parts=654 stage=0 hp=100 kills=16437 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=10 dc=57 inst=4612 tris=273613 enc=0.25ms gpu=0.26ms gpumax=2.9ms skip=4 nodraw=2 drw=5ms cbmax=68ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 4664 | max - / -
+[IceHive] hb gpu frame=0.27 max=2.91 passes=- (no counter sampling: command-buffer totals only) | ema=0.24 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=32 cells=191 tiles=1 beams=4 occ=595 tier=efficient
+[IceHive] hb t=91.0 td=89.3 fps=60.0 worst=17ms drawn=53 gap=45ms sim=0.26ms world=0.24ms mode=playing bugs=599 vis=417 parts=2000 stage=0 hp=100 kills=16655 mem=51MB avail=0MB demo=combat rend=metal cpu=18 main=9 dc=55 inst=6020 tris=299588 enc=0.24ms gpu=0.15ms gpumax=0.6ms skip=2 nodraw=5 drw=6ms cbmax=61ms sk=3ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 4726 | max - / -
+[IceHive] hb gpu frame=0.20 max=0.64 passes=- (no counter sampling: command-buffer totals only) | ema=0.19 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.16
+[IceHive] hb light lights=32 cells=193 tiles=1 beams=4 occ=595 tier=efficient
+[IceHive] hb t=92.0 td=90.3 fps=60.0 worst=17ms drawn=46 gap=82ms sim=0.24ms world=0.20ms mode=playing bugs=584 vis=273 parts=1124 stage=0 hp=100 kills=16768 mem=51MB avail=0MB demo=combat rend=metal cpu=17 main=8 dc=55 inst=4987 tris=245564 enc=0.24ms gpu=0.25ms gpumax=1.3ms skip=13 nodraw=0 drw=1ms cbmax=81ms sk=2ms/0 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.1 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 4776 | max - / -
+[IceHive] hb gpu frame=0.31 max=1.31 passes=- (no counter sampling: command-buffer totals only) | ema=0.24 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.25
+[IceHive] hb light lights=32 cells=194 tiles=1 beams=4 occ=583 tier=efficient
+[IceHive] hb t=93.0 td=91.3 fps=60.0 worst=17ms drawn=42 gap=133ms sim=0.22ms world=0.24ms mode=playing bugs=532 vis=278 parts=1722 stage=0 hp=100 kills=16917 mem=51MB avail=0MB demo=combat rend=metal cpu=17 main=9 dc=56 inst=5578 tris=249553 enc=0.24ms gpu=0.21ms gpumax=0.5ms skip=10 nodraw=8 drw=13ms cbmax=245ms sk=4ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 4811 | max - / -
+[IceHive] hb gpu frame=0.21 max=0.54 passes=- (no counter sampling: command-buffer totals only) | ema=0.24 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.22
+[IceHive] hb light lights=32 cells=167 tiles=1 beams=4 occ=506 tier=efficient
+[IceHive] hb t=94.0 td=92.3 fps=60.0 worst=17ms drawn=42 gap=91ms sim=0.27ms world=0.23ms mode=playing bugs=558 vis=409 parts=1119 stage=0 hp=100 kills=17033 mem=51MB avail=0MB demo=combat rend=metal cpu=16 main=8 dc=55 inst=5040 tris=296767 enc=0.32ms gpu=0.20ms gpumax=0.5ms skip=2 nodraw=17 drw=29ms cbmax=68ms sk=2ms/0 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 4867 | max - / -
+[IceHive] hb gpu frame=0.20 max=0.39 passes=- (no counter sampling: command-buffer totals only) | ema=0.17 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=29 cells=178 tiles=1 beams=4 occ=502 tier=efficient
+[IceHive] demo combat: alive 588, topped up 652 in the last 5 s
+[IceHive] hb t=95.0 td=93.3 fps=60.0 worst=17ms drawn=45 gap=67ms sim=0.29ms world=0.26ms mode=playing bugs=545 vis=392 parts=1124 stage=0 hp=100 kills=17160 mem=51MB avail=0MB demo=combat rend=metal cpu=17 main=9 dc=57 inst=5130 tris=270366 enc=0.32ms gpu=0.26ms gpumax=1.3ms skip=4 nodraw=11 drw=32ms cbmax=61ms sk=4ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 4923 | max - / -
+[IceHive] metal: slow world encode 3 ms (thread cpu 1.8 ms) wall=1792445476.204
+[IceHive] hb gpu frame=0.25 max=1.26 passes=- (no counter sampling: command-buffer totals only) | ema=0.24 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.19
+[IceHive] hb light lights=32 cells=181 tiles=1 beams=4 occ=592 tier=efficient
+[IceHive] hb t=96.0 td=94.3 fps=60.0 worst=17ms drawn=31 gap=124ms sim=0.29ms world=0.21ms mode=playing bugs=549 vis=460 parts=1673 stage=0 hp=100 kills=17390 mem=51MB avail=0MB demo=combat rend=metal cpu=15 main=8 dc=57 inst=5751 tris=309295 enc=0.24ms gpu=0.43ms gpumax=6.8ms skip=22 nodraw=7 drw=60ms cbmax=115ms sk=9ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 4994 | max sim=3 / -
+[IceHive] hb gpu frame=0.51 max=6.77 passes=- (no counter sampling: command-buffer totals only) | ema=0.34 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.22
+[IceHive] hb light lights=32 cells=177 tiles=1 beams=4 occ=589 tier=efficient
+[IceHive] hb t=97.0 td=95.3 fps=60.0 worst=17ms drawn=51 gap=60ms sim=0.30ms world=0.27ms mode=playing bugs=580 vis=331 parts=1224 stage=0 hp=100 kills=17503 mem=51MB avail=0MB demo=combat rend=metal cpu=19 main=10 dc=57 inst=5114 tris=261682 enc=0.26ms gpu=0.30ms gpumax=9.5ms skip=8 nodraw=1 drw=6ms cbmax=91ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 5066 | max sim=3 world=4 / up=2
+[IceHive] hb gpu frame=0.82 max=9.55 passes=- (no counter sampling: command-buffer totals only) | ema=1.11 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=32 cells=136 tiles=1 beams=4 occ=549 tier=efficient
+[IceHive] hb t=98.0 td=96.3 fps=60.0 worst=17ms drawn=45 gap=54ms sim=0.22ms world=0.24ms mode=playing bugs=584 vis=390 parts=1897 stage=0 hp=100 kills=17765 mem=51MB avail=0MB demo=combat rend=metal cpu=18 main=9 dc=57 inst=5816 tris=290593 enc=0.29ms gpu=0.69ms gpumax=19.0ms skip=6 nodraw=9 drw=12ms cbmax=70ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 5131 | max - / -
+[IceHive] hb gpu frame=0.67 max=18.97 passes=- (no counter sampling: command-buffer totals only) | ema=0.36 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=32 cells=183 tiles=1 beams=4 occ=600 tier=efficient
+[IceHive] hb t=99.0 td=97.3 fps=60.0 worst=17ms drawn=50 gap=65ms sim=0.32ms world=0.31ms mode=playing bugs=589 vis=400 parts=903 stage=0 hp=100 kills=17835 mem=51MB avail=0MB demo=combat rend=metal cpu=17 main=9 dc=58 inst=4872 tris=295206 enc=0.29ms gpu=0.26ms gpumax=0.8ms skip=4 nodraw=5 drw=18ms cbmax=58ms sk=2ms/1 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.4 ev=0.1 cam=0.0 world=0.2 hud=0.1 au=0.1 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 5180 | max - / -
+[IceHive] hb gpu frame=0.36 max=6.82 passes=- (no counter sampling: command-buffer totals only) | ema=0.68 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.31
+[IceHive] hb light lights=32 cells=143 tiles=1 beams=4 occ=603 tier=efficient
+[IceHive] demo combat: alive 600, topped up 958 in the last 5 s
+[IceHive] hb t=100.0 td=98.3 fps=60.0 worst=17ms drawn=48 gap=67ms sim=0.32ms world=0.38ms mode=playing bugs=595 vis=504 parts=1345 stage=0 hp=100 kills=18086 mem=51MB avail=0MB demo=combat rend=metal cpu=17 main=9 dc=56 inst=5487 tris=324376 enc=0.32ms gpu=0.30ms gpumax=6.8ms skip=8 nodraw=6 drw=22ms cbmax=62ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.1 au=0.2 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 5248 | max au=4 / -
+[IceHive] hb gpu frame=0.28 max=3.50 passes=- (no counter sampling: command-buffer totals only) | ema=0.23 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.04
+[IceHive] hb light lights=32 cells=201 tiles=1 beams=4 occ=589 tier=efficient
+[IceHive] hb t=101.0 td=99.3 fps=60.0 worst=17ms drawn=43 gap=68ms sim=0.28ms world=0.30ms mode=playing bugs=567 vis=529 parts=1149 stage=0 hp=100 kills=18195 mem=51MB avail=0MB demo=combat rend=metal cpu=19 main=10 dc=57 inst=5217 tris=339580 enc=0.28ms gpu=0.42ms gpumax=3.4ms skip=8 nodraw=9 drw=21ms cbmax=87ms sk=3ms/0 skcpu=3ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.1 au=0.1 | cam=0.0 mar=0.0 bug=0.1 fx=0.1 up=0.1 | sfx 5309 | max - / -
+[IceHive] hb gpu frame=0.35 max=3.40 passes=- (no counter sampling: command-buffer totals only) | ema=0.30 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.32
+[IceHive] hb light lights=32 cells=193 tiles=1 beams=4 occ=591 tier=efficient
+[IceHive] hb t=102.0 td=100.3 fps=60.0 worst=17ms drawn=47 gap=62ms sim=0.23ms world=0.26ms mode=playing bugs=574 vis=444 parts=2477 stage=0 hp=100 kills=18484 mem=51MB avail=0MB demo=combat rend=metal cpu=16 main=9 dc=57 inst=6422 tris=326151 enc=0.29ms gpu=0.24ms gpumax=0.5ms skip=3 nodraw=10 drw=13ms cbmax=56ms sk=2ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 5370 | max - / -
+[IceHive] hb gpu frame=0.20 max=0.46 passes=- (no counter sampling: command-buffer totals only) | ema=0.19 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.18
+[IceHive] metal: slow world encode 3 ms (thread cpu 1.0 ms) wall=1792445483.338
+[IceHive] hb light lights=32 cells=174 tiles=1 beams=4 occ=574 tier=efficient
+[IceHive] hb t=103.0 td=101.3 fps=60.0 worst=17ms drawn=44 gap=112ms sim=0.27ms world=0.29ms mode=playing bugs=599 vis=475 parts=1280 stage=0 hp=100 kills=18627 mem=51MB avail=0MB demo=combat rend=metal cpu=18 main=9 dc=56 inst=5320 tris=325814 enc=0.30ms gpu=0.33ms gpumax=1.0ms skip=10 nodraw=6 drw=16ms cbmax=89ms sk=2ms/1 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 5437 | max - / -
+[IceHive] hb gpu frame=0.30 max=1.00 passes=- (no counter sampling: command-buffer totals only) | ema=0.29 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.04
+[IceHive] hb light lights=32 cells=204 tiles=1 beams=4 occ=583 tier=efficient
+[IceHive] hb t=104.0 td=102.3 fps=60.0 worst=17ms drawn=37 gap=157ms sim=0.29ms world=0.28ms mode=playing bugs=601 vis=534 parts=1040 stage=0 hp=100 kills=18699 mem=51MB avail=0MB demo=combat rend=metal cpu=15 main=8 dc=57 inst=5171 tris=339947 enc=0.29ms gpu=0.31ms gpumax=1.6ms skip=6 nodraw=15 drw=84ms cbmax=58ms sk=2ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 5500 | max world=2 / bug=2
+[IceHive] hb gpu frame=0.42 max=4.27 passes=- (no counter sampling: command-buffer totals only) | ema=0.41 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.09
+[IceHive] hb light lights=32 cells=211 tiles=1 beams=4 occ=586 tier=efficient
+[IceHive] demo combat: alive 600, topped up 675 in the last 5 s
+[IceHive] hb t=105.0 td=103.3 fps=60.0 worst=17ms drawn=53 gap=127ms sim=0.24ms world=0.21ms mode=playing bugs=597 vis=541 parts=1043 stage=0 hp=100 kills=18777 mem=51MB avail=0MB demo=combat rend=metal cpu=16 main=8 dc=58 inst=5141 tris=341903 enc=0.22ms gpu=0.19ms gpumax=4.3ms skip=6 nodraw=2 drw=5ms cbmax=121ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 5562 | max - / -
+[IceHive] hb gpu frame=0.21 max=0.92 passes=- (no counter sampling: command-buffer totals only) | ema=0.20 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.12
+[IceHive] hb light lights=32 cells=155 tiles=1 beams=4 occ=595 tier=efficient
+[IceHive] metal: slow world encode 5 ms (thread cpu 0.5 ms) wall=1792445486.723
+[IceHive] hb t=106.0 td=104.3 fps=60.0 worst=17ms drawn=51 gap=77ms sim=0.31ms world=0.23ms mode=playing bugs=597 vis=539 parts=863 stage=0 hp=100 kills=18856 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=10 dc=57 inst=5019 tris=341006 enc=0.31ms gpu=0.20ms gpumax=2.9ms skip=5 nodraw=4 drw=7ms cbmax=85ms sk=3ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 5620 | max - / -
+[IceHive] hb gpu frame=0.29 max=2.94 passes=- (no counter sampling: command-buffer totals only) | ema=0.20 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=32 cells=163 tiles=1 beams=4 occ=370 tier=efficient
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.1 ms) wall=1792445487.853
+[IceHive] hb t=107.0 td=105.3 fps=60.0 worst=17ms drawn=43 gap=78ms sim=0.30ms world=0.27ms mode=playing bugs=596 vis=430 parts=1566 stage=0 hp=100 kills=19126 mem=51MB avail=0MB demo=combat rend=metal cpu=17 main=9 dc=57 inst=5611 tris=315668 enc=0.37ms gpu=0.24ms gpumax=0.7ms skip=4 nodraw=12 drw=14ms cbmax=94ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 5676 | max sim=2 / -
+[IceHive] hb gpu frame=0.35 max=5.07 passes=- (no counter sampling: command-buffer totals only) | ema=0.52 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=32 cells=195 tiles=1 beams=4 occ=544 tier=efficient
+[IceHive] hb t=108.0 td=106.3 fps=60.0 worst=17ms drawn=34 gap=164ms sim=0.31ms world=0.19ms mode=playing bugs=601 vis=424 parts=1697 stage=0 hp=100 kills=19328 mem=51MB avail=0MB demo=combat rend=metal cpu=16 main=9 dc=57 inst=5717 tris=313099 enc=0.34ms gpu=0.42ms gpumax=9.9ms skip=7 nodraw=20 drw=67ms cbmax=119ms sk=9ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.1 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 5729 | max sim=3 / -
+[IceHive] hb gpu frame=0.64 max=9.86 passes=- (no counter sampling: command-buffer totals only) | ema=0.28 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.03
+[IceHive] hb light lights=32 cells=202 tiles=1 beams=4 occ=581 tier=efficient
+[IceHive] hb t=109.0 td=107.3 fps=60.0 worst=17ms drawn=42 gap=61ms sim=0.31ms world=0.25ms mode=playing bugs=595 vis=378 parts=1161 stage=0 hp=100 kills=19422 mem=51MB avail=0MB demo=combat rend=metal cpu=18 main=10 dc=57 inst=5108 tris=302816 enc=0.36ms gpu=1.12ms gpumax=12.3ms skip=7 nodraw=12 drw=13ms cbmax=58ms sk=3ms/1 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 5792 | max - / -
+[IceHive] hb gpu frame=0.52 max=12.29 passes=- (no counter sampling: command-buffer totals only) | ema=0.57 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=32 cells=183 tiles=1 beams=4 occ=582 tier=efficient
+[IceHive] demo combat: alive 600, topped up 724 in the last 5 s
+[IceHive] hb t=110.0 td=108.3 fps=60.0 worst=17ms drawn=43 gap=61ms sim=0.36ms world=0.28ms mode=playing bugs=600 vis=494 parts=1367 stage=0 hp=100 kills=19517 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=11 dc=57 inst=5436 tris=330642 enc=0.33ms gpu=0.24ms gpumax=0.9ms skip=3 nodraw=13 drw=11ms cbmax=58ms sk=7ms/0 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 5858 | max sim=3 / -
+[IceHive] hb gpu frame=0.22 max=0.95 passes=- (no counter sampling: command-buffer totals only) | ema=0.18 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.16
+[IceHive] hb light lights=32 cells=183 tiles=1 beams=4 occ=529 tier=efficient
+[IceHive] metal: slow world encode 4 ms (thread cpu 0.5 ms) wall=1792445491.940
+[IceHive] hb t=111.0 td=109.3 fps=58.0 worst=48ms drawn=31 gap=154ms sim=0.34ms world=0.24ms mode=playing bugs=597 vis=444 parts=1773 stage=0 hp=100 kills=19725 mem=51MB avail=0MB demo=combat rend=metal cpu=15 main=8 dc=55 inst=5770 tris=320584 enc=0.51ms gpu=0.97ms gpumax=7.8ms skip=3 nodraw=23 drw=152ms cbmax=138ms sk=18ms/1 skcpu=5ms skslow=0/0
+[IceHive] hb ms sim=0.4 ev=1.3 cam=0.0 world=0.1 hud=0.1 au=0.1 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 5904 | max ev=26 / -
+[IceHive] hb gpu frame=0.55 max=7.81 passes=- (no counter sampling: command-buffer totals only) | ema=0.37 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.17
+[IceHive] hb light lights=32 cells=190 tiles=1 beams=4 occ=565 tier=efficient
+[IceHive] hb t=112.0 td=110.3 fps=60.0 worst=17ms drawn=51 gap=56ms sim=0.58ms world=0.29ms mode=playing bugs=587 vis=488 parts=990 stage=0 hp=100 kills=19816 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=11 dc=55 inst=4922 tris=323615 enc=0.34ms gpu=0.19ms gpumax=0.5ms skip=3 nodraw=8 drw=8ms cbmax=67ms sk=4ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.8 ev=0.1 cam=0.0 world=0.2 hud=0.1 au=0.1 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 5964 | max sim=7 / -
+[IceHive] hb gpu frame=0.24 max=1.10 passes=- (no counter sampling: command-buffer totals only) | ema=0.29 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.25
+[IceHive] hb light lights=32 cells=155 tiles=1 beams=4 occ=362 tier=efficient
+[IceHive] metal: slow world encode 4 ms (thread cpu 4.0 ms) wall=1792445494.069
+[IceHive] hb t=113.0 td=111.3 fps=60.0 worst=17ms drawn=49 gap=76ms sim=0.23ms world=0.23ms mode=playing bugs=595 vis=420 parts=2550 stage=0 hp=100 kills=20112 mem=51MB avail=0MB demo=combat rend=metal cpu=18 main=10 dc=56 inst=6585 tris=316202 enc=0.64ms gpu=0.22ms gpumax=1.1ms skip=2 nodraw=7 drw=38ms cbmax=41ms sk=3ms/1 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 6018 | max - / -
+[IceHive] hb gpu frame=0.24 max=0.89 passes=- (no counter sampling: command-buffer totals only) | ema=0.19 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=32 cells=194 tiles=1 beams=4 occ=560 tier=efficient
+[IceHive] hb t=114.0 td=112.3 fps=60.0 worst=17ms drawn=36 gap=276ms sim=0.28ms world=0.21ms mode=playing bugs=597 vis=472 parts=1083 stage=0 hp=100 kills=20207 mem=51MB avail=0MB demo=combat rend=metal cpu=14 main=8 dc=57 inst=5145 tris=323638 enc=0.32ms gpu=0.40ms gpumax=1.6ms skip=20 nodraw=5 drw=17ms cbmax=308ms sk=2ms/0 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.1 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 6082 | max - / -
+[IceHive] hb gpu frame=0.33 max=1.59 passes=- (no counter sampling: command-buffer totals only) | ema=0.34 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] demo combat: alive 600, topped up 762 in the last 5 s
+[IceHive] hb t=115.0 td=113.3 fps=59.0 worst=33ms drawn=27 gap=102ms sim=0.68ms world=0.21ms mode=playing bugs=583 vis=495 parts=912 stage=0 hp=100 kills=20317 mem=51MB avail=0MB demo=combat rend=metal cpu=15 main=9 dc=57 inst=4996 tris=326612 enc=0.35ms gpu=1.03ms gpumax=8.1ms skip=2 nodraw=29 drw=350ms cbmax=92ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=1.0 ev=0.2 cam=0.0 world=0.1 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 6153 | max sim=7 ev=3 hud=2 / -
+[IceHive] hb light lights=32 cells=203 tiles=1 beams=4 occ=587 tier=efficient
+[IceHive] hb gpu frame=0.78 max=8.08 passes=- (no counter sampling: command-buffer totals only) | ema=1.03 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb t=116.0 td=114.3 fps=60.0 worst=17ms drawn=9 gap=1048ms sim=0.35ms world=0.18ms mode=playing bugs=555 vis=422 parts=1476 stage=0 hp=100 kills=20528 mem=51MB avail=0MB demo=combat rend=metal cpu=14 main=8 dc=57 inst=5066 tris=323058 enc=0.37ms gpu=3.96ms gpumax=69.3ms skip=49 nodraw=2 drw=14ms cbmax=1054ms sk=12ms/0 skcpu=12ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.2 cam=0.0 world=0.1 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 6221 | max - / -
+[IceHive] hb light lights=32 cells=155 tiles=1 beams=4 occ=543 tier=efficient
+[IceHive] hb gpu frame=3.82 max=69.35 passes=- (no counter sampling: command-buffer totals only) | ema=1.28 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.12
+[IceHive] hb t=117.0 td=115.3 fps=60.0 worst=17ms drawn=47 gap=50ms sim=0.27ms world=0.25ms mode=playing bugs=535 vis=447 parts=1352 stage=0 hp=100 kills=20651 mem=51MB avail=0MB demo=combat rend=metal cpu=18 main=10 dc=57 inst=5362 tris=318528 enc=0.25ms gpu=0.24ms gpumax=1.7ms skip=6 nodraw=8 drw=18ms cbmax=66ms sk=2ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 6286 | max - / -
+[IceHive] hb light lights=32 cells=176 tiles=1 beams=4 occ=539 tier=efficient
+[IceHive] hb gpu frame=0.23 max=1.01 passes=- (no counter sampling: command-buffer totals only) | ema=0.22 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.05
+[IceHive] hb t=118.0 td=116.3 fps=60.0 worst=17ms drawn=49 gap=142ms sim=0.24ms world=0.24ms mode=playing bugs=587 vis=425 parts=1272 stage=0 hp=100 kills=20782 mem=51MB avail=0MB demo=combat rend=metal cpu=14 main=7 dc=57 inst=5260 tris=299461 enc=0.25ms gpu=0.21ms gpumax=4.2ms skip=8 nodraw=3 drw=10ms cbmax=134ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 6338 | max - / -
+[IceHive] hb light lights=32 cells=186 tiles=1 beams=4 occ=591 tier=efficient
+[IceHive] hb gpu frame=0.26 max=4.22 passes=- (no counter sampling: command-buffer totals only) | ema=0.17 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb t=119.0 td=117.3 fps=60.0 worst=17ms drawn=55 gap=58ms sim=0.28ms world=0.26ms mode=playing bugs=594 vis=501 parts=598 stage=0 hp=100 kills=20839 mem=51MB avail=0MB demo=combat rend=metal cpu=17 main=9 dc=58 inst=4649 tris=315880 enc=0.29ms gpu=0.33ms gpumax=2.3ms skip=3 nodraw=2 drw=7ms cbmax=67ms sk=2ms/1 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 6376 | max sim=2 / -
+[IceHive] hb light lights=32 cells=210 tiles=1 beams=4 occ=598 tier=efficient
+[IceHive] hb gpu frame=0.28 max=2.27 passes=- (no counter sampling: command-buffer totals only) | ema=0.28 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.26
+[IceHive] demo combat: alive 600, topped up 837 in the last 5 s
+[IceHive] hb t=120.0 td=118.3 fps=60.0 worst=17ms drawn=54 gap=57ms sim=0.21ms world=0.25ms mode=playing bugs=600 vis=452 parts=1172 stage=0 hp=100 kills=21163 mem=51MB avail=0MB demo=combat rend=metal cpu=17 main=9 dc=57 inst=5244 tris=306222 enc=0.20ms gpu=0.15ms gpumax=0.5ms skip=2 nodraw=3 drw=11ms cbmax=61ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 6422 | max - / -
+[IceHive] hb light lights=32 cells=219 tiles=1 beams=4 occ=602 tier=efficient
+[IceHive] hb gpu frame=0.18 max=0.51 passes=- (no counter sampling: command-buffer totals only) | ema=0.19 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb t=121.0 td=119.3 fps=60.0 worst=17ms drawn=54 gap=57ms sim=0.28ms world=0.24ms mode=playing bugs=598 vis=438 parts=791 stage=0 hp=100 kills=21209 mem=51MB avail=0MB demo=combat rend=metal cpu=17 main=9 dc=57 inst=4814 tris=302917 enc=0.25ms gpu=0.20ms gpumax=0.5ms skip=4 nodraw=2 drw=4ms cbmax=67ms sk=3ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 6487 | max sim=4 / -
+[IceHive] hb light lights=32 cells=205 tiles=1 beams=4 occ=601 tier=efficient
+[IceHive] hb gpu frame=0.21 max=0.88 passes=- (no counter sampling: command-buffer totals only) | ema=0.24 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb t=122.0 td=120.3 fps=60.0 worst=17ms drawn=53 gap=44ms sim=0.26ms world=0.26ms mode=playing bugs=585 vis=515 parts=919 stage=0 hp=100 kills=21301 mem=51MB avail=0MB demo=combat rend=metal cpu=18 main=9 dc=57 inst=5017 tris=334519 enc=0.27ms gpu=0.29ms gpumax=1.0ms skip=6 nodraw=1 drw=5ms cbmax=56ms sk=4ms/0 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 6557 | max - / -
+[IceHive] hb light lights=32 cells=192 tiles=1 beams=4 occ=572 tier=efficient
+[IceHive] hb gpu frame=0.58 max=12.56 passes=- (no counter sampling: command-buffer totals only) | ema=0.68 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.05
+[IceHive] hb t=123.0 td=121.3 fps=60.0 worst=17ms drawn=40 gap=153ms sim=0.26ms world=0.21ms mode=playing bugs=599 vis=532 parts=922 stage=0 hp=100 kills=21424 mem=51MB avail=0MB demo=combat rend=metal cpu=16 main=8 dc=57 inst=5147 tris=339345 enc=0.24ms gpu=0.75ms gpumax=19.5ms skip=19 nodraw=1 drw=5ms cbmax=148ms sk=6ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 6610 | max - / -
+[IceHive] hb light lights=32 cells=166 tiles=1 beams=4 occ=450 tier=efficient
+[IceHive] hitch 72 ms td=121.69 wall=1792445504.532 upd=3ms draw=67ms (drawable 0 world 46 hud 21 (cpu 17) commit 0) labels=0 skip=684/564 cb=203ms (sched 26, gpu 18.5) vis=383 parts=2055
+[IceHive] hb gpu frame=1.66 max=19.48 passes=- (no counter sampling: command-buffer totals only) | ema=2.35 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.22
+[IceHive] hitch 51 ms td=121.78 wall=1792445504.615 upd=0ms draw=0ms (drawable 0 world 0 hud 0 (cpu 0) commit 0) labels=0 skip=3/0 cb=203ms (sched 26, gpu 18.5) vis=383 parts=2055
+[IceHive] hb t=124.0 td=122.3 fps=54.0 worst=72ms drawn=6 gap=218ms sim=0.41ms world=0.20ms mode=playing bugs=591 vis=383 parts=2055 stage=0 hp=100 kills=21677 mem=51MB avail=0MB demo=combat rend=metal cpu=28 main=10 dc=57 inst=5562 tris=323875 enc=0.27ms gpu=2.35ms gpumax=18.5ms skip=45 nodraw=3 drw=11ms cbmax=203ms sk=21ms/0 skcpu=17ms skslow=0/1
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.0 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.2 up=0.1 | sfx 6674 | max sim=8 world=3 hud=3 / -
+[IceHive] hb light lights=32 cells=203 tiles=1 beams=4 occ=612 tier=efficient
+[IceHive] hb gpu frame=90.74 max=180.07 passes=- (no counter sampling: command-buffer totals only) | ema=18.25 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.31
+[IceHive] demo combat: alive 608, topped up 394 in the last 5 s
+[IceHive] hb t=125.0 td=123.3 fps=60.0 worst=17ms drawn=23 gap=1111ms sim=0.33ms world=0.22ms mode=playing bugs=614 vis=487 parts=779 stage=0 hp=100 kills=21746 mem=51MB avail=0MB demo=combat rend=metal cpu=15 main=7 dc=57 inst=4830 tris=315553 enc=0.30ms gpu=2.22ms gpumax=180.1ms skip=31 nodraw=6 drw=25ms cbmax=1298ms sk=2ms/1 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.1 up=0.1 | sfx 6719 | max sim=2 / -
+[IceHive] hb gpu frame=0.25 max=1.65 passes=- (no counter sampling: command-buffer totals only) | ema=0.55 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.13
+[IceHive] hb light lights=32 cells=208 tiles=1 beams=4 occ=614 tier=efficient
+[IceHive] hb t=126.0 td=124.3 fps=60.0 worst=17ms drawn=35 gap=62ms sim=0.29ms world=0.27ms mode=playing bugs=582 vis=447 parts=1274 stage=0 hp=100 kills=21897 mem=51MB avail=0MB demo=combat rend=metal cpu=17 main=9 dc=58 inst=5199 tris=306199 enc=0.32ms gpu=0.47ms gpumax=2.1ms skip=8 nodraw=17 drw=30ms cbmax=81ms sk=3ms/1 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 6776 | max - / -
+[IceHive] hb gpu frame=0.33 max=2.12 passes=- (no counter sampling: command-buffer totals only) | ema=0.33 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.19
+[IceHive] hb light lights=32 cells=195 tiles=1 beams=4 occ=601 tier=efficient
+[IceHive] hb t=127.0 td=125.3 fps=60.0 worst=17ms drawn=42 gap=90ms sim=0.29ms world=0.25ms mode=playing bugs=574 vis=374 parts=1134 stage=0 hp=100 kills=21990 mem=51MB avail=0MB demo=combat rend=metal cpu=19 main=10 dc=57 inst=5034 tris=287361 enc=0.40ms gpu=0.28ms gpumax=1.0ms skip=7 nodraw=11 drw=8ms cbmax=65ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 6839 | max - / -
+[IceHive] hb gpu frame=1.07 max=31.50 passes=- (no counter sampling: command-buffer totals only) | ema=0.70 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.12
+[IceHive] hb light lights=30 cells=169 tiles=1 beams=4 occ=576 tier=efficient
+[IceHive] hb t=128.0 td=126.3 fps=60.0 worst=17ms drawn=47 gap=158ms sim=0.25ms world=0.26ms mode=playing bugs=559 vis=307 parts=1533 stage=0 hp=100 kills=22238 mem=51MB avail=0MB demo=combat rend=metal cpu=19 main=9 dc=56 inst=5389 tris=253965 enc=0.25ms gpu=0.24ms gpumax=31.5ms skip=10 nodraw=4 drw=14ms cbmax=137ms sk=3ms/0 skcpu=3ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 6895 | max - / -
+[IceHive] hb gpu frame=0.57 max=13.54 passes=- (no counter sampling: command-buffer totals only) | ema=1.56 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.16
+[IceHive] hb light lights=32 cells=191 tiles=1 beams=4 occ=580 tier=efficient
+[IceHive] hb t=129.0 td=127.3 fps=59.0 worst=33ms drawn=10 gap=57ms sim=0.36ms world=0.14ms mode=playing bugs=595 vis=413 parts=876 stage=0 hp=100 kills=22314 mem=51MB avail=0MB demo=combat rend=metal cpu=11 main=5 dc=57 inst=4866 tris=295537 enc=0.31ms gpu=1.56ms gpumax=13.5ms skip=21 nodraw=27 drw=415ms cbmax=47ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.4 ev=0.1 cam=0.0 world=0.0 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 6955 | max - / -
+[IceHive] hb gpu frame=0.32 max=0.49 passes=- (no counter sampling: command-buffer totals only) | ema=1.13 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=32 cells=187 tiles=1 beams=4 occ=591 tier=efficient
+[IceHive] demo combat: alive 600, topped up 485 in the last 5 s
+[IceHive] hb t=130.0 td=128.3 fps=60.0 worst=17ms drawn=30 gap=1214ms sim=0.33ms world=0.26ms mode=playing bugs=594 vis=535 parts=722 stage=0 hp=100 kills=22366 mem=51MB avail=0MB demo=combat rend=metal cpu=16 main=8 dc=55 inst=4795 tris=325694 enc=0.30ms gpu=0.32ms gpumax=0.8ms skip=27 nodraw=3 drw=8ms cbmax=828ms sk=6ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 7010 | max - / -
+[IceHive] hitch 64 ms td=128.48 wall=1792445511.315 upd=2ms draw=59ms (drawable 0 world 58 hud 1 (cpu 1) commit 0) labels=0 skip=134/71 cb=23ms (sched 3, gpu 0.1) vis=521 parts=798
+[IceHive] hb gpu frame=0.24 max=0.83 passes=- (no counter sampling: command-buffer totals only) | ema=0.28 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.04
+[IceHive] hb light lights=30 cells=193 tiles=1 beams=4 occ=601 tier=efficient
+[IceHive] hb t=131.0 td=129.3 fps=57.0 worst=64ms drawn=46 gap=109ms sim=0.32ms world=0.30ms mode=playing bugs=599 vis=515 parts=330 stage=0 hp=100 kills=22403 mem=51MB avail=0MB demo=combat rend=metal cpu=19 main=10 dc=55 inst=4397 tris=303624 enc=0.31ms gpu=0.25ms gpumax=1.1ms skip=3 nodraw=9 drw=38ms cbmax=78ms sk=10ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.0 cam=0.0 world=0.2 hud=0.1 au=0.1 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 7038 | max - / -
+[IceHive] hb gpu frame=0.26 max=1.08 passes=- (no counter sampling: command-buffer totals only) | ema=0.24 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.04
+[IceHive] hb light lights=32 cells=187 tiles=1 beams=4 occ=584 tier=efficient
+[IceHive] hb t=132.0 td=130.3 fps=60.0 worst=17ms drawn=42 gap=76ms sim=0.33ms world=0.34ms mode=playing bugs=578 vis=468 parts=1241 stage=0 hp=100 kills=22582 mem=51MB avail=0MB demo=combat rend=metal cpu=18 main=10 dc=56 inst=5102 tris=296325 enc=0.29ms gpu=0.40ms gpumax=2.9ms skip=7 nodraw=11 drw=13ms cbmax=103ms sk=5ms/0 skcpu=0ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.2 | sfx 7102 | max sim=3 world=3 / up=3
+[IceHive] hb gpu frame=0.31 max=2.87 passes=- (no counter sampling: command-buffer totals only) | ema=0.25 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.33
+[IceHive] hb light lights=32 cells=167 tiles=1 beams=4 occ=599 tier=efficient
+[IceHive] hb t=133.0 td=131.3 fps=60.0 worst=17ms drawn=37 gap=143ms sim=0.25ms world=0.22ms mode=playing bugs=595 vis=361 parts=1301 stage=0 hp=100 kills=22830 mem=51MB avail=0MB demo=combat rend=metal cpu=15 main=8 dc=57 inst=5262 tris=266919 enc=0.25ms gpu=0.26ms gpumax=3.2ms skip=12 nodraw=11 drw=72ms cbmax=152ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.1 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 7168 | max - / -
+[IceHive] hb gpu frame=0.40 max=3.66 passes=- (no counter sampling: command-buffer totals only) | ema=0.54 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.27
+[IceHive] hb light lights=32 cells=170 tiles=1 beams=4 occ=559 tier=efficient
+[IceHive] hb t=134.0 td=132.3 fps=59.0 worst=34ms drawn=21 gap=130ms sim=0.32ms world=0.16ms mode=playing bugs=555 vis=407 parts=1563 stage=0 hp=100 kills=23014 mem=51MB avail=0MB demo=combat rend=metal cpu=16 main=8 dc=57 inst=5416 tris=285898 enc=0.34ms gpu=0.54ms gpumax=3.7ms skip=17 nodraw=20 drw=330ms cbmax=126ms sk=4ms/1 skcpu=3ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.0 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 7225 | max - / -
+[IceHive] hb gpu frame=99.48 max=395.43 passes=- (no counter sampling: command-buffer totals only) | ema=29.40 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.02
+[IceHive] hb light lights=32 cells=135 tiles=1 beams=4 occ=414 tier=efficient
+[IceHive] demo combat: alive 526, topped up 779 in the last 5 s
+[IceHive] hb t=135.0 td=133.3 fps=60.0 worst=17ms drawn=27 gap=988ms sim=0.28ms world=0.27ms mode=playing bugs=527 vis=233 parts=1751 stage=0 hp=100 kills=23253 mem=51MB avail=0MB demo=combat rend=metal cpu=15 main=8 dc=57 inst=5570 tris=237778 enc=0.42ms gpu=3.21ms gpumax=395.4ms skip=30 nodraw=4 drw=21ms cbmax=1084ms sk=3ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 7289 | max - / -
+[IceHive] hb gpu frame=0.45 max=1.96 passes=- (no counter sampling: command-buffer totals only) | ema=0.55 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.12
+[IceHive] hb light lights=31 cells=167 tiles=1 beams=4 occ=501 tier=efficient
+[IceHive] hb t=136.0 td=134.3 fps=60.0 worst=17ms drawn=52 gap=69ms sim=0.24ms world=0.25ms mode=playing bugs=558 vis=378 parts=915 stage=0 hp=100 kills=23419 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=10 dc=57 inst=4872 tris=270047 enc=0.25ms gpu=0.27ms gpumax=1.8ms skip=2 nodraw=6 drw=14ms cbmax=44ms sk=2ms/0 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 7343 | max - / -
+[IceHive] hb gpu frame=0.28 max=1.17 passes=- (no counter sampling: command-buffer totals only) | ema=0.34 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.17
+[IceHive] hb light lights=25 cells=169 tiles=1 beams=4 occ=576 tier=efficient
+[IceHive] hb t=137.0 td=135.3 fps=60.0 worst=17ms drawn=48 gap=57ms sim=0.31ms world=0.27ms mode=playing bugs=572 vis=318 parts=639 stage=0 hp=100 kills=23502 mem=51MB avail=0MB demo=combat rend=metal cpu=18 main=9 dc=57 inst=4381 tris=258664 enc=0.27ms gpu=0.27ms gpumax=1.2ms skip=6 nodraw=5 drw=7ms cbmax=65ms sk=2ms/1 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 7388 | max - / -
+[IceHive] hb gpu frame=0.24 max=0.88 passes=- (no counter sampling: command-buffer totals only) | ema=0.19 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=30 cells=170 tiles=1 beams=4 occ=494 tier=efficient
+[IceHive] hb t=138.0 td=136.3 fps=60.0 worst=17ms drawn=57 gap=101ms sim=0.22ms world=0.22ms mode=playing bugs=564 vis=398 parts=817 stage=0 hp=100 kills=23734 mem=51MB avail=0MB demo=combat rend=metal cpu=17 main=9 dc=57 inst=4817 tris=276081 enc=0.19ms gpu=0.18ms gpumax=0.9ms skip=4 nodraw=0 drw=0ms cbmax=95ms sk=1ms/1 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 7445 | max ev=7 / -
+[IceHive] hb gpu frame=0.17 max=0.62 passes=- (no counter sampling: command-buffer totals only) | ema=0.14 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.16
+[IceHive] hb light lights=32 cells=181 tiles=1 beams=4 occ=460 tier=efficient
+[IceHive] hb t=139.0 td=137.3 fps=60.0 worst=17ms drawn=57 gap=58ms sim=0.22ms world=0.22ms mode=playing bugs=528 vis=341 parts=1481 stage=0 hp=100 kills=23926 mem=51MB avail=0MB demo=combat rend=metal cpu=16 main=8 dc=57 inst=5405 tris=265392 enc=0.33ms gpu=0.22ms gpumax=0.9ms skip=2 nodraw=1 drw=10ms cbmax=61ms sk=5ms/0 skcpu=5ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 7505 | max - / -
+[IceHive] hb gpu frame=0.20 max=0.96 passes=- (no counter sampling: command-buffer totals only) | ema=0.22 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.12
+[IceHive] hb light lights=32 cells=140 tiles=1 beams=4 occ=382 tier=efficient
+[IceHive] demo combat: alive 542, topped up 927 in the last 5 s
+[IceHive] hb t=140.0 td=138.3 fps=60.0 worst=17ms drawn=57 gap=53ms sim=0.22ms world=0.26ms mode=playing bugs=543 vis=212 parts=2076 stage=0 hp=100 kills=24211 mem=51MB avail=0MB demo=combat rend=metal cpu=18 main=9 dc=58 inst=5958 tris=234614 enc=0.29ms gpu=0.17ms gpumax=1.0ms skip=3 nodraw=0 drw=0ms cbmax=69ms sk=1ms/1 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 7559 | max - / -
+[IceHive] hb gpu frame=0.19 max=0.64 passes=- (no counter sampling: command-buffer totals only) | ema=0.20 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=32 cells=182 tiles=1 beams=4 occ=580 tier=efficient
+[IceHive] hb t=141.0 td=139.3 fps=60.0 worst=17ms drawn=56 gap=93ms sim=0.23ms world=0.24ms mode=playing bugs=599 vis=420 parts=761 stage=0 hp=100 kills=24262 mem=51MB avail=0MB demo=combat rend=metal cpu=17 main=9 dc=57 inst=4748 tris=281097 enc=0.24ms gpu=0.21ms gpumax=0.6ms skip=4 nodraw=0 drw=0ms cbmax=85ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 7623 | max - / -
+[IceHive] hb gpu frame=0.20 max=0.62 passes=- (no counter sampling: command-buffer totals only) | ema=0.17 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=32 cells=190 tiles=1 beams=4 occ=593 tier=efficient
+[IceHive] hb t=142.0 td=140.3 fps=60.0 worst=17ms drawn=58 gap=46ms sim=0.22ms world=0.23ms mode=playing bugs=597 vis=348 parts=733 stage=0 hp=100 kills=24335 mem=51MB avail=0MB demo=combat rend=metal cpu=17 main=9 dc=57 inst=4653 tris=264171 enc=0.26ms gpu=0.19ms gpumax=0.6ms skip=2 nodraw=0 drw=0ms cbmax=43ms sk=2ms/1 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 7690 | max - / -
+[IceHive] hb gpu frame=0.17 max=0.41 passes=- (no counter sampling: command-buffer totals only) | ema=0.16 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.34
+[IceHive] hb light lights=32 cells=144 tiles=1 beams=4 occ=328 tier=efficient
+[IceHive] hb t=143.0 td=141.3 fps=60.0 worst=17ms drawn=58 gap=38ms sim=0.22ms world=0.23ms mode=playing bugs=597 vis=300 parts=1958 stage=0 hp=100 kills=24622 mem=51MB avail=0MB demo=combat rend=metal cpu=16 main=9 dc=57 inst=5915 tris=255156 enc=0.23ms gpu=0.16ms gpumax=0.4ms skip=2 nodraw=0 drw=1ms cbmax=40ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 7731 | max - / -
+[IceHive] hb gpu frame=0.16 max=0.53 passes=- (no counter sampling: command-buffer totals only) | ema=0.20 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=32 cells=194 tiles=1 beams=4 occ=518 tier=efficient
+[IceHive] hb t=144.0 td=142.3 fps=60.0 worst=17ms drawn=57 gap=51ms sim=0.25ms world=0.24ms mode=playing bugs=598 vis=354 parts=1210 stage=0 hp=100 kills=24739 mem=51MB avail=0MB demo=combat rend=metal cpu=17 main=9 dc=57 inst=5121 tris=266314 enc=0.22ms gpu=0.16ms gpumax=0.5ms skip=2 nodraw=1 drw=6ms cbmax=66ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 7784 | max - / -
+[IceHive] hb gpu frame=0.16 max=0.47 passes=- (no counter sampling: command-buffer totals only) | ema=0.17 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.34
+[IceHive] demo combat: alive 600, topped up 767 in the last 5 s
+[IceHive] hb light lights=32 cells=142 tiles=1 beams=4 occ=604 tier=efficient
+[IceHive] hb t=145.0 td=143.3 fps=60.0 worst=17ms drawn=58 gap=57ms sim=0.34ms world=0.29ms mode=playing bugs=600 vis=451 parts=2156 stage=0 hp=100 kills=24971 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=11 dc=57 inst=6222 tris=307288 enc=0.31ms gpu=0.21ms gpumax=0.5ms skip=2 nodraw=0 drw=3ms cbmax=62ms sk=2ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 7834 | max sim=5 / -
+[IceHive] hb gpu frame=0.20 max=0.44 passes=- (no counter sampling: command-buffer totals only) | ema=0.20 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb light lights=31 cells=209 tiles=1 beams=4 occ=604 tier=efficient
+[IceHive] hb t=146.0 td=144.3 fps=60.0 worst=17ms drawn=53 gap=50ms sim=0.32ms world=0.40ms mode=playing bugs=601 vis=313 parts=502 stage=0 hp=100 kills=24999 mem=51MB avail=0MB demo=combat rend=metal cpu=24 main=12 dc=57 inst=4364 tris=255283 enc=0.33ms gpu=0.65ms gpumax=4.4ms skip=4 nodraw=3 drw=9ms cbmax=54ms sk=13ms/1 skcpu=12ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.2 cam=0.0 world=0.3 hud=0.1 au=0.0 | cam=0.1 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 7905 | max world=7 / cam=7
+[IceHive] hb gpu frame=0.37 max=4.43 passes=- (no counter sampling: command-buffer totals only) | ema=0.42 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] metal: slow world encode 12 ms (thread cpu 12.3 ms) wall=1792445527.813
+[IceHive] hb light lights=32 cells=207 tiles=1 beams=4 occ=649 tier=efficient
+[IceHive] hb t=147.0 td=145.3 fps=60.0 worst=17ms drawn=55 gap=47ms sim=0.37ms world=0.42ms mode=playing bugs=649 vis=471 parts=658 stage=0 hp=100 kills=25054 mem=51MB avail=0MB demo=combat rend=metal cpu=28 main=15 dc=57 inst=4688 tris=308845 enc=0.68ms gpu=0.67ms gpumax=8.9ms skip=3 nodraw=3 drw=11ms cbmax=74ms sk=11ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.4 ev=0.1 cam=0.0 world=0.3 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.1 up=0.1 | sfx 7974 | max - / -
+[IceHive] metal: slow world encode 3 ms (thread cpu 1.4 ms) wall=1792445528.673
+[IceHive] hitch 230 ms td=145.85 wall=1792445528.698 upd=101ms draw=28ms (drawable 2 world 24 hud 3 (cpu 2) commit 0) labels=0 skip=106/74 cb=64ms (sched 32, gpu 0.7) vis=498 parts=429
+[IceHive] hb gpu frame=0.73 max=8.86 passes=- (no counter sampling: command-buffer totals only) | ema=0.53 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] metal: slow world encode 2 ms (thread cpu 0.5 ms) wall=1792445529.002
+[IceHive] hb light lights=29 cells=195 tiles=1 beams=4 occ=720 tier=efficient
+[IceHive] hb t=148.0 td=146.3 fps=46.0 worst=230ms drawn=39 gap=209ms sim=0.43ms world=1.21ms mode=playing bugs=721 vis=526 parts=296 stage=0 hp=100 kills=25076 mem=51MB avail=0MB demo=combat rend=metal cpu=22 main=12 dc=56 inst=4372 tris=321448 enc=0.49ms gpu=0.31ms gpumax=2.8ms skip=2 nodraw=4 drw=9ms cbmax=64ms sk=4ms/0 skcpu=3ms skslow=0/0
+[IceHive] hb ms sim=0.4 ev=0.1 cam=0.0 world=0.2 hud=0.4 au=0.1 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 8007 | max sim=4 ev=2 hud=65 / -
+[IceHive] hb gpu frame=0.30 max=0.98 passes=- (no counter sampling: command-buffer totals only) | ema=0.33 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.05
+[IceHive] hb light lights=32 cells=184 tiles=1 beams=4 occ=715 tier=efficient
+[IceHive] hb t=149.0 td=147.3 fps=60.0 worst=17ms drawn=52 gap=47ms sim=0.34ms world=0.42ms mode=playing bugs=713 vis=479 parts=595 stage=0 hp=100 kills=25175 mem=51MB avail=0MB demo=combat rend=metal cpu=26 main=13 dc=54 inst=4646 tris=310070 enc=0.28ms gpu=0.25ms gpumax=1.9ms skip=6 nodraw=2 drw=6ms cbmax=58ms sk=7ms/1 skcpu=5ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.0 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.1 up=0.1 | sfx 8060 | max hud=3 / -
+[IceHive] hb gpu frame=0.30 max=2.68 passes=- (no counter sampling: command-buffer totals only) | ema=0.46 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.30
+[IceHive] hb light lights=32 cells=178 tiles=1 beams=4 occ=533 tier=efficient
+[IceHive] hb t=150.0 td=148.3 fps=60.0 worst=17ms drawn=56 gap=35ms sim=0.33ms world=0.33ms mode=playing bugs=529 vis=301 parts=1418 stage=0 hp=100 kills=25504 mem=51MB avail=0MB demo=combat rend=metal cpu=26 main=14 dc=55 inst=5306 tris=269942 enc=0.39ms gpu=0.33ms gpumax=2.7ms skip=3 nodraw=1 drw=4ms cbmax=52ms sk=4ms/1 skcpu=3ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 8115 | max - / -
+[IceHive] demo combat: alive 600, topped up 217 in the last 5 s
+[IceHive] hb gpu frame=0.23 max=0.77 passes=- (no counter sampling: command-buffer totals only) | ema=0.23 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.09
+[IceHive] hb light lights=29 cells=188 tiles=1 beams=4 occ=578 tier=efficient
+[IceHive] hb t=151.0 td=149.3 fps=60.0 worst=17ms drawn=58 gap=44ms sim=0.30ms world=0.30ms mode=playing bugs=574 vis=322 parts=1088 stage=0 hp=100 kills=25649 mem=51MB avail=0MB demo=combat rend=metal cpu=22 main=12 dc=54 inst=4992 tris=258554 enc=0.27ms gpu=0.25ms gpumax=0.7ms skip=2 nodraw=0 drw=1ms cbmax=63ms sk=4ms/0 skcpu=3ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 8159 | max - / -
+[IceHive] hb gpu frame=0.21 max=0.74 passes=- (no counter sampling: command-buffer totals only) | ema=0.21 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb t=152.0 td=150.3 fps=60.0 worst=17ms drawn=58 gap=46ms sim=0.27ms world=0.29ms mode=playing bugs=597 vis=282 parts=407 stage=0 hp=100 kills=25684 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=10 dc=57 inst=4234 tris=244781 enc=0.22ms gpu=0.19ms gpumax=0.4ms skip=2 nodraw=0 drw=3ms cbmax=62ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.1 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 8213 | max - / -
+[IceHive] hb light lights=30 cells=199 tiles=1 beams=4 occ=601 tier=efficient
+[IceHive] hb gpu frame=0.20 max=0.86 passes=- (no counter sampling: command-buffer totals only) | ema=0.18 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.29
+[IceHive] hb t=153.0 td=151.3 fps=60.0 worst=17ms drawn=56 gap=66ms sim=0.23ms world=0.22ms mode=playing bugs=524 vis=333 parts=1192 stage=0 hp=100 kills=25810 mem=51MB avail=0MB demo=combat rend=metal cpu=19 main=9 dc=57 inst=5123 tris=259145 enc=0.25ms gpu=0.22ms gpumax=0.9ms skip=3 nodraw=0 drw=0ms cbmax=56ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 8268 | max - / -
+[IceHive] hb light lights=28 cells=141 tiles=1 beams=4 occ=511 tier=efficient
+[IceHive] hb gpu frame=0.23 max=0.68 passes=- (no counter sampling: command-buffer totals only) | ema=0.21 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb t=154.0 td=152.3 fps=60.0 worst=17ms drawn=59 gap=30ms sim=0.26ms world=0.28ms mode=playing bugs=590 vis=521 parts=433 stage=0 hp=100 kills=25879 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=11 dc=57 inst=4507 tris=320902 enc=0.24ms gpu=0.20ms gpumax=0.7ms skip=1 nodraw=0 drw=0ms cbmax=69ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 8316 | max - / -
+[IceHive] hb light lights=32 cells=198 tiles=1 beams=4 occ=592 tier=efficient
+[IceHive] metal: slow world encode 3 ms (thread cpu 0.9 ms) wall=1792445535.568
+[IceHive] hb gpu frame=0.21 max=0.81 passes=- (no counter sampling: command-buffer totals only) | ema=0.22 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.31
+[IceHive] hb t=155.0 td=153.3 fps=60.0 worst=17ms drawn=59 gap=47ms sim=0.19ms world=0.29ms mode=playing bugs=432 vis=300 parts=2353 stage=0 hp=100 kills=26179 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=10 dc=57 inst=6261 tris=256149 enc=0.26ms gpu=0.22ms gpumax=0.8ms skip=1 nodraw=0 drw=1ms cbmax=56ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 8376 | max world=2 / bug=2
+[IceHive] hb light lights=32 cells=171 tiles=1 beams=4 occ=437 tier=efficient
+[IceHive] demo combat: alive 600, topped up 616 in the last 5 s
+[IceHive] hb gpu frame=0.23 max=0.62 passes=- (no counter sampling: command-buffer totals only) | ema=0.26 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.09
+[IceHive] hb t=156.0 td=154.3 fps=60.0 worst=17ms drawn=50 gap=179ms sim=0.24ms world=0.27ms mode=playing bugs=580 vis=248 parts=1261 stage=0 hp=100 kills=26387 mem=51MB avail=0MB demo=combat rend=metal cpu=18 main=10 dc=58 inst=5094 tris=241244 enc=0.23ms gpu=0.21ms gpumax=0.6ms skip=11 nodraw=0 drw=0ms cbmax=169ms sk=3ms/1 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 8451 | max ev=4 / -
+[IceHive] hb light lights=30 cells=168 tiles=1 beams=4 occ=583 tier=efficient
+[IceHive] hb gpu frame=0.26 max=1.67 passes=- (no counter sampling: command-buffer totals only) | ema=0.25 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.31
+[IceHive] hb t=157.0 td=155.3 fps=60.0 worst=17ms drawn=58 gap=49ms sim=0.24ms world=0.30ms mode=playing bugs=480 vis=146 parts=1951 stage=0 hp=100 kills=26599 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=10 dc=58 inst=5695 tris=219114 enc=0.26ms gpu=0.28ms gpumax=1.7ms skip=2 nodraw=0 drw=3ms cbmax=61ms sk=2ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 8516 | max - / -
+[IceHive] hb light lights=32 cells=168 tiles=1 beams=4 occ=485 tier=efficient
+[IceHive] hb gpu frame=0.29 max=2.04 passes=- (no counter sampling: command-buffer totals only) | ema=0.25 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb t=158.0 td=156.3 fps=60.0 worst=17ms drawn=58 gap=53ms sim=0.23ms world=0.32ms mode=playing bugs=490 vis=195 parts=1635 stage=0 hp=100 kills=26714 mem=51MB avail=0MB demo=combat rend=metal cpu=23 main=12 dc=57 inst=4959 tris=237941 enc=0.37ms gpu=0.26ms gpumax=2.0ms skip=1 nodraw=1 drw=4ms cbmax=59ms sk=3ms/1 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 8582 | max - / -
+[IceHive] hb light lights=32 cells=149 tiles=1 beams=4 occ=459 tier=efficient
+[IceHive] hb gpu frame=0.25 max=0.69 passes=- (no counter sampling: command-buffer totals only) | ema=0.24 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb t=159.0 td=157.3 fps=59.0 worst=36ms drawn=56 gap=33ms sim=0.27ms world=0.38ms mode=playing bugs=579 vis=348 parts=642 stage=0 hp=100 kills=26799 mem=51MB avail=0MB demo=combat rend=metal cpu=25 main=12 dc=57 inst=4542 tris=263845 enc=0.30ms gpu=0.32ms gpumax=1.2ms skip=1 nodraw=1 drw=7ms cbmax=41ms sk=9ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.0 cam=0.0 world=0.2 hud=0.1 au=0.1 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 8639 | max - / -
+[IceHive] hb light lights=31 cells=170 tiles=1 beams=4 occ=582 tier=efficient
+[IceHive] hb gpu frame=0.30 max=2.09 passes=- (no counter sampling: command-buffer totals only) | ema=0.31 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb t=160.0 td=158.3 fps=59.0 worst=35ms drawn=58 gap=52ms sim=0.34ms world=0.35ms mode=playing bugs=548 vis=406 parts=938 stage=0 hp=100 kills=26891 mem=51MB avail=0MB demo=combat rend=metal cpu=25 main=13 dc=57 inst=4917 tris=278526 enc=0.36ms gpu=0.20ms gpumax=2.1ms skip=2 nodraw=0 drw=0ms cbmax=61ms sk=2ms/1 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.4 ev=0.1 cam=0.0 world=0.3 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 8685 | max ev=14 / -
+[IceHive] hb light lights=28 cells=157 tiles=1 beams=4 occ=543 tier=efficient
+[IceHive] demo combat: alive 583, topped up 635 in the last 5 s
+[IceHive] hb gpu frame=0.19 max=0.53 passes=- (no counter sampling: command-buffer totals only) | ema=0.19 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.06
+[IceHive] hb t=161.0 td=159.3 fps=60.0 worst=17ms drawn=57 gap=44ms sim=0.20ms world=0.33ms mode=playing bugs=425 vis=205 parts=1234 stage=0 hp=100 kills=27266 mem=51MB avail=0MB demo=combat rend=metal cpu=23 main=11 dc=57 inst=4986 tris=230276 enc=0.34ms gpu=0.29ms gpumax=1.0ms skip=3 nodraw=0 drw=0ms cbmax=59ms sk=3ms/0 skcpu=3ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 8751 | max - / -
+[IceHive] hb light lights=26 cells=173 tiles=1 beams=4 occ=414 tier=efficient
+[IceHive] hb gpu frame=0.27 max=1.00 passes=- (no counter sampling: command-buffer totals only) | ema=0.30 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.34
+[IceHive] hb t=162.0 td=160.3 fps=60.0 worst=17ms drawn=58 gap=40ms sim=0.18ms world=0.29ms mode=playing bugs=331 vis=81 parts=2496 stage=0 hp=100 kills=27587 mem=51MB avail=0MB demo=combat rend=metal cpu=22 main=11 dc=57 inst=6137 tris=203608 enc=0.23ms gpu=0.44ms gpumax=5.2ms skip=1 nodraw=1 drw=5ms cbmax=46ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 8825 | max - / -
+[IceHive] hb light lights=32 cells=129 tiles=1 beams=4 occ=338 tier=efficient
+[IceHive] hb gpu frame=0.29 max=5.19 passes=- (no counter sampling: command-buffer totals only) | ema=0.20 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb t=163.0 td=161.3 fps=60.0 worst=17ms drawn=58 gap=60ms sim=0.23ms world=0.32ms mode=playing bugs=546 vis=187 parts=1273 stage=0 hp=100 kills=27726 mem=51MB avail=0MB demo=combat rend=metal cpu=23 main=11 dc=58 inst=5013 tris=226872 enc=0.35ms gpu=0.23ms gpumax=0.6ms skip=2 nodraw=0 drw=0ms cbmax=58ms sk=2ms/1 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 8890 | max - / -
+[IceHive] hb light lights=27 cells=162 tiles=1 beams=4 occ=594 tier=efficient
+[IceHive] hb gpu frame=0.19 max=0.58 passes=- (no counter sampling: command-buffer totals only) | ema=0.17 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.23
+[IceHive] hb t=164.0 td=162.3 fps=60.0 worst=17ms drawn=58 gap=39ms sim=0.25ms world=0.35ms mode=playing bugs=516 vis=146 parts=1213 stage=0 hp=100 kills=27974 mem=51MB avail=0MB demo=combat rend=metal cpu=22 main=11 dc=57 inst=4935 tris=215623 enc=0.24ms gpu=0.22ms gpumax=0.4ms skip=1 nodraw=1 drw=6ms cbmax=44ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 8961 | max world=3 / mar=3
+[IceHive] hb light lights=28 cells=150 tiles=1 beams=4 occ=583 tier=efficient
+[IceHive] hb gpu frame=0.19 max=0.34 passes=- (no counter sampling: command-buffer totals only) | ema=0.18 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb t=165.0 td=163.3 fps=60.0 worst=17ms drawn=58 gap=35ms sim=0.34ms world=0.29ms mode=playing bugs=643 vis=236 parts=432 stage=0 hp=100 kills=27995 mem=51MB avail=0MB demo=combat rend=metal cpu=23 main=12 dc=57 inst=4210 tris=235577 enc=0.36ms gpu=0.25ms gpumax=0.4ms skip=1 nodraw=1 drw=7ms cbmax=36ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 9013 | max - / -
+[IceHive] demo combat: alive 645, topped up 823 in the last 5 s
+[IceHive] hb light lights=27 cells=156 tiles=1 beams=4 occ=648 tier=efficient
+[IceHive] hb gpu frame=0.24 max=0.58 passes=- (no counter sampling: command-buffer totals only) | ema=0.23 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.11
+[IceHive] hb t=166.0 td=164.3 fps=60.0 worst=17ms drawn=56 gap=46ms sim=0.29ms world=0.39ms mode=playing bugs=480 vis=97 parts=2010 stage=0 hp=100 kills=28267 mem=51MB avail=0MB demo=combat rend=metal cpu=26 main=13 dc=57 inst=5703 tris=205564 enc=0.39ms gpu=0.41ms gpumax=3.8ms skip=4 nodraw=0 drw=3ms cbmax=47ms sk=3ms/0 skcpu=3ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.3 hud=0.1 au=0.1 | cam=0.0 mar=0.0 bug=0.1 fx=0.1 up=0.1 | sfx 9047 | max - / -
+[IceHive] hb light lights=32 cells=143 tiles=1 beams=4 occ=579 tier=efficient
+[IceHive] metal: slow world encode 2 ms (thread cpu 0.9 ms) wall=1792445547.236
+[IceHive] hb gpu frame=0.29 max=3.81 passes=- (no counter sampling: command-buffer totals only) | ema=0.20 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.08
+[IceHive] hb t=167.0 td=165.3 fps=60.0 worst=17ms drawn=51 gap=98ms sim=0.28ms world=0.32ms mode=playing bugs=539 vis=191 parts=1296 stage=0 hp=100 kills=28432 mem=51MB avail=0MB demo=combat rend=metal cpu=23 main=11 dc=57 inst=5073 tris=227140 enc=0.27ms gpu=0.23ms gpumax=0.6ms skip=8 nodraw=1 drw=5ms cbmax=100ms sk=3ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 9101 | max - / -
+[IceHive] hb light lights=29 cells=164 tiles=1 beams=4 occ=594 tier=efficient
+[IceHive] hb gpu frame=0.24 max=1.69 passes=- (no counter sampling: command-buffer totals only) | ema=0.24 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.01
+[IceHive] hb t=168.0 td=166.3 fps=60.0 worst=17ms drawn=59 gap=29ms sim=0.27ms world=0.26ms mode=playing bugs=529 vis=284 parts=1072 stage=0 hp=100 kills=28572 mem=51MB avail=0MB demo=combat rend=metal cpu=21 main=10 dc=57 inst=4921 tris=249686 enc=0.22ms gpu=0.20ms gpumax=1.7ms skip=0 nodraw=1 drw=4ms cbmax=31ms sk=2ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 9173 | max - / -
+[IceHive] hb light lights=30 cells=175 tiles=1 beams=4 occ=546 tier=efficient
+[IceHive] hb gpu frame=0.19 max=0.45 passes=- (no counter sampling: command-buffer totals only) | ema=0.21 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.23
+[IceHive] hb t=169.0 td=167.3 fps=59.0 worst=34ms drawn=57 gap=65ms sim=0.24ms world=0.24ms mode=playing bugs=483 vis=241 parts=1470 stage=0 hp=100 kills=28816 mem=51MB avail=0MB demo=combat rend=metal cpu=19 main=10 dc=56 inst=4909 tris=247907 enc=0.20ms gpu=0.18ms gpumax=0.4ms skip=2 nodraw=0 drw=1ms cbmax=55ms sk=13ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 9231 | max - / -
+[IceHive] hb light lights=32 cells=152 tiles=1 beams=4 occ=587 tier=efficient
+[IceHive] hb gpu frame=0.18 max=0.54 passes=- (no counter sampling: command-buffer totals only) | ema=0.16 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb t=170.0 td=168.3 fps=60.0 worst=17ms drawn=51 gap=84ms sim=0.26ms world=0.23ms mode=playing bugs=540 vis=363 parts=1229 stage=0 hp=100 kills=29009 mem=51MB avail=0MB demo=combat rend=metal cpu=17 main=9 dc=55 inst=5163 tris=268976 enc=0.23ms gpu=0.24ms gpumax=0.8ms skip=3 nodraw=6 drw=38ms cbmax=85ms sk=2ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 9288 | max - / -
+[IceHive] hitch 52 ms td=168.34 wall=1792445551.182 upd=48ms draw=1ms (drawable 0 world 1 hud 0 (cpu 0) commit 0) labels=0 skip=61/17 cb=85ms (sched 3, gpu 0.5) vis=363 parts=1229
+[IceHive] demo combat: alive 599, topped up 883 in the last 5 s
+[IceHive] hb light lights=30 cells=180 tiles=1 beams=4 occ=602 tier=efficient
+[IceHive] hb gpu frame=0.19 max=0.76 passes=- (no counter sampling: command-buffer totals only) | ema=0.16 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.08
+[IceHive] hb t=171.0 td=169.3 fps=58.0 worst=52ms drawn=57 gap=86ms sim=0.24ms world=0.26ms mode=playing bugs=578 vis=368 parts=980 stage=0 hp=100 kills=29129 mem=51MB avail=0MB demo=combat rend=metal cpu=19 main=9 dc=55 inst=4946 tris=270356 enc=0.24ms gpu=0.21ms gpumax=0.4ms skip=0 nodraw=1 drw=12ms cbmax=30ms sk=2ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 9346 | max - / -
+[IceHive] hb light lights=26 cells=158 tiles=1 beams=4 occ=590 tier=efficient
+[IceHive] hb gpu frame=0.20 max=0.72 passes=- (no counter sampling: command-buffer totals only) | ema=0.18 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.17
+[IceHive] hb t=172.0 td=170.3 fps=60.0 worst=17ms drawn=57 gap=62ms sim=0.25ms world=0.24ms mode=playing bugs=552 vis=258 parts=600 stage=0 hp=100 kills=29263 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=10 dc=57 inst=4417 tris=241160 enc=0.22ms gpu=0.19ms gpumax=0.7ms skip=3 nodraw=0 drw=0ms cbmax=69ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 9395 | max - / -
+[IceHive] hb light lights=26 cells=159 tiles=1 beams=4 occ=587 tier=efficient
+[IceHive] hb gpu frame=0.19 max=0.37 passes=- (no counter sampling: command-buffer totals only) | ema=0.19 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=-0.34
+[IceHive] hb t=173.0 td=171.3 fps=59.0 worst=34ms drawn=57 gap=59ms sim=0.23ms world=0.24ms mode=playing bugs=284 vis=142 parts=2771 stage=0 hp=100 kills=29639 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=10 dc=57 inst=6480 tris=218740 enc=0.25ms gpu=0.16ms gpumax=0.4ms skip=2 nodraw=0 drw=0ms cbmax=40ms sk=14ms/0 skcpu=5ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 9457 | max - / -
+[IceHive] hb light lights=30 cells=173 tiles=1 beams=4 occ=474 tier=efficient
+[IceHive] hb gpu frame=0.18 max=0.40 passes=- (no counter sampling: command-buffer totals only) | ema=0.18 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb t=174.0 td=172.3 fps=60.0 worst=17ms drawn=60 gap=33ms sim=0.21ms world=0.24ms mode=playing bugs=464 vis=233 parts=1082 stage=0 hp=100 kills=29818 mem=51MB avail=0MB demo=combat rend=metal cpu=19 main=10 dc=57 inst=4859 tris=236735 enc=0.33ms gpu=0.17ms gpumax=0.4ms skip=0 nodraw=0 drw=0ms cbmax=25ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 9528 | max - / -
+[IceHive] hb light lights=29 cells=154 tiles=1 beams=4 occ=541 tier=efficient
+[IceHive] hb gpu frame=0.19 max=1.23 passes=- (no counter sampling: command-buffer totals only) | ema=0.29 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb t=175.0 td=173.3 fps=60.0 worst=17ms drawn=60 gap=30ms sim=0.25ms world=0.26ms mode=playing bugs=496 vis=362 parts=1105 stage=0 hp=100 kills=29934 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=10 dc=58 inst=5039 tris=268171 enc=0.26ms gpu=0.22ms gpumax=1.2ms skip=0 nodraw=0 drw=2ms cbmax=17ms sk=2ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 9591 | max - / -
+[IceHive] demo combat: alive 564, topped up 808 in the last 5 s
+[IceHive] hb light lights=31 cells=169 tiles=1 beams=4 occ=507 tier=efficient
+[IceHive] hb gpu frame=0.21 max=1.07 passes=- (no counter sampling: command-buffer totals only) | ema=0.23 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb t=176.0 td=174.3 fps=60.0 worst=17ms drawn=58 gap=39ms sim=0.23ms world=0.26ms mode=playing bugs=406 vis=302 parts=1125 stage=0 hp=100 kills=30270 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=10 dc=57 inst=5056 tris=268725 enc=0.27ms gpu=0.17ms gpumax=1.1ms skip=2 nodraw=0 drw=1ms cbmax=46ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.0 fx=0.0 up=0.1 | sfx 9648 | max - / -
+[IceHive] hb light lights=32 cells=162 tiles=1 beams=4 occ=497 tier=efficient
+[IceHive] hb gpu frame=0.21 max=1.13 passes=- (no counter sampling: command-buffer totals only) | ema=0.22 tier=efficient scale=1.60 range=1.20-1.60 view=643x1398 alloc=804x1748 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.00
+[IceHive] hb t=177.0 td=175.3 fps=60.0 worst=17ms drawn=59 gap=38ms sim=0.28ms world=0.33ms mode=playing bugs=528 vis=476 parts=974 stage=0 hp=100 kills=30407 mem=51MB avail=0MB demo=combat rend=metal cpu=20 main=10 dc=57 inst=5040 tris=310688 enc=0.34ms gpu=0.20ms gpumax=1.1ms skip=1 nodraw=0 drw=0ms cbmax=43ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.3 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.0 bug=0.1 fx=0.0 up=0.1 | sfx 9710 | max - / -
+[IceHive] hb light lights=32 cells=186 tiles=1 beams=4 occ=581 tier=efficient
