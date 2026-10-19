@@ -25,11 +25,12 @@ vertex MeshOut vs_mesh(MeshIn v [[stage_in]],
 fragment float4 fs_lambert(MeshOut in [[stage_in]],
                            constant Frame& F [[buffer(1)]],
                            constant Material& M [[buffer(3)]],
-                           depth2d<float> shadowMap [[texture(3)]]) {
-    float3 N = normalize(in.normal);
-    float sh = M.floor.w > 0.5 ? spotShadow(F, shadowMap, in.world) : 1.0;
-    float3 c = lambertLight(F, in.world, N, sh) * in.color;
-    return float4(encodeColor(F, c, in.depth, true), 1.0);
+                           LIGHTING_PARAMS) {
+    LitSurface s;
+    s.P = in.world; s.N = normalize(in.normal); s.V = normalize(F.camPos.xyz - in.world); s.albedo = in.color;
+    s.rough = 0.85; s.metal = 0.0; s.coat = 0.0; s.coatRough = 0.3; s.ao = 1.0; s.shadow = M.floor.w;
+    float3 c = shadeLit(LIGHTING_ARGS, s, false);
+    return float4(heightFog(F, LB, c, in.world, in.depth), 1.0);
 }
 
 /// MeshBasicMaterial (glob, grenade, beacon tip): tone mapped, no fog

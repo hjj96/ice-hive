@@ -33,20 +33,23 @@ vertex MeshOut vs_bug(MeshIn v [[stage_in]],
 }
 
 fragment float4 fs_bug(MeshOut in [[stage_in]],
-                       constant Frame& F [[buffer(1)]]) {
+                       constant Frame& F [[buffer(1)]],
+                       LIGHTING_PARAMS) {
     float3 N = normalize(in.normal);
     float3 V = normalize(F.camPos.xyz - in.world);
     float flash = in.extra.x, burn = in.extra.y, frz = in.extra.z;
-    float3 albedo = mix(in.color, float3(0.2, 0.38, 0.55), frz * 0.8);
-    albedo *= 1.0 - burn * 0.6;
-    float3 c = lambertLight(F, in.world, N) * albedo;
+    float3 albedo = mix(in.color, float3(0.2, 0.38, 0.55), frz * 0.8) * (1.0 - burn * 0.6);
+    LitSurface s;
+    s.P = in.world; s.N = N; s.V = V; s.albedo = albedo; s.rough = 0.42; s.metal = 0.0;
+    s.coat = 0.6 * (1.0 - frz); s.coatRough = 0.12; s.ao = 1.0; s.shadow = 0.0;
+    float3 c = shadeLit(LIGHTING_ARGS, s, LB.info.y > 0.5);
     float rim = 1.0 - abs(dot(N, V));
     c += in.color * in.glow * (1.0 - frz);
     c += float3(0.22, 0.14, 0.26) * (rim * rim * rim * 0.3 * (1.0 - in.glow) * (1.0 - frz));
     c += float3(1.0, 0.3, 0.04) * (burn * (0.12 + 0.88 * in.glow) * 0.9);
     c += float3(1.0, 0.92, 0.88) * (flash * 0.8);
     c += float3(0.05, 0.16, 0.3) * (frz * 0.5);
-    return float4(encodeColor(F, c, in.depth, true), 1.0);
+    return float4(heightFog(F, LB, c, in.world, in.depth), 1.0);
 }
 
 // ================================================================ flashlight shadow proxy (depth only)
@@ -83,10 +86,7 @@ static float3 glintLight(constant Frame& F, float3 P) {
     for (int i = 0; i < 4; i++) {
         float I = F.spotPos[i].w;
         if (I <= 0.0) continue;
-        float3 Lv = F.spotPos[i].xyz - P;
-        float d = length(Lv);
-        float cone = smoothstep(SPOT_COS_OUT, SPOT_COS_IN, dot(-Lv / max(d, 1e-4), F.spotDir[i].xyz));
-        irr += SPOT_COLOR * (I * cone * distanceAtten(d, SPOT_RANGE, SPOT_DECAY) * NL);
+        irr += SPOT_COLOR * (spotTerm(F, i, P).w * NL);
     }
     for (int i = 0; i < 3; i++) {
         float range = F.pointPos[i].w;
