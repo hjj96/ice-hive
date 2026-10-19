@@ -145,7 +145,8 @@ final class MetalWorld: HUDProjection {
         log("metal: " + loaded)
         log("metal: " + built + " device=\(device.name)")
         log("metal: " + post + " | counters " + (r.counters.perPass ? "per pass (stage boundaries)" : "command-buffer totals")
-            + " | device class \(r.quality.deviceClass)" + (RenderQuality.isSimulator ? " (simulator)" : "") + " bug cap \(r.quality.deviceBugCap) default tier \(r.quality.deviceDefaultTier.rawValue)")
+            + " | device class \(r.quality.deviceClass)" + (RenderQuality.isSimulator ? " (simulator)" : "") + " bug cap \(r.quality.deviceBugCap) default tier \(r.quality.deviceDefaultTier.rawValue)"
+            + String(format: " | world encodes > %.0f ms logged", MetalRenderer.slowEncodeMs))
         return r.ready ? (store, r) : nil
     }
 

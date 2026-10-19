@@ -21,10 +21,11 @@ Gate (exit 1 with --gate), the plan's common gate for every package:
   host stalls         a long tick in which the app's main thread worked < 10 ms is the simulator host's, not the app's:
                       app work = upd + draw minus the time the thread spent off the CPU inside SKRenderer (hud − its cpu)
                       and inside the world encode (`metal: slow world encode N ms (thread cpu M ms)`, logged by
-                      MetalRenderer for encodes > 8 ms). Such ticks are listed (`host-stalls`), not counted as hitches
+                      MetalRenderer for encodes > 2 ms; without such a line the encode took < 2 ms and the rest of
+                      FrameLoop's `world` span is the thread waiting in makeCommandBuffer). Such ticks are listed (`host-stalls`), not counted as hitches
                       and not held to the worst-tick limit. A tick of 44–50 ms (no hitch line) counts as a host stall
                       when the app's own maxima in that heartbeat second (`hb ms … max`, the slowest HUD render's CPU
-                      `skcpu=`, the main thread's drawable wait — at most 3 ms by design —, a world encode > 8 ms) add
+                      `skcpu=`, the main thread's drawable wait — at most 3 ms by design —, a world encode > 2 ms) add
                       up to < 10 ms
   cold first launch   worst loop tick <= --cold-max-ms; the renderer's share of the loading — the time the scene waited
                       for the Metal preload (`metal world ready in N ms`) less the simulator's shader-compiler start-up
@@ -83,6 +84,7 @@ rx_hitch_wall = re.compile(r'wall=([0-9.]+)')
 rx_slow_enc = re.compile(r'metal: slow world encode (\d+) ms \(thread cpu ([0-9.]+) ms\) wall=([0-9.]+)')
 rx_first_req = re.compile(r'pipelines built in \d+ ms \(.*first request (\d+) ms')
 rx_ready_wait = re.compile(r'metal world ready in (\d+) ms')
+rx_enc_log = re.compile(r'world encodes > (\d+) ms logged')
 rx_hb_drawn = re.compile(r'hb t=[0-9.]+ .*?drawn=(\d+)')
 rx_hb_skcpu = re.compile(r' skcpu=(\d+)ms')
 rx_hb_drw = re.compile(r' drw=(\d+)ms')
@@ -140,7 +142,9 @@ for d in demos:
     drawn_min = m.group(6) or '-'
     gap = m.group(7) or '-'
     lines = text.splitlines()
-    # slow world encodes: (wall stamp, ms off the CPU)
+    # slow world encodes: (wall stamp, ms off the CPU); the logging threshold of this build (None: older logs)
+    el = rx_enc_log.search(text)
+    enc_log_ms = float(el.group(1)) if el else None
     slow_enc = []
     for line in lines:
         e = rx_slow_enc.search(line)
@@ -165,6 +169,10 @@ for d in demos:
                 off = [o for (t, o) in slow_enc if w - 0.3 <= t <= w + 0.01]
                 if off:
                     work -= min(int(wk.group(3)), off[-1])
+                elif enc_log_ms is not None:
+                    # no slow-encode line in this tick: the encode itself took < enc_log_ms, the rest of FrameLoop's
+                    # `world` span is the thread waiting in makeCommandBuffer
+                    work -= max(0, int(wk.group(3)) - enc_log_ms)
             if work < 10:
                 host_stalls.append(int(h.group(1)))
                 stall_tds.append(float(h.group(2)))
@@ -175,7 +183,7 @@ for d in demos:
         hitches.append((int(h.group(1)), float(h.group(2)), cb.group(1) if cb else '-'))
     # long ticks under the hitch threshold (no hitch line): a heartbeat second whose worst tick is 44–50 ms while the
     # app's own maxima in that second — the `hb ms … max` sections, the slowest HUD render's CPU time (skcpu=), the
-    # main thread's drawable wait (≤ 3 ms by design) and any world encode > 8 ms (`metal: slow world encode`) — add up
+    # main thread's drawable wait (≤ 3 ms by design) and any logged world encode (> 2 ms) (`metal: slow world encode`) — add up
     # to < 10 ms was stalled by the host
     enc_in_second = 0.0
     for k, line in enumerate(lines):
