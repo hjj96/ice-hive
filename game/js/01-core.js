@@ -117,15 +117,15 @@ const DIFF = [
     pulse: 1.0, pulseT: 5, pulseFall: 0, stall: 90, grace: 40, runHp: 15,
     qAt: 35, qHp: 2500, qSpd: 1.5, qRamT: 9, qVolleyT: 6, qBroodT: 8, qBroodN: 6, qHorde: 80, qTrickle: 0.4 },
   { id: 'vet', name: 'Ветеран', line: 'Как задумано: падения случаются, Матка опасна', mul: 1.0,
-    hp: 1.1, dmg: 1.2, trickle: 1.2, horde: 1.12, step: 30, spec: 1.15, specCap: 1.2, bot: 0.85, botGrow: 1.025,
-    regen: 4, regenT: 4, regenCap: 0.6, heal: 0.2, revive: 0.4, medkit: 0.35, edge: 11,
+    hp: 1.1, dmg: 1.2, trickle: 1.25, horde: 1.12, step: 30, spec: 1.15, specCap: 1.2, bot: 0.85, botGrow: 1.025,
+    regen: 4, regenT: 4, regenCap: 0.6, heal: 0.2, revive: 0.45, medkit: 0.35, edge: 11,
     pulse: 1.0, pulseT: 6, pulseFall: 0.5, stall: 60, grace: 25, runHp: 15,
     qAt: 35, qHp: 3500, qSpd: 1.5, qRamT: 9, qVolleyT: 6, qBroodT: 8, qBroodN: 6, qHorde: 80, qTrickle: 0.4 },
   { id: 'nm', name: 'Кошмар', line: 'Рой беспощаден, союзники слабее — Матку переживают единицы', mul: 1.5,
-    hp: 1.15, dmg: 1.25, trickle: 1.25, horde: 1.17, step: 40, spec: 1.25, specCap: 1.3, bot: 0.8, botGrow: 1.02,
+    hp: 1.15, dmg: 1.25, trickle: 1.2, horde: 1.17, step: 40, spec: 1.25, specCap: 1.3, bot: 0.8, botGrow: 1.02,
     regen: 3, regenT: 5, regenCap: 0.5, heal: 0.15, revive: 0.35, medkit: 0.25, edge: 10,
     pulse: 0.8, pulseT: 7, pulseFall: 0.6, stall: 40, grace: 15, runHp: 15,
-    qAt: 30, qHp: 4500, qSpd: 1.6, qRamT: 8, qVolleyT: 5, qBroodT: 7, qBroodN: 8, qHorde: 150, qTrickle: 0.6 },
+    qAt: 30, qHp: 6000, qSpd: 1.6, qRamT: 8, qVolleyT: 5, qBroodT: 7, qBroodN: 8, qHorde: 150, qTrickle: 0.6 },
 ];
 let TH = DIFF[1];   // the active tier; tierPrepare (11c-meta.js) picks it per mission
 function setTier(i) { TH = DIFF[clamp(i | 0, 0, DIFF.length - 1)]; return TH; }

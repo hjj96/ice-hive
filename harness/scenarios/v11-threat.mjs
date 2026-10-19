@@ -1,6 +1,7 @@
 // v1.1 package A regression: tiers, one-shot fodder, hive pressure + AFK clock, the Матка and the lift lock.
 //   npm run build:artifact && node harness/run.mjs --scenario harness/scenarios/v11-threat.mjs --quiet
 //   (also runs on the www bundle: --www). Simulation is driven with __dbg.fast; no screenshots unless --shots.
+//   --pause 60 holds the pause for 60 s (default 1.5 s); on the calibration build it also checks the lift pulse.
 export default async (page, h) => {
   const { log, fail, sleep } = h;
   const ev = (f, a) => page.evaluate(f, a);
@@ -51,6 +52,7 @@ export default async (page, h) => {
   u = await hud();
   expect(t.state === 1 && u.cls === 'press1' && u.text === 'Улей просыпается — к маяку' && u.bar, `15.5 s: amber press1 «${u.text}» (press ${t.press})`);
   if (h.args.shots) await h.shot('pressure-amber');
+  { const s = await h.stats(); log('[draw] pressure (amber):', s.drawCalls, 'draw calls at quality', s.quality, '·', s.bugsAlive, 'bugs'); }
   t = await ev(() => { window.__dbg.fast(10); return window.__dbg.threat(); });
   u = await hud();
   expect(t.state === 2 && u.cls === 'press2' && u.urge && u.text === 'Рой стягивается — к маяку!', `25.5 s: red press2 + marker urge «${u.text}» (press ${t.press}, idleMul ${t.idleMul})`);
@@ -62,10 +64,11 @@ export default async (page, h) => {
   expect(afk === 0, 'AFK clock resets on a move key: ' + afk);
   // pause: no ticks, no pressure jump
   await page.keyboard.press('Escape'); await sleep(150);
-  const p0 = await T(); await sleep(1500); const p1 = await T();
+  const pauseS = +(h.args.pause || 1.5);   // --pause 60 for the full manual check
+  const p0 = await T(); await sleep(pauseS * 1000); const p1 = await T();
   const scr = (await h.stats()).screen;
   await page.keyboard.press('Escape'); await sleep(150);
-  expect(scr === 'paused' && p0.press === p1.press, `paused 1.5 s: press ${p0.press} -> ${p1.press}`);
+  expect(scr === 'paused' && p0.press === p1.press, `paused ${pauseS} s: press ${p0.press} -> ${p1.press}`);
   // stall clock: brutes join while the squad loiters (TH.stall = 60 s on Ветеран)
   const brute = await ev(() => { const d = window.__dbg; for (let k = 0; k < 60; k++) { d.fast(1); const s = d.threat(); if (s.brutes > 0) return d.state().time; } return -1; });
   expect(brute > 0, `stall clock: first brute alive at ${brute} s without any objective progress`);
@@ -85,7 +88,12 @@ export default async (page, h) => {
   await ev(() => window.__dbg.fast(3));
   u = await hud();
   expect(u.cls === 'boss' && u.text === 'Убейте Матку · лифт ждёт', `boss HUD «${u.text}» (${u.cls})`);
-  if (h.args.shots) await h.shot('queen');
+  if (h.args.shots) {
+    // skip() teleported the squad to the lift: let the camera ease over (2 s of real time at normal speed) first
+    await ev(() => window.__dbg.timeScale(1)); await sleep(2000); await ev(() => window.__dbg.timeScale(0.05));
+    await h.shot('queen');
+  }
+  { const s = await h.stats(); log('[draw] Матка fight:', s.drawCalls, 'draw calls at quality', s.quality, '·', s.bugsAlive, 'bugs'); }
   t = await ev(() => { window.__dbg.fast(105); return window.__dbg.threat(); });
   const obj = (await h.stats()).objective;
   expect(t.stage === 'hold' && t.liftT > 0 && t.liftT <= 0.011 && obj === 'Лифт заблокирован — Матка жива', `lift timer out, she lives: stage ${t.stage}, liftT ${t.liftT}, «${obj}»`);
