@@ -1,0 +1,277 @@
+/Users/runner/work/ice-hive/ice-hive/ios-native/IceHiveCore/Tests/IceHiveCoreTests/PerformanceTests.swift:31: error: -[IceHiveCoreTests.PerformanceTests testBench1500] : XCTAssertEqual failed: ("1") is not equal to ("0")
+--- tail ---
+swift-driver version: 1.148.6 Apple Swift version 6.3.3 (swiftlang-6.3.3.1.3 clang-2100.1.1.101)
+Target: arm64-apple-macosx26.0
+Building for debugging...
+[0/7] /Users/runner/work/ice-hive/ice-hive/ios-native/IceHiveCore/.build/arm64-apple-macosx/debug/IceHiveCorePackageTests.derived/runner.swift
+[1/7] Write sources
+[4/7] Write swift-version-7974D3F7F03D5E95.txt
+[6/22] Compiling IceHiveCore Core.swift
+[7/22] Compiling IceHiveCore Events.swift
+[8/22] Compiling IceHiveCore Game.swift
+[9/22] Compiling IceHiveCore GameAI.swift
+[10/22] Compiling IceHiveCore GameCoach.swift
+[11/22] Compiling IceHiveCore GameDebug.swift
+[12/22] Compiling IceHiveCore GameDirector.swift
+[13/22] Compiling IceHiveCore GameHUD.swift
+[14/22] Compiling IceHiveCore GameMarines.swift
+[15/22] Compiling IceHiveCore GameQueen.swift
+[16/22] Compiling IceHiveCore GameSwarm.swift
+[17/22] Compiling IceHiveCore GameThreat.swift
+[18/22] Compiling IceHiveCore IceHiveCoreInfo.swift
+[19/22] Compiling IceHiveCore Level.swift
+[20/22] Emitting module IceHiveCore
+[21/29] Compiling IceHiveCore Marine.swift
+[22/29] Compiling IceHiveCore Profile.swift
+[23/29] Compiling IceHiveCore SettingsStore.swift
+[24/29] Compiling IceHiveCore Spatial.swift
+[25/29] Compiling IceHiveCore Stations.swift
+[26/29] Compiling IceHiveCore Swarm.swift
+[27/29] Compiling IceHiveCore Tuning.swift
+[28/36] Emitting module IceHiveCoreTests
+[29/36] Compiling IceHiveCoreTests LevelSpatialTests.swift
+[30/36] Compiling IceHiveCoreTests MissionTests.swift
+[31/36] Compiling IceHiveCoreTests PerformanceTests.swift
+[32/36] Compiling IceHiveCoreTests CoreTests.swift
+[33/36] Compiling IceHiveCoreTests GameTests.swift
+[34/36] Compiling IceHiveCoreTests IceHiveCoreInfoTests.swift
+[35/38] Compiling IceHiveCoreTests SettingsStoreTests.swift
+[36/38] Compiling IceHiveCoreTests ThreatTests.swift
+[37/40] Compiling IceHiveCorePackageTests runner.swift
+[38/40] Emitting module IceHiveCorePackageTests
+[38/40] Write Objects.LinkFileList
+[39/40] Linking IceHiveCorePackageTests
+Build complete! (44.04s)
+Test Suite 'All tests' started at 2026-10-19 14:18:53.857.
+Test Suite 'IceHiveCorePackageTests.xctest' started at 2026-10-19 14:18:53.862.
+Test Suite 'AfkTests' started at 2026-10-19 14:18:53.863.
+Test Case '-[IceHiveCoreTests.AfkTests testAfkClock]' started.
+Test Case '-[IceHiveCoreTests.AfkTests testAfkClock]' passed (0.880 seconds).
+Test Case '-[IceHiveCoreTests.AfkTests testHuntersPickThePlayer]' started.
+Test Case '-[IceHiveCoreTests.AfkTests testHuntersPickThePlayer]' passed (0.041 seconds).
+Test Suite 'AfkTests' passed at 2026-10-19 14:18:54.785.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.921 (0.922) seconds
+Test Suite 'CoreTests' started at 2026-10-19 14:18:54.785.
+Test Case '-[IceHiveCoreTests.CoreTests testAngDiff]' started.
+Test Case '-[IceHiveCoreTests.CoreTests testAngDiff]' passed (0.001 seconds).
+Test Case '-[IceHiveCoreTests.CoreTests testFormatTime]' started.
+Test Case '-[IceHiveCoreTests.CoreTests testFormatTime]' passed (0.001 seconds).
+Test Case '-[IceHiveCoreTests.CoreTests testMulberry32MatchesWebGenerator]' started.
+Test Case '-[IceHiveCoreTests.CoreTests testMulberry32MatchesWebGenerator]' passed (0.001 seconds).
+Test Case '-[IceHiveCoreTests.CoreTests testRNGIsDeterministicAndInRange]' started.
+Test Case '-[IceHiveCoreTests.CoreTests testRNGIsDeterministicAndInRange]' passed (0.012 seconds).
+Test Case '-[IceHiveCoreTests.CoreTests testXpTable]' started.
+Test Case '-[IceHiveCoreTests.CoreTests testXpTable]' passed (0.000 seconds).
+Test Suite 'CoreTests' passed at 2026-10-19 14:18:54.800.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.014 (0.015) seconds
+Test Suite 'DamageSourceTests' started at 2026-10-19 14:18:54.800.
+Test Case '-[IceHiveCoreTests.DamageSourceTests testLastHitPerSource]' started.
+Test Case '-[IceHiveCoreTests.DamageSourceTests testLastHitPerSource]' passed (0.027 seconds).
+Test Case '-[IceHiveCoreTests.DamageSourceTests testSourcesFromTheSwarm]' started.
+Test Case '-[IceHiveCoreTests.DamageSourceTests testSourcesFromTheSwarm]' passed (0.235 seconds).
+Test Suite 'DamageSourceTests' passed at 2026-10-19 14:18:55.063.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.263 (0.263) seconds
+Test Suite 'DirectorTierTests' started at 2026-10-19 14:18:55.063.
+Test Case '-[IceHiveCoreTests.DirectorTierTests testBeaconHordeAndWaves]' started.
+Test Case '-[IceHiveCoreTests.DirectorTierTests testBeaconHordeAndWaves]' passed (0.106 seconds).
+Test Case '-[IceHiveCoreTests.DirectorTierTests testCoachedFirstBeaconHordeIsSmallerOnce]' started.
+Test Case '-[IceHiveCoreTests.DirectorTierTests testCoachedFirstBeaconHordeIsSmallerOnce]' passed (0.035 seconds).
+Test Case '-[IceHiveCoreTests.DirectorTierTests testHealReviveRegenAndBots]' started.
+Test Case '-[IceHiveCoreTests.DirectorTierTests testHealReviveRegenAndBots]' passed (0.500 seconds).
+Test Case '-[IceHiveCoreTests.DirectorTierTests testLiftPulseIntervalGuardAndFalloff]' started.
+Test Case '-[IceHiveCoreTests.DirectorTierTests testLiftPulseIntervalGuardAndFalloff]' passed (1.514 seconds).
+Test Case '-[IceHiveCoreTests.DirectorTierTests testSpecialCapIsAFloatCompare]' started.
+Test Case '-[IceHiveCoreTests.DirectorTierTests testSpecialCapIsAFloatCompare]' passed (0.060 seconds).
+Test Case '-[IceHiveCoreTests.DirectorTierTests testStallClockUnlocksBrutes]' started.
+Test Case '-[IceHiveCoreTests.DirectorTierTests testStallClockUnlocksBrutes]' passed (0.277 seconds).
+Test Case '-[IceHiveCoreTests.DirectorTierTests testTrickleFactorAndAttract]' started.
+Test Case '-[IceHiveCoreTests.DirectorTierTests testTrickleFactorAndAttract]' passed (0.065 seconds).
+Test Suite 'DirectorTierTests' passed at 2026-10-19 14:18:57.621.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 2.556 (2.558) seconds
+Test Suite 'FodderTests' started at 2026-10-19 14:18:57.621.
+Test Case '-[IceHiveCoreTests.FodderTests testBenchKeepsImmortalRunners]' started.
+Test Case '-[IceHiveCoreTests.FodderTests testBenchKeepsImmortalRunners]' passed (0.066 seconds).
+Test Case '-[IceHiveCoreTests.FodderTests testLegacyRowScalesRunnersLikeV10]' started.
+Test Case '-[IceHiveCoreTests.FodderTests testLegacyRowScalesRunnersLikeV10]' passed (0.033 seconds).
+Test Case '-[IceHiveCoreTests.FodderTests testRunnersAreOneShotOnEveryTier]' started.
+Test Case '-[IceHiveCoreTests.FodderTests testRunnersAreOneShotOnEveryTier]' passed (0.180 seconds).
+Test Suite 'FodderTests' passed at 2026-10-19 14:18:57.901.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.279 (0.280) seconds
+Test Suite 'GameTests' started at 2026-10-19 14:18:57.901.
+Test Case '-[IceHiveCoreTests.GameTests testAbilitiesOfEveryClass]' started.
+Test Case '-[IceHiveCoreTests.GameTests testAbilitiesOfEveryClass]' passed (0.286 seconds).
+Test Case '-[IceHiveCoreTests.GameTests testAttractModeRunsForever]' started.
+Test Case '-[IceHiveCoreTests.GameTests testAttractModeRunsForever]' passed (0.655 seconds).
+Test Case '-[IceHiveCoreTests.GameTests testBeaconChargesWithMarineInside]' started.
+Test Case '-[IceHiveCoreTests.GameTests testBeaconChargesWithMarineInside]' passed (0.074 seconds).
+Test Case '-[IceHiveCoreTests.GameTests testDamageDownAndRevive]' started.
+Test Case '-[IceHiveCoreTests.GameTests testDamageDownAndRevive]' passed (0.090 seconds).
+Test Case '-[IceHiveCoreTests.GameTests testDefeatWhenAllDown]' started.
+Test Case '-[IceHiveCoreTests.GameTests testDefeatWhenAllDown]' passed (0.029 seconds).
+Test Case '-[IceHiveCoreTests.GameTests testEventBufferIsBounded]' started.
+Test Case '-[IceHiveCoreTests.GameTests testEventBufferIsBounded]' passed (1.031 seconds).
+Test Case '-[IceHiveCoreTests.GameTests testEventsDoNotAffectTheSimulation]' started.
+Test Case '-[IceHiveCoreTests.GameTests testEventsDoNotAffectTheSimulation]' passed (1.147 seconds).
+Test Case '-[IceHiveCoreTests.GameTests testFastForwardAndAimAssist]' started.
+Test Case '-[IceHiveCoreTests.GameTests testFastForwardAndAimAssist]' passed (0.975 seconds).
+Test Case '-[IceHiveCoreTests.GameTests testGrenadeExplodesAndKills]' started.
+Test Case '-[IceHiveCoreTests.GameTests testGrenadeExplodesAndKills]' passed (0.062 seconds).
+Test Case '-[IceHiveCoreTests.GameTests testLegacyRowIsV1]' started.
+Test Case '-[IceHiveCoreTests.GameTests testLegacyRowIsV1]' passed (0.096 seconds).
+Test Case '-[IceHiveCoreTests.GameTests testLevelUpFlow]' started.
+Test Case '-[IceHiveCoreTests.GameTests testLevelUpFlow]' passed (0.075 seconds).
+Test Case '-[IceHiveCoreTests.GameTests testPlayerInputMovesAndShoots]' started.
+Test Case '-[IceHiveCoreTests.GameTests testPlayerInputMovesAndShoots]' passed (0.257 seconds).
+Test Case '-[IceHiveCoreTests.GameTests testRandomPlayerInputStaysSane]' started.
+Test Case '-[IceHiveCoreTests.GameTests testRandomPlayerInputStaysSane]' passed (1.852 seconds).
+Test Case '-[IceHiveCoreTests.GameTests testSameSeedSameRun]' started.
+Test Case '-[IceHiveCoreTests.GameTests testSameSeedSameRun]' passed (1.919 seconds).
+Test Case '-[IceHiveCoreTests.GameTests testSkipThroughStagesToVictory]' started.
+Test Case '-[IceHiveCoreTests.GameTests testSkipThroughStagesToVictory]' passed (0.137 seconds).
+Test Case '-[IceHiveCoreTests.GameTests testSpecialBugsBehave]' started.
+Test Case '-[IceHiveCoreTests.GameTests testSpecialBugsBehave]' passed (0.188 seconds).
+Test Case '-[IceHiveCoreTests.GameTests testSquadSetup]' started.
+Test Case '-[IceHiveCoreTests.GameTests testSquadSetup]' passed (0.050 seconds).
+Test Suite 'GameTests' passed at 2026-10-19 14:19:06.830.
+	 Executed 17 tests, with 0 failures (0 unexpected) in 8.925 (8.929) seconds
+Test Suite 'IceHiveCoreInfoTests' started at 2026-10-19 14:19:06.830.
+Test Case '-[IceHiveCoreTests.IceHiveCoreInfoTests testVersionIsSet]' started.
+Test Case '-[IceHiveCoreTests.IceHiveCoreInfoTests testVersionIsSet]' passed (0.001 seconds).
+Test Suite 'IceHiveCoreInfoTests' passed at 2026-10-19 14:19:06.832.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'LevelTests' started at 2026-10-19 14:19:06.832.
+Test Case '-[IceHiveCoreTests.LevelTests testCellHelpers]' started.
+Test Case '-[IceHiveCoreTests.LevelTests testCellHelpers]' passed (0.001 seconds).
+Test Case '-[IceHiveCoreTests.LevelTests testLayoutRaster]' started.
+Test Case '-[IceHiveCoreTests.LevelTests testLayoutRaster]' passed (0.001 seconds).
+Test Suite 'LevelTests' passed at 2026-10-19 14:19:06.834.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.002 (0.003) seconds
+Test Suite 'MissionTests' started at 2026-10-19 14:19:06.834.
+Test Case '-[IceHiveCoreTests.MissionTests testAutopilotWinsAssault]' started.
+Test Case '-[IceHiveCoreTests.MissionTests testAutopilotWinsAssault]' passed (9.330 seconds).
+Test Case '-[IceHiveCoreTests.MissionTests testAutopilotWinsCryo]' started.
+Test Case '-[IceHiveCoreTests.MissionTests testAutopilotWinsCryo]' passed (8.326 seconds).
+Test Case '-[IceHiveCoreTests.MissionTests testAutopilotWinsGunner]' started.
+Test Case '-[IceHiveCoreTests.MissionTests testAutopilotWinsGunner]' passed (9.673 seconds).
+Test Case '-[IceHiveCoreTests.MissionTests testAutopilotWinsPyro]' started.
+Test Case '-[IceHiveCoreTests.MissionTests testAutopilotWinsPyro]' passed (9.582 seconds).
+Test Suite 'MissionTests' passed at 2026-10-19 14:19:43.746.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 36.911 (36.912) seconds
+Test Suite 'PerformanceTests' started at 2026-10-19 14:19:43.747.
+Test Case '-[IceHiveCoreTests.PerformanceTests testBench1500]' started.
+/Users/runner/work/ice-hive/ice-hive/ios-native/IceHiveCore/Tests/IceHiveCoreTests/PerformanceTests.swift:31: error: -[IceHiveCoreTests.PerformanceTests testBench1500] : XCTAssertEqual failed: ("1") is not equal to ("0")
+Test Case '-[IceHiveCoreTests.PerformanceTests testBench1500]' failed (2.683 seconds).
+Test Case '-[IceHiveCoreTests.PerformanceTests testMissionThroughput]' started.
+/Users/runner/work/ice-hive/ice-hive/ios-native/IceHiveCore/Tests/IceHiveCoreTests/PerformanceTests.swift:37: -[IceHiveCoreTests.PerformanceTests testMissionThroughput] : Test skipped - release builds only (swift test -c release)
+Test Case '-[IceHiveCoreTests.PerformanceTests testMissionThroughput]' skipped (0.001 seconds).
+Test Suite 'PerformanceTests' failed at 2026-10-19 14:19:46.431.
+	 Executed 2 tests, with 1 test skipped and 1 failure (0 unexpected) in 2.684 (2.684) seconds
+Test Suite 'PressureTests' started at 2026-10-19 14:19:46.431.
+Test Case '-[IceHiveCoreTests.PressureTests testCalmFreezesPressure]' started.
+Test Case '-[IceHiveCoreTests.PressureTests testCalmFreezesPressure]' passed (0.139 seconds).
+Test Case '-[IceHiveCoreTests.PressureTests testThresholdsPerTier]' started.
+Test Case '-[IceHiveCoreTests.PressureTests testThresholdsPerTier]' passed (2.684 seconds).
+Test Case '-[IceHiveCoreTests.PressureTests testToLiftTextsAndAttract]' started.
+Test Case '-[IceHiveCoreTests.PressureTests testToLiftTextsAndAttract]' passed (1.164 seconds).
+Test Case '-[IceHiveCoreTests.PressureTests testVeteranIdleEscalation]' started.
+Test Case '-[IceHiveCoreTests.PressureTests testVeteranIdleEscalation]' passed (1.204 seconds).
+Test Suite 'PressureTests' passed at 2026-10-19 14:19:51.624.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 5.191 (5.193) seconds
+Test Suite 'SettingsStoreTests' started at 2026-10-19 14:19:51.624.
+Test Case '-[IceHiveCoreTests.SettingsStoreTests testDefaults]' started.
+Test Case '-[IceHiveCoreTests.SettingsStoreTests testDefaults]' passed (0.006 seconds).
+Test Case '-[IceHiveCoreTests.SettingsStoreTests testIgnoresMalformedLegacyValues]' started.
+Test Case '-[IceHiveCoreTests.SettingsStoreTests testIgnoresMalformedLegacyValues]' passed (0.009 seconds).
+Test Case '-[IceHiveCoreTests.SettingsStoreTests testMigratesCapacitorPreferences]' started.
+Test Case '-[IceHiveCoreTests.SettingsStoreTests testMigratesCapacitorPreferences]' passed (0.011 seconds).
+Test Case '-[IceHiveCoreTests.SettingsStoreTests testMigratesUnknownLegacyKeys]' started.
+Test Case '-[IceHiveCoreTests.SettingsStoreTests testMigratesUnknownLegacyKeys]' passed (0.005 seconds).
+Test Case '-[IceHiveCoreTests.SettingsStoreTests testRecordsAndVolumeCycle]' started.
+Test Case '-[IceHiveCoreTests.SettingsStoreTests testRecordsAndVolumeCycle]' passed (0.014 seconds).
+Test Suite 'SettingsStoreTests' passed at 2026-10-19 14:19:51.671.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.045 (0.047) seconds
+Test Suite 'SpatialTests' started at 2026-10-19 14:19:51.671.
+Test Case '-[IceHiveCoreTests.SpatialTests testFlowFieldLeadsToSource]' started.
+Test Case '-[IceHiveCoreTests.SpatialTests testFlowFieldLeadsToSource]' passed (0.051 seconds).
+Test Case '-[IceHiveCoreTests.SpatialTests testHashCountingSortCoversAllBugs]' started.
+Test Case '-[IceHiveCoreTests.SpatialTests testHashCountingSortCoversAllBugs]' passed (0.010 seconds).
+Test Case '-[IceHiveCoreTests.SpatialTests testQueryCircleMatchesBruteForce]' started.
+Test Case '-[IceHiveCoreTests.SpatialTests testQueryCircleMatchesBruteForce]' passed (0.082 seconds).
+Test Case '-[IceHiveCoreTests.SpatialTests testRaycastFindsNearestBug]' started.
+Test Case '-[IceHiveCoreTests.SpatialTests testRaycastFindsNearestBug]' passed (0.001 seconds).
+Test Suite 'SpatialTests' passed at 2026-10-19 14:19:51.816.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.144 (0.145) seconds
+Test Suite 'TuningTests' started at 2026-10-19 14:19:51.816.
+Test Case '-[IceHiveCoreTests.TuningTests testOverrideByWebNames]' started.
+Test Case '-[IceHiveCoreTests.TuningTests testOverrideByWebNames]' passed (0.000 seconds).
+Test Case '-[IceHiveCoreTests.TuningTests testTierRowsAreTheCalibratedWebRows]' started.
+Test Case '-[IceHiveCoreTests.TuningTests testTierRowsAreTheCalibratedWebRows]' passed (0.000 seconds).
+Test Suite 'TuningTests' passed at 2026-10-19 14:19:51.817.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'IceHiveCorePackageTests.xctest' failed at 2026-10-19 14:19:51.817.
+	 Executed 60 tests, with 1 test skipped and 1 failure (0 unexpected) in 57.935 (57.955) seconds
+Test Suite 'All tests' failed at 2026-10-19 14:19:51.818.
+	 Executed 60 tests, with 1 test skipped and 1 failure (0 unexpected) in 57.935 (57.961) seconds
+[assault seed 1000] t=   0.0 bugs=0 kills=0 beacons=0 liftT=100.0 lvl=1 hordes=0 hp=100 pos=(30.0,30.0) press=0.0 playing stage=beacons tier=vet threat=0 downed=0000 obj=«Запустите маяки 0/3»
+[assault seed 1000] t=  30.0 bugs=19 kills=563 beacons=0 liftT=100.0 lvl=6 hordes=1 hp=120 pos=(28.4,-6.2) press=0.0 playing stage=beacons tier=vet threat=0 downed=0000 obj=«Удерживайте маяк «Бета»»
+[assault seed 1000] t=  60.0 bugs=19 kills=878 beacons=0 liftT=100.0 lvl=7 hordes=1 hp=140 pos=(30.7,-10.3) press=0.0 playing stage=beacons tier=vet threat=0 downed=0000 obj=«Удерживайте маяк «Бета»»
+[assault seed 1000] t=  90.1 bugs=74 kills=1414 beacons=1 liftT=100.0 lvl=9 hordes=2 hp=131 pos=(-32.6,-12.2) press=0.0 playing stage=beacons tier=vet threat=0 downed=0000 obj=«Удерживайте маяк «Гамма»»
+[assault seed 1000] t= 120.1 bugs=53 kills=1933 beacons=1 liftT=100.0 lvl=10 hordes=2 hp=140 pos=(-35.2,-11.0) press=0.0 playing stage=beacons tier=vet threat=0 downed=0000 obj=«Удерживайте маяк «Гамма»»
+[assault seed 1000] t= 150.1 bugs=13 kills=2365 beacons=2 liftT=100.0 lvl=10 hordes=2 hp=140 pos=(-33.6,14.1) press=5.6 playing stage=beacons tier=vet threat=0 downed=0000 obj=«Запустите маяки 2/3»
+[assault seed 1000] t= 180.1 bugs=40 kills=3188 beacons=2 liftT=100.0 lvl=11 hordes=3 hp=111 pos=(-34.4,26.5) press=0.0 playing stage=beacons tier=vet threat=0 downed=0000 obj=«Удерживайте маяк «Альфа»»
+[assault seed 1000] t= 210.1 bugs=39 kills=3761 beacons=2 liftT=100.0 lvl=12 hordes=3 hp=140 pos=(-31.3,28.4) press=0.0 playing stage=beacons tier=vet threat=0 downed=0000 obj=«Удерживайте маяк «Альфа»»
+[assault seed 1000] t= 240.1 bugs=1037 kills=4213 beacons=3 liftT=94.6 lvl=12 hordes=5 hp=140 pos=(-2.8,-41.0) press=4.7 playing stage=hold tier=vet threat=0 downed=0000 obj=«Держитесь на лифте · 1:35»
+[assault seed 1000] t= 270.1 bugs=449 kills=6249 beacons=3 liftT=64.6 lvl=13 hordes=7 hp=140 pos=(-0.3,-42.4) press=0.0 playing stage=hold tier=vet threat=0 downed=0000 obj=«Держитесь на лифте · 1:05»
+[assault seed 1000] t= 300.1 bugs=74 kills=7137 beacons=3 liftT=34.5 lvl=14 hordes=8 hp=140 pos=(-2.1,-41.7) press=0.0 queen=dead playing stage=hold tier=vet threat=0 downed=0000 obj=«Держитесь на лифте · 0:35»
+[assault seed 1000] t= 330.1 bugs=80 kills=8684 beacons=3 liftT=4.5 lvl=14 hordes=10 hp=140 pos=(-10.8,-41.7) press=0.0 queen=dead playing stage=hold tier=vet threat=0 downed=0000 obj=«Держитесь на лифте · 0:05»
+[assault seed 1000] END t= 339.3 bugs=4 kills=9225 beacons=3 liftT=0.0 lvl=15 hordes=11 hp=131 pos=(-4.0,-41.7) press=0.0 queen=dead won stage=extract tier=vet threat=0 downed=0000 obj=«Эвакуация!» maxAlive=1050 downs=1 acc=77% upgrades=7 level=15
+  stages: beacon1start@6.4 beacon1done@66.4 beacon2start@80.4 beacon2done@144.5 beacon0start@152.6 beacon0done@213.7 hold@234.7 extract@334.7
+[cryo seed 1002] t=   0.0 bugs=0 kills=0 beacons=0 liftT=100.0 lvl=1 hordes=0 hp=100 pos=(30.0,30.0) press=0.0 playing stage=beacons tier=vet threat=0 downed=0000 obj=«Запустите маяки 0/3»
+[cryo seed 1002] t=  30.0 bugs=22 kills=544 beacons=0 liftT=100.0 lvl=6 hordes=1 hp=100 pos=(28.5,-6.3) press=0.0 playing stage=beacons tier=vet threat=0 downed=0000 obj=«Удерживайте маяк «Бета»»
+[cryo seed 1002] t=  60.0 bugs=20 kills=876 beacons=0 liftT=100.0 lvl=7 hordes=1 hp=100 pos=(30.7,-10.3) press=0.0 playing stage=beacons tier=vet threat=0 downed=0000 obj=«Удерживайте маяк «Бета»»
+[cryo seed 1002] t=  90.1 bugs=68 kills=1476 beacons=1 liftT=100.0 lvl=9 hordes=2 hp=100 pos=(-35.3,-8.0) press=0.0 playing stage=beacons tier=vet threat=0 downed=0000 obj=«Удерживайте маяк «Гамма»»
+[cryo seed 1002] t= 120.1 bugs=36 kills=1903 beacons=1 liftT=100.0 lvl=9 hordes=2 hp=100 pos=(-35.2,-11.1) press=0.0 playing stage=beacons tier=vet threat=0 downed=0000 obj=«Удерживайте маяк «Гамма»»
+[cryo seed 1002] t= 150.1 bugs=290 kills=2341 beacons=2 liftT=100.0 lvl=10 hordes=3 hp=100 pos=(-30.3,28.2) press=1.7 playing stage=beacons tier=vet threat=0 downed=0000 obj=«Удерживайте маяк «Альфа»»
+[cryo seed 1002] t= 180.1 bugs=45 kills=3225 beacons=2 liftT=100.0 lvl=11 hordes=3 hp=60 pos=(-30.8,24.7) press=0.0 playing stage=beacons tier=vet threat=0 downed=0000 obj=«Удерживайте маяк «Альфа»»
+[cryo seed 1002] t= 210.1 bugs=44 kills=3771 beacons=3 liftT=100.0 lvl=12 hordes=3 hp=80 pos=(-31.1,28.5) press=1.4 playing stage=toLift tier=vet threat=0 downed=0000 obj=«Лифт вызван — к платформе»
+[cryo seed 1002] t= 240.1 bugs=894 kills=4340 beacons=3 liftT=90.5 lvl=12 hordes=5 hp=60 pos=(-3.7,-42.7) press=0.0 playing stage=hold tier=vet threat=0 downed=0000 obj=«Держитесь на лифте · 1:31»
+[cryo seed 1002] t= 270.1 bugs=213 kills=6524 beacons=3 liftT=60.4 lvl=13 hordes=7 hp=60 pos=(-3.7,-42.7) press=0.0 queen=5214 playing stage=hold tier=vet threat=3 downed=0000 obj=«Убейте Матку · лифт ждёт»
+[cryo seed 1002] t= 300.1 bugs=43 kills=7208 beacons=3 liftT=30.4 lvl=14 hordes=8 hp=60 pos=(-2.7,-43.0) press=0.0 queen=dead playing stage=hold tier=vet threat=0 downed=0000 obj=«Держитесь на лифте · 0:31»
+[cryo seed 1002] t= 330.1 bugs=37 kills=8829 beacons=3 liftT=0.4 lvl=14 hordes=10 hp=60 pos=(-2.7,-43.0) press=0.0 queen=dead playing stage=hold tier=vet threat=0 downed=0000 obj=«Держитесь на лифте · 0:01»
+[cryo seed 1002] END t= 335.1 bugs=3 kills=8871 beacons=3 liftT=0.0 lvl=14 hordes=10 hp=60 pos=(-2.7,-43.0) press=0.0 queen=dead won stage=extract tier=vet threat=0 downed=0000 obj=«Эвакуация!» maxAlive=1093 downs=0 acc=100% upgrades=8 level=14
+  stages: beacon1start@6.4 beacon1done@66.4 beacon2start@79.0 beacon2done@139.0 beacon0start@147.8 beacon0done@208.7 hold@230.6 extract@330.5
+[gunner seed 1003] t=   0.0 bugs=0 kills=0 beacons=0 liftT=100.0 lvl=1 hordes=0 hp=100 pos=(30.0,30.0) press=0.0 playing stage=beacons tier=vet threat=0 downed=0000 obj=«Запустите маяки 0/3»
+[gunner seed 1003] t=  30.0 bugs=24 kills=574 beacons=0 liftT=100.0 lvl=6 hordes=1 hp=100 pos=(28.7,-6.0) press=0.0 playing stage=beacons tier=vet threat=0 downed=0000 obj=«Удерживайте маяк «Бета»»
+[gunner seed 1003] t=  60.0 bugs=18 kills=879 beacons=0 liftT=100.0 lvl=7 hordes=1 hp=79 pos=(30.6,-6.7) press=0.0 playing stage=beacons tier=vet threat=0 downed=0000 obj=«Удерживайте маяк «Бета»»
+[gunner seed 1003] t=  90.1 bugs=109 kills=1437 beacons=1 liftT=100.0 lvl=8 hordes=2 hp=99 pos=(-33.8,-7.1) press=0.0 playing stage=beacons tier=vet threat=0 downed=0000 obj=«Удерживайте маяк «Гамма»»
+[gunner seed 1003] t= 120.1 bugs=46 kills=1928 beacons=1 liftT=100.0 lvl=10 hordes=2 hp=75 pos=(-34.9,-10.5) press=0.0 playing stage=beacons tier=vet threat=0 downed=0000 obj=«Удерживайте маяк «Гамма»»
+[gunner seed 1003] t= 150.1 bugs=235 kills=2292 beacons=2 liftT=100.0 lvl=10 hordes=3 hp=95 pos=(-30.5,28.1) press=4.3 playing stage=beacons tier=vet threat=0 downed=0000 obj=«Удерживайте маяк «Альфа»»
+[gunner seed 1003] t= 180.1 bugs=63 kills=3231 beacons=2 liftT=100.0 lvl=11 hordes=3 hp=66 pos=(-31.5,28.6) press=0.0 playing stage=beacons tier=vet threat=0 downed=0000 obj=«Удерживайте маяк «Альфа»»
+[gunner seed 1003] t= 210.1 bugs=42 kills=3775 beacons=3 liftT=100.0 lvl=12 hordes=3 hp=100 pos=(-27.6,25.6) press=0.5 playing stage=toLift tier=vet threat=0 downed=0000 obj=«Лифт вызван — к платформе»
+[gunner seed 1003] t= 240.1 bugs=988 kills=4236 beacons=3 liftT=91.1 lvl=12 hordes=5 hp=63 pos=(0.4,-43.2) press=0.0 playing stage=hold tier=vet threat=0 downed=0000 obj=«Держитесь на лифте · 1:32»
+[gunner seed 1003] t= 270.1 bugs=443 kills=6345 beacons=3 liftT=61.1 lvl=13 hordes=7 hp=74 pos=(-2.3,-43.6) press=0.0 queen=5459 playing stage=hold tier=vet threat=3 downed=0000 obj=«Убейте Матку · лифт ждёт»
+[gunner seed 1003] t= 300.1 bugs=65 kills=7083 beacons=3 liftT=31.1 lvl=14 hordes=8 hp=65 pos=(-9.1,-37.4) press=0.0 queen=dead playing stage=hold tier=vet threat=0 downed=0100 obj=«Держитесь на лифте · 0:32»
+[gunner seed 1003] t= 330.1 bugs=185 kills=8465 beacons=3 liftT=1.1 lvl=14 hordes=10 hp=100 pos=(-10.0,-44.7) press=0.0 queen=dead playing stage=hold tier=vet threat=0 downed=0000 obj=«Держитесь на лифте · 0:02»
+[gunner seed 1003] END t= 335.8 bugs=0 kills=8668 beacons=3 liftT=0.0 lvl=14 hordes=10 hp=89 pos=(-8.8,-42.6) press=0.0 queen=dead won stage=extract tier=vet threat=0 downed=0000 obj=«Эвакуация!» maxAlive=1086 downs=2 acc=77% upgrades=8 level=14
+  stages: beacon1start@6.4 beacon1done@66.4 beacon2start@78.9 beacon2done@140.3 beacon0start@148.7 beacon0done@209.6 hold@231.2 extract@331.2
+[pyro seed 1001] t=   0.0 bugs=0 kills=0 beacons=0 liftT=100.0 lvl=1 hordes=0 hp=100 pos=(30.0,30.0) press=0.0 playing stage=beacons tier=vet threat=0 downed=0000 obj=«Запустите маяки 0/3»
+[pyro seed 1001] t=  30.0 bugs=20 kills=543 beacons=0 liftT=100.0 lvl=6 hordes=1 hp=100 pos=(30.0,-6.6) press=0.0 playing stage=beacons tier=vet threat=0 downed=0000 obj=«Удерживайте маяк «Бета»»
+[pyro seed 1001] t=  60.0 bugs=23 kills=873 beacons=0 liftT=100.0 lvl=7 hordes=1 hp=100 pos=(30.7,-10.3) press=0.0 playing stage=beacons tier=vet threat=0 downed=0000 obj=«Удерживайте маяк «Бета»»
+[pyro seed 1001] t=  90.1 bugs=195 kills=1286 beacons=1 liftT=100.0 lvl=8 hordes=2 hp=100 pos=(-33.7,-6.6) press=0.0 playing stage=beacons tier=vet threat=0 downed=0000 obj=«Удерживайте маяк «Гамма»»
+[pyro seed 1001] t= 120.1 bugs=36 kills=1891 beacons=1 liftT=100.0 lvl=9 hordes=2 hp=100 pos=(-33.7,-12.4) press=0.0 playing stage=beacons tier=vet threat=0 downed=0000 obj=«Удерживайте маяк «Гамма»»
+[pyro seed 1001] t= 150.1 bugs=18 kills=2297 beacons=2 liftT=100.0 lvl=10 hordes=2 hp=77 pos=(-30.5,21.6) press=6.7 playing stage=beacons tier=vet threat=0 downed=0000 obj=«Запустите маяки 2/3»
+[pyro seed 1001] t= 180.1 bugs=65 kills=3166 beacons=2 liftT=100.0 lvl=11 hordes=3 hp=52 pos=(-32.6,29.3) press=0.0 playing stage=beacons tier=vet threat=0 downed=0000 obj=«Удерживайте маяк «Альфа»»
+[pyro seed 1001] t= 210.1 bugs=52 kills=3756 beacons=2 liftT=100.0 lvl=12 hordes=3 hp=97 pos=(-31.3,28.4) press=0.0 playing stage=beacons tier=vet threat=0 downed=0000 obj=«Удерживайте маяк «Альфа»»
+[pyro seed 1001] t= 240.1 bugs=67 kills=4177 beacons=3 liftT=100.0 lvl=12 hordes=3 hp=73 pos=(-5.8,-11.5) press=22.1 playing stage=toLift tier=vet threat=1 downed=0000 obj=«Улей просыпается — к лифту!»
+[pyro seed 1001] t= 270.1 bugs=466 kills=5978 beacons=3 liftT=75.0 lvl=13 hordes=6 hp=100 pos=(-3.2,-43.0) press=0.0 playing stage=hold tier=vet threat=0 downed=0000 obj=«Держитесь на лифте · 1:15»
+[pyro seed 1001] t= 300.1 bugs=119 kills=7278 beacons=3 liftT=45.0 lvl=14 hordes=8 hp=100 pos=(-2.5,-42.8) press=0.0 queen=1971 playing stage=hold tier=vet threat=3 downed=0000 obj=«Убейте Матку · лифт ждёт»
+[pyro seed 1001] t= 330.1 bugs=73 kills=8344 beacons=3 liftT=14.9 lvl=14 hordes=9 hp=100 pos=(-2.7,-42.9) press=0.0 queen=dead playing stage=hold tier=vet threat=0 downed=0000 obj=«Держитесь на лифте · 0:15»
+[pyro seed 1001] END t= 349.7 bugs=2 kills=9077 beacons=3 liftT=0.0 lvl=14 hordes=10 hp=100 pos=(-2.9,-43.0) press=0.0 queen=dead won stage=extract tier=vet threat=0 downed=0000 obj=«Эвакуация!» maxAlive=959 downs=4 acc=100% upgrades=8 level=14
+  stages: beacon1start@6.4 beacon1done@68.6 beacon2start@83.4 beacon2done@143.4 beacon0start@151.5 beacon0done@218.0 hold@245.1 extract@345.1
+[perf] bench  500 bugs (spawned  500, alive  500): sparse 0.821 ms/tick, dense 1.012 ms/tick, combat 0.574 ms/tick [debug]
+[perf] bench 1500 bugs (spawned 1500, alive 1500): sparse 2.154 ms/tick, dense 2.338 ms/tick, combat 1.603 ms/tick [debug]
+[perf] bench 3000 bugs (spawned 3000, alive 3000): sparse 2.604 ms/tick, dense 3.366 ms/tick, combat 2.393 ms/tick [debug]
+◇ Test run started.
+↳ Testing Library Version: 1902
+↳ Target Platform: arm64e-apple-macos14.0
+✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.
