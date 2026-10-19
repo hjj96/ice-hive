@@ -12,10 +12,11 @@ import IceHiveCore
 //                   one instanced draw): per-beam gain, length, the deck
 //                   height under each marine, the player's shadowed
 //                   march (High) — written into the LightBlock
-//    fog decks      transparent item 90: 2 sheets of drifting dark fog
-//                   under the decks (Efficient: 1)
+//    fog decks      transparent items 90 / 102: 2 sheets of drifting dark
+//                   fog under the decks (Efficient: 1), the deep one
+//                   before the haze plane, the upper one after it
 //    haze           transparent item 100: the old haze plane, now a
-//                   faint cold glow deep in the shaft
+//                   faint navy lift of the abyss deep in the shaft
 //    running lights transparent item 105: red / sodium lamps on the
 //                   piers far below (static instance buffer)
 //    weather        transparent item 700: snow and low mist lit only by
@@ -28,10 +29,13 @@ import IceHiveCore
 // ================================================================
 final class VolumeCones {
     /// In-scatter gain per beam (× the spot's intensity / π) and the beam's visible length (m); the player's is a little
-    /// denser. The saturation cap is LightBlock.fogColor.w (radiance a beam adds at most).
-    static let gain: Float = 0.0105, playerGain: Float = 1.15
-    static let length: Float = 13
-    static let cap: Float = 0.075
+    /// denser. The saturation cap is LightBlock.fogColor.w (radiance a beam adds at most: ~0.12 shows about 90 of 255
+    /// over the dark deck, a veil, never a white-out — four crossed beams stay under the tone curve's shoulder).
+    /// With the flashlights at half the web's intensity the beams, not the pools, carry the light (horror's discipline):
+    /// near the player a beam adds ~0.07 over its own pool (~0.2) and ~0.05 over the dark deck beyond it.
+    static let gain: Float = 0.035, playerGain: Float = 1.15
+    static let length: Float = 15
+    static let cap: Float = 0.12
     /// Cookie and cone of the spots (Lighting.h SPOT_COS_OUT / SPOT_COS_IN, 32 m range).
     static let cosOut: Float = 0.87758, cosIn: Float = 0.97479, range: Float = 32, cookie: Float = 1
 
@@ -106,7 +110,9 @@ final class Atmosphere {
     /// Fog sheets under the decks: height (m), opacity, noise scale (1/m), drift (m/s), display colour.
     static let decks: [(Float, Float, Float, Float, UInt32)] = [(-9, 0.5, 0.045, 0.35, 0x0e1622), (-21, 0.7, 0.03, 0.22, 0x0a111b)]
     /// Gains of the weather: snow / mist (× the flashlight in-scatter), motes (× their pink).
-    static let snowGain: Float = 0.05, mistGain: Float = 0.06, moteGain: Float = 0.55
+    static let snowGain: Float = 0.11, mistGain: Float = 0.15, moteGain: Float = 0.55
+    /// Height of the haze plane (level_haze, m): fog decks below it draw before it, the ones above after it.
+    static let hazeY: Float = -16
 
     private var renderer: MetalRenderer!
     private var hub: LightingHub!
@@ -122,11 +128,13 @@ final class Atmosphere {
     private var runFor: ObjectIdentifier?
     // this frame's weather around the camera target
     private var snow = 0, mist = 0, motes = 0
-    private var snowBox = F3(16, 9, 0)
+    /// Snow box around the camera target: half extent, height (m) — dense where the squad's beams are (5000 flakes:
+    /// ~2 a m³), nothing is spent on flakes far outside them.
+    private var snowBox = F3(12, 6, 0)
     private var center = F4(0, 0, 0, 0)
     private var deckCount = 2
     /// The fog decks' colours as linear radiance (from their display values, once).
-    private lazy var deckColors: [F3] = Atmosphere.decks.map { PostChain.radiance(forDisplay: displayRGB($0.4)) }
+    private lazy var deckColors: [F3] = Atmosphere.decks.map { LightGrid.radiance(display: displayRGB($0.4)) }
     private let weatherOff = LaunchOptions.current.unknown.contains("-noweather")
 
     /// Resolve meshes / pipelines, register the atmosphere's items and the light block binding (MetalWorld, once).
@@ -147,8 +155,9 @@ final class Atmosphere {
                            ShadowAtlas.width, ShadowAtlas.height, ShadowAtlas.format == .depth32Float ? "D32F" : "D16",
                            Double(ShadowAtlas.width * ShadowAtlas.height * (ShadowAtlas.format == .depth32Float ? 4 : 2)) / 1_048_576,
                            Occupancy.size, probe.mipCount, LightingHub.maxLights, LightingHub.gridN, LightingHub.cellSize))
-        r.register(.transparent, order: 90, "fog decks") { [unowned self] enc in self.encodeFogDecks(enc) }
+        r.register(.transparent, order: 90, "fog decks (deep)") { [unowned self] enc in self.encodeFogDecks(enc, above: false) }
         r.register(.transparent, order: 100, "haze") { [unowned self] enc in self.encodeHaze(enc) }
+        r.register(.transparent, order: 102, "fog decks") { [unowned self] enc in self.encodeFogDecks(enc, above: true) }
         r.register(.transparent, order: 105, "running lights") { [unowned self] enc in self.encodeRunLights(enc) }
         r.register(.transparent, order: 700, "weather") { [unowned self] enc in self.encodeWeather(enc) }
     }
@@ -181,13 +190,14 @@ final class Atmosphere {
     }
 
     // ---------------------------------------------------------------- draw items
-    /// Transparent item 90: the fog decks (alpha), centred on the camera target, snapped to 8 m.
-    private func encodeFogDecks(_ enc: MTLRenderCommandEncoder) {
+    /// Transparent items 90 / 102: the fog decks (alpha) below / above the haze plane (back to front from the game
+    /// camera), centred on the camera target, snapped to 8 m.
+    private func encodeFogDecks(_ enc: MTLRenderCommandEncoder, above: Bool) {
         guard let ps = psFog else { return }
         let r = renderer!
         var decks: [FogDeckParams] = []
         let cx = (center.x / 8).rounded() * 8, cz = (center.z / 8).rounded() * 8
-        for (i, d) in Atmosphere.decks.prefix(deckCount).enumerated() {
+        for (i, d) in Atmosphere.decks.prefix(deckCount).enumerated() where (d.0 > Atmosphere.hazeY) == above {
             let c = deckColors[i]
             decks.append(FogDeckParams(plane: F4(d.0, d.1, d.2, d.3), color: F4(c.x, c.y, c.z, Float(i) * 7.31 + 0.5),
                                        center: F4(cx, 120, cz, 110)))

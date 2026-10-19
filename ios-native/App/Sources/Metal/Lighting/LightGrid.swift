@@ -174,18 +174,22 @@ final class LightGrid {
     static let hemiIntensity: Float = 0.2
     static let moonColor: UInt32 = 0x7d98c8
     static let moonIntensity: Float = 0.24
-    /// Flashlight intensity (web: 62 player / 42 squad, d^-1.35): the shader's flattened falloff is normalised to the
-    /// web's at 5 m, so the pool keeps the web's brightness while the near field (a bug at the barrel, a marine in a
-    /// squadmate's beam) gets about 0.6 of it — the pool reads as a gradient, nothing in front of the lens blows out.
-    static let spotPlayer: Float = 64, spotSquad: Float = 44, spotDowned: Float = 7
+    /// Flashlight intensity: about half the web's LDR-tuned 62 player / 42 squad (horror's light discipline — in linear
+    /// HDR the old values put the pool on the tone curve's shoulder, a flat pale wedge). The shader's flattened falloff
+    /// is normalised to the web's d^-1.35 at 5 m, so the near field (a bug at the barrel, a marine in a squadmate's
+    /// beam) gets about 0.6 of the web's light: the pool reads as a gradient (hot near the lens, the cookie's core and
+    /// reflector ring), nothing in front of the lens blows out, and the beams in the air (VolumeCones) carry the light.
+    static let spotPlayer: Float = 34, spotSquad: Float = 23, spotDowned: Float = 4
     /// Cool fill light over the squad (readability in the dark): height above the squad's centre, range, intensity.
     static let fillHeight: Float = 4.5, fillRange: Float = 10, fillIntensity: Float = 7
     static let fillColor = F3(0.62, 0.76, 1.0)
-    /// Fog colour of the frame (display value at 0 EV, deep cold navy) and the void the world pass clears to.
-    static let fogDisplay = displayRGB(0x0d1520)
-    static let voidDisplay = displayRGB(0x070b12)
+    /// Fog colour of the frame (display value at 0 EV before the grade) and the void the world pass clears to: a deep
+    /// navy between crisp's (16, 29, 45) and horror's near-black (2, 6, 19) — after the grade's toe the void shows
+    /// about (5, 14, 30), the distance fog (6, 15, 32), so the walkway edges still read against it.
+    static let fogDisplay = displayRGB(0x0f1828)
+    static let voidDisplay = displayRGB(0x0e1726)
     /// Height fog of the abyss: below the lowest deck (the lift, −6 m) the piers sink into this (display) colour.
-    static let abyssDisplay = displayRGB(0x0c1420)
+    static let abyssDisplay = displayRGB(0x0c1422)
     static let abyssTop: Float = -6.5, abyssDepth: Float = 9, abyssDensity: Float = 0.92
 
     let hub = LightingHub()
@@ -207,12 +211,33 @@ final class LightGrid {
     init() {
         LightingHub.current = hub
         candidates.reserveCapacity(64)
-        fogRadiance = PostChain.radiance(forDisplay: LightGrid.fogDisplay)
-        abyssRadiance = PostChain.radiance(forDisplay: LightGrid.abyssDisplay)
+        fogRadiance = LightGrid.radiance(display: LightGrid.fogDisplay)
+        abyssRadiance = LightGrid.radiance(display: LightGrid.abyssDisplay)
     }
 
     /// The void colour the world pass clears to (linear radiance).
-    static var voidRadiance: F3 { PostChain.radiance(forDisplay: voidDisplay) }
+    static var voidRadiance: F3 { radiance(display: voidDisplay) }
+
+    /// The linear radiance that shows as display value `d` at 0 EV before the grade: PostChain.display inverted per
+    /// channel by bisection (Gauss–Seidel over the three channels, which the tone curve's matrices couple). Monotonic, so
+    /// it converges for every value — PostChain.radiance(forDisplay:)'s Newton steps diverge where the curve's toe is
+    /// flat (display ≲ 0.03: 0x070b12 came back as (27, 43, 70), a white void).
+    static func radiance(display d: F3) -> F3 {
+        var x = F3(0, 0, 0)
+        for _ in 0..<4 {
+            for c in 0..<3 {
+                var lo: Float = 0, hi: Float = 16
+                for _ in 0..<32 {
+                    let mid = 0.5 * (lo + hi)
+                    var t = x
+                    t[c] = mid
+                    if PostChain.display(t)[c] < d[c] { lo = mid } else { hi = mid }
+                }
+                x[c] = 0.5 * (lo + hi)
+            }
+        }
+        return x
+    }
 
     /// Fill the light block of `F` and the hub's LightBlock for this frame.
     func fill(_ F: inout FrameUniforms, game: Game, time: Float, poses: [MetalEffects.MarinePose], fx: MetalEffects) {
