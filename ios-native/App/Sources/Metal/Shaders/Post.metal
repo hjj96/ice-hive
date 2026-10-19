@@ -27,7 +27,8 @@ struct PostParams {
     float4 bloom;    // x threshold, y knee, z intensity, w firefly clamp (max luminance into the bloom)
     float4 grade;    // x exposure (linear multiplier), y vignette, z grain, w brightness gamma (1 = off)
     float4 misc;     // x time, y frame index, z sharpen, w distortion strength
-    float4 pass;     // bloom passes: xy = texel of the source level (uv), zw = texel of the destination level (uv)
+    float4 pass;     // bloom passes: xy = texel of the source level (uv); prefilter: zw = texel of the destination level;
+                     // up: z = weight of the coarser level added (< 1: a tight bloom, the wide halos fall off)
 };
 
 struct PostOut {
@@ -100,7 +101,8 @@ fragment float4 fs_bloom_down(PostOut in [[stage_in]],
     return float4(c * 0.125, 1.0);
 }
 
-/// Dual-Kawase up (tent): four edge taps + four diagonal taps × 2, / 12; blended additively onto the level below.
+/// Dual-Kawase up (tent): four edge taps + four diagonal taps × 2, / 12, × the coarse-level weight; blended
+/// additively onto the level below.
 fragment float4 fs_bloom_up(PostOut in [[stage_in]],
                             constant PostParams& P [[buffer(0)]],
                             texture2d<float> src [[texture(0)]]) {
@@ -114,7 +116,7 @@ fragment float4 fs_bloom_up(PostOut in [[stage_in]],
     c += src.sample(postLinear, uv + float2(t.x, -t.y)).rgb * 2.0;
     c += src.sample(postLinear, uv + float2(-t.x, t.y)).rgb * 2.0;
     c += src.sample(postLinear, uv + float2(t.x, t.y)).rgb * 2.0;
-    return float4(c * (1.0 / 12.0), 1.0);
+    return float4(c * (P.pass.z / 12.0), 1.0);
 }
 
 /// Interleaved gradient noise (Jimenez 2014) in [0, 1): a cheap blue-ish noise per pixel, shifted every frame.

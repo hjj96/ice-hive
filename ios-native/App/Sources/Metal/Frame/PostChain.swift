@@ -31,7 +31,7 @@ struct PostUniforms {
     var grade = F4(1, 0, 0, 1)
     /// x time, y frame index, z sharpen, w distortion strength.
     var misc = F4(0, 0, 0, 0)
-    /// bloom passes: xy = source texel (uv), zw = destination texel (uv).
+    /// bloom passes: xy = source texel (uv); prefilter zw = destination texel (uv); up z = coarse-level weight.
     var pass = F4(0, 0, 0, 0)
 }
 
@@ -50,10 +50,12 @@ final class PostChain {
     private(set) var errors: [String] = []
 
     // ---- the look (crisp: tight bloom, light vignette, light grain)
-    var bloomThreshold: Float = 0.9
-    var bloomKnee: Float = 0.45
-    var bloomStrength: Float = 0.16
+    var bloomThreshold: Float = 0.8
+    var bloomKnee: Float = 0.5
+    var bloomStrength: Float = 0.3
     var bloomFireflyClamp: Float = 24
+    /// Weight of each coarser bloom level on the way up (1 = the classic wide dual-Kawase sum; lower = tighter).
+    var bloomFalloff: Float = 0.6
     var vignette: Float = 0.2
     var grain: Float = 0.016
     var sharpen: Float = 0.35
@@ -273,8 +275,10 @@ final class PostChain {
     private func uniforms(_ t: RenderTargets, time: Float) -> PostUniforms {
         var u = PostUniforms()
         u.scene = t.sceneUV
-        let levels = Float(max(1, t.bloom.count - bloomStart))
-        u.bloom = F4(bloomThreshold, bloomKnee, bloomReady ? bloomStrength / levels : 0, bloomFireflyClamp)
+        // the bloom level sums the levels with weights 1, f, f², …: normalised so bloomStrength is the total
+        var wsum: Float = 0, w: Float = 1
+        for _ in 0..<max(1, t.bloom.count - bloomStart) { wsum += w; w *= bloomFalloff }
+        u.bloom = F4(bloomThreshold, bloomKnee, bloomReady ? bloomStrength / wsum : 0, bloomFireflyClamp)
         u.grade = F4(powf(2, exposureEV), vignette, grain, max(0.5, brightness))
         u.misc = F4(time, frameIndex, sharpen, distortionStrength)
         return u
@@ -307,6 +311,7 @@ final class PostChain {
             guard let enc = cb.makeRenderCommandEncoder(descriptor: bloomPass) else { return }
             enc.label = label
             u.pass = F4(1 / Float(src.width), 1 / Float(src.height), 1 / Float(dst.width), 1 / Float(dst.height))
+            if load { u.pass.z = bloomFalloff }
             enc.setRenderPipelineState(ps)
             enc.setFragmentBytes(&u, length: MemoryLayout<PostUniforms>.stride, index: 0)
             enc.setFragmentTexture(src, index: 0)
