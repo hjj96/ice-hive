@@ -6,9 +6,17 @@
 //  world target:
 //    encodeColor(F, lin, depth, fogged)  every material's colour out
 //    encodeMultiply(c)                   factor of a multiply blend
-//  Materials compute linear radiance and hand it to these two; what
-//  the world target stores (and where tone mapping happens) is
-//  decided here and in Post.metal only.
+//  Materials compute linear radiance and hand it to these two. The
+//  world target is linear HDR (RG11B10Float, MSAA 4× resolved): a
+//  material's output is its radiance with the height-less exp² fog
+//  mixed in LINEAR space (fog colour = linear radiance, F.fog);
+//  exposure, tone mapping, grading and the sRGB encode happen once, in
+//  Post.metal's composite. Blending (additive FX, alpha smoke,
+//  multiply stains) therefore adds and mixes radiance: overlapping
+//  flames grow brighter and roll off in the tone curve instead of
+//  clipping to a flat disc.
+//  acesFilmic / linearToSRGB stay here for the composite (and for any
+//  pass that has to preview a display value).
 //  Struct layouts mirror MetalShared.swift (Frame, Material,
 //  MeshInstance); module structs live in their owner's file / header
 //  (BugInstance: SwarmTypes.h, FX instances: FX.metal).
@@ -27,7 +35,7 @@ struct Frame {
     float4x4 viewProj;
     float4x4 view;
     float4 camPos;        // xyz, w = time
-    float4 fog;           // rgb display-space colour, w = density
+    float4 fog;           // rgb linear radiance of the fog, w = exp2 density
     float4 hemiSky;       // colour * intensity / PI
     float4 hemiGround;
     float4 moonDir;       // toward the light
@@ -115,20 +123,19 @@ static float3 linearToSRGB(float3 c) {
     return select(hi, lo, c <= float3(0.0031308));
 }
 
-/// The colour a material writes into the world target: tonemapping_fragment + colorspace_fragment (+ fog_fragment
-/// when fogged), like three.js rendering straight to the canvas.
+/// The colour a material writes into the world target: its linear radiance, with the exp² fog (three.js FogExp2)
+/// mixed in linear space when fogged. No tone mapping here (Post.metal's composite).
 static float3 encodeColor(constant Frame& F, float3 lin, float depth, bool fogged) {
-    float3 c = linearToSRGB(acesFilmic(lin));
     if (fogged) {
         float d = F.fog.w * depth;
-        c = mix(c, F.fog.rgb, 1.0 - exp(-d * d));
+        lin = mix(lin, F.fog.rgb, 1.0 - exp(-d * d));
     }
-    return c;
+    return lin;
 }
 
-/// The factor a multiply-blended draw (floor stains) writes for a linear factor `c` (1 = no change).
+/// The factor a multiply-blended draw (floor stains) writes for a linear factor `c` (1 = no change): linear.
 static float3 encodeMultiply(float3 c) {
-    return linearToSRGB(c);
+    return c;
 }
 
 // ---------------------------------------------------------------- vertex helpers

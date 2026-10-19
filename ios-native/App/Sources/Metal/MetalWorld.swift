@@ -22,7 +22,9 @@ import IceHiveCore
 //  uniforms; FrameLoop encodes and presents it (MetalRenderer runs the
 //  modules' registered draw items). Without a slot (the GPU is behind)
 //  nothing is built and the time carries over to the next drawn frame,
-//  so effects do not slow down.
+//  so effects do not slow down. Every tick it also asks RenderQuality
+//  for the frame's dynamic-resolution viewport, and once per second
+//  (diagnostics) logs `hb gpu` (GPUCounters + quality state).
 // ================================================================
 /// Meshes, textures and pipelines, started when the view controller loads its view (before the scene's first frame);
 /// the scene picks the result up behind its loading cover.
@@ -90,8 +92,14 @@ final class MetalWorld: HUDProjection {
             fx.setQuality(fxK: newValue)
             corpses.setQuality(fxK: newValue)
             shadows = newValue >= 0.85
+            renderer.quality.setChosen(fxK: newValue)
         }
     }
+    /// The fog / abyss: the display value it should show at exposure 0 EV before the grade (deep blue-black), as the
+    /// linear radiance the materials mix in (Common.h encodeColor) and the world pass clears to.
+    static let fogDisplay = displayRGB(0x121b28)
+    static let fogRadiance = PostChain.radiance(forDisplay: fogDisplay)
+    private var lastGPULog: Double = 0
     /// «Высокая»: the player's flashlight casts shadows (the squad and bug proxies, web Q.shadows).
     private var shadows = false {
         didSet { shadowAtlas.enabled = shadows }
@@ -113,6 +121,7 @@ final class MetalWorld: HUDProjection {
         fx.corpses = corpses
         renderer.clearRegistrations()
         renderer.registerBatchService()
+        renderer.targets.setClearColor(MetalWorld.fogRadiance)
         levelDraw.attach(renderer)
         swarm.attach(renderer)
         fx.attach(renderer)
@@ -132,9 +141,11 @@ final class MetalWorld: HUDProjection {
         DispatchQueue.global(qos: .userInitiated).async(group: group) { loaded = store.loadAll() }
         let built = r.compilePipelines(MetalWorld.pipelineSpecs)
         group.wait()
-        r.bindResources()
+        let post = r.bindResources()
         log("metal: " + loaded)
         log("metal: " + built + " device=\(device.name)")
+        log("metal: " + post + " | counters " + (r.counters.perPass ? "per pass (stage boundaries)" : "command-buffer totals")
+            + " | device class \(r.quality.deviceClass) bug cap \(r.quality.deviceBugCap) default tier \(r.quality.deviceDefaultTier.rawValue)")
         return r.ready ? (store, r) : nil
     }
 
@@ -142,6 +153,7 @@ final class MetalWorld: HUDProjection {
         fx.reset()
         corpses.reset()
         squad.reset()
+        renderer.quality.resetMission()
         dtCarry = 0
         lastRise = -1
     }
@@ -161,7 +173,11 @@ final class MetalWorld: HUDProjection {
         fx.handle(.bulletHit(pos: pos, dir: Vec2(1, 0), killed: true), game: game)
     }
 
-    func handle(_ e: GameEvent, game: Game) { fx.handle(e, game: game) }
+    func handle(_ e: GameEvent, game: Game) {
+        fx.handle(e, game: game)
+        // flash adaptation: a big blast dips the exposure for a moment (scripted; no auto-exposure)
+        if case .explosion(let kind, _, _) = e, kind.isBig { renderer.post.dip(ev: -0.35, duration: 0.45) }
+    }
 
     // ---------------------------------------------------------------- HUD projection
     func hudPoint(_ x: Float, _ y: Float, _ z: Float) -> CGPoint { camera.hudPoint(x, y, z) }
@@ -175,6 +191,9 @@ final class MetalWorld: HUDProjection {
     /// image is kept while the camera holds still too.
     func update(game: Game, alpha: Float, dt dt0: Float, time: Float, camera cam: CameraController, viewSize: CGSize, frozen: Bool) {
         timer.begin()
+        // this tick's tier, thermal step and dynamic-resolution viewport (before anything reads the target size)
+        renderer.prepareViewport(points: viewSize, hz: dt0 > 0 && dt0 < 0.012 ? 120 : 60)
+        heartbeat()
         let tw = renderer.targetWidth, th = renderer.targetHeight
         camera.resize(width: Float(viewSize.width), height: Float(viewSize.height), drawableHeight: Float(max(1, th)))
         let ex: Float = game.stage == .extract ? smooth01f(game.extractT / 4.5) : 0
@@ -247,7 +266,7 @@ final class MetalWorld: HUDProjection {
         F.viewProj = camera.viewProj
         F.view = camera.view
         F.camPos = F4(camera.eye.x, camera.eye.y, camera.eye.z, time)
-        let fog = displayRGB(0x1a2737)
+        let fog = MetalWorld.fogRadiance
         F.fog = F4(fog.x, fog.y, fog.z, camera.fogDensity)
         lightGrid.fill(&F, game: game, time: time, poses: squad.poses, fx: fx)
         F.misc = F4(camera.pxScale, Float(renderer.targetHeight), rise, 0)
@@ -256,6 +275,28 @@ final class MetalWorld: HUDProjection {
         F.camUp = F4(camera.up.x, camera.up.y, camera.up.z, 0)
         shadowAtlas.setup(&F, spot: spot0.on ? (spot0.pos, spot0.dir) : nil)
         renderer.frame = F
+    }
+}
+
+extension MetalWorld {
+    /// Once per second (diagnostics): `hb gpu` — GPU time per frame and per pass (device) or the command-buffer total
+    /// (simulator), the tier, the dynamic-resolution scale and range, viewport / allocation, thermal step, 120 Hz
+    /// policy; plus RenderQuality's events (sweep steps, ladder changes).
+    fileprivate func heartbeat() {
+        let q = renderer.quality
+        for e in q.takeEvents() { AppLog.info("quality: " + e) }
+        guard AppLog.diagnostics else { return }
+        let now = FrameTimer.now()
+        if now - lastGPULog < 1 { return }
+        lastGPULog = now
+        renderer.counters.calibrate()
+        let t = renderer.targets, r = q.range
+        AppLog.info("hb gpu " + renderer.counters.takeSummary()
+                    + String(format: " | ema=%.2f tier=", q.gpuEma) + q.tier.rawValue
+                    + String(format: " scale=%.2f range=%.2f-%.2f", q.scale, r.lo, r.hi)
+                    + " view=\(t.viewW)x\(t.viewH) alloc=\(t.allocW)x\(t.allocH) allocs=\(t.allocations) thermal=\(q.ladder)"
+                    + " 120hz=" + (q.allows120Hz(now: now) ? "ok" : "no") + " bugcap=\(q.deviceBugCap)"
+                    + String(format: " ev=%.2f", renderer.post.exposureEV))
     }
 }
 

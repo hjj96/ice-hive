@@ -10,14 +10,20 @@ import QuartzCore
 //
 //    pre-passes     registerPrePass    compute / depth passes before    → own targets
 //                                      the world (shadow: ShadowAtlas)
-//    world          stage .opaque      level, mesh batches (squad,      → worldColor (world scale, 2x)
-//                                      props, corpses), swarm             + depth (memoryless on device)
-//                   stage .transparent haze, pad, glows, decals, floor
-//                                      sprites, glints, particles,
-//                                      ribbons, weather — same encoder
-//    post slot      —                  HDR resolve, bloom, tone map, grade
-//    composite      encodeComposite    world image → drawable at the screen's native scale (opens the final pass)
+//    world (R2)     stage .opaque      level, mesh batches (squad,      → MSAA 4× RG11B10Float + depth32F,
+//                                      props, corpses), swarm             both memoryless on the device;
+//                   stage .transparent haze, pad, glows, decals, floor      viewport = dynamic resolution;
+//                                      sprites, glints, particles,        store = multisample resolve →
+//                                      ribbons, weather — same encoder    sceneHDR (RenderTargets)
+//    distortion(R3) stage .distortion  heat sprites, ¼ res RG8 (High;   → RenderTargets.distortion
+//                                      skipped while nothing registers)
+//    post (R4–R12)  PostChain          dual-Kawase bloom from sceneHDR
+//    composite      encodeComposite    first draw of FrameLoop's final pass: upscale + bloom + exposure + ACES
+//                                      + LUT grade + vignette + grain + dither → drawable (PostChain)
 //    HUD            SKRenderer         same encoder as the composite (FrameLoop), then one present
+//  Materials write linear radiance (Shaders/Common.h encodeColor);
+//  RenderQuality picks the tier and the dynamic-resolution scale,
+//  GPUCounters times the passes (hb gpu lines).
 //
 //  Modules (one per package: WorldLevel, WorldSquad, WorldSwarm,
 //  Corpses, GroundGlyphs, MetalEffects, LightGrid, ShadowAtlas,
@@ -34,7 +40,8 @@ import QuartzCore
 //  Draw items share the world encoder: an item that changes depth
 //  bias, cull mode or depth state restores it. Pipelines / the main
 //  texture are bound through use() / bindMain() (redundant binds
-//  skipped).
+//  skipped). World pipelines are compiled for 4× MSAA and the
+//  RG11B10Float target; .distortion ones for the RG8 heat target.
 // ================================================================
 
 /// Vertex buffer layouts of the mesh pipelines (buffer BufferIndex.vertices).
@@ -65,10 +72,12 @@ enum BlendMode { case none, alpha, add, multiply }
 /// One render pipeline a module draws with, compiled by MetalRenderer.compilePipelines.
 struct PipelineSpec {
     enum Target {
-        /// The world pass: colour (MetalRenderer.worldFormat) + depth.
+        /// The world pass: colour (MetalRenderer.worldFormat, 4× MSAA) + depth.
         case world
         /// Depth only (shadow maps): no colour attachment, no fragment stage.
         case depthOnly
+        /// The ¼-res heat-distortion target (RG8Unorm, 0.5 = no offset; additive), no depth.
+        case distortion
     }
     let label: String
     let vertex: String
@@ -87,10 +96,14 @@ struct PipelineSpec {
     static func depthOnly(_ label: String, _ vs: String, _ layout: VertexLayout? = nil) -> PipelineSpec {
         PipelineSpec(label: label, vertex: vs, fragment: nil, blend: .none, layout: layout, target: .depthOnly, required: false)
     }
+
+    static func distortion(_ label: String, _ vs: String, _ fs: String, _ layout: VertexLayout? = nil) -> PipelineSpec {
+        PipelineSpec(label: label, vertex: vs, fragment: fs, blend: .add, layout: layout, target: .distortion, required: false)
+    }
 }
 
 /// Where a draw item runs (see the order keys in the header).
-enum WorldStage { case opaque, transparent, shadowCasters }
+enum WorldStage { case opaque, transparent, shadowCasters, distortion }
 
 /// A slice of the current frame's upload arena.
 struct Region {
@@ -158,18 +171,26 @@ final class MetalRenderer {
     let device: MTLDevice
     let queue: MTLCommandQueue
     let store: MeshStore
-    /// The world target's colour format (display-referred today; .rgba16Float once tone mapping moves to a post pass).
-    let worldFormat: MTLPixelFormat = .bgra8Unorm
+    /// The world target's colour format: linear HDR (RenderTargets).
+    let worldFormat: MTLPixelFormat = RenderTargets.colorFormat
+    /// Samples per pixel of the world pass.
+    let worldSamples = RenderTargets.sampleCount
     /// The drawable's format (CAMetalLayer.pixelFormat, FrameLoop): the composite and the HUD write it.
     let drawableFormat: MTLPixelFormat = .bgra8Unorm
-    let depthFormat: MTLPixelFormat = .depth32Float
+    let depthFormat: MTLPixelFormat = RenderTargets.depthFormat
+    /// The world's targets (allocated once, dynamic-resolution viewport).
+    let targets: RenderTargets
+    /// Bloom, composite, exposure, grade.
+    let post: PostChain
+    /// Tiers, thermal ladder, dynamic resolution.
+    let quality: RenderQuality
+    /// Per-pass GPU timestamps (device) / command-buffer totals (simulator).
+    let counters: GPUCounters
 
     // pipelines by label (PipelineSpec), plus the composite
     private var pipelineStates: [String: MTLRenderPipelineState] = [:]
     private var psMesh: [MTLRenderPipelineState?] = [nil, nil, nil]
     private var psShadowMesh: MTLRenderPipelineState?
-    /// World target → drawable (no depth: the HUD shares this pass).
-    private var psComposite: MTLRenderPipelineState?
     private(set) var dsOpaque: MTLDepthStencilState?
     private(set) var dsTransparent: MTLDepthStencilState?
     private(set) var ready = false
@@ -187,12 +208,19 @@ final class MetalRenderer {
     var built = false
     /// The world target holds a finished image (kept on screen while the world is frozen behind a menu).
     private(set) var hasWorldImage = false
-    // offscreen world target at the world scale: colour (sampled by the composite) + depth (never stored)
-    private var worldColor: MTLTexture?
-    private var worldDepth: MTLTexture?
-    private let worldPass = MTLRenderPassDescriptor()
-    private(set) var targetWidth = 0
-    private(set) var targetHeight = 0
+    /// Pixels FrameLoop asks for (view points × GameScene's world scale): the allocation covers at least this.
+    private(set) var requestedWidth = 0
+    private(set) var requestedHeight = 0
+    /// This frame's world viewport (pixels; the dynamic-resolution scale of the view's points).
+    var targetWidth: Int { targets.viewW }
+    var targetHeight: Int { targets.viewH }
+    /// The viewport of the image in sceneHDR (the composite of a frozen world keeps sampling this one).
+    private var imageView = (1, 1)
+    /// Tier of the image in the scene / bloom targets.
+    private var imageTier: RenderTier = .efficient
+    private let distortionPass = MTLRenderPassDescriptor()
+    private var distortionOn = false
+    private var frameTime: Float = 0
 
     var frame = FrameUniforms()
     let list = DrawList()
@@ -207,6 +235,7 @@ final class MetalRenderer {
     private var opaqueItems: [DrawItem] = []
     private var transparentItems: [DrawItem] = []
     private var casterItems: [DrawItem] = []
+    private var distortionItems: [DrawItem] = []
     private var prePasses: [PrePass] = []
 
     /// Pipeline / texture last bound by use() / bindMain() in the world encoder (redundant state changes are skipped).
@@ -225,6 +254,10 @@ final class MetalRenderer {
         self.device = device
         self.queue = queue
         self.store = store
+        targets = RenderTargets(device: device)
+        post = PostChain(device: device)
+        quality = RenderQuality(device: device)
+        counters = GPUCounters(device: device)
         for k in 0..<MetalRenderer.arenaSlots {
             guard let b = device.makeBuffer(length: MetalRenderer.arenaSize, options: [.storageModeShared, .cpuCacheModeWriteCombined]) else { return nil }
             b.label = "arena\(k)"
@@ -233,7 +266,8 @@ final class MetalRenderer {
     }
 
     // ---------------------------------------------------------------- setup
-    /// Compile every pipeline of `specs` (call once, off the main thread; it may run while the MeshStore loads).
+    /// Compile every pipeline of `specs` and the post chain's (call once, off the main thread; it may run while the
+    /// MeshStore loads). World pipelines get the HDR format and 4× MSAA.
     func compilePipelines(_ specs: [PipelineSpec]) -> String {
         let t0 = FrameTimer.now()
         guard let lib = device.makeDefaultLibrary() else {
@@ -242,8 +276,10 @@ final class MetalRenderer {
         }
         let errLock = NSLock()
         func fail(_ s: String) { errLock.lock(); pipelineErrors.append(s); errLock.unlock() }
-        func make(_ sp: PipelineSpec) -> MTLRenderPipelineState? {
-            guard let v = lib.makeFunction(name: sp.vertex) else { fail("\(sp.label): missing function \(sp.vertex)"); return nil }
+        func make(_ sp: PipelineSpec) throws -> MTLRenderPipelineState {
+            guard let v = lib.makeFunction(name: sp.vertex) else {
+                throw NSError(domain: "pipeline", code: 1, userInfo: [NSLocalizedDescriptionKey: "missing function \(sp.vertex)"])
+            }
             let d = MTLRenderPipelineDescriptor()
             d.label = sp.label
             d.vertexFunction = v
@@ -253,56 +289,63 @@ final class MetalRenderer {
                 d.fragmentFunction = nil
                 d.colorAttachments[0].pixelFormat = .invalid
                 d.depthAttachmentPixelFormat = .depth32Float
-            case .world:
+                return try device.makeRenderPipelineState(descriptor: d)
+            case .world, .distortion:
                 guard let fn = sp.fragment, let f = lib.makeFunction(name: fn) else {
-                    fail("\(sp.label): missing function \(sp.vertex) / \(sp.fragment ?? "-")")
-                    return nil
+                    throw NSError(domain: "pipeline", code: 1, userInfo: [NSLocalizedDescriptionKey: "missing function \(sp.fragment ?? "-")"])
                 }
                 d.fragmentFunction = f
-                d.depthAttachmentPixelFormat = depthFormat
-                let c = d.colorAttachments[0]!
-                c.pixelFormat = worldFormat
-                switch sp.blend {
-                case .none:
-                    c.isBlendingEnabled = false
-                case .alpha:
-                    c.isBlendingEnabled = true
-                    c.sourceRGBBlendFactor = .sourceAlpha
-                    c.destinationRGBBlendFactor = .oneMinusSourceAlpha
-                    c.sourceAlphaBlendFactor = .one
-                    c.destinationAlphaBlendFactor = .oneMinusSourceAlpha
-                case .add:
-                    c.isBlendingEnabled = true
-                    c.sourceRGBBlendFactor = .sourceAlpha
-                    c.destinationRGBBlendFactor = .one
-                    c.sourceAlphaBlendFactor = .zero
-                    c.destinationAlphaBlendFactor = .one
-                case .multiply:
-                    c.isBlendingEnabled = true
-                    c.sourceRGBBlendFactor = .destinationColor
-                    c.destinationRGBBlendFactor = .zero
-                    c.sourceAlphaBlendFactor = .zero
-                    c.destinationAlphaBlendFactor = .one
+                if sp.target == .world {
+                    d.depthAttachmentPixelFormat = depthFormat
+                    d.rasterSampleCount = worldSamples
                 }
             }
+            let c = d.colorAttachments[0]!
+            c.pixelFormat = sp.target == .distortion ? RenderTargets.distortionFormat : worldFormat
+            switch sp.blend {
+            case .none:
+                c.isBlendingEnabled = false
+            case .alpha:
+                c.isBlendingEnabled = true
+                c.sourceRGBBlendFactor = .sourceAlpha
+                c.destinationRGBBlendFactor = .oneMinusSourceAlpha
+                c.sourceAlphaBlendFactor = .one
+                c.destinationAlphaBlendFactor = .oneMinusSourceAlpha
+            case .add:
+                c.isBlendingEnabled = true
+                c.sourceRGBBlendFactor = .sourceAlpha
+                c.destinationRGBBlendFactor = .one
+                c.sourceAlphaBlendFactor = .zero
+                c.destinationAlphaBlendFactor = .one
+            case .multiply:
+                c.isBlendingEnabled = true
+                c.sourceRGBBlendFactor = .destinationColor
+                c.destinationRGBBlendFactor = .zero
+                c.sourceAlphaBlendFactor = .zero
+                c.destinationAlphaBlendFactor = .one
+            }
+            return try device.makeRenderPipelineState(descriptor: d)
+        }
+        // every pipeline (world + post) compiles in parallel (device-specific compilation dominates a cold launch)
+        var jobs: [(String, () throws -> MTLRenderPipelineState)] = specs.map { sp in (sp.label, { try make(sp) }) }
+        jobs += post.pipelineJobs(lib, drawableFormat: drawableFormat)
+        var states = [MTLRenderPipelineState?](repeating: nil, count: jobs.count)
+        let lock = NSLock()
+        DispatchQueue.concurrentPerform(iterations: jobs.count) { i in
             do {
-                return try device.makeRenderPipelineState(descriptor: d)
+                let st = try jobs[i].1()
+                lock.lock(); states[i] = st; lock.unlock()
             } catch {
-                fail("\(sp.label): \(error.localizedDescription)")
-                return nil
+                fail("\(jobs[i].0): \(error.localizedDescription)")
             }
         }
-        // every pipeline compiles in parallel (device-specific compilation dominates a cold first launch)
-        var states = [MTLRenderPipelineState?](repeating: nil, count: specs.count)
-        let lock = NSLock()
-        DispatchQueue.concurrentPerform(iterations: specs.count) { i in
-            let st = make(specs[i])
-            lock.lock(); states[i] = st; lock.unlock()
+        var postStates: [String: MTLRenderPipelineState] = [:]
+        for (i, job) in jobs.enumerated() {
+            guard let st = states[i] else { continue }
+            if i < specs.count { pipelineStates[job.0] = st } else { postStates[job.0] = st }
         }
-        var missingRequired: [String] = []
-        for (i, sp) in specs.enumerated() {
-            if let s = states[i] { pipelineStates[sp.label] = s } else if sp.required { missingRequired.append(sp.label) }
-        }
+        post.bind(postStates)
+        let missingRequired = specs.filter { $0.required && pipelineStates[$0.label] == nil }.map { $0.label }
         psMesh = MetalRenderer.passOrder.map { p -> MTLRenderPipelineState? in
             switch p {
             case .props: return pipelineStates["meshProps"]
@@ -320,64 +363,44 @@ final class MetalRenderer {
         td.depthCompareFunction = .lessEqual
         td.isDepthWriteEnabled = false
         dsTransparent = device.makeDepthStencilState(descriptor: td)
-        // world target → drawable: the final pass has no depth attachment (SKRenderer draws the HUD into it)
-        if let v = lib.makeFunction(name: "vs_composite"), let f = lib.makeFunction(name: "fs_composite") {
-            let d = MTLRenderPipelineDescriptor()
-            d.label = "composite"
-            d.vertexFunction = v
-            d.fragmentFunction = f
-            d.colorAttachments[0].pixelFormat = drawableFormat
-            d.depthAttachmentPixelFormat = .invalid
-            do { psComposite = try device.makeRenderPipelineState(descriptor: d) } catch {
-                pipelineErrors.append("composite: \(error.localizedDescription)")
-            }
-        } else {
-            pipelineErrors.append("composite: missing vs_composite / fs_composite")
-        }
-        ready = missingRequired.isEmpty && psComposite != nil && dsOpaque != nil && dsTransparent != nil
-        return String(format: "pipelines built in %.0f ms (%d)", (FrameTimer.now() - t0) * 1000, pipelineStates.count + (psComposite == nil ? 0 : 1))
+        ready = missingRequired.isEmpty && post.ready && dsOpaque != nil && dsTransparent != nil
+        return String(format: "pipelines built in %.0f ms (%d world + %d post)", (FrameTimer.now() - t0) * 1000, pipelineStates.count, postStates.count)
             + (pipelineErrors.isEmpty ? "" : " ERRORS: " + pipelineErrors.joined(separator: "; "))
     }
 
     /// A compiled pipeline by its PipelineSpec label (nil: it failed to compile — the module skips that draw).
     func pipeline(_ label: String) -> MTLRenderPipelineState? { pipelineStates[label] }
 
-    /// Pass-wide state that needs the loaded store (after MeshStore.loadAll and compilePipelines).
-    func bindResources() {
+    /// Pass-wide state that needs the loaded store (after MeshStore.loadAll and compilePipelines; off the main thread).
+    func bindResources() -> String {
         passTextures[TextureIndex.noise] = store.noise
-        let fogc = displayRGB(0x1a2737)
-        worldPass.colorAttachments[0].loadAction = .clear
-        worldPass.colorAttachments[0].storeAction = .store
-        worldPass.colorAttachments[0].clearColor = MTLClearColor(red: Double(fogc.x), green: Double(fogc.y), blue: Double(fogc.z), alpha: 1)
-        worldPass.depthAttachment.loadAction = .clear
-        worldPass.depthAttachment.storeAction = .dontCare
-        worldPass.depthAttachment.clearDepth = 1
+        distortionPass.colorAttachments[0].loadAction = .clear
+        distortionPass.colorAttachments[0].storeAction = .store
+        distortionPass.colorAttachments[0].clearColor = MTLClearColor(red: 0.5, green: 0.5, blue: 0, alpha: 1)
+        return post.loadResources()
     }
 
-    /// Size the offscreen world target (pixels); a new size drops the old image.
+    /// FrameLoop's world size for this tick (view points × GameScene's world scale, pixels). The targets are allocated
+    /// once to cover it (they grow only — a rotation or a larger -mscale); the frame's viewport comes from
+    /// prepareViewport (dynamic resolution).
     func setTargetSize(width: Int, height: Int) {
-        let w = max(1, width), h = max(1, height)
-        if w == targetWidth && h == targetHeight && worldColor != nil { return }
-        targetWidth = w
-        targetHeight = h
-        hasWorldImage = false
-        let cd = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: worldFormat, width: w, height: h, mipmapped: false)
-        cd.usage = [.renderTarget, .shaderRead]
-        cd.storageMode = .private
-        worldColor = device.makeTexture(descriptor: cd)
-        worldColor?.label = "world"
-        let dd = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: depthFormat, width: w, height: h, mipmapped: false)
-        dd.usage = .renderTarget
-        // tile memory only on the device (the depth is never stored); the simulator has no memoryless storage
-        #if targetEnvironment(simulator)
-        dd.storageMode = .private
-        #else
-        dd.storageMode = .memoryless
-        #endif
-        worldDepth = device.makeTexture(descriptor: dd)
-        worldPass.colorAttachments[0].texture = worldColor
-        worldPass.depthAttachment.texture = worldDepth
-        AppLog.info("metal: world target \(w)x\(h) px")
+        requestedWidth = max(1, width)
+        requestedHeight = max(1, height)
+        if targets.ensure(width: requestedWidth, height: requestedHeight) {
+            hasWorldImage = false
+            if targets.viewW <= 1 { targets.setViewport(width: requestedWidth, height: requestedHeight) }
+        }
+    }
+
+    /// Main thread, every tick before the world is built: the tier, the thermal ladder and the dynamic-resolution
+    /// scale of this frame → the viewport. `points`: the view (HUD) size.
+    func prepareViewport(points: CGSize, hz: Int) {
+        guard requestedWidth > 0 && requestedHeight > 0 else { return }
+        let pw = Float(max(1, points.width)), ph = Float(max(1, points.height))
+        let requested = Float(requestedWidth) / pw
+        let s = quality.update(now: FrameTimer.now(), requested: requested, hz: hz)
+        targets.setViewport(width: min(requestedWidth, Int((pw * s).rounded())), height: min(requestedHeight, Int((ph * s).rounded())))
+        post.update(now: FrameTimer.now())
     }
 
     // ---------------------------------------------------------------- scheduler
@@ -388,6 +411,7 @@ final class MetalRenderer {
         case .opaque: opaqueItems.append(item); opaqueItems.sort { $0.order < $1.order }
         case .transparent: transparentItems.append(item); transparentItems.sort { $0.order < $1.order }
         case .shadowCasters: casterItems.append(item); casterItems.sort { $0.order < $1.order }
+        case .distortion: distortionItems.append(item); distortionItems.sort { $0.order < $1.order }
         }
     }
 
@@ -399,7 +423,7 @@ final class MetalRenderer {
 
     /// Drop every registered item (the world that registered them is going away).
     func clearRegistrations() {
-        opaqueItems.removeAll(); transparentItems.removeAll(); casterItems.removeAll(); prePasses.removeAll()
+        opaqueItems.removeAll(); transparentItems.removeAll(); casterItems.removeAll(); distortionItems.removeAll(); prePasses.removeAll()
     }
 
     /// The shadow casters into an open depth-only encoder (ShadowAtlas calls this inside its pass).
@@ -455,20 +479,25 @@ final class MetalRenderer {
     var arena: MTLBuffer { arenas[arenaIndex] }
 
     // ---------------------------------------------------------------- frame
-    /// The pre-passes, the world pass and the post slot for the world MetalWorld built this tick. No-op when nothing
-    /// was built (a frozen world keeps its last image).
+    /// The pre-passes, the world pass (resolved into sceneHDR), the distortion pass and the bloom for the world
+    /// MetalWorld built this tick. No-op when nothing was built (a frozen world keeps its last image).
     func encodeWorld(_ cb: MTLCommandBuffer) {
         frameOpen = false
-        guard built, ready, worldColor != nil else { built = false; return }
+        counters.endFrame()
+        guard built, ready, targets.scene != nil else { built = false; return }
         built = false
         let t0 = FrameTimer.now()
         drawCalls = 0
         instanceCount = 0
         triangles = 0
+        let tier = quality.tier
+        counters.beginFrame(slot: arenaIndex)
         // compute / depth passes (shadow)
         for p in prePasses { p.encode(cb) }
-        // the world: opaque, then transparent / additive in the same encoder (tile memory)
-        guard let enc = cb.makeRenderCommandEncoder(descriptor: worldPass) else { return }
+        // the world: opaque, then transparent / additive in the same encoder (tile memory), resolved at the end
+        let wp = targets.worldPass
+        counters.attach(to: wp, pass: .world)
+        guard let enc = cb.makeRenderCommandEncoder(descriptor: wp) else { return }
         enc.label = "world"
         beginWorldPass(enc)
         enc.setCullMode(.back)
@@ -478,27 +507,63 @@ final class MetalRenderer {
         enc.setCullMode(.none)
         for it in transparentItems { it.encode(enc) }
         enc.endEncoding()
-        // post slot: no passes yet — an HDR resolve / bloom / tone map / grade chain goes here and leaves its result
-        // where encodeComposite samples it
+        // R3 heat distortion (High, only while something draws into it)
+        distortionOn = false
+        if tier == .high, !distortionItems.isEmpty, let dt = targets.distortion {
+            distortionPass.colorAttachments[0].texture = dt
+            counters.detach(distortionPass)
+            if let de = cb.makeRenderCommandEncoder(descriptor: distortionPass) {
+                de.label = "distortion"
+                var F = frame
+                de.setVertexBytes(&F, length: MemoryLayout<FrameUniforms>.stride, index: BufferIndex.frame)
+                de.setFragmentBytes(&F, length: MemoryLayout<FrameUniforms>.stride, index: BufferIndex.frame)
+                boundPipeline = nil
+                boundMain = nil
+                for it in distortionItems { it.encode(de) }
+                de.endEncoding()
+                distortionOn = true
+            }
+        }
+        // R4–R12: bloom from sceneHDR
+        post.encodeBloom(cb, targets, tier: tier, time: frame.camPos.w, counters: counters)
+        counters.track(cb, quality: quality)
+        imageView = (targets.viewW, targets.viewH)
+        imageTier = tier
         hasWorldImage = true
         frames += 1
         encodeMs += ((FrameTimer.now() - t0) * 1000 - encodeMs) * 0.1
     }
 
-    /// The world image scaled into the drawable (final pass, before the HUD). false = no image yet.
-    @discardableResult
-    func encodeComposite(_ enc: MTLRenderCommandEncoder) -> Bool {
-        guard hasWorldImage, let ps = psComposite, let tex = worldColor else { return false }
-        enc.setRenderPipelineState(ps)
-        enc.setFragmentTexture(tex, index: 0)
-        enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
-        return true
+    /// FrameLoop's final pass (composite + HUD): sample its start / end as the `final` pass when this tick encoded a
+    /// world frame (call before making its encoder; `finishFinalPass` after endEncoding). Device only; no-op elsewhere.
+    func instrumentFinalPass(_ desc: MTLRenderPassDescriptor) {
+        if counters.frameOpen { counters.attach(to: desc, pass: .final) } else { counters.detach(desc) }
     }
 
-    /// Frame uniforms and the pass-wide textures every world draw may read (snow mask, particle noise, shadow map).
+    /// After FrameLoop's final pass: the descriptor stops sampling, the frame's slot is closed.
+    func finishFinalPass(_ desc: MTLRenderPassDescriptor) {
+        counters.detach(desc)
+        counters.endFrame()
+    }
+
+    /// The world image into the drawable: the first draw of FrameLoop's final pass (before the HUD). false = no image
+    /// yet.
+    @discardableResult
+    func encodeComposite(_ enc: MTLRenderCommandEncoder) -> Bool {
+        guard hasWorldImage else { return false }
+        // a frozen world keeps the viewport its image was rendered with
+        let view = (targets.viewW, targets.viewH)
+        if view != imageView { targets.setViewport(width: imageView.0, height: imageView.1) }
+        defer { if view != imageView { targets.setViewport(width: view.0, height: view.1) } }
+        return post.encodeComposite(enc, targets, tier: imageTier, time: frame.camPos.w, distortion: distortionOn ? targets.distortion : nil)
+    }
+
+    /// Frame uniforms, the viewport and the pass-wide textures every world draw may read (snow mask, particle noise,
+    /// shadow map).
     private func beginWorldPass(_ enc: MTLRenderCommandEncoder) {
         boundPipeline = nil
         boundMain = nil
+        enc.setViewport(MTLViewport(originX: 0, originY: 0, width: Double(targets.viewW), height: Double(targets.viewH), znear: 0, zfar: 1))
         var F = frame
         enc.setVertexBytes(&F, length: MemoryLayout<FrameUniforms>.stride, index: BufferIndex.frame)
         enc.setFragmentBytes(&F, length: MemoryLayout<FrameUniforms>.stride, index: BufferIndex.frame)

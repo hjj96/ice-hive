@@ -67,6 +67,7 @@ final class ShadowAtlas {
         r.passTextures[TextureIndex.shadow] = dummy
         guard on, let t = tex else { return }
         pass.depthAttachment.texture = t
+        r.counters.attach(to: pass, pass: .shadow)
         guard let enc = cb.makeRenderCommandEncoder(descriptor: pass) else { return }
         enc.label = "shadow"
         var F = r.frame
