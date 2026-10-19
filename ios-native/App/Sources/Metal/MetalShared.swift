@@ -1,12 +1,16 @@
 import Foundation
 
 // ================================================================
-//  GPU DATA LAYOUTS — Swift mirrors of the structs in Shaders.metal.
-//  Every field is a float4 / float4x4 so Swift and MSL agree on the
-//  layout without packing rules. Keep both sides in sync.
+//  GPU DATA LAYOUTS — Swift mirrors of the frame-wide structs in
+//  Shaders/Common.h (Frame, Material, MeshInstance) and the buffer /
+//  texture slots every shader file uses. Module structs live with
+//  their owner (BugInstance: Swarm/WorldSwarm.swift ↔ SwarmTypes.h;
+//  decal / sprite / particle / ribbon instances: FX/MetalEffects.swift
+//  ↔ FX.metal). Every field is a float4 / float4x4 so Swift and MSL
+//  agree on the layout without packing rules. Keep both sides in sync.
 // ================================================================
 
-/// Per-frame constants (`struct Frame` in Shaders.metal), buffer index BufferIndex.frame in every stage.
+/// Per-frame constants (`struct Frame` in Shaders/Common.h), buffer index BufferIndex.frame in every stage.
 struct FrameUniforms {
     var viewProj = Mat4.identity
     var view = Mat4.identity
@@ -39,18 +43,6 @@ struct FrameUniforms {
     var fx = F4(2, 0, 0, 0)
 }
 
-/// One bug of the swarm (`struct BugInstance`): compact transform + per-instance shading.
-struct BugInstance {
-    /// xyz feet position (world), w = horizontal scale.
-    var pos: F4
-    /// x = cos(heading), y = sin(heading), z = sin(climb pitch), w = cos(climb pitch).
-    var rot: F4
-    /// rgb instance tint, w = vertical scale.
-    var color: F4
-    /// web iAnim: gait phase, hit flash, burn, freeze.
-    var anim: F4
-}
-
 /// Generic instanced mesh (`struct MeshInstance`): marines, props, corpses, unlit bits.
 struct MeshInstance {
     var model: Mat4
@@ -58,47 +50,6 @@ struct MeshInstance {
     var tint: F4
     /// rgb added emissive (hurt / invulnerable flash), w = 1: replace the vertex colour by `tint.rgb` (unlit tips).
     var emissive: F4
-}
-
-/// Multiply-blended floor stain (`struct DecalInstance`).
-struct DecalInstance {
-    var model: Mat4
-    /// rgb stain tint, w unused.
-    var color: F4
-    /// xy atlas cell offset (0 / 0.5), zw unused.
-    var uv: F4
-}
-
-/// Flat floor sprite (`struct SpriteInstance`): glows, splashes, telegraphs, team rings, ring indicators.
-struct SpriteInstance {
-    /// xyz centre, w = mode (0 textured, 1 ring indicator).
-    var center: F4
-    /// xyz half extent along the sprite's u axis, w = indicator progress.
-    var axisU: F4
-    /// xyz half extent along the v axis (v = 0 at center + axisV), w = indicator alpha.
-    var axisV: F4
-    /// rgb colour (additive), w = opacity multiplier.
-    var color: F4
-}
-
-/// Camera-facing particle (`struct ParticleInstance`).
-struct ParticleInstance {
-    /// xyz position, w = size (m, the web point size).
-    var pos: F4
-    /// rgba colour.
-    var color: F4
-    /// x = noise seed, yzw unused.
-    var extra: F4
-}
-
-/// Ribbon vertex (`struct RibbonVertex`): laser sights, tracers, the cryo beam.
-struct RibbonVertex {
-    /// xyz world position, w = mode (0 laser dash, 1 flat tracer, 2 cryo beam).
-    var pos: F4
-    /// rgb colour, w = intensity.
-    var color: F4
-    /// xy uv (u along, v across 0…1), zw unused.
-    var uv: F4
 }
 
 /// Material constants of one static / instanced mesh draw (`struct Material`).
@@ -110,7 +61,7 @@ struct MaterialUniforms {
     var floor: F4
 }
 
-/// Buffer / texture slots shared with Shaders.metal.
+/// Buffer / texture slots shared with every shader file.
 enum BufferIndex {
     static let vertices = 0
     static let frame = 1

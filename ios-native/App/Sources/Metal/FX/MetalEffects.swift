@@ -1,19 +1,65 @@
 import Foundation
+import Metal
 import IceHiveCore
 
 // ================================================================
 //  METAL EFFECTS — the FX section of the web game (07-fx.js) for the
-//  Metal renderer: GameEvents → particles, floor stains (multiply
-//  decals), 3D corpses, splashes and flash lights (fxBugDeath,
-//  fxExplosion, fxAcid, fxBulletHit, fxDash, fxNapalmBurst, fxNova,
-//  fxTurretDrop, fxHeal), and the per-frame part of renderFx:
-//  muzzle flashes, flames, cryo beam, napalm fields, vent steam,
-//  laser sights, tracers, telegraphs, team / progress rings, globs,
-//  grenades, medkits, the turret, beacon tips and beams, and the
-//  light pool (point light 0 follows flames / the player's muzzle,
-//  1–2 are short blasts). Everything is collected into plain arrays
-//  that MetalWorld uploads into the frame arena.
+//  Metal renderer (owned by WP5 «Эффекты»): GameEvents → particles,
+//  floor stains (multiply decals), splashes and flash lights
+//  (fxBugDeath, fxExplosion, fxAcid, fxBulletHit, fxDash,
+//  fxNapalmBurst, fxNova, fxTurretDrop, fxHeal), and the per-frame
+//  part of renderFx: muzzle flashes, flames, cryo beam, napalm fields,
+//  vent steam, laser sights, tracers, telegraphs, beacon beams, and
+//  the light pool (point light 0 follows flames / the player's muzzle,
+//  1–2 are short blasts). Corpses go to Swarm/Corpses.swift (`corpses`,
+//  fed with this file's random sequence), the squad's team rings and
+//  progress rings to Squad/GroundGlyphs.swift. Everything is collected
+//  into plain arrays, uploaded into the frame arena by upload() and
+//  drawn by this file's world items (decals, sprites, particles,
+//  ribbons — FX.metal).
 // ================================================================
+
+/// Multiply-blended floor stain (`struct DecalInstance` in FX.metal).
+struct DecalInstance {
+    var model: Mat4
+    /// rgb stain tint, w unused.
+    var color: F4
+    /// xy atlas cell offset (0 / 0.5), zw unused.
+    var uv: F4
+}
+
+/// Flat floor sprite (`struct SpriteInstance` in FX.metal): glows, splashes, telegraphs, team rings, ring indicators.
+struct SpriteInstance {
+    /// xyz centre, w = mode (0 textured, 1 ring indicator).
+    var center: F4
+    /// xyz half extent along the sprite's u axis, w = indicator progress.
+    var axisU: F4
+    /// xyz half extent along the v axis (v = 0 at center + axisV), w = indicator alpha.
+    var axisV: F4
+    /// rgb colour (additive), w = opacity multiplier.
+    var color: F4
+}
+
+/// Camera-facing particle (`struct ParticleInstance` in FX.metal).
+struct ParticleInstance {
+    /// xyz position, w = size (m, the web point size).
+    var pos: F4
+    /// rgba colour.
+    var color: F4
+    /// x = noise seed, yzw unused.
+    var extra: F4
+}
+
+/// Ribbon vertex (`struct RibbonVertex` in FX.metal): laser sights, tracers, the cryo beam.
+struct RibbonVertex {
+    /// xyz world position, w = mode (0 laser dash, 1 flat tracer, 2 cryo beam).
+    var pos: F4
+    /// rgb colour, w = intensity.
+    var color: F4
+    /// xy uv (u along, v across 0…1), zw unused.
+    var uv: F4
+}
+
 final class MetalEffects {
     let level: Level
     let pa: MetalParticles
@@ -22,21 +68,19 @@ final class MetalEffects {
     private(set) var fxK: Float = 0.7
     private var rng = SeededRNG(seed: 9001)
 
-    // persistent ground stains / corpses (ring buffers, web QUALITY.med budgets by default)
-    /// (`decalVersion` / `corpseVersion` move on every change: MetalWorld re-copies them only then)
+    /// Where bug deaths leave their bodies (Swarm/Corpses.swift; MetalWorld sets it).
+    weak var corpses: Corpses?
+
+    // persistent ground stains (ring buffer, web QUALITY.med budget by default)
+    /// (`decalVersion` moves on every change: upload() re-copies them only then)
     private(set) var decals: [DecalInstance] = [] { didSet { decalVersion &+= 1 } }
     private(set) var decalVersion = 0
     private var decalXZ: [Vec2] = []
     private var decRing = 1000
     private var decHead = 0
     private var decY = 0
-    private(set) var corpses: [[MeshInstance]] = [[], []] { didSet { corpseVersion &+= 1 } }
-    private(set) var corpseVersion = 0
-    private var corpseXZ: [[Vec2]] = [[], []]
-    private var corpseRing = [320, 40]
-    private var corpseHead = [0, 0]
-    /// Stains / corpses lying on the lift deck (ring index, base y) once the extraction starts.
-    private var liftGore: [(Int, Int, Float)]? = nil
+    /// Stains lying on the lift deck (ring index, base y) once the extraction starts.
+    private var liftGore: [(Int, Float)]? = nil
     private var liftRiseLast: Float = 0
 
     // per-frame sprite lists
@@ -44,7 +88,6 @@ final class MetalEffects {
     var ringSprites: [SpriteInstance] = []
     var fillSprites: [SpriteInstance] = []
     var laneSprites: [SpriteInstance] = []
-    var indicators: [SpriteInstance] = []
     var ribbons: [RibbonVertex] = []
     private struct Splash { var x: Float, z: Float, size: Float, r: Float, g: Float, b: Float, t: Float, life: Float }
     private var splashes: [Splash] = []
@@ -64,17 +107,15 @@ final class MetalEffects {
         pn = MetalParticles(capacity: 2400, limit: 1560, level: level, seed: 78)
         decals.reserveCapacity(1500)
         decalXZ.reserveCapacity(1500)
-        for k in 0..<2 { corpses[k].reserveCapacity(520); corpseXZ[k].reserveCapacity(520) }
         glowSprites.reserveCapacity(48)
         ringSprites.reserveCapacity(80)
         fillSprites.reserveCapacity(32)
         laneSprites.reserveCapacity(16)
-        indicators.reserveCapacity(8)
         ribbons.reserveCapacity(800 * 6)
         splashes.reserveCapacity(16)
     }
 
-    /// web fxApplyQuality(): emission scale and the particle / stain / corpse budgets of the tier.
+    /// web fxApplyQuality(): emission scale and the particle / stain budgets of the tier (corpses: Corpses.setQuality).
     func setQuality(fxK k: Float) {
         fxK = k
         let tier: (Int, Int, Int) = k < 0.5 ? (1400, 500, 160) : (k < 0.85 ? (2600, 1000, 320) : (4000, 1500, 520))
@@ -85,19 +126,12 @@ final class MetalEffects {
             decHead = 0
             if decals.count > decRing { decals.removeLast(decals.count - decRing); decalXZ.removeLast(decalXZ.count - decRing) }
         }
-        let cr = [tier.2, max(20, tier.2 >> 3)]
-        for k in 0..<2 where corpseRing[k] != cr[k] {
-            corpseRing[k] = cr[k]
-            corpseHead[k] = 0
-            if corpses[k].count > cr[k] { corpses[k].removeLast(corpses[k].count - cr[k]); corpseXZ[k].removeLast(corpseXZ[k].count - cr[k]) }
-        }
     }
 
     func reset() {
         pa.clear(); pn.clear()
         decals.removeAll(keepingCapacity: true); decalXZ.removeAll(keepingCapacity: true)
         decHead = 0; decY = 0
-        for k in 0..<2 { corpses[k].removeAll(keepingCapacity: true); corpseXZ[k].removeAll(keepingCapacity: true); corpseHead[k] = 0 }
         liftGore = nil
         liftRiseLast = 0
         splashes.removeAll(keepingCapacity: true)
@@ -114,7 +148,7 @@ final class MetalEffects {
     @inline(__always) private func rr(_ a: Float, _ b: Float) -> Float { a + (b - a) * rng.next() }
     @inline(__always) private func num(_ base: Float) -> Int { Int((base * fxK).rounded(.up)) }
 
-    // ================================================================ ground stains / corpses
+    // ================================================================ ground stains
     private func walkable2(_ x: Float, _ z: Float) -> Bool {
         let c = level.cellOf(x, z)
         return c >= 0 && level.walkValue(c) != 0
@@ -150,57 +184,26 @@ final class MetalEffects {
             decals.append(d); decalXZ.append(Vec2(x, z))
         } else {
             decals[decHead] = d; decalXZ[decHead] = Vec2(x, z)
-            forgetLiftGore(0, decHead)
+            forgetLiftGore(decHead)
             decHead = (decHead + 1) % decRing
         }
     }
 
-    /// web addCorpse: flattened body, maroon-brown tint, 0 = generic ring, 1 = brute ring.
-    func addCorpse(_ x: Float, _ z: Float, _ hd: Float, _ sc: Float, _ type: BugType) {
-        let c0 = level.cellOf(x, z)
-        if c0 < 0 || level.walkValue(c0) == 0 { return }
-        let gz = slopeZ(x, z)
-        let gy = level.groundY(x, z) + (level.isStairCell(c0) ? 0.06 : 0)
-        let k = type == .brute ? 1 : 0
-        let rot = hd + (rnd() - 0.5) * 1.2
-        let c = cosf(rot) * sc, s = sinf(rot) * sc
-        let m = Mat4(c0: F4(c, -s * gz, -s, 0), c1: F4(0, sc, 0, 0), c2: F4(s, c * gz, c, 0), c3: F4(x, gy + 0.01, z, 1))
-        let v = 1.6 + rnd() * 0.7
-        let spit = type == .spitter
-        let inst = MeshInstance(model: m, tint: F4(v * (spit ? 0.85 : 1), v * (spit ? 0.95 : 0.72), v * 0.58, 0), emissive: F4(0, 0, 0, 0))
-        if corpses[k].count < corpseRing[k] {
-            corpses[k].append(inst); corpseXZ[k].append(Vec2(x, z))
-        } else {
-            corpses[k][corpseHead[k]] = inst; corpseXZ[k][corpseHead[k]] = Vec2(x, z)
-            forgetLiftGore(k + 1, corpseHead[k])
-            corpseHead[k] = (corpseHead[k] + 1) % corpseRing[k]
-        }
+    /// A ring slot riding the lift was reused for a new stain elsewhere: it no longer rides (the web moves it anyway).
+    private func forgetLiftGore(_ i: Int) {
+        if liftGore != nil { liftGore!.removeAll(where: { $0.0 == i }) }
     }
 
-    /// A ring slot riding the lift was reused for new gore elsewhere: it no longer rides (the web moves it anyway).
-    private func forgetLiftGore(_ ring: Int, _ i: Int) {
-        if liftGore != nil { liftGore!.removeAll(where: { $0.0 == ring && $0.1 == i }) }
-    }
-
-    /// Gore lying on the lift deck rides up with it (web fxLiftRise).
+    /// Stains lying on the lift deck ride up with it (web fxLiftRise; corpses: Corpses.liftRise).
     func liftRise(_ rise: Float) {
         if rise == liftRiseLast { return }
         liftRiseLast = rise
         if liftGore == nil {
-            var list: [(Int, Int, Float)] = []
-            for (i, p) in decalXZ.enumerated() where level.isLiftCell(level.cellOf(p.x, p.y)) { list.append((0, i, decals[i].model.c3.y)) }
-            for k in 0..<2 {
-                for (i, p) in corpseXZ[k].enumerated() where level.isLiftCell(level.cellOf(p.x, p.y)) { list.append((k + 1, i, corpses[k][i].model.c3.y)) }
-            }
+            var list: [(Int, Float)] = []
+            for (i, p) in decalXZ.enumerated() where level.isLiftCell(level.cellOf(p.x, p.y)) { list.append((i, decals[i].model.c3.y)) }
             liftGore = list
         }
-        for (ring, i, y) in liftGore ?? [] {
-            if ring == 0 {
-                if i < decals.count { decals[i].model.c3.y = y + rise }
-            } else if i < corpses[ring - 1].count {
-                corpses[ring - 1][i].model.c3.y = y + rise
-            }
-        }
+        for (i, y) in liftGore ?? [] where i < decals.count { decals[i].model.c3.y = y + rise }
     }
 
     // ================================================================ lights / splashes
@@ -301,7 +304,7 @@ final class MetalEffects {
         }
         if type == .brute { splash(x, z, 4, 0.3, 0.06, 0.16, 0.35) }
         addDecal(x, z, sc * rr(1.0, 1.5), rnd() < 0.5 ? 0 : 1, c.0, c.1, c.2)
-        if type != .boomer { addCorpse(x, z, hd, sc, type) } else { addDecal(x, z, 2.6, 3, 0.1, 0.08, 0.08) }
+        if type != .boomer { corpses?.add(x, z, hd, sc, type, rnd: rnd) } else { addDecal(x, z, 2.6, 3, 0.1, 0.08, 0.08) }
         for _ in 0..<num(type == .brute ? 14 : 5) {
             pn.emit(x, 0.35, z, rr(-2.5, 2.5), rr(1.5, 4), rr(-2.5, 2.5), rr(0.4, 0.8), rr(0.12, 0.22), 0.06, cp.0 * 1.6, cp.1 * 1.6, cp.2 * 1.6, 0.95, 12, 0.5, 0)
         }
@@ -416,7 +419,6 @@ final class MetalEffects {
         ringSprites.removeAll(keepingCapacity: true)
         fillSprites.removeAll(keepingCapacity: true)
         laneSprites.removeAll(keepingCapacity: true)
-        indicators.removeAll(keepingCapacity: true)
         ribbons.removeAll(keepingCapacity: true)
     }
 
@@ -506,7 +508,6 @@ final class MetalEffects {
         }
         liftRise(rise)
         telegraphs(game: game, time: time)
-        teamAndProgressRings(game: game, time: time, poses: poses, liftRise: rise)
         tracers(game: game)
         lasers(game: game, time: time, poses: poses)
         beam(game: game, time: time, poses: poses)
@@ -546,35 +547,6 @@ final class MetalEffects {
                 ringSprites.append(SpriteInstance(center: F4(e.x, y, e.z, 0), axisU: F4(rad, 0, 0, 0), axisV: F4(0, 0, -rad, 0),
                                                   color: F4(e.r * inten, e.g * inten, e.b * inten, 1)))
             }
-        }
-    }
-
-    private func indicator(_ x: Float, _ y: Float, _ z: Float, _ r: Float, _ prog: Float, _ col: F3, _ alpha: Float) {
-        indicators.append(SpriteInstance(center: F4(x, y, z, 1), axisU: F4(r, 0, 0, prog), axisV: F4(0, 0, -r, alpha), color: F4(col.x, col.y, col.z, 1)))
-    }
-
-    private func teamAndProgressRings(game: Game, time: Float, poses: [MarinePose], liftRise rise: Float) {
-        // team rings under the marines (readability inside the swarm)
-        for (k, m) in game.marines.enumerated() where !m.downed && k < poses.count {
-            let p = poses[k]
-            let s: Float = (m.isPlayer ? 1.9 : 1.5) * 0.5
-            let c = linearRGB(m.spec.laser) * (m.isPlayer ? 0.55 : 0.32)
-            ringSprites.append(SpriteInstance(center: F4(p.x, p.y + 0.035, p.z, 0), axisU: F4(s, 0, 0, 0), axisV: F4(0, 0, -s, 0), color: F4(c.x, c.y, c.z, 1)))
-        }
-        // beacon progress rings
-        for b in game.beacons {
-            let col: F3 = b.state == 2 ? F3(0.25, 1.0, 0.85) : (b.state == 1 ? F3(1.0, 0.7, 0.15) : F3(1.0, 0.25, 0.15))
-            indicator(b.x, level.groundY(b.x, b.z) + 0.04, b.z, BEACON_R, b.progress, col, b.state == 2 ? 0.5 : 1)
-        }
-        let st = game.stage
-        if st == .toLift || st == .hold || st == .extract {
-            let L = level.lift
-            let prog: Float = st == .hold ? 1 - game.liftT / game.liftDur : (st == .extract ? 1 : 0)
-            let alpha: Float = st == .extract ? 0.4 + 0.4 * smooth01f(game.extractT / 2) : 0.4
-            indicator(L.x, L.y + rise + 0.06, L.z, L.r - 0.3, prog, F3(0.25, 1.0, 0.85), alpha)
-        }
-        for m in game.marines where m.downed {
-            indicator(m.x, level.groundY(m.x, m.z) + 0.06, m.z, 1.5, m.revive, F3(1.0, 0.25 + m.revive * 0.6, 0.2 + m.revive * 0.6), 1)
         }
     }
 
@@ -720,5 +692,103 @@ final class MetalEffects {
             let u = flashT[k] / max(0.001, flashDur[k])
             lights[k].intensity = u < 1 ? flashPeak[k] * (1 - u) * (1 - u) : 0
         }
+    }
+
+    // ================================================================ drawing (FX.metal)
+    static let pipelines: [PipelineSpec] = [
+        .world("decal", "vs_decal", "fs_decal", .multiply), .world("sprite", "vs_sprite", "fs_sprite", .add),
+        .world("particleAdd", "vs_particle", "fs_particle_add", .add), .world("particleAlpha", "vs_particle", "fs_particle_alpha", .alpha),
+        .world("ribbon", "vs_ribbon", "fs_ribbon", .add),
+    ]
+    private var renderer: MetalRenderer!
+    private var psDecal: MTLRenderPipelineState?, psSprite: MTLRenderPipelineState?, psParticleAdd: MTLRenderPipelineState?
+    private var psParticleAlpha: MTLRenderPipelineState?, psRibbon: MTLRenderPipelineState?
+    private var texGlow: MTLTexture!, texRing: MTLTexture!, texFill: MTLTexture!, texLane: MTLTexture!, texDecals: MTLTexture!
+    private var texDash: MTLTexture!, texStreak: MTLTexture!
+    private let decalPool = EventPool<DecalInstance>("stains", capacity: 1500)
+    // this frame's arena regions
+    private var rDecals = Region(), rGlow = Region(), rRings = Region(), rFill = Region(), rLanes = Region()
+    private var rRibbons = Region(), rPA = Region(), rPN = Region()
+
+    /// Live particles drawn this frame (heartbeat `parts`).
+    var particleCount: Int { rPA.count + rPN.count }
+
+    /// Resolve pipelines and textures, register the world items (MetalWorld, once).
+    func attach(_ r: MetalRenderer) {
+        renderer = r
+        psDecal = r.pipeline("decal"); psSprite = r.pipeline("sprite"); psParticleAdd = r.pipeline("particleAdd")
+        psParticleAlpha = r.pipeline("particleAlpha"); psRibbon = r.pipeline("ribbon")
+        let st = r.store
+        texGlow = st.texture("glow"); texRing = st.texture("ring"); texFill = st.texture("fill"); texLane = st.texture("lane")
+        texDecals = st.texture("decals"); texDash = st.texture("dash"); texStreak = st.texture("streak")
+        r.register(.transparent, order: 200, "decals") { [unowned self] enc in self.encodeDecals(enc) }
+        r.register(.transparent, order: 300, "glow sprites") { [unowned self] enc in self.sprites(enc, self.rGlow, self.texGlow) }
+        r.register(.transparent, order: 320, "ring sprites") { [unowned self] enc in self.sprites(enc, self.rRings, self.texRing) }
+        r.register(.transparent, order: 330, "fill sprites") { [unowned self] enc in self.sprites(enc, self.rFill, self.texFill) }
+        r.register(.transparent, order: 340, "lane sprites") { [unowned self] enc in self.sprites(enc, self.rLanes, self.texLane) }
+        r.register(.transparent, order: 500, "particles alpha") { [unowned self] enc in self.particles(enc, self.psParticleAlpha, self.rPN) }
+        r.register(.transparent, order: 510, "particles add") { [unowned self] enc in self.particles(enc, self.psParticleAdd, self.rPA) }
+        r.register(.transparent, order: 600, "ribbons") { [unowned self] enc in self.encodeRibbons(enc) }
+    }
+
+    /// Upload this frame's stains, sprites (`teamRings`, Squad/GroundGlyphs, share the ring draw), ribbons, and the
+    /// particles (simulated straight into the arena).
+    func upload(_ r: MetalRenderer, teamRings: [SpriteInstance], dt: Float) {
+        rDecals = decalPool.region(decals, version: decalVersion, renderer: r)
+        rGlow = r.upload(glowSprites)
+        rRings = r.upload(ringSprites, teamRings)
+        rFill = r.upload(fillSprites)
+        rLanes = r.upload(laneSprites)
+        rRibbons = r.upload(ribbons)
+        rPA = Region(); rPN = Region()
+        if let a = r.alloc(ParticleInstance.self, max(1, pa.count)) {
+            rPA = Region(offset: a.1, count: pa.update(dt: dt, out: a.0, max: max(1, pa.count)))
+        } else {
+            _ = pa.update(dt: dt, out: nil, max: 0)
+        }
+        if let a = r.alloc(ParticleInstance.self, max(1, pn.count)) {
+            rPN = Region(offset: a.1, count: pn.update(dt: dt, out: a.0, max: max(1, pn.count)))
+        } else {
+            _ = pn.update(dt: dt, out: nil, max: 0)
+        }
+    }
+
+    private func encodeDecals(_ enc: MTLRenderCommandEncoder) {
+        guard let ps = psDecal, rDecals.count > 0 else { return }
+        let r = renderer!
+        r.use(enc, ps)
+        enc.setDepthBias(-4, slopeScale: -2, clamp: 0)
+        enc.setVertexBuffer(rDecals.buffer ?? r.arena, offset: rDecals.offset, index: BufferIndex.instances)
+        r.bindMain(enc, texDecals)
+        r.drawQuads(enc, rDecals.count)
+        enc.setDepthBias(0, slopeScale: 0, clamp: 0)
+    }
+
+    private func sprites(_ enc: MTLRenderCommandEncoder, _ reg: Region, _ tex: MTLTexture) {
+        guard let ps = psSprite, reg.count > 0 else { return }
+        let r = renderer!
+        r.use(enc, ps)
+        enc.setVertexBuffer(r.arena, offset: reg.offset, index: BufferIndex.instances)
+        r.bindMain(enc, tex)
+        r.drawQuads(enc, reg.count)
+    }
+
+    private func particles(_ enc: MTLRenderCommandEncoder, _ ps: MTLRenderPipelineState?, _ reg: Region) {
+        guard let ps = ps, reg.count > 0 else { return }
+        let r = renderer!
+        r.use(enc, ps)
+        enc.setVertexBuffer(r.arena, offset: reg.offset, index: BufferIndex.instances)
+        r.drawQuads(enc, reg.count)
+    }
+
+    private func encodeRibbons(_ enc: MTLRenderCommandEncoder) {
+        guard let ps = psRibbon, rRibbons.count > 0 else { return }
+        let r = renderer!
+        r.use(enc, ps)
+        enc.setVertexBuffer(r.arena, offset: rRibbons.offset, index: BufferIndex.instances)
+        r.bindMain(enc, texDash)
+        enc.setFragmentTexture(texStreak, index: 1)
+        enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: rRibbons.count)
+        r.count(triangles: rRibbons.count / 3)
     }
 }
