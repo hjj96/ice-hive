@@ -332,7 +332,15 @@ final class MetalRenderer {
         var states = [MTLRenderPipelineState?](repeating: nil, count: jobs.count)
         var ms = [Double](repeating: 0, count: jobs.count)
         let lock = NSLock()
-        DispatchQueue.concurrentPerform(iterations: jobs.count) { i in
+        // the shader compiler's first request alone (on a cold first launch it carries the compiler service's start-up,
+        // which no pipeline count changes): logged apart from the batch so a slow first launch can be attributed
+        let firstIndex = jobs.count - 1
+        let f0 = FrameTimer.now()
+        do { states[firstIndex] = try jobs[firstIndex].1() } catch { fail("\(jobs[firstIndex].0): \(error.localizedDescription)") }
+        let firstMs = (FrameTimer.now() - f0) * 1000
+        ms[firstIndex] = firstMs
+        let b0 = FrameTimer.now()
+        DispatchQueue.concurrentPerform(iterations: jobs.count - 1) { i in
             let j0 = FrameTimer.now()
             do {
                 let st = try jobs[i].1()
@@ -341,8 +349,9 @@ final class MetalRenderer {
                 fail("\(jobs[i].0): \(error.localizedDescription)")
             }
         }
-        // the slowest compiles (a cold first launch compiles everything: CI gates its loading time)
-        let slow = ms.indices.sorted { ms[$0] > ms[$1] }.prefix(6).map { jobs[$0].0 + String(format: " %.0f", ms[$0]) }
+        let batchMs = (FrameTimer.now() - b0) * 1000
+        // the slowest compiles of the batch (a cold first launch compiles everything: CI gates its loading time)
+        let slow = ms.indices.filter { $0 != firstIndex }.sorted { ms[$0] > ms[$1] }.prefix(5).map { jobs[$0].0 + String(format: " %.0f", ms[$0]) }
         var postStates: [String: MTLRenderPipelineState] = [:]
         for (i, job) in jobs.enumerated() {
             guard let st = states[i] else { continue }
@@ -368,8 +377,9 @@ final class MetalRenderer {
         td.isDepthWriteEnabled = false
         dsTransparent = device.makeDepthStencilState(descriptor: td)
         ready = missingRequired.isEmpty && post.ready && dsOpaque != nil && dsTransparent != nil
-        return String(format: "pipelines built in %.0f ms (%d world + %d post; slowest ms: ", (FrameTimer.now() - t0) * 1000, pipelineStates.count,
-                      postStates.count) + slow.joined(separator: ", ") + ")"
+        return String(format: "pipelines built in %.0f ms (%d world + %d post; first request %.0f ms, then %d in parallel %.0f ms, slowest: ",
+                      (FrameTimer.now() - t0) * 1000, pipelineStates.count, postStates.count, firstMs, jobs.count - 1, batchMs)
+            + slow.joined(separator: ", ") + ")"
             + (pipelineErrors.isEmpty ? "" : " ERRORS: " + pipelineErrors.joined(separator: "; "))
     }
 

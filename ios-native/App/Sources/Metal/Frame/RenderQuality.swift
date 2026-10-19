@@ -43,8 +43,14 @@ enum RenderTier: String {
 final class RenderQuality {
     enum Thermal: Int { case nominal = 0, fair, serious, critical }
 
-    /// GPU generation (Metal GPU family).
+    /// GPU generation (Metal GPU family). The simulator reports no Apple GPU family: it counts as A13-or-older there
+    /// (`isSimulator` says so in the log).
     enum DeviceClass: Int { case a13OrOlder = 0, a14, a15, a17Plus }
+    #if targetEnvironment(simulator)
+    static let isSimulator = true
+    #else
+    static let isSimulator = false
+    #endif
 
     let deviceClass: DeviceClass
     /// Live-bug cap of this device class (to replace the tier caps of Tuning.QualityTier: core owner).
