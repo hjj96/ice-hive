@@ -210,11 +210,13 @@ final class MenuScreen {
         var out: [Block] = []
         let tagN = SKNode()
         let tag = Label(r.tag.uppercased(), font: Fonts.mono, size: 12, color: UIPalette.inkDim, kern: 2.4, align: .left)
+        MenuScreen.fit(tag, colW)
         tag.node.position = CGPoint(x: 0, y: -6)
         tagN.addChild(tag.node)
         out.append(Block(name: "tag", node: tagN, height: 12, gapAbove: 0))
         let tN = SKNode()
         let title = Label(r.title.uppercased(), font: Fonts.bold, size: d.title, color: r.won ? UIPalette.teal : UIPalette.red, kern: d.title * 0.1, align: .left)
+        MenuScreen.fit(title, colW)
         title.node.position = CGPoint(x: 0, y: -d.title * 0.5)
         tN.addChild(title.node)
         out.append(Block(name: "title", node: tN, height: d.title, gapAbove: 6))
@@ -277,6 +279,7 @@ final class MenuScreen {
         for (lbl, val, amber) in rows {
             let cy = ly - d.lineH / 2
             let a = Label(lbl, font: Fonts.regular, size: d.line, color: amber ? UIPalette.amber : UIPalette.inkDim, kern: 0.2, align: .left)
+            MenuScreen.fit(a, colW - 12 - 70)
             a.node.position = CGPoint(x: 12, y: cy)
             lnN.addChild(a.node)
             if !val.isEmpty {
@@ -322,6 +325,7 @@ final class MenuScreen {
         let xp = Label(r.xpLine, font: Fonts.mono, size: 12, color: UIPalette.teal, align: .right)
         xp.node.position = CGPoint(x: colW - 10, y: -padT - 7)
         rkN.addChild(xp.node)
+        MenuScreen.fit(rt, colW - 20 - xp.width - 10)
         var ry = -padT - 14 - (d.gap >= 9 ? 8 : 6)
         let bar = Bar(width: colW - 20, height: 6, fill: UIPalette.teal, track: UIPalette.tealTrack)
         bar.set(CGFloat(r.rankFill))
@@ -331,6 +335,7 @@ final class MenuScreen {
         if let up = r.rankUp {
             ry -= d.gap >= 9 ? 7 : 5
             let u = Label(up.uppercased(), font: Fonts.bold, size: d.line, color: UIPalette.amber, kern: 1.5, align: .left)
+            MenuScreen.fit(u, colW - 20)
             u.node.position = CGPoint(x: 10, y: ry - d.line * 0.5)
             rkN.addChild(u.node)
             ry -= d.line
@@ -343,6 +348,7 @@ final class MenuScreen {
         if let m = r.medal {
             let mN = SKNode()
             let l = Label("◆ " + m.uppercased(), font: Fonts.semibold, size: d.line, color: UIPalette.amber, kern: 0.8, align: .left)
+            MenuScreen.fit(l, colW)
             l.node.position = CGPoint(x: 0, y: -d.line * 0.6)
             mN.addChild(l.node)
             out.append(Block(name: "medal", node: mN, height: d.line * 1.25, gapAbove: d.gap))
@@ -393,6 +399,12 @@ final class MenuScreen {
         let bh = d.btn + (others.isEmpty ? 0 : 8 + d.btn2)
         out.append(Block(name: "buttons", node: bN, height: bh, gapAbove: d.gap + 2, taps: taps))
         return out
+    }
+
+    /// A one-line label wider than `w` gets a smaller font (one step, the same font; the tightest phones).
+    static func fit(_ l: Label, _ w: CGFloat) {
+        let lw = l.width
+        if lw > w && w > 20 { l.size = max(9, (l.size * w / lw * 10).rounded(.down) / 10) }
     }
 
     private static func action(_ b: ReportButton) -> Action {

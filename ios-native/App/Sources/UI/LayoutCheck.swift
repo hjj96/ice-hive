@@ -4,7 +4,8 @@ import UIKit
 // ================================================================
 //  LAYOUT CHECK — `-layoutCheck` (v1.1 spec §2.11): every element of a
 //  screen (title, report, pause) is logged with its rect, then any two
-//  that overlap and any that leave the safe area. CI greps «layout ok».
+//  that overlap (one inside the other is a container, not an overlap)
+//  and any that leave the safe area. CI greps «layout ok».
 //  Rects are HUD coordinates (origin at the view centre, y up).
 // ================================================================
 struct LayoutCheck {
@@ -36,7 +37,8 @@ struct LayoutCheck {
         for i in 0..<items.count {
             for j in (i + 1)..<max(i + 1, items.count) {
                 let a = items[i].1.insetBy(dx: 1, dy: 1), b = items[j].1.insetBy(dx: 1, dy: 1)
-                if a.intersects(b) { problems.append("overlap " + items[i].0 + " / " + items[j].0) }
+                // a container (the pause box around its buttons) is not an overlap
+                if a.intersects(b) && !a.contains(b) && !b.contains(a) { problems.append("overlap " + items[i].0 + " / " + items[j].0) }
             }
         }
         let tag = String(format: "%@ %.0fx%.0f", screen, size.width, size.height)

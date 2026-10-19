@@ -429,13 +429,16 @@ jobs:
           # hive pressure: red (converging, urgent marker) and amber (waking)
           run_demo pressure 8 "-demo pressure -pressure red -tier 1 -seed 7" 0
           run_demo pressure-amber 6 "-demo pressure -pressure amber -seed 7" 0
+          run_demo pressure-land 6 "-demo pressure -pressure red -orient landscape -seed 7" 0
           # menus: upgrade cards, pause menu, mission report (30 Hz over the frozen world)
           run_demo levelup 4 "-demo levelup -seed 5" 0
           run_demo pause 4 "-demo pause -seed 5 -layoutCheck" 0
+          run_demo pause-land 4 "-demo pause -seed 5 -orient landscape -layoutCheck" 0
           run_demo end 4 "-demo end -seed 5" 0
           # v1.1 mission report fixtures (committed into the demo's in-memory profile)
           run_demo report-first 4 "-demo report -report first -seed 5 -layoutCheck" 0
           run_demo report-win 4 "-demo report -report win -seed 5 -layoutCheck" 0
+          run_demo report-win-land 4 "-demo report -report win -orient landscape -seed 5 -layoutCheck" 0
           run_demo report-loss 4 "-demo report -report loss -seed 5 -layoutCheck" 0
           run_demo report-chip-land 4 "-demo report -report chip -orient landscape -seed 5 -layoutCheck" 0
           # Metal unusable (-failMetal): a readable message instead of an endless loading screen
@@ -464,7 +467,7 @@ jobs:
           sleep 2
           run_demo release-combat 10 "-demo combat -seed 7" 0
           xcrun simctl spawn "$UDID" launchctl list | grep -i icehive | tee results/launchctl.txt || true
-          demos="firstlaunch combat beacon swarmshot swarmshot-dots swarm swarm3x calm title title-fresh title-return title-land landscape probe hold extract queen queenlock coach coach3-land pressure pressure-amber levelup pause end report-first report-win report-loss report-chip-land release-combat"
+          demos="firstlaunch combat beacon swarmshot swarmshot-dots swarm swarm3x calm title title-fresh title-return title-land landscape probe hold extract queen queenlock coach coach3-land pressure pressure-amber pressure-land levelup pause pause-land end report-first report-win report-win-land report-loss report-chip-land release-combat"
           for d in $demos; do
             f=results/app-$d.log
             { echo "== $f"; grep -h -E 'loading took|pipelines built|metal world ready|demo done' "$f" || true; } >> results/fps.txt
@@ -474,7 +477,7 @@ jobs:
           # GPU-side seconds: frames completed, longest gap between two, slowest command buffer (commit -> done)
           echo "== GPU-side stalls (hb lines with gap > 50 ms)" >> results/hitches.txt
           for d in $demos; do grep -H -E 'hb t=.* gap=([5-9][0-9]|[0-9]{3,})ms' "results/app-$d.log" | sed -E 's/ (mode|bugs|vis|parts|stage|hp|kills|mem|avail|demo|rend|cpu|main|dc|inst|tris)=[^ ]*//g' >> results/hitches.txt || true; done
-          python3 ios-native/ci/frame_metrics.py --cold firstlaunch --cold-max-ms 150 --menus levelup,pause,end,report-first,report-win,report-loss,report-chip-land results $demos > results/metrics.txt || true
+          python3 ios-native/ci/frame_metrics.py --cold firstlaunch --cold-max-ms 150 --menus levelup,pause,pause-land,end,report-first,report-win,report-win-land,report-loss,report-chip-land results $demos > results/metrics.txt || true
           # v1.1 lines (start, title, threat, queen, lift lock, coach, run) and the layout checks
           for d in $demos; do grep -H -E 'v11 |layout (ok|FAIL)|report: tightest' "results/app-$d.log" >> results/v11.txt || true; done
           cat results/alive.txt results/loading.txt results/fps.txt results/shots.txt results/hitches.txt results/metrics.txt results/v11.txt
@@ -494,7 +497,7 @@ jobs:
             grep -q 'rend=metal' "results/app-$d.log" || { echo "::error::$d: no Metal heartbeat lines"; exit 1; }
             if grep -q 'ERROR' "results/app-$d.log"; then echo "::error::$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; exit 1; fi
           done
-          for d in title-fresh title-return title-land queenlock coach coach3-land pressure pressure-amber report-first report-win report-loss report-chip-land; do
+          for d in title-fresh title-return title-land queenlock coach coach3-land pressure pressure-amber pressure-land pause-land report-first report-win report-win-land report-loss report-chip-land; do
             grep -q 'scene ready' "results/app-$d.log" || { echo "::error::$d: no 'scene ready'"; exit 1; }
             if grep -q 'ERROR' "results/app-$d.log"; then echo "::error::$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; exit 1; fi
           done
@@ -516,7 +519,7 @@ jobs:
           need report-loss 'v11 run tier=vet won=0 .*downBy=4'
           need report-chip-land 'v11 run .*recTip=1'
           need combat 'v11 start tier=vet coach=0'
-          for d in title-fresh title-return title-land pause report-first report-win report-loss report-chip-land; do
+          for d in title-fresh title-return title-land pause pause-land report-first report-win report-win-land report-loss report-chip-land; do
             need "$d" 'layout (ok|FAIL)'
             if grep -q 'layout FAIL' "results/app-$d.log"; then echo "::error::$d: $(grep -m 2 'layout FAIL' "results/app-$d.log" | tr '\n' ' ')"; exit 1; fi
           done
@@ -524,7 +527,7 @@ jobs:
           if [ -s results/app-release-quiet.log ]; then echo "::error::plain Release launch wrote to stdout: $(head -3 results/app-release-quiet.log)"; exit 1; fi
       # warm demos: minFps >= 55 on the game loop and no loop hitch > 50 ms after the first second (metrics.txt)
       - name: Frame metrics gate
-        run: python3 ios-native/ci/frame_metrics.py --gate --cold firstlaunch --cold-max-ms 150 --menus levelup,pause,end,report-first,report-win,report-loss,report-chip-land results firstlaunch combat beacon swarmshot swarmshot-dots swarm swarm3x calm title title-fresh title-return title-land landscape probe hold extract queen queenlock coach coach3-land pressure pressure-amber levelup pause end report-first report-win report-loss report-chip-land release-combat
+        run: python3 ios-native/ci/frame_metrics.py --gate --cold firstlaunch --cold-max-ms 150 --menus levelup,pause,pause-land,end,report-first,report-win,report-win-land,report-loss,report-chip-land results firstlaunch combat beacon swarmshot swarmshot-dots swarm swarm3x calm title title-fresh title-return title-land landscape probe hold extract queen queenlock coach coach3-land pressure pressure-amber pressure-land levelup pause pause-land end report-first report-win report-win-land report-loss report-chip-land release-combat
       # v1.1 small screens (spec §7.2): the tightest iOS 16 phone, 375 x 667, when the runtime offers an iPhone SE —
       # the title, the report and the pause in both orientations with -layoutCheck (informational: results/se-layout.txt)
       - name: Small-screen layout check (iPhone SE)
