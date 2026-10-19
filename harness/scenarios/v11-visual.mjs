@@ -74,6 +74,15 @@ function installLib() {
         const u = X.beaconFx[b0].ind.material.uniforms, c = u.uCol.value, tc = X.beaconFx[b0].top.material.color;
         out.beacon0 = { col: [c.r, c.g, c.b].map(v => +v.toFixed(2)), alpha: u.uAlpha.value, top: [tc.r, tc.g, tc.b].map(v => +v.toFixed(2)) };
         if (!(c.b > c.g && c.g > c.r && Math.abs(u.uAlpha.value - 0.6) < 1e-6 && tc.b > tc.r)) fails.push('beacon state 0 is not cold blue ' + JSON.stringify(out.beacon0));
+        // glare budget: a marine inside a charging ring drops it to alpha 0.55 with no inner sweep
+        const b = DIR.beacons[b0], sv = [b.state, M.map((m) => [m.x, m.z])], away = () => { for (const m of M) { m.x = b.x + 30; m.z = b.z; } };
+        if (!u.uSweep || !X.beaconFx[b0].ind.material.fragmentShader.includes('uSweep')) fails.push('beacon ring has no uSweep knob');
+        b.state = 1; away(); P.x = b.x; P.z = b.z; F.renderFx(0, t);
+        out.beaconInside = { alpha: u.uAlpha.value, sweep: u.uSweep ? u.uSweep.value : null };
+        away(); F.renderFx(0, t);
+        out.beaconOutside = { alpha: u.uAlpha.value, sweep: u.uSweep ? u.uSweep.value : null };
+        b.state = sv[0]; M.forEach((m, k) => { [m.x, m.z] = sv[1][k]; }); F.renderFx(0, t);
+        if (out.beaconInside.alpha !== 0.55 || out.beaconInside.sweep !== 0 || out.beaconOutside.alpha !== 1 || out.beaconOutside.sweep !== 1) fails.push('beacon glare budget wrong ' + JSON.stringify([out.beaconInside, out.beaconOutside]));
       }
       // 4) the queen tint lands on DIR.q.uid only, and a 4.2x body just off screen is still drawn (no edge popping)
       const qi = L.queen();

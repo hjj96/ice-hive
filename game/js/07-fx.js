@@ -532,6 +532,14 @@ const beaconFx = LV.beacons.map((b) => {
 const liftInd = makeIndicator(LV.lift.r - 0.3);
 liftGroup.add(liftInd); liftInd.position.set(LV.lift.x, LIFT_Y + 0.06, LV.lift.z);
 const reviveInd = [0, 1, 2, 3].map(() => { const m = makeIndicator(1.5); m.visible = false; return m; });
+// glare budget (package B): a uSweep knob on the floor-ring shader, so renderFx can drop the inner sweep while a marine
+// stands in a charging beacon ring. Patched before anything renders, on the template and on every clone made so far
+// (later clones inherit it), so all rings keep sharing one program.
+for (const mt of [ringIndMat, ...beaconFx.map((f) => f.ind.material), liftInd.material, ...reviveInd.map((m) => m.material)]) {
+  if (mt.uniforms.uSweep || !mt.fragmentShader.includes('sweep * (1.0')) continue;
+  mt.uniforms.uSweep = { value: 1 };
+  mt.fragmentShader = mt.fragmentShader.replace('uniform float uAlpha;', 'uniform float uAlpha; uniform float uSweep;').replace('sweep * (1.0', 'sweep * uSweep * (1.0');
+}
 
 // ---------- weather: GPU-animated snowfall + motes rising from the abyss ----------
 const SNOW_MAX = 1300;
