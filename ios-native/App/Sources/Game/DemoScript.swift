@@ -15,6 +15,8 @@ import IceHiveCore
 //                   haptic, then a real horde) — CI hitch attribution
 //    -demo hold     beacons skipped, the squad on the lift holding out against a crowd
 //    -demo extract  like hold, then the lift rises and stays at extract + 2 s (gore rides along)
+//    -demo queen    like hold, and the Матка (v1.1 boss of the hold) climbs up at once (1 000 000 HP, so she
+//                   stays on the deck for the screenshot)
 //    -demo levelup  a forced level-up after 1.5 s: the upgrade cards
 //    -demo pause    the pause menu after 1.5 s
 //    -demo end      surrender after 1.5 s: the mission report (record highlight on)
@@ -39,7 +41,7 @@ final class DemoScript {
         switch d {
         case "combat", "smoke", "default": return DemoScript(name: d == "default" ? "combat" : d, bugs: options.bugs)
         case "beacon": return DemoScript(name: d, bugs: options.bugs)
-        case "title", "calm", "probe", "hold", "extract", "levelup", "pause", "end", "swarmshot": return DemoScript(name: d)
+        case "title", "calm", "probe", "hold", "extract", "queen", "levelup", "pause", "end", "swarmshot": return DemoScript(name: d)
         default:
             AppLog.error("unknown demo \(d), using combat")
             return DemoScript(name: "combat")
@@ -69,13 +71,17 @@ final class DemoScript {
             game.directorEnabled = false
             target = 0
             AppLog.info("demo calm: director off, squad idle")
-        case "hold", "extract":
+        case "hold", "extract", "queen":
             var guardN = 0
             while game.stage == .beacons && guardN < 6 { game.debugSkip(); guardN += 1 }
             if game.stage == .toLift { game.debugSkip() }
             target = 260
             let n = game.debugSpawn(target, type: nil, minRadius: 5, maxRadius: 18)
             AppLog.info("demo \(name): stage \(game.stage.rawValue), spawned \(n) bugs around the lift")
+            if name == "queen" {
+                let uid = game.debugQueen(hp: 1_000_000)
+                AppLog.info("v11 queen spawn t=\(String(format: "%.1f", game.time)) uid=\(uid) hp=1000000 tier=\(game.difficulty.id)")
+            }
         case "swarmshot":
             game.autopilot = false
             target = 0

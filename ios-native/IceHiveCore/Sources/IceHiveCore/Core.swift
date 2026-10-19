@@ -80,6 +80,11 @@ public struct SeededRNG {
         return t ^ (t >> 14)
     }
 
+    /// The exact JS mulberry32 value: UInt32 / 2^32 in [0, 1) (station generator; never the 24-bit `next()` there).
+    @inline(__always) public mutating func nextDouble() -> Double {
+        Double(nextUInt32()) / 4_294_967_296
+    }
+
     /// Uniform in [0, 1) (24 random bits: never returns 1.0).
     @inline(__always) public mutating func next() -> Float {
         Float(nextUInt32() >> 8) * (1.0 / 16_777_216.0)

@@ -2,7 +2,8 @@ name: native-ios
 
 # Native build of «Ледяной Улей» 2.0 (ios-native/): Swift, the world drawn with Metal, HUD / menus as a SpriteKit
 # scene in the same Metal pass. Results of every run are committed to branch `ci-results` under <branch>/<short-sha>/:
-#   status.json, core-tests.log, build.log, release-check.txt, metrics.txt, fps.txt, hitches.txt, <demo>-<s>s.png,
+#   status.json, core-tests.log, core-perf.log, calib.txt / calib.jsonl (v1.1 balance gate), build.log, release-check.txt,
+#   metrics.txt, fps.txt, hitches.txt, <demo>-<s>s.png,
 #   app-<demo>.log, app.log
 on:
   push:
@@ -11,6 +12,11 @@ on:
       - 'ios-native/**'
       - '.github/workflows/native-ios.yml'
   workflow_dispatch:
+    inputs:
+      calib:
+        description: 'calibration preset of the core-tests job (gate = the CI gate, full = 40 runs per class and tier)'
+        required: false
+        default: 'gate'
 
 concurrency:
   group: native-ios-${{ github.ref }}
@@ -60,6 +66,28 @@ jobs:
           { grep -E '\[perf\]|Test Case .*(passed|failed|skipped)|error:' "$GITHUB_WORKSPACE/results/core-perf.full.log" || true
             echo "release perf tests exit code: $rc"; } > "$GITHUB_WORKSPACE/results/core-perf.log"
           exit $rc
+      # v1.1 «Ставки» balance gate (README «v1.1 Ставки» → calibration): deterministic autopilot missions on the three
+      # tiers + AFK / passive / legacy rows, gated on the web bands (spec §5.2): rows calib.jsonl, table + verdict calib.txt
+      - name: Calibration gate (release)
+        if: success() || failure()
+        working-directory: ios-native/IceHiveCore
+        env:
+          CALIB_PRESET: ${{ github.event.inputs.calib || 'gate' }}
+        run: |
+          set -o pipefail
+          mkdir -p "$GITHUB_WORKSPACE/results"
+          swift build -c release --product icehive-calib 2>&1 | tail -n 5
+          .build/release/icehive-calib --preset "$CALIB_PRESET" --jobs 3 --out "$GITHUB_WORKSPACE/results/calib.jsonl" \
+            --summary "$GITHUB_WORKSPACE/results/calib.txt" --gate 2>&1 | tee "$GITHUB_WORKSPACE/results/calib.log"
+      # generated stations (seeds 0–4, Ветеран): informational while the stations flag is off
+      - name: Calibration on generated stations (informational)
+        if: success() || failure()
+        continue-on-error: true
+        working-directory: ios-native/IceHiveCore
+        run: |
+          .build/release/icehive-calib --preset stations --jobs 3 --out "$GITHUB_WORKSPACE/results/calib-stations.jsonl" \
+            --summary "$GITHUB_WORKSPACE/results/calib-stations.txt" > /dev/null 2>&1 || true
+          tail -n 12 "$GITHUB_WORKSPACE/results/calib-stations.txt" || true
       - name: Collect log
         if: always()
         run: |
@@ -386,6 +414,8 @@ jobs:
           # lift: holding out on the platform, then the extraction pinned at +2 s (gore rides up with the deck)
           run_demo hold 8 "-demo hold -seed 3" 0
           run_demo extract 10 "-demo extract -seed 3" 0
+          # v1.1: the Матка (boss of the hold) on the deck — a brute instance at scale 4.2, violet tint, volley rings
+          run_demo queen 10 "-demo queen -seed 3" 0 3
           # menus: upgrade cards, pause menu, mission report (30 Hz over the frozen world)
           run_demo levelup 4 "-demo levelup -seed 5" 0
           run_demo pause 4 "-demo pause -seed 5" 0
@@ -416,7 +446,7 @@ jobs:
           sleep 2
           run_demo release-combat 10 "-demo combat -seed 7" 0
           xcrun simctl spawn "$UDID" launchctl list | grep -i icehive | tee results/launchctl.txt || true
-          demos="firstlaunch combat beacon swarmshot swarmshot-dots swarm swarm3x calm title landscape probe hold extract levelup pause end release-combat"
+          demos="firstlaunch combat beacon swarmshot swarmshot-dots swarm swarm3x calm title landscape probe hold extract queen levelup pause end release-combat"
           for d in $demos; do
             f=results/app-$d.log
             { echo "== $f"; grep -h -E 'loading took|pipelines built|metal world ready|demo done' "$f" || true; } >> results/fps.txt
@@ -439,7 +469,7 @@ jobs:
           grep -q 'scene ready' results/app-stdout.log || { echo "::error::no 'scene ready' line in app stdout"; exit 1; }
           grep -q 'hb t=' results/app-stdout.log || { echo "::error::no heartbeat lines in app stdout"; exit 1; }
           grep -q 'mode=playing' results/app-stdout.log || { echo "::error::combat demo never reached the mission"; exit 1; }
-          for d in combat beacon swarmshot title extract levelup pause end release-combat; do
+          for d in combat beacon swarmshot title extract queen levelup pause end release-combat; do
             grep -q 'scene ready' "results/app-$d.log" || { echo "::error::$d: no 'scene ready'"; exit 1; }
             grep -q 'rend=metal' "results/app-$d.log" || { echo "::error::$d: no Metal heartbeat lines"; exit 1; }
             if grep -q 'ERROR' "results/app-$d.log"; then echo "::error::$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; exit 1; fi
@@ -448,7 +478,7 @@ jobs:
           if [ -s results/app-release-quiet.log ]; then echo "::error::plain Release launch wrote to stdout: $(head -3 results/app-release-quiet.log)"; exit 1; fi
       # warm demos: minFps >= 55 on the game loop and no loop hitch > 50 ms after the first second (metrics.txt)
       - name: Frame metrics gate
-        run: python3 ios-native/ci/frame_metrics.py --gate --cold firstlaunch --cold-max-ms 150 --menus levelup,pause,end results firstlaunch combat beacon swarmshot swarmshot-dots swarm swarm3x calm title landscape probe hold extract levelup pause end release-combat
+        run: python3 ios-native/ci/frame_metrics.py --gate --cold firstlaunch --cold-max-ms 150 --menus levelup,pause,end results firstlaunch combat beacon swarmshot swarmshot-dots swarm swarm3x calm title landscape probe hold extract queen levelup pause end release-combat
       - name: Collect crash logs and stop
         if: always()
         env:
