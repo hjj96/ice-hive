@@ -169,9 +169,13 @@ fragment float4 fs_level(KitOut in [[stage_in]],
                          texture2d<float> aoAtlas [[texture(10)]]
                          LEVEL_LIGHT_PARAMS) {
     if (P.misc.y > 0.5) {
-        // -deckMask (look-dev): the walkable deck tops (WorldLevel tints them pure green) flat green, the rest black
+        // -deckMask (look-dev): the walkable deck tops (WorldLevel tints them pure green) flat green, the snow drifts
+        // blue, the icicles red, the rest black (a script checks the deck's luma and that no snow lies past a rail)
         bool deck = all(abs(in.albedo - float3(0.0, 1.0, 0.0)) < float3(0.002));
-        return float4(deck ? float3(0.0, 0.6, 0.0) : float3(0.0), 1.0);
+        float3 c = deck ? float3(0.0, 0.6, 0.0) : float3(0.0);
+        if ((in.flags & KF_SNOW) != 0u) c = float3(0.0, 0.0, 0.6);
+        if ((in.flags & KF_ICE) != 0u) c = float3(0.6, 0.0, 0.0);
+        return float4(c, 1.0);
     }
     float3 Nv = normalize(in.normal);
     float3 V = normalize(F.camPos.xyz - in.world);

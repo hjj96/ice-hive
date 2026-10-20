@@ -66,8 +66,9 @@ final class WorldLevel {
     /// Beacon heads vs_kit can spin (Level.metal LEVEL_HEADS).
     static let maxHeads = 8
     /// Look-dev (`-deckMask`, with `-hideHUD` on a CI test branch): the walkable deck tops (decks, stair treads, the lift
-    /// deck) drawn flat green and the rest of the station black, without the pad mark and the floor pools — the mask a
-    /// script lays over the same deterministic shot (`-demo calm`) to take the deck's median luma (WP6 acceptance 40–55).
+    /// deck) drawn flat green, the snow drifts blue, the icicles red and the rest of the station black, without the pad
+    /// mark and the floor pools — the mask a script lays over the same deterministic shot (`-demo calm`) to take the
+    /// deck's median luma (WP6 acceptance 40–55) and to check that no snow lies past a rail line.
     static let deckMask = LaunchOptions.current.unknown.contains("-deckMask")
     /// The deck tint, or the mask's marker (pure green, matched exactly in fs_level) under `-deckMask`.
     private static func deckTint(_ c: UInt32) -> UInt32 { deckMask ? 0x00ff00 : c }
