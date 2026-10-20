@@ -212,7 +212,17 @@ final class HUD {
     private var toasts: [Toast] = []
     private let toastRoot = SKNode()
     private let hint = Label("", font: Fonts.semibold, size: 14, color: UIPalette.amber, kern: 1.1)
+    /// Second line of a hint wider than its gap (web #hHint wraps at min(90 vw, 560) in portrait, between the stick
+    /// rings in landscape): the v1.1 hold hints are ~450 pt, the revive lines ~370 pt. Two single-line labels, no
+    /// wrapped label (TextWarmup), same style as the first line.
+    private let hint2 = Label("", font: Fonts.semibold, size: 14, color: UIPalette.amber, kern: 1.1)
     private var hintUrgent = false
+    /// Uppercased hint text, the widest a line may be, the first line's centre and whether a second line goes above
+    /// it (landscape: the web anchors the hint at its bottom) or below (portrait: at its top).
+    private var hintText = ""
+    private var hintMaxW: CGFloat = 360
+    private var hintBase = CGPoint.zero
+    private var hintUp = false
     private let banner = SKNode()
     private let bannerTitle = Label("", font: Fonts.bold, size: 34, color: UIPalette.red, kern: 4)
     private let bannerSub = Label("", font: Fonts.medium, size: 12, color: UIPalette.ink, kern: 3.6)
@@ -283,6 +293,7 @@ final class HUD {
         markerRing.zPosition = -1
         root.addChild(toastRoot)
         root.addChild(hint.node)
+        root.addChild(hint2.node)
         banner.addChild(bannerBand)
         for _ in 0..<2 {
             let s = SKSpriteNode(texture: nil)
@@ -413,8 +424,12 @@ final class HUD {
         hpCap.node.position = hp(bx, bottom - 12 - 6 - 9 - 4 - 8)
         hpVal.node.position = hp(bx + boxW, bottom - 12 - 6 - 9 - 4 - 8)
 
-        // hint: portrait phones show it under the objective + squad list (web: top 226 + safe top), landscape low
-        hint.node.position = landscape ? hp(W / 2 - 45, H - 64 - sb) : hp(W / 2, 226 + st + 8)
+        // hint: portrait phones show it under the objective + squad list (web: top 226 + safe top), landscape low, in
+        // the gap between the stick rings (web: min(440, 100vw − 2·max(90, 16vw) − 230)); a longer one takes two lines
+        hintBase = landscape ? hp(W / 2 - 45, H - 64 - sb) : hp(W / 2, 226 + st + 8)
+        hintUp = landscape
+        hintMaxW = landscape ? max(160, min(440, W - 2 * max(90, W * 0.16) - 230)) : min(W * 0.9, 560)
+        fitHint()
 
         // touch buttons (#tAbility / #tDash)
         let rIn = insets.right
@@ -734,6 +749,63 @@ final class HUD {
     /// HUD point on the coach card's «Пропустить»?
     func coachSkipHit(_ p: CGPoint) -> Bool { !root.isHidden && coachCard.contains(p) }
 
+    /// The hint in one line, or in two when it is wider than `hintMaxW` (split at « · » / « — », else the middle
+    /// space); a line that is still too wide (667 pt landscape) scales both down. Runs on a text change or a layout.
+    private func fitHint() {
+        let t = hintText
+        var l1 = t, l2 = ""
+        var widest = t.isEmpty ? 0 : HUD.hintWidth(t)
+        if widest > hintMaxW {
+            (l1, l2) = HUD.splitHint(t)
+            widest = l2.isEmpty ? widest : max(HUD.hintWidth(l1), HUD.hintWidth(l2))
+        }
+        hint.set(l1)
+        hint2.set(l2)
+        let s = widest > hintMaxW ? max(0.6, hintMaxW / widest) : 1
+        hint.node.setScale(s)
+        hint2.node.setScale(s)
+        if AppLog.diagnostics && !l2.isEmpty {
+            AppLog.info(String(format: "hint 2 lines widest=%.0f max=%.0f scale=%.2f", widest, hintMaxW, s) + " «\(l1)» / «\(l2)»")
+        }
+        let lh = 17 * s
+        if l2.isEmpty {
+            hint.node.position = hintBase
+        } else if hintUp {
+            hint.node.position = CGPoint(x: hintBase.x, y: hintBase.y + lh)
+            hint2.node.position = hintBase
+        } else {
+            hint.node.position = hintBase
+            hint2.node.position = CGPoint(x: hintBase.x, y: hintBase.y - lh)
+        }
+    }
+
+    /// Width of one hint line (the hint label's font, size and letter spacing).
+    private static func hintWidth(_ t: String) -> CGFloat {
+        NSAttributedString(string: t, attributes: [.font: Fonts.font(Fonts.semibold, 14), .kern: CGFloat(1.1)]).size().width
+    }
+
+    /// Two lines of a long hint: at « · » (dropped) or « — » (kept at the end of the first line), whichever leaves the
+    /// shorter longer line; else at the space nearest the middle. «КОНТУР БЬЁТ КАЖДЫЕ 6 С —» / «У КРАЯ СЛАБЕЕ, …».
+    static func splitHint(_ t: String) -> (String, String) {
+        let c = Array(t), n = c.count
+        var best = (score: Int.max, end: -1, start: -1)
+        if n >= 3 {
+            for i in 0...(n - 3) where c[i] == " " && c[i + 2] == " " && (c[i + 1] == "·" || c[i + 1] == "—") {
+                let end = c[i + 1] == "—" ? i + 2 : i
+                let score = max(end, n - (i + 3))
+                if score < best.score { best = (score, end, i + 3) }
+            }
+        }
+        if best.end < 0 {
+            for i in 0..<n where c[i] == " " {
+                let score = max(i, n - i - 1)
+                if score < best.score { best = (score, i, i + 1) }
+            }
+        }
+        if best.end <= 0 || best.start >= n { return (t, "") }
+        return (String(c[0..<best.end]), String(c[best.start...]))
+    }
+
     // ---------------------------------------------------------------- per frame
     /// `keyboard`: the last input was a hardware keyboard (the coach names keys, no ghost thumb).
     func update(game: Game, dt: Float, projection: HUDProjection, input: InputController, keyboard: Bool = false) {
@@ -785,9 +857,15 @@ final class HUD {
         var h = ""
         var urgent = false
         if let c = game.contextHint { h = c.text; urgent = c.urgent } else if game.showControlHint && !P.downed { h = "Левый палец — бег · правый — прицел и огонь" }
-        if h != hintRaw { hintRaw = h; hint.set(h.uppercased()) }
-        if urgent != hintUrgent { hintUrgent = urgent; hint.color = urgent ? UIPalette.red : UIPalette.amber }
-        hint.node.alpha = urgent ? (sinf(game.time * 7.85) > 0 ? 1 : 0.35) : 1
+        if h != hintRaw { hintRaw = h; hintText = h.uppercased(); fitHint() }
+        if urgent != hintUrgent {
+            hintUrgent = urgent
+            hint.color = urgent ? UIPalette.red : UIPalette.amber
+            hint2.color = hint.color
+        }
+        let ha: CGFloat = urgent ? (sinf(game.time * 7.85) > 0 ? 1 : 0.35) : 1
+        hint.node.alpha = ha
+        hint2.node.alpha = ha
 
         // VX-5: a squadmate's row only while downed, under 35 % armour, or with its plate off screen / under the top band
         var shown = 0

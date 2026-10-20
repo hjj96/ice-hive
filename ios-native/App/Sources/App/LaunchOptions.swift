@@ -3,7 +3,7 @@ import Foundation
 /// Launch arguments, e.g. `-demo combat -seconds 40 -debugHUD`.
 /// Used by the CI simulator smoke test (`xcrun simctl launch … -demo combat`).
 struct LaunchOptions {
-    /// Demo / scripted scenario name (`-demo combat|beacon|title|calm|probe|hold|extract|queen|queenlock|coach|pressure|report|levelup|pause|end`),
+    /// Demo / scripted scenario name (`-demo combat|beacon|title|calm|probe|hold|holdhint|extract|queen|queenlock|coach|pressure|report|levelup|pause|end`),
     /// nil for a normal start.
     var demo: String?
     /// Optional scenario duration in seconds (`-seconds N`): logs "demo done" with the fps summary.

@@ -59,7 +59,8 @@ final class DemoScript {
         switch d {
         case "combat", "smoke", "default": return DemoScript(name: d == "default" ? "combat" : d, options: options, bugs: options.bugs)
         case "beacon": return DemoScript(name: d, options: options, bugs: options.bugs)
-        case "title", "calm", "probe", "hold", "extract", "queen", "queenlock", "coach", "pressure", "report", "levelup", "pause", "end", "swarmshot":
+        case "title", "calm", "probe", "hold", "holdhint", "extract", "queen", "queenlock", "coach", "pressure", "report", "levelup", "pause", "end",
+             "swarmshot":
             return DemoScript(name: d, options: options)
         default:
             AppLog.error("unknown demo \(d), using combat")
@@ -97,7 +98,7 @@ final class DemoScript {
             game.directorEnabled = false
             target = 0
             AppLog.info("demo calm: director off, squad idle")
-        case "hold", "extract", "queen", "queenlock":
+        case "hold", "holdhint", "extract", "queen", "queenlock":
             var guardN = 0
             while game.stage == .beacons && guardN < 6 { game.debugSkip(); guardN += 1 }
             if game.stage == .toLift { game.debugSkip() }
@@ -185,6 +186,9 @@ final class DemoScript {
             game.debugSetLiftTime(0.01)
             AppLog.info("demo queenlock: lift countdown out, queen alive=\(game.queen.alive)")
         }
+        // holdhint: the countdown pinned in its first 8 s, so the tier's lift-pulse hint («Контур бьёт каждые 6 с — …»,
+        // two lines on a phone) stays up for the screenshot taken after the measured window (mission time ≥ 7 s)
+        if name == "holdhint" && game.stage == .hold { game.debugSetLiftTime(LIFT_TIME - 3) }
         if name == "extract" {
             if game.stage == .hold && t >= 6 { game.debugSkip() }
             if game.stage == .extract { game.debugPinExtract(2.0) }
