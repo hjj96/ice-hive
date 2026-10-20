@@ -43,6 +43,10 @@ try {
   for (const n of Object.keys(man.meshes)) G[n] = await loadMesh(n);
   const T = {};
   for (const n of Object.keys(man.textures)) T[n] = await loadTex(n);
+  // the station (level_* / lift_* meshes, grating / slab / hazard / snow textures) is retired from this exporter: it
+  // comes from the Blender kit now (tools/blender, App/Resources/Kit); a neutral stand-in keeps the materials valid
+  const none = new THREE.DataTexture(new Uint8Array([128, 128, 128, 255]), 1, 1); none.needsUpdate = true;
+  for (const n of ['grating', 'slab', 'hazard', 'snow']) if (!T[n]) T[n] = none;
   T.snow.minFilter = THREE.LinearFilter; T.snow.generateMipmaps = false;
 
   // ---- materials (reduced versions of the game's, enough to see colours / glow / uv / legs / snow)
@@ -118,9 +122,11 @@ try {
   lvl.background = new THREE.Color(0x1a2737);
   rig(lvl);
   const hz = mesh(G.level_haze, M.haze); hz.renderOrder = -1; lvl.add(hz);
-  lvl.add(mesh(G.level_floor_grating, M.grating), mesh(G.level_floor_slab, M.slab), mesh(G.level_props, M.props),
-    mesh(G.level_hazard, M.hazard), mesh(G.level_pad_mark, M.pad), mesh(G.level_glow, M.glowq),
-    mesh(G.lift_floor, M.grating), mesh(G.lift_props, M.props));
+  const opt = (n, m) => G[n] ? [mesh(G[n], m)] : [];
+  lvl.add(...opt('level_floor_grating', M.grating), ...opt('level_floor_slab', M.slab), ...opt('level_props', M.props),
+    ...opt('level_hazard', M.hazard), ...opt('level_pad_mark', M.pad), ...opt('level_glow', M.glowq),
+    ...opt('lift_floor', M.grating), ...opt('lift_props', M.props));
+  if (!G.level_props) { const deck = new THREE.Mesh(new THREE.PlaneGeometry(40, 40).rotateX(-Math.PI / 2), M.grating); deck.position.set(30, 0, 30); lvl.add(deck); }
   // one of each bug + a marine squad standing on the landing pad (visible in the close-up)
   const BUGS = [['runner', 0.8], ['spitter', 1.02], ['brute', 2.0], ['boomer', 1.15]];
   BUGS.forEach(([n, s], k) => { const o = mesh(G['bug_' + n], bugMat(k * 1.3), 26 + k * 2.2, 0, 27); o.scale.setScalar(s); o.rotation.y = Math.PI * 0.25; lvl.add(o); });
@@ -149,7 +155,7 @@ try {
   ROWS[1].push(() => [mesh(G.medkit, M.props), 0.6]);
   ROWS[1].push(() => [mesh(G.glob, M.unlit, 0, 0.4, 0), 0.4]);
   ROWS[1].push(() => [mesh(G.grenade, M.unlit, 0, 0.3, 0), 0.35]);
-  ROWS[1].push(() => [mesh(G.beacon_top, M.unlit, 0, 0.6, 0), 0.6]);
+  if (G.beacon_top) ROWS[1].push(() => [mesh(G.beacon_top, M.unlit, 0, 0.6, 0), 0.6]);
   // rows along the screen-right axis (x - z), the second row nearer the camera (screen-down = +x +z)
   const RX = Math.SQRT1_2, RZ = -Math.SQRT1_2, DX = Math.SQRT1_2, DZ = Math.SQRT1_2;
   ROWS.forEach((row, r) => {

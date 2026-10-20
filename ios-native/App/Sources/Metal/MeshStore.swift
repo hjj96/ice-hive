@@ -4,16 +4,20 @@ import ImageIO
 import CoreGraphics
 
 // ================================================================
-//  MESH STORE — loads the meshes and textures exported from the web
-//  game (ios-native/tools/export-meshes.mjs → App/Resources/Meshes,
-//  flat in the bundle root): IHM1 binaries (little-endian: magic,
-//  u32 vertexCount, u32 indexCount, u32 flags; interleaved vertices
-//  of position, normal, colour (linear), aGlow, aLeg; u32 indices),
-//  manifest.json (texture colour spaces, wrap modes) and PNG textures
-//  decoded with ImageIO into straight-alpha RGBA (MTKTextureLoader
-//  premultiplied them: the haze, glow pools and pad mark lost most of
-//  their light). A missing file is logged and replaced by a small
-//  placeholder so the renderer always has something to draw.
+//  MESH STORE — loads the meshes and textures still exported from the
+//  web game (legacy, retired piece by piece as the Blender pipeline's
+//  assets land: ios-native/tools/export-meshes.mjs →
+//  App/Resources/Meshes, flat in the bundle root): IHM1 binaries
+//  (little-endian: magic, u32 vertexCount, u32 indexCount, u32 flags;
+//  interleaved vertices of position, normal, colour (linear), aGlow,
+//  aLeg; u32 indices), manifest.json (texture colour spaces, wrap
+//  modes) and PNG textures decoded with ImageIO into straight-alpha
+//  RGBA (MTKTextureLoader premultiplied them: the haze, glow pools and
+//  pad mark lost most of their light). A missing file is logged and
+//  replaced by a small placeholder so the renderer always has
+//  something to draw. The station is no longer IHM1: `kit` (KitStore)
+//  loads the Blender kit — Kit/station.ihk and the trim sheets — in
+//  the same preload.
 // ================================================================
 struct GPUMesh {
     let name: String
@@ -42,9 +46,12 @@ final class MeshStore {
     /// Tileable value noise for the particle edges (07-fx.js NOISE_TEX).
     private(set) var noise: MTLTexture?
     private var white: MTLTexture?
+    /// The station kit (Kit/*.ihk, *.iht: the Blender pipeline's pieces, trim sheets, AO atlas), loaded with the rest.
+    let kit: KitStore
 
     init(device: MTLDevice) {
         self.device = device
+        kit = KitStore(device: device)
     }
 
     static let meshNames: [String] = [
@@ -53,17 +60,14 @@ final class MeshStore {
         "marine_pyro_body", "marine_pyro_leg", "marine_pyro_gun",
         "marine_cryo_body", "marine_cryo_leg", "marine_cryo_gun",
         "marine_gunner_body", "marine_gunner_leg", "marine_gunner_gun",
-        "level_floor_grating", "level_floor_slab", "level_props", "level_hazard", "level_pad_mark", "level_glow", "level_haze",
-        "lift_floor", "lift_props", "turret_base", "turret_head", "medkit", "glob", "grenade", "beacon_top",
+        "level_haze", "turret_base", "turret_head", "medkit", "glob", "grenade",
     ]
 
     /// (name, file, sRGB, mipmaps) — overridden by manifest.json when it is present.
     private static let textureDefaults: [(String, String, Bool, Bool)] = [
-        ("grating", "tex_grating", true, true), ("slab", "tex_slab", true, true), ("hazard", "tex_hazard", true, true),
         ("pad", "tex_pad", true, true), ("decals", "tex_decals", true, true), ("glow", "tex_glow", false, false),
         ("ring", "tex_ring", false, false), ("fill", "tex_fill", false, false), ("lane", "tex_lane", false, false),
-        ("dash", "tex_dash", false, false), ("streak", "tex_streak", false, false), ("snow", "tex_snow", false, false),
-        ("haze", "tex_haze", true, false),
+        ("dash", "tex_dash", false, false), ("streak", "tex_streak", false, false), ("haze", "tex_haze", true, false),
     ]
 
     private func url(_ name: String, _ ext: String) -> URL? {
@@ -93,13 +97,14 @@ final class MeshStore {
         }
         noise = makeNoise()
         white = makeWhite()
+        let kitLine = kit.loadAll(queue: queue)
         let ms = (FrameTimer.now() - t0) * 1000
         var tris = 0
         for m in meshes.values { tris += m.indexCount / 3 }
         let gl = ["bug_runner", "bug_spitter", "bug_brute", "bug_boomer"].map { String((meshes[$0]?.glints.count ?? 0) / 2) }.joined(separator: "/")
         return String(format: "meshes %d (%d triangles, %.1f MB) textures %d in %.0f ms", meshes.count, tris,
                       Double(bytesLoaded) / 1_048_576, textures.count, ms) + " glints " + gl
-            + (missing.isEmpty ? "" : " MISSING: " + missing.joined(separator: ", "))
+            + (missing.isEmpty ? "" : " MISSING: " + missing.joined(separator: ", ")) + " | " + kitLine
     }
 
     func mesh(_ name: String) -> GPUMesh {

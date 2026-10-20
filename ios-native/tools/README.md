@@ -26,7 +26,17 @@ node ios-native/tools/fetch-fonts.mjs        # шрифты Oswald / JetBrains M
 `pack-sheets.mjs`, `art/Sprites/`); они удалены вместе с SpriteKit-рендером мира и остаются в истории git
 (последний коммит с ними — `db58a09`).
 
-## Меши для Metal-рендера (`export-meshes.mjs`)
+## Конвейер Blender (`blender/`, `textures/astc.sh`)
+
+Новые ассеты версии 2.0 — кит станции (`App/Resources/Kit`: детали `station.ihk`, трим-листы и атлас AO в ASTC),
+затем жуки, бойцы и зонд окружения — строит headless Blender из Python: [`blender/README.md`](blender/README.md).
+Выход детерминирован и коммитится; гейты ассетов — `python3 ios-native/tools/blender/gates.py`.
+
+## Меши для Metal-рендера (`export-meshes.mjs`, уходит)
+
+Экспортёр из веб-игры выводится из обращения по мере появления ассетов конвейера Blender: станция (`level_*`,
+`lift_*`, `beacon_top`, текстуры `grating`, `slab`, `hazard`, `snow`) им больше не пишется — её заменил кит
+(`RETIRED` в `export-meshes.mjs`); жуки, бойцы, трупы и мелкие предметы пока остаются отсюда.
 
 Те же построители геометрии игры (`buildBugGeometry`, `buildMarineGeos`, уровень из `04-level.js`, турель / аптечка /
 плевок / граната из `07-fx.js`) и те же канвас-текстуры `TEX.*` + маска снега, выгруженные как есть в
