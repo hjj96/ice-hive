@@ -211,10 +211,19 @@ fragment float4 fs_level(KitOut in [[stage_in]],
         rough = max(rough, 0.55);
     }
     if ((fl & KF_SNOW) != 0u) {
-        albedo = float3(0.84, 0.9, 1.0) * P.look.w;
+        // wind-packed snow: low ripples across one wind direction (≈ 0.4 m apart, bent by a slow wave) tilt the normal
+        // and shade the albedo a little, so a lamp or a flashlight draws ridges on a drift instead of lighting a smooth
+        // pillow; no sparkle (frost's glitter is out). The ripples fade to the plain mound where one would be under
+        // ~3 px (no shimmer at the gameplay camera's far decks).
+        float2 wp = in.world.xz;
+        float ph = dot(wp, float2(0.83, 0.55)) * 2.5 + 0.35 * sin(dot(wp, float2(-0.55, 0.83)) * 1.9);
+        float fade = 1.0 - saturate(fwidth(ph) * 3.0 - 0.5);
+        float s = sin(ph * 6.2832), c = cos(ph * 6.2832);
+        float3 wind = float3(0.83, 0.0, 0.55);
+        albedo = float3(0.84, 0.9, 1.0) * P.look.w * (1.0 - 0.1 * fade * (0.5 - 0.5 * s));
         rough = 0.9;
         metal = 0.0;
-        N = Nv;
+        N = normalize(Nv + wind * (0.35 * c * fade * saturate(Nv.y)));
     }
     if ((fl & KF_ICE) != 0u) {
         // clear blue ice: light enough to catch the flashlight and the strip above it against the abyss
