@@ -360,11 +360,19 @@ final class WorldLevel {
     /// The drift pieces' placement scale (length x, height y, width z): the kit's drifts (2–2.7 × 0.56–0.7 × 0.15–0.19 m)
     /// were a few pixels wide at the gameplay camera; frost's drifts banked against the railings read at phone size.
     static let driftScale = F3(1.45, 1.4, 1.6)
+    /// Deck metalness (× the trim's metal mask): grating 0.3, slab / stair treads 0.22 — with Col.deck / Col.plate a
+    /// diffuse response ~1.9× / ~1.6× the first kit's, the deck's unlit median out of the ACES toe.
+    static let gratingMetal: Float = 0.3, plateMetal: Float = 0.22
 
     // palette (sRGB), kitgeo.py C
     private enum Col {
         static let steel: UInt32 = 0x46515c, steelD: UInt32 = 0x29313a, steelL: UInt32 = 0x6a7784, rail: UInt32 = 0x73808c
-        static let girder: UInt32 = 0x1f262e, support: UInt32 = 0x1a2129, deck: UInt32 = 0x3d4651, plate: UInt32 = 0x434c57
+        static let girder: UInt32 = 0x1f262e, support: UInt32 = 0x1a2129
+        /// The walkable deck: painted grating and slab steel, a value step above the girders and the abyss so the dark
+        /// swarm reads against it at phone size (crisp's readability) while the deck stays dark (HUD-off deck median
+        /// ≈ 35–50 under WP2's moonlight; frost's silver deck at 71–78 is out). Was 0x3d4651 / 0x434c57 at metalness
+        /// 0.5 / 0.35: a diffuse albedo of ~2–4 % after the trim's metal mask and AO, near-black outside the beams.
+        static let deck: UInt32 = 0x4b5664, plate: UInt32 = 0x515b68
         static let teal: UInt32 = 0x2af5e0, cyan: UInt32 = 0x38d8ff, amber: UInt32 = 0xffa21a, red: UInt32 = 0xff2a3a
         static let green: UInt32 = 0x3dff9a, orange: UInt32 = 0xff5a1a, dark: UInt32 = 0x0d1115, nosing: UInt32 = 0x8d99a6
         static let crate: [UInt32] = [0x6f7d58, 0x4f6b92, 0x9a6530]
@@ -444,10 +452,10 @@ final class WorldLevel {
 
     // ---------------------------------------------------------------- decks
     private func deckMat(_ kind: FloorKind) -> KitMat {
-        // painted / galvanised steel: low metalness (× the trim's metal mask) so the flashlight pools read as light on
-        // the deck, not as a dark mirror
-        kind == .slab ? KitMat(tint: WorldLevel.deckTint(Col.plate), metal: 0.35, layer: Trim.panels, flags: KitFlag.frost)
-            : KitMat(tint: WorldLevel.deckTint(Col.deck), metal: 0.5, layer: Trim.gratings, flags: KitFlag.frost)
+        // painted / galvanised steel: low metalness (× the trim's metal mask) so the flashlight pools and the moonlight
+        // read as light on the deck, not as a dark mirror of the abyss
+        kind == .slab ? KitMat(tint: WorldLevel.deckTint(Col.plate), metal: WorldLevel.plateMetal, layer: Trim.panels, flags: KitFlag.frost)
+            : KitMat(tint: WorldLevel.deckTint(Col.deck), metal: WorldLevel.gratingMetal, layer: Trim.gratings, flags: KitFlag.frost)
     }
 
     /// Top quad x0..x1 × z0..z1 at height y (counter-clockwise seen from above).
@@ -480,7 +488,7 @@ final class WorldLevel {
                 if stairs {
                     let n = max(1, Int(((b - a) / stepD).rounded()))
                     let bot = min(ha, hb) - 0.5
-                    let tread = KitMat(tint: WorldLevel.deckTint(Col.plate), metal: 0.35, layer: Trim.panels, flags: KitFlag.frost)
+                    let tread = KitMat(tint: WorldLevel.deckTint(Col.plate), metal: WorldLevel.plateMetal, layer: Trim.panels, flags: KitFlag.frost)
                     let side = KitMat(tint: Col.steelD, metal: 0.7, layer: Trim.panels)
                     for s in 0..<n {
                         let za = a + Float(s) * stepD, zb = za + stepD
@@ -944,7 +952,7 @@ final class WorldLevel {
     // ---------------------------------------------------------------- the lift (one chunk, raised at the extraction)
     private func buildLift() {
         let L = level.layout.lift, Y = L.y, m = liftMesh
-        let deck = KitMat(tint: WorldLevel.deckTint(Col.deck), metal: 0.5, layer: Trim.gratings, flags: KitFlag.frost)
+        let deck = KitMat(tint: WorldLevel.deckTint(Col.deck), metal: WorldLevel.gratingMetal, layer: Trim.gratings, flags: KitFlag.frost)
         m.disc(o: F3(L.x, 0, L.z), r: L.r, y: Y + 0.03, seg: 64, deck)
         // rim: chamfered lip + skirt, teal ring under it
         m.lathe(o: F3(L.x, Y, L.z), [(L.r, -0.7), (L.r + 0.15, -0.55), (L.r + 0.15, -0.05), (L.r, 0.03)], seg: 64,
