@@ -42,7 +42,7 @@ struct LevelParams {
     var lift = F4(0, 0, 0, 0)
     /// x rime strength, y contact-AO strength, z chamfer wear, w snow albedo.
     var look = F4(1, 0.65, 0.55, 0.5)
-    /// x = 1 on the High tier (wet trails, ice rim, grid-light specular).
+    /// x = 1 on the High tier (wet trails, ice rim, grid-light specular); y = 1: the `-deckMask` look-dev view.
     var misc = F4(0, 0, 0, 0)
     /// World mask: xy world origin, z 1 / size (m).
     var mask = F4(-GRID_HALF, -GRID_HALF, 1 / (2 * GRID_HALF), 0)
@@ -65,6 +65,12 @@ final class WorldLevel {
     static let mergeGapTriangles = 6000
     /// Beacon heads vs_kit can spin (Level.metal LEVEL_HEADS).
     static let maxHeads = 8
+    /// Look-dev (`-deckMask`, with `-hideHUD` on a CI test branch): the walkable deck tops (decks, stair treads, the lift
+    /// deck) drawn flat green and the rest of the station black, without the pad mark and the floor pools — the mask a
+    /// script lays over the same deterministic shot (`-demo calm`) to take the deck's median luma (WP6 acceptance 40–55).
+    static let deckMask = LaunchOptions.current.unknown.contains("-deckMask")
+    /// The deck tint, or the mask's marker (pure green, matched exactly in fs_level) under `-deckMask`.
+    private static func deckTint(_ c: UInt32) -> UInt32 { deckMask ? 0x00ff00 : c }
 
     /// The station drawn; `rebuild(level:)` switches it (v1.1 generated stations).
     private(set) var level: Level
@@ -130,6 +136,7 @@ final class WorldLevel {
         psShadow = r.pipeline("shadowKit")
         psPad = r.pipeline("pad")
         psGlowQuads = r.pipeline("glowQuads")
+        if WorldLevel.deckMask { params.misc.y = 1 }
         assemble()
         r.register(.opaque, order: 100, "station") { [unowned self] enc in self.encodeStation(enc) }
         r.register(.shadowCasters, order: 50, "station casters") { [unowned self] enc in self.encodeCasters(enc) }
@@ -303,7 +310,7 @@ final class WorldLevel {
 
     /// Transparent item 110: the landing-pad mark (alpha).
     private func encodePad(_ enc: MTLRenderCommandEncoder) {
-        guard let ps = psPad, let vb = padV, let ib = padI else { return }
+        guard !WorldLevel.deckMask, let ps = psPad, let vb = padV, let ib = padI else { return }
         let r = renderer!
         r.use(enc, ps)
         r.bindMain(enc, texPad)
@@ -319,7 +326,7 @@ final class WorldLevel {
 
     /// Transparent item 120: the unlit floor light pools (additive).
     private func encodeGlows(_ enc: MTLRenderCommandEncoder) {
-        guard let ps = psGlowQuads, let vb = glowV, let ib = glowI, glowCount > 0 else { return }
+        guard !WorldLevel.deckMask, let ps = psGlowQuads, let vb = glowV, let ib = glowI, glowCount > 0 else { return }
         let r = renderer!
         r.use(enc, ps)
         r.bindMain(enc, texGlow)
@@ -438,8 +445,8 @@ final class WorldLevel {
     private func deckMat(_ kind: FloorKind) -> KitMat {
         // painted / galvanised steel: low metalness (× the trim's metal mask) so the flashlight pools read as light on
         // the deck, not as a dark mirror
-        kind == .slab ? KitMat(tint: Col.plate, metal: 0.35, layer: Trim.panels, flags: KitFlag.frost)
-            : KitMat(tint: Col.deck, metal: 0.5, layer: Trim.gratings, flags: KitFlag.frost)
+        kind == .slab ? KitMat(tint: WorldLevel.deckTint(Col.plate), metal: 0.35, layer: Trim.panels, flags: KitFlag.frost)
+            : KitMat(tint: WorldLevel.deckTint(Col.deck), metal: 0.5, layer: Trim.gratings, flags: KitFlag.frost)
     }
 
     /// Top quad x0..x1 × z0..z1 at height y (counter-clockwise seen from above).
@@ -472,7 +479,7 @@ final class WorldLevel {
                 if stairs {
                     let n = max(1, Int(((b - a) / stepD).rounded()))
                     let bot = min(ha, hb) - 0.5
-                    let tread = KitMat(tint: Col.plate, metal: 0.35, layer: Trim.panels, flags: KitFlag.frost)
+                    let tread = KitMat(tint: WorldLevel.deckTint(Col.plate), metal: 0.35, layer: Trim.panels, flags: KitFlag.frost)
                     let side = KitMat(tint: Col.steelD, metal: 0.7, layer: Trim.panels)
                     for s in 0..<n {
                         let za = a + Float(s) * stepD, zb = za + stepD
@@ -936,7 +943,7 @@ final class WorldLevel {
     // ---------------------------------------------------------------- the lift (one chunk, raised at the extraction)
     private func buildLift() {
         let L = level.layout.lift, Y = L.y, m = liftMesh
-        let deck = KitMat(tint: Col.deck, metal: 0.5, layer: Trim.gratings, flags: KitFlag.frost)
+        let deck = KitMat(tint: WorldLevel.deckTint(Col.deck), metal: 0.5, layer: Trim.gratings, flags: KitFlag.frost)
         m.disc(o: F3(L.x, 0, L.z), r: L.r, y: Y + 0.03, seg: 64, deck)
         // rim: chamfered lip + skirt, teal ring under it
         m.lathe(o: F3(L.x, Y, L.z), [(L.r, -0.7), (L.r + 0.15, -0.55), (L.r + 0.15, -0.05), (L.r, 0.03)], seg: 64,

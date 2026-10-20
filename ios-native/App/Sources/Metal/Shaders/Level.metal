@@ -48,7 +48,7 @@ struct KitVertex {
 struct LevelParams {
     float4 lift;     // x = vertical offset of this draw (the lift's rise)
     float4 look;     // x rime strength, y contact-AO strength, z chamfer wear, w snow albedo
-    float4 misc;     // x = 1 on the High tier
+    float4 misc;     // x = 1 on the High tier, y = 1: the -deckMask look-dev view
     float4 mask;     // world mask: xy world origin, z = 1 / size, w unused
 };
 
@@ -168,6 +168,11 @@ fragment float4 fs_level(KitOut in [[stage_in]],
                          texture2d_array<float> trimORM [[texture(9)]],
                          texture2d<float> aoAtlas [[texture(10)]]
                          LEVEL_LIGHT_PARAMS) {
+    if (P.misc.y > 0.5) {
+        // -deckMask (look-dev): the walkable deck tops (WorldLevel tints them pure green) flat green, the rest black
+        bool deck = all(abs(in.albedo - float3(0.0, 1.0, 0.0)) < float3(0.002));
+        return float4(deck ? float3(0.0, 0.6, 0.0) : float3(0.0), 1.0);
+    }
     float3 Nv = normalize(in.normal);
     float3 V = normalize(F.camPos.xyz - in.world);
     float3 N = Nv;
