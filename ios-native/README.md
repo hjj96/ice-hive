@@ -410,9 +410,10 @@ thermal=… 120hz=… bugcap=… ev=…` (финальный проход отк
 спрайтовых листов, размер), сборка Release под симулятор; затем на симуляторе (iPhone 17 Pro) по очереди:
 `firstlaunch` (первый запуск после установки — кэш шейдеров холодный; меряется отдельно), `combat`, `beacon`,
 `swarmshot` (+ `swarmshot-dots`), `swarm` (1400 жуков) и `swarm3x` (мир в 3x), `calm` (базовая линия: без жуков и
-событий — остаётся только хост), `title` (+ v1.1 `title-fresh`, `title-return`, `title-land`), `landscape`, `probe`, `hold`,
-`extract`, `queen`, `queenlock`, `coach`, `coach3-land`, `pressure`, `pressure-amber`, `levelup`, `pause`, `end`,
-`report-first`, `report-win`, `report-loss`, `report-chip-land` (строки `v11 …` и `layout ok` проверяет шаг «Verify»; если
+событий — остаётся только хост), `title` (+ v1.1 `title-fresh`, `title-return`, `title-land`, `title-nm` — `-tier 2`:
+выбран КОШМАР), `landscape`, `probe`, `hold`, `extract`, `queen`, `queenlock`, `coach`, `coach3-land`, `pressure`,
+`pressure-amber`, `pressure-land`, `levelup`, `pause` (+ `pause-land` на Кошмаре), `end`, `report-first`, `report-win`,
+`report-win-land`, `report-loss`, `report-chip-land` (строки `v11 …` и `layout ok` проверяет шаг «Verify»; если
 есть симулятор iPhone SE — титул, отчёт и пауза ещё раз на 375 × 667 в обеих ориентациях, `se-layout.txt`), затем
 `-failMetal` (должно появиться сообщение), Release без аргументов (stdout должен остаться пустым) и `release-combat`.
 Приложение меряет кадры `-seconds` секунд после строки `scene ready` и пишет `demo done …`; скриншоты снимаются
