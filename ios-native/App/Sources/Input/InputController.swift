@@ -28,6 +28,9 @@ final class InputController {
     var viewSize = CGSize(width: 402, height: 874)
     /// True after the first real touch or key: the demo autopilot hands over.
     private(set) var humanActive = false
+    /// The last input came from a hardware keyboard (the coach card then names keys: «WASD — бег» …); a touch
+    /// switches back to the touch texts and the ghost thumb.
+    private(set) var keyboardMode = false
 
     /// Hit tests supplied by the HUD (view coordinates).
     var hitAbility: ((CGPoint) -> Bool)?
@@ -42,6 +45,7 @@ final class InputController {
     // ---------------------------------------------------------------- touches
     func began(_ touch: UITouch, at p: CGPoint) {
         humanActive = true
+        keyboardMode = false
         let id = ObjectIdentifier(touch)
         if let h = hitAbility, h(p) { abilityPressed = true; abilityTouch = id; return }
         if let h = hitDash, h(p) { dashPressed = true; dashTouch = id; return }
@@ -94,6 +98,7 @@ final class InputController {
     // ---------------------------------------------------------------- keyboard
     func keyDown(_ code: Int) {
         humanActive = true
+        keyboardMode = true
         keys.insert(code)
         if code == UIKeyboardHIDUsage.keyboardSpacebar.rawValue || code == UIKeyboardHIDUsage.keyboardLeftShift.rawValue { dashPressed = true }
         if code == UIKeyboardHIDUsage.keyboardQ.rawValue || code == UIKeyboardHIDUsage.keyboardE.rawValue { abilityPressed = true }

@@ -58,7 +58,23 @@ enum TextWarmup {
                 .font: Fonts.font(Fonts.regular, 13), .foregroundColor: UIPalette.inkDim, .paragraphStyle: left]), 160))
         }
         for t in MenuScreen.endSubtitles {
-            items.append((NSAttributedString(string: t, attributes: [.font: Fonts.font(Fonts.regular, 14), .paragraphStyle: centre]), 326))
+            items.append((NSAttributedString(string: t, attributes: [.font: Fonts.font(Fonts.regular, 14), .paragraphStyle: left]), 342))
+        }
+        // v1.1: the tier lines of the title row, the report's tips (loss causes, pressure, promo, «дольше»), the goal
+        // patterns and the coach / revive lines, at the title / report column widths (portrait 402, 375; landscape)
+        for d in Difficulty.tiers {
+            for w in [362, 335, 360] as [CGFloat] {
+                items.append((NSAttributedString(string: d.line, attributes: [.font: Fonts.font(Fonts.regular, 12), .paragraphStyle: left]), w))
+            }
+        }
+        var tips = MetaText.lossTips + [MetaText.pressTip, MetaText.promo, "Продержались на 1:02 дольше прошлой попытки"]
+        tips += ["Цель: эвакуироваться пулемётчиком (+1\u{00A0}500 очков)", "Нашивка: эвакуируйтесь криотехником на «Новобранце»",
+                 "До звания «Мл. сержант» — 1\u{00A0}234 выслуги", "Побейте свой рекорд: 12\u{00A0}345"]
+        for t in tips {
+            for (w, sz) in [(324, 13), (313, 12.5), (331, 12)] as [(CGFloat, CGFloat)] {
+                items.append((NSAttributedString(string: t, attributes: [.font: Fonts.font(Fonts.regular, sz), .paragraphStyle: left]), w))
+            }
+            items.append((NSAttributedString(string: MetaText.goalPrefix + t, attributes: [.font: Fonts.font(Fonts.medium, 13), .paragraphStyle: left]), 342))
         }
         for (font, style) in [(Fonts.regular, centre), (Fonts.semibold, left)] {
             items.append((NSAttributedString(string: "Станция замолчала шесть часов назад. Под решётками шевелится рой — запустите три маяка.",
