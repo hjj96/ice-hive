@@ -402,6 +402,15 @@ jobs:
           run_demo swarmshot 4 "-demo swarmshot -seed 7" 0
           # the same with every speckle drawn again as an anti-aliased dot (-glintDots; default off, like the web)
           run_demo swarmshot-dots 4 "-demo swarmshot -seed 7 -glintDots" 0
+          # TEST BRANCH ONLY (native-vx-station-look, not for merge): WP6 HUD-off look shots and the deck masks
+          run_demo calm-nohud 8 "-demo calm -hideHUD" 0
+          run_demo calm-deckmask 8 "-demo calm -hideHUD -deckMask -nocones -noweather" 0
+          run_demo beacon-nohud 15 "-demo beacon -seed 7 -hideHUD" 0
+          run_demo beacon-deckmask 15 "-demo beacon -seed 7 -hideHUD -deckMask -nocones -noweather" 0
+          run_demo swarmshot-nohud 4 "-demo swarmshot -seed 7 -hideHUD" 0
+          run_demo swarmshot-deckmask 4 "-demo swarmshot -seed 7 -hideHUD -deckMask -nocones -noweather" 0
+          run_demo title-nohud 6 "-demo title -hideHUD" 0
+          run_demo extract-nohud 10 "-demo extract -seed 3 -hideHUD" 0
           # heavy swarm (the med tier's cap of 1400 live bugs), at the default 2x world target and at the native 3x
           run_demo swarm 15 "-demo combat -seed 7 -bugs 1400" 0
           run_demo swarm3x 15 "-demo combat -seed 7 -bugs 1400 -mscale 3" 0

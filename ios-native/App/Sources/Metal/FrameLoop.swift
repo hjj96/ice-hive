@@ -272,6 +272,8 @@ final class FrameLoop: GameHost {
 
     /// Frames on the GPU at most (the upload arena has one slot more).
     static let framesInFlight = 2
+    /// -hideHUD (CI look shots): the world only — SKRenderer.render is skipped. TEST BRANCH ONLY (WP1 handoff 1).
+    static let hideHUD = LaunchOptions.current.unknown.contains("-hideHUD")
 
     let device: MTLDevice
     let queue: MTLCommandQueue
@@ -466,8 +468,10 @@ final class FrameLoop: GameHost {
         let labels = LabelStats.textsSet - labelsRendered
         labelsRendered = LabelStats.textsSet
         let cpu0 = AppLog.diagnostics ? CPUTime.thread() : 0
-        sk.render(withViewport: CGRect(x: 0, y: 0, width: tex.width, height: tex.height), renderCommandEncoder: enc,
-                  renderPassDescriptor: finalPass, commandQueue: queue)
+        if !FrameLoop.hideHUD {
+            sk.render(withViewport: CGRect(x: 0, y: 0, width: tex.width, height: tex.height), renderCommandEncoder: enc,
+                      renderPassDescriptor: finalPass, commandQueue: queue)
+        }
         enc.endEncoding()
         finalPass.colorAttachments[0].texture = nil
         let t2 = FrameTimer.now()
