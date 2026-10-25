@@ -317,7 +317,7 @@ jobs:
     env:
       # every frame-gated demo, all landscape (the app is landscape-only); `layout` (the four-phone layout check)
       # runs as well but builds ~40 screens in one go, so it is not gated
-      DEMOS: firstlaunch combat beacon swarmshot swarmshot-dots swarm swarm3x calm title title-fresh title-return title-nm probe hold extract holdhint queen queenlock coach coach3 pressure pressure-amber levelup pause pause-nm end report-first report-win report-loss report-chip release-combat
+      DEMOS: firstlaunch combat beacon swarmshot swarmshot-dots swarm swarm3x calm title title-fresh title-return title-nm title-left probe hold extract holdhint queen queenlock coach coach3 pressure pressure-amber levelup pause pause-nm end report-first report-win report-loss report-chip release-combat
       MENUS: levelup,pause,pause-nm,end,report-first,report-win,report-loss,report-chip
     steps:
       - uses: actions/checkout@v4
@@ -368,10 +368,12 @@ jobs:
           # simulator's GPU while it runs, so it must not overlap the measurement. Offsets count from "demo done".
           run_demo() {
             local label=$1 secs=$2 args=$3; shift 3
+            local side="-orient right"
+            case "$args" in *-orient*) side="";; esac
             # shellcheck disable=SC2086
             xcrun simctl launch --terminate-running-process \
               --stdout="$PWD/results/app-$label.log" --stderr="$PWD/results/app-$label-stderr.log" \
-              "$UDID" "$BUNDLE_ID" $args -orient right -seconds "$secs" -debugHUD
+              "$UDID" "$BUNDLE_ID" $args $side -seconds "$secs" -debugHUD
             local w=0
             until grep -q 'scene ready' "results/app-$label.log" 2>/dev/null; do
               sleep 1; w=$((w + 1))
@@ -426,6 +428,8 @@ jobs:
           run_demo title-return 5 "-demo title -profile veteran -layoutCheck" 0
           # -tier 2 on the title = the player's pick: КОШМАР selected (red ring) with its line
           run_demo title-nm 5 "-demo title -profile veteran -tier 2 -layoutCheck" 0
+          # the other landscape side (Dynamic Island on the right): the screenshot turns the other way
+          run_demo title-left 5 "-demo title -profile veteran -orient left -layoutCheck" 0
           # LAND: every screen laid out on the four landscape phones (874x402, 932x430, 844x390, 667x375) with their
           # safe areas, «layout sizes: N ok, 0 FAIL» (not a frame-gate demo: it builds ~40 screens in one go)
           run_demo layout 3 "-demo layout -seed 7" 0
@@ -530,6 +534,7 @@ jobs:
           need title-fresh 'v11 title tier=rec runs=0'
           need title-return 'v11 title tier=vet'
           need title-nm 'v11 title tier=nm .*pick=2'
+          need title-left 'scene presented size=[0-9]+x[0-9]+ iface=landscapeLeft'
           need pause-nm 'v11 start tier=nm '
           need coach 'v11 start .*coach=1'
           need coach 'v11 coach step=0'
@@ -550,7 +555,7 @@ jobs:
             need "$d" 'scene presented size=[0-9]+x[0-9]+ iface=landscape'
             if grep -q -E 'iface=portrait' "results/app-$d.log"; then fail "$d: portrait interface"; fi
           done
-          for d in title-fresh title-return title-nm holdhint coach coach3 levelup pause pause-nm report-first report-win report-loss report-chip layout; do
+          for d in title-fresh title-return title-nm title-left holdhint coach coach3 levelup pause pause-nm report-first report-win report-loss report-chip layout; do
             need "$d" 'layout (ok|FAIL)'
             if grep -q 'layout FAIL' "results/app-$d.log"; then fail "$d: $(grep -m 2 'layout FAIL' "results/app-$d.log" | tr '\n' ' ')"; fi
           done

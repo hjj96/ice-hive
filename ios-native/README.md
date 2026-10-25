@@ -503,7 +503,7 @@ thermal=… 120hz=… bugcap=… ev=…` (финальный проход отк
 `firstlaunch` (первый запуск после установки — кэш шейдеров холодный; меряется отдельно), `combat`, `beacon`,
 `swarmshot` (+ `swarmshot-dots`), `swarm` (1400 жуков) и `swarm3x` (мир в 3x), `calm` (базовая линия: без жуков и
 событий — остаётся только хост), `title` (+ v1.1 `title-fresh`, `title-return`, `title-nm` — `-tier 2`:
-выбран КОШМАР), `layout` (каждый экран на четырёх телефонах, не в пороге кадров), `probe`, `hold`, `extract`, `holdhint`,
+выбран КОШМАР; `title-left` — другая сторона горизонтали, `-orient left`, снимок поворачивается в другую сторону), `layout` (каждый экран на четырёх телефонах, не в пороге кадров), `probe`, `hold`, `extract`, `holdhint`,
 `queen`, `queenlock`, `coach`, `coach3`, `pressure`, `pressure-amber`, `levelup`, `pause` (+ `pause-nm` на Кошмаре), `end`,
 `report-first`, `report-win`, `report-loss`, `report-chip` (строки `v11 …`, `layout ok` и `iface=landscape` проверяет шаг
 «Verify»; список демо — `DEMOS` / `MENUS` в env задания), затем
