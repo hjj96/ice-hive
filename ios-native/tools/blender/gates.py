@@ -9,7 +9,8 @@ Gates (plan §2):
   md5        every file in tools/blender/assets.md5 exists with that md5 (the committed binaries are exactly what the
              deterministic build produced; build.sh --verify proves two clean builds are byte-identical)
   kit        App/Resources/Kit/station.ihk parses; every piece within its triangle budget (kit/pieces.py), no
-             degenerate / out-of-range triangle, unit normals; the kit ≤ 3 MB
+             degenerate / out-of-range triangle, unit normals; the kit ≤ 3 MB; the committed AO bake (kit/ao_src) was
+             made for exactly this geometry (ihk.ao_fingerprint)
   textures   every .iht under App/Resources parses (level table, sizes, ASTC block rows); all textures ≤ 30 MB
   creatures  every *.ihv: LOD0 ≤ 3000, LOD1 ≤ 450, LOD2 ≤ 150 triangles; a rigid ship file ≤ 0.3 MB, all ≤ 1.5 MB;
              skinned meshes 8–10k triangles, weights summing to 255
@@ -122,6 +123,16 @@ def gate_kit():
         if np.any((layer >= D['layers']) & (layer != 255)):
             fail(f'kit: {name} uses a trim layer ≥ {D["layers"]}')
     notes.append(f'kit: {len(D["pieces"])} pieces, {total} triangles, {size / 1024:.0f} KB')
+    # the AO atlas is encoded from the committed bake (kit/ao_src): it must have been baked for this geometry
+    bj = os.path.join(HERE, 'kit', 'ao_src', 'bake.json')
+    if not os.path.exists(bj) or not os.path.exists(os.path.join(HERE, 'kit', 'ao_src', 'kit_ao.png')):
+        fail('kit: kit/ao_src (the committed AO bake) missing: run build.sh --bake-ao')
+    else:
+        fp = ihk.ao_fingerprint(D['pieces'], {n: P.PIECES[n][2] for n in P.PIECES})
+        if json.load(open(bj)).get('fingerprint') != fp:
+            fail('kit: kit/ao_src was baked for other geometry than the shipped station.ihk: run build.sh --bake-ao')
+        else:
+            notes.append('kit: the AO bake matches the shipped geometry')
 
 
 def gate_textures():

@@ -223,6 +223,11 @@ fragment float4 fs_level(KitOut in [[stage_in]],
         float s = sin(ph * 6.2832), c = cos(ph * 6.2832);
         float3 wind = float3(0.83, 0.0, 0.55);
         albedo = float3(0.84, 0.9, 1.0) * P.look.w * (1.0 - 0.05 * fade * (0.5 - 0.5 * s));
+        // the outline: the snow thins out toward the drift's edge (in.uv0.y = height above its base, KitMesh.place) so
+        // the dark painted grating shows through a dusting instead of a hard pill edge; the world mask's frost noise
+        // breaks the line up
+        float thin = 1.0 - smoothstep(0.0, 0.5, saturate(in.uv0.y) + 0.3 * (mk.r - 0.5));
+        albedo = mix(albedo, float3(0.09, 0.11, 0.14), thin * 0.8);
         rough = 0.9;
         metal = 0.0;
         N = normalize(Nv + wind * (0.13 * c * fade * saturate(Nv.y)));

@@ -412,7 +412,13 @@ final class KitMesh {
             if let pt = paintTint, (p.extra[i] >> 16) & KitFlag.paint != 0 {
                 tint = KitMesh.tint(pt, metal: Float((tint >> 24) & 255) / 255)
             }
-            let uv = p.uv0[i]
+            var uv = p.uv0[i]
+            if (p.extra[i] >> 16) & KitFlag.snow != 0 {
+                // a drift has no trim layer, so uv0 carries the mound's own coordinates for fs_level: u along the drift
+                // (−1…1 of its half length), v the height above its base (0…1 of the piece's height) — the snow thins
+                // out toward the outline instead of ending in a hard pill edge
+                uv = SIMD2(q.x / max(p.halfLength, 1e-3), max(0, q.y) / max(p.boundsMax.y, 1e-3))
+            }
             var ex = p.extra[i]
             if let k = headIndex { ex = (ex & 0x00ff_ffff) | (KitFlag.head << 16) | ((k & 255) << 24) }
             _ = add(KitVertex(px: w.x, py: w.y, pz: w.z, nrm: KitMesh.snorm(n), tan: KitMesh.snorm(tr, tg.w),
