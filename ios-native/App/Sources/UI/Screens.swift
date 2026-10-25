@@ -177,7 +177,7 @@ final class LevelUpScreen {
         let cardH = max(128, 52 + descH + 34)
         // web .lv-head: «НОВЫЙ УРОВЕНЬ» + the number, centred together
         let hs = max(26, min(36, H * 0.085))
-        let blockH = hs + 18 + 24 + cardH
+        let blockH = hs + 22 + 24 + cardH
         let safeTop = H / 2 - insets.top - 10, safeBottom = -H / 2 + insets.bottom + 10
         var top = (safeTop + safeBottom) / 2 + blockH / 2
         top = min(top, safeTop)
@@ -192,7 +192,7 @@ final class LevelUpScreen {
         content.addChild(num.node)
         check.add("head#1", node: tag.node)
         check.add("head#2", node: num.node)
-        y -= hs / 2 + 18
+        y -= hs / 2 + 22
         let sub = Label("ВЫБЕРИТЕ УЛУЧШЕНИЕ", font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 3.6)
         sub.node.position = CGPoint(x: 0, y: y)
         content.addChild(sub.node)

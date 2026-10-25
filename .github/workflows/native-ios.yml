@@ -503,26 +503,30 @@ jobs:
           cat results/alive.txt results/loading.txt results/fps.txt results/shots.txt results/hitches.txt results/metrics.txt results/v11.txt
       - name: Verify app is alive and rendered
         run: |
+          # every failed check is written to results/verify.txt (and annotated); the step fails at its end
+          : > results/verify.txt
+          bad=0
+          fail() { echo "::error::$*"; echo "$*" >> results/verify.txt; bad=1; }
           echo "--- combat stdout ---"; cat results/app-combat.log || true
           echo "--- combat stderr ---"; tail -n 50 results/app-combat-stderr.log || true
           for f in results/app-beacon.log results/app-title.log results/app-calm.log results/app-layout.log results/app-extract.log results/app-end.log results/app-failmetal.log; do echo "--- $f ---"; tail -n 25 "$f" || true; done
-          if grep -q DEAD results/alive.txt; then echo "::error::app died during a demo: $(grep DEAD results/alive.txt | tr '\n' ' ')"; exit 1; fi
+          if grep -q DEAD results/alive.txt; then fail "app died during a demo: $(grep DEAD results/alive.txt | tr '\n' ' ')"; fi
           cp results/app-combat.log results/app-stdout.log
           cp results/app-combat-stderr.log results/app-stderr.log
-          grep -q 'scene ready' results/app-stdout.log || { echo "::error::no 'scene ready' line in app stdout"; exit 1; }
-          grep -q 'hb t=' results/app-stdout.log || { echo "::error::no heartbeat lines in app stdout"; exit 1; }
-          grep -q 'mode=playing' results/app-stdout.log || { echo "::error::combat demo never reached the mission"; exit 1; }
+          grep -q 'scene ready' results/app-stdout.log || { fail "no 'scene ready' line in app stdout"; }
+          grep -q 'hb t=' results/app-stdout.log || { fail "no heartbeat lines in app stdout"; }
+          grep -q 'mode=playing' results/app-stdout.log || { fail "combat demo never reached the mission"; }
           for d in combat beacon swarmshot title extract queen levelup pause end release-combat; do
-            grep -q 'scene ready' "results/app-$d.log" || { echo "::error::$d: no 'scene ready'"; exit 1; }
-            grep -q 'rend=metal' "results/app-$d.log" || { echo "::error::$d: no Metal heartbeat lines"; exit 1; }
-            if grep -q 'ERROR' "results/app-$d.log"; then echo "::error::$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; exit 1; fi
+            grep -q 'scene ready' "results/app-$d.log" || { fail "$d: no 'scene ready'"; }
+            grep -q 'rend=metal' "results/app-$d.log" || { fail "$d: no Metal heartbeat lines"; }
+            if grep -q 'ERROR' "results/app-$d.log"; then fail "$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; fi
           done
           for d in title-fresh title-return title-nm layout holdhint queenlock coach coach3 pressure pressure-amber pause-nm report-first report-win report-loss report-chip; do
-            grep -q 'scene ready' "results/app-$d.log" || { echo "::error::$d: no 'scene ready'"; exit 1; }
-            if grep -q 'ERROR' "results/app-$d.log"; then echo "::error::$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; exit 1; fi
+            grep -q 'scene ready' "results/app-$d.log" || { fail "$d: no 'scene ready'"; }
+            if grep -q 'ERROR' "results/app-$d.log"; then fail "$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; fi
           done
           # v1.1 log checks (spec §7.2)
-          need() { grep -q -E "$2" "results/app-$1.log" || { echo "::error::$1: no line matching '$2'"; exit 1; }; }
+          need() { grep -q -E "$2" "results/app-$1.log" || { fail "$1: no line matching '$2'"; }; }
           need title-fresh 'v11 title tier=rec runs=0'
           need title-return 'v11 title tier=vet'
           need title-nm 'v11 title tier=nm .*pick=2'
@@ -544,18 +548,22 @@ jobs:
           # landscape-only: every run reports a landscape interface
           for d in $DEMOS layout; do
             need "$d" 'scene presented size=[0-9]+x[0-9]+ iface=landscape'
-            if grep -q -E 'iface=portrait' "results/app-$d.log"; then echo "::error::$d: portrait interface"; exit 1; fi
+            if grep -q -E 'iface=portrait' "results/app-$d.log"; then fail "$d: portrait interface"; fi
           done
           for d in title-fresh title-return title-nm holdhint coach coach3 levelup pause pause-nm report-first report-win report-loss report-chip layout; do
             need "$d" 'layout (ok|FAIL)'
-            if grep -q 'layout FAIL' "results/app-$d.log"; then echo "::error::$d: $(grep -m 2 'layout FAIL' "results/app-$d.log" | tr '\n' ' ')"; exit 1; fi
+            if grep -q 'layout FAIL' "results/app-$d.log"; then fail "$d: $(grep -m 2 'layout FAIL' "results/app-$d.log" | tr '\n' ' ')"; fi
           done
           # the four landscape phones (LayoutSizes): 4 × (3 titles + HUD + pause + level-up + 4 reports) = 40 checks
           need layout 'layout sizes: 40 ok, 0 FAIL on 4 phones'
-          grep -q 'failure screen shown' results/app-failmetal.log || { echo "::error::-failMetal: no failure screen"; exit 1; }
-          if [ -s results/app-release-quiet.log ]; then echo "::error::plain Release launch wrote to stdout: $(head -3 results/app-release-quiet.log)"; exit 1; fi
-      # warm demos: minFps >= 55 on the game loop and no loop hitch > 50 ms after the first second (metrics.txt)
+          grep -q 'failure screen shown' results/app-failmetal.log || { fail "-failMetal: no failure screen"; }
+          if [ -s results/app-release-quiet.log ]; then fail "plain Release launch wrote to stdout: $(head -3 results/app-release-quiet.log)"; fi
+          cat results/verify.txt
+          exit $bad
+      # warm demos: minFps >= 55 on the game loop and no loop hitch > 50 ms after the first second (metrics.txt);
+      # runs after a failed «Verify» too, so one run reports both
       - name: Frame metrics gate
+        if: success() || failure()
         # shellcheck disable=SC2086
         run: python3 ios-native/ci/frame_metrics.py --gate --cold firstlaunch --cold-max-ms 150 --menus "$MENUS" results $DEMOS
       # LAND: the other landscape phones on real simulators — iPhone SE (667 x 375, no insets), iPhone 16e (844 x 390,
@@ -624,7 +632,8 @@ jobs:
     needs: [core-tests, build, sim-smoke]
     if: always()
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # the ci-results tree grows with every run: fetching its tip and pushing ~150 MB took 7–10+ min
+    timeout-minutes: 30
     steps:
       - uses: actions/download-artifact@v4
         with:
