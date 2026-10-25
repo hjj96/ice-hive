@@ -72,6 +72,11 @@ final class WorldLevel {
     static let deckMask = LaunchOptions.current.unknown.contains("-deckMask")
     /// The deck tint, or the mask's marker (pure green, matched exactly in fs_level) under `-deckMask`.
     private static func deckTint(_ c: UInt32) -> UInt32 { deckMask ? 0x00ff00 : c }
+    /// Device measurement (`-noStation`): the station's opaque draws are skipped (casters, pad mark, pools and props
+    /// stay), so `hb gpu frame=` with and without it on the same `-demo stress1400` gives the level's opaque cost on a
+    /// device (budget ≤ 1.6 ms High / ≤ 1.0 ms Efficient). A lower bound: without the deck the abyss haze and fog decks
+    /// behind it are shaded instead. The `hb level` line says `off` in that run.
+    static let noStation = LaunchOptions.current.unknown.contains("-noStation")
 
     /// The station drawn; `rebuild(level:)` switches it (v1.1 generated stations).
     private(set) var level: Level
@@ -108,6 +113,10 @@ final class WorldLevel {
     private(set) var summary = ""
     /// Draw calls of the station in the last frame (runs of visible chunks + the lift).
     private(set) var stationDraws = 0
+    /// Last frame's station triangles, visible chunks, caster draws and caster triangles (`hb level`).
+    private var stationTris = 0, visibleChunks = 0, casterDraws = 0, casterTris = 0
+    private var lastCasters = (0, 0)
+    private var lastLog: Double = 0
     /// The station's fixed light sources as built (for LightGrid's grid lights, WP2): lamp lenses, pillar strips, vent
     /// slats and beacon heads — world position (m) and linear colour (× nominal intensity 1).
     struct StationLight { let kind: Kind; let pos: F3; let color: F3; enum Kind { case lamp, pillar, vent, beacon } }
@@ -234,7 +243,14 @@ final class WorldLevel {
     private func encodeStation(_ enc: MTLRenderCommandEncoder) {
         let r = renderer!
         stationDraws = 0
-        guard let ps = psLevel, let vb = vbuf, let ib = ibuf, !chunks.isEmpty else { return }
+        stationTris = 0
+        visibleChunks = 0
+        // the shadow pass ran before this one: its caster draws are this frame's
+        lastCasters = (casterDraws, casterTris)
+        casterDraws = 0
+        casterTris = 0
+        defer { heartbeat() }
+        guard !WorldLevel.noStation, let ps = psLevel, let vb = vbuf, let ib = ibuf, !chunks.isEmpty else { return }
         r.use(enc, ps)
         bindLevel(enc)
         enc.setVertexBuffer(vb, offset: 0, index: BufferIndex.vertices)
@@ -246,10 +262,13 @@ final class WorldLevel {
         enc.setVertexBytes(&p, length: MemoryLayout<LevelParams>.stride, index: BufferIndex.material)
         enc.setFragmentBytes(&p, length: MemoryLayout<LevelParams>.stride, index: BufferIndex.material)
         for (start, count) in WorldLevel.drawRuns(chunks.lazy.filter { !$0.lift }.map {
-            (start: $0.start, count: $0.count, visible: WorldLevel.visible(planes, $0.lo, $0.hi))
+            let v = WorldLevel.visible(planes, $0.lo, $0.hi)
+            if v { self.visibleChunks += 1 }
+            return (start: $0.start, count: $0.count, visible: v)
         }, mergeGap: WorldLevel.mergeGapTriangles * 3) {
             enc.drawIndexedPrimitives(type: .triangle, indexCount: count, indexType: .uint32, indexBuffer: ib, indexBufferOffset: start * 4)
             r.count(triangles: count / 3)
+            stationTris += count / 3
             stationDraws += 1
         }
         for c in chunks where c.lift {
@@ -260,8 +279,22 @@ final class WorldLevel {
             enc.drawIndexedPrimitives(type: .triangle, indexCount: c.count, indexType: .uint32, indexBuffer: ib,
                                       indexBufferOffset: c.start * 4)
             r.count(triangles: c.count / 3)
+            stationTris += c.count / 3
+            visibleChunks += 1
             stationDraws += 1
         }
+    }
+
+    /// Once per second (diagnostics): `hb level` — the station's opaque draws and triangles this frame, visible chunks
+    /// of all, its shadow-caster draws and triangles (all spot tiles), the tier; `off` under `-noStation`.
+    private func heartbeat() {
+        guard AppLog.diagnostics else { return }
+        let now = FrameTimer.now()
+        if now - lastLog < 1 { return }
+        lastLog = now
+        AppLog.info("hb level draws=\(stationDraws) tris=\(stationTris) chunks=\(visibleChunks)/\(chunks.count)"
+                    + " casters=\(lastCasters.0)/\(lastCasters.1) tier=" + (renderer.frameTier == .high ? "high" : "efficient")
+                    + (WorldLevel.noStation ? " off" : ""))
     }
 
     /// Shadow-caster item: the casters (crates, pillars, beacon masts, lamp posts) of the chunks near the view, into the
@@ -281,6 +314,8 @@ final class WorldLevel {
         for (start, count) in runs {
             enc.drawIndexedPrimitives(type: .triangle, indexCount: count, indexType: .uint32, indexBuffer: cb, indexBufferOffset: start * 4)
             r.count(triangles: count / 3)
+            casterDraws += 1
+            casterTris += count / 3
         }
         enc.setDepthBias(0, slopeScale: 0, clamp: 0)
     }

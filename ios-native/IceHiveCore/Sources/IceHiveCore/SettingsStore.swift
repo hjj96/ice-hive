@@ -130,7 +130,8 @@ public final class SettingsStore {
         tutSeen = SettingsStore.truthy(raw("tut").flatMap { SettingsStore.parse($0) })
         stickSeconds = 0
         if let s = raw("sticks"), let n = SettingsStore.parse(s) as? NSNumber, !Profile.isBool(n), n.doubleValue.isFinite {
-            stickSeconds = max(0, min(1_000_000, Int(n.doubleValue.rounded(.towardZero))))
+            // clamp in Double first: Int(Double) traps beyond ±9.2e18 (a stored "1e20" crashed every launch)
+            stickSeconds = Int(max(0, min(1_000_000, n.doubleValue.rounded(.towardZero))))
         }
         stationSeed = 0
         if let s = raw("seed"), let n = SettingsStore.parse(s) as? NSNumber, !Profile.isBool(n) { stationSeed = Stations.sanitize(n.doubleValue) }
