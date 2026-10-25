@@ -113,6 +113,35 @@ final class GameViewController: UIViewController {
         presentedScene?.relayout()
     }
 
+    /// The scene launches in the Info.plist's first side (landscape right); `-orient left` then turns it over. Ask for the
+    /// pinned side at once, and log the side the interface settled on (CI turns its screenshots upright by the last
+    /// «iface=» in the log).
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        if let side = options.orientation, let scene = view.window?.windowScene {
+            let want: UIInterfaceOrientation = side == "left" ? .landscapeLeft : .landscapeRight
+            if scene.interfaceOrientation != want {
+                setNeedsUpdateOfSupportedInterfaceOrientations()
+                scene.requestGeometryUpdate(UIWindowScene.GeometryPreferences.iOS(interfaceOrientations: supportedInterfaceOrientations)) { e in
+                    AppLog.info("interface: geometry update to \(side) refused: \(e.localizedDescription)")
+                }
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            guard let self = self else { return }
+            AppLog.info("interface settled iface=\(self.interfaceOrientationName)")
+        }
+    }
+
+    /// A turn to the other landscape side keeps the size (no «view resized» line): logged when it ends.
+    override func viewWillTransition(to size: CGSize, with coordinator: any UIViewControllerTransitionCoordinator) {
+        super.viewWillTransition(to: size, with: coordinator)
+        coordinator.animate(alongsideTransition: nil) { [weak self] _ in
+            guard let self = self else { return }
+            AppLog.info("interface rotated iface=\(self.interfaceOrientationName) size=\(Int(size.width))x\(Int(size.height))")
+        }
+    }
+
     // hardware keyboard (simulator / iPad keyboards): WASD, IJKL, Space, Q, Esc
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
         var handled = false

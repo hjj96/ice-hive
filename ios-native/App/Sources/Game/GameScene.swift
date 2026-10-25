@@ -786,7 +786,10 @@ final class GameScene: SKScene {
         let t1r = FrameTimer.now()
         r.update(game: g, alpha: alpha, dt: vdt, time: renderTime, camera: cameraCtl, viewSize: size, frozen: !live)
         sceneTimer.mark()
-        if mode != .title { hud.update(game: g, dt: dt, projection: r, input: input, keyboard: input.keyboardMode) }
+        if mode != .title {
+            hud.covered = mode == .paused || mode == .ended || mode == .levelUp
+            hud.update(game: g, dt: dt, projection: r, input: input, keyboard: input.keyboardMode)
+        }
         sceneTimer.mark()
         audio?.update(dt: dt, game: g, bugsNear: near, listener: listener(), title: mode == .title, live: live)
         sceneTimer.mark()

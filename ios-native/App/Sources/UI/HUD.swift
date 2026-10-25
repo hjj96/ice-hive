@@ -261,6 +261,8 @@ final class HUD {
     private let horde = SKSpriteNode(texture: nil)
     private let flash = SKSpriteNode(color: UIPalette.rgba(255, 240, 220, 1), size: CGSize(width: 10, height: 10))
     private var damageA: Float = 0, flashA: Float = 0, hordeA: Float = 0
+    /// A menu covers the HUD (GameScene: paused, level-up, ended): no hint, no toasts.
+    var covered = false
     // nameplates + objective marker
     let plates = Nameplates()
     private let marker = SKNode()
@@ -925,7 +927,10 @@ final class HUD {
             hint.color = urgent ? UIPalette.red : UIPalette.amber
             hint2.color = hint.color
         }
-        let ha: CGFloat = urgent ? (sinf(game.time * 7.85) > 0 ? 1 : 0.35) : 1
+        // under a menu (pause, level-up cards, report) the hint and the toasts wait: they would peek out between or
+        // above its boxes
+        if toastRoot.isHidden != covered { toastRoot.isHidden = covered }
+        let ha: CGFloat = covered ? 0 : (urgent ? (sinf(game.time * 7.85) > 0 ? 1 : 0.35) : 1)
         hint.node.alpha = ha
         hint2.node.alpha = ha
 
@@ -1172,8 +1177,12 @@ final class Nameplates {
         let bar: Bar
         let seg: DashBar?
         let revive = SKSpriteNode(color: UIPalette.teal, size: CGSize(width: 76, height: 2))
+        let player: Bool
+        let width: CGFloat
         init(name text: String, player: Bool) {
             let w: CGFloat = player ? 96 : 76
+            self.player = player
+            width = w
             name = Label(text, font: player ? Fonts.semibold : Fonts.medium, size: 12, color: player ? UIPalette.white : UIPalette.ink, kern: 1.2)
             bar = Bar(width: w, height: 4, fill: UIPalette.hp, track: UIPalette.hpBg, topLine: UIPalette.teal)
             seg = player ? DashBar(width: w, height: 3, color: UIPalette.rgba(219, 230, 238, 0.8)) : nil
@@ -1190,6 +1199,12 @@ final class Nameplates {
     }
     private var plates: [Plate] = []
     var topLimit: CGFloat = 1e6
+
+    /// How far plate `k` sits over the plate it is stacked on: a squadmate's plate ends 19 pt under its anchor (bar), the
+    /// player's 26 pt (magazine dashes), a downed marine's 2–5 pt lower (revive bar); 5–7 pt clear of the name below.
+    private func plateRise(over k: Int, _ m: Marine) -> CGFloat {
+        (plates[k].player ? 31 : 26) + (m.downed ? 4 : 0)
+    }
     private var px = [CGFloat](repeating: 0, count: 4), py = [CGFloat](repeating: 0, count: 4)
 
     func setSquad(_ marines: [Marine]) {
@@ -1210,18 +1225,22 @@ final class Nameplates {
             px[k] = s.x
             py[k] = s.y + 30
         }
-        // overlapping plates stack upward (PLATE_GAP 26); near the objective box they spread sideways
+        // overlapping plates stack upward (PLATE_GAP 26 for a squadmate's plate; the player's hangs lower — its magazine
+        // dashes, a downed marine's revive bar — so it rises further and stays clear of the name under it); near the
+        // objective box they spread sideways, bar ends 6 pt apart
         for _ in 0..<6 {
             for a in 0..<n {
                 for b in (a + 1)..<max(a + 1, n) {
                     let dx = px[a] - px[b]
-                    if abs(dx) > 84 { continue }
+                    let wide = (plates[a].width + plates[b].width) / 2 + 6
+                    if abs(dx) >= wide { continue }
                     let dy = py[a] - py[b]
-                    if abs(dy) >= 26 { continue }
                     let up = dy > 0 ? a : b, lo = up == a ? b : a
-                    if py[lo] + 26 <= topLimit { py[up] = py[lo] + 26 } else {
+                    let gap = plateRise(over: up, game.marines[up])
+                    if abs(dy) >= gap { continue }
+                    if py[lo] + gap <= topLimit { py[up] = py[lo] + gap } else {
                         let l = dx < 0 ? a : b, r = l == a ? b : a, mid = (px[a] + px[b]) / 2
-                        px[l] = mid - 43; px[r] = mid + 43
+                        px[l] = mid - wide / 2; px[r] = mid + wide / 2
                     }
                 }
             }

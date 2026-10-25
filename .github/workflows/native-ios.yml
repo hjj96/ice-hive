@@ -534,7 +534,10 @@ jobs:
           need title-fresh 'v11 title tier=rec runs=0'
           need title-return 'v11 title tier=vet'
           need title-nm 'v11 title tier=nm .*pick=2'
-          need title-left 'scene presented size=[0-9]+x[0-9]+ iface=landscapeLeft'
+          # -orient left: the scene presents on the Info.plist's first side, then turns over; the last side logged is left
+          lastSide=$(grep -o -E 'iface=landscape(Left|Right)' results/app-title-left.log | tail -n 1)
+          [ "$lastSide" = "iface=landscapeLeft" ] || fail "title-left: last interface side '${lastSide:-none}', not iface=landscapeLeft"
+          need title-left 'interface (rotated|settled) iface=landscapeLeft'
           need pause-nm 'v11 start tier=nm '
           need coach 'v11 start .*coach=1'
           need coach 'v11 coach step=0'
