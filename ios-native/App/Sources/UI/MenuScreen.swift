@@ -59,7 +59,7 @@ final class MenuScreen {
 
     /// Box background + hazard band, top-left at (x, top).
     private func box(x: CGFloat, top: CGFloat, width: CGFloat, height: CGFloat, edge: SKColor? = nil) {
-        let p = Shapes.panel(width: width, height: height, fill: UIPalette.panel2, stroke: edge ?? UIPalette.line)
+        let p = Shapes.panelStretch(width: width, height: height, fill: UIPalette.panel2, stroke: edge ?? UIPalette.line)
         p.position = CGPoint(x: x, y: top)
         p.zPosition = -3
         content.addChild(p)
