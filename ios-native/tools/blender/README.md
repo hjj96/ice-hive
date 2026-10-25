@@ -12,7 +12,7 @@ ios-native/tools/blender/build.sh --verify      # две чистые сборк
 ios-native/tools/blender/build.sh --renders     # + контрольный рендер с игровой камеры (ночная задача) → previews/
 ios-native/tools/blender/build.sh --bake-trims  # перезапечь трим-листы в Cycles → kit/trims_src (≈6 мин), затем сборка
 ios-native/tools/blender/build.sh --bake-ao     # перезапечь атлас AO деталей → kit/ao_src (≈1 мин; после правки геометрии)
-python3 ios-native/tools/blender/gates.py    # только гейты (numpy, без Blender) — шаг CI
+python3 ios-native/tools/blender/gates.py    # только гейты (numpy, без Blender) — для шага CI
 ```
 
 ASTC кодирует закреплённый `astcenc 5.2.0` (`tools/textures/astc.sh` скачивает релиз Arm и сверяет SHA-256;
@@ -122,3 +122,9 @@ beacon свет на сугробах зависит от кадра).
 
 Ночная задача (`build.sh --verify` + `--renders`) рендерит отгруженные файлы с игровой камеры (наклон 57°, рысканье
 45°, fov 50, 3× пикселя iPhone) — дефекты, видимые только в игровом масштабе.
+
+Состояние: `build.sh` прогоняет `gates.py` после каждой сборки, `build.sh --verify` и `--renders` запускаются
+вручную. Задание CI с `gates.py` на каждый push и ночная задача — правки `.github/workflows/` (их владелец — не WP6):
+задание `assets` (ubuntu, Python 3 + numpy, ≈ 1 мин) и `assets-nightly.yml` (venv с bpy, `--verify`, рендер с
+игровой камеры) переданы владельцу CI готовым YAML; пока их нет, гейты держит автор ассета: `build.sh` (или
+`gates.py`) перед коммитом в `App/Resources/`.
