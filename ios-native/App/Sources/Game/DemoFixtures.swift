@@ -93,6 +93,12 @@ enum DemoFixtures {
     /// tip, the goal). `stats` (the mini row) comes from the game on screen (MissionStats has no public initialiser).
     static func warmReport(cls: MarineClass, stats: MissionStats, station: String) -> MissionReport {
         guard let r = report("first") else { fatalError("report fixture") }
+        return makeReport(r, cls: cls, stats: stats, station: station)
+    }
+
+    /// The report a fixture's run would give (without running a mission: the layout check of `-demo layout`, the
+    /// warm-up); shots / hits / combo / level are typical numbers.
+    static func makeReport(_ r: Report, cls: MarineClass, stats: MissionStats, station: String) -> MissionReport {
         var p = r.meta.profile
         let d = Difficulty.tier(r.tier)
         let run = RunSummary(cls: cls, won: r.won, surrendered: false, time: r.time, playerKills: r.playerKills, beaconsDone: r.beacons,

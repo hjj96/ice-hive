@@ -25,7 +25,7 @@ final class InputController {
     private(set) var abilityPressed = false
     private(set) var dashPressed = false
     private var keys = Set<Int>()
-    var viewSize = CGSize(width: 402, height: 874)
+    var viewSize = CGSize(width: 874, height: 402)
     /// True after the first real touch or key: the demo autopilot hands over.
     private(set) var humanActive = false
     /// The last input came from a hardware keyboard (the coach card then names keys: «WASD — бег» …); a touch

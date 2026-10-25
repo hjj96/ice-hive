@@ -6,12 +6,12 @@ import IceHiveCore
 //  PAUSE / END — boxes with buttons (web .m-box with the hazard band).
 //  Pause (v1.1): «ПАУЗА · ВЕТЕРАН» and «Обучение» after «Графика».
 //  End (v1.1, web D report): the core's MissionReport laid out in two
-//  columns — A: tag, title, subtitle, the stage strip, the score with its
+//  columns — A: tag, title, the stage strip, the score with its
 //  breakdown and the tier line, the mini numbers; B: the class rank card,
 //  a new medal, tips (loss cause, «дольше», promo), the «Новобранец» chip,
-//  the next goal and the buttons. Portrait stacks A over B; landscape puts
-//  them side by side with the buttons above the fold. When the screen is
-//  short the layout tightens, then drops the subtitle, then the second tip.
+//  the next goal and the buttons, side by side (landscape-only: LAND),
+//  the buttons above the fold. When the screen is short the layout
+//  tightens, then drops the second tip.
 // ================================================================
 final class MenuScreen {
     enum Action: Equatable { case resume, sound, volume, quality, tutorial, haptics, quit, again, newStation, changeClass, chip }
@@ -46,10 +46,6 @@ final class MenuScreen {
         shade.size = size
     }
 
-    /// The report's line under the title: won / surrendered / lost (TextWarmup lays them out at launch).
-    static let endSubtitles = [MetaText.subtitle(won: true, surrendered: false, station: "Кельвин-9"),
-                               MetaText.subtitle(won: false, surrendered: true, station: "Кельвин-9"),
-                               MetaText.subtitle(won: false, surrendered: false, station: "Кельвин-9")]
 
     /// Web qualityLabel(): «Графика: авто (средняя)» / «Графика: низкая» …
     static func qualityLabel(_ q: String) -> String {
@@ -70,42 +66,75 @@ final class MenuScreen {
     }
 
     // ---------------------------------------------------------------- pause
+    /// The pause box for a landscape phone (LAND): «ПАУЗА · ВЕТЕРАН» across the top, two columns of 44-pt buttons —
+    /// left the mission (Продолжить, Обучение, Сдаться) with the control hint under them, right the settings (Звук,
+    /// Громкость, Графика, Вибрация). A short screen (< 390 pt) packs the rows 6 pt tighter.
     func showPause(size: CGSize, state: PauseState, layoutCheck: Bool = false, insets: UIEdgeInsets = .zero) {
         reset(size: size)
-        let compact = size.height < 520
-        let w = min(320, size.width - 84)
-        let bh: CGFloat = compact ? 34 : 44, step: CGFloat = compact ? 39 : 52
-        let items: [(String, MenuButton.Style, Action)] = [
+        let sl = max(16, insets.left), sr = max(16, insets.right)
+        let short = size.height - insets.top - insets.bottom < 390
+        let colGap: CGFloat = 16, padX: CGFloat = 22
+        let colW = max(200, min(270, (size.width - sl - sr - 2 * padX - colGap) / 2))
+        let w = 2 * colW + colGap
+        let bh: CGFloat = 44, step: CGFloat = short ? 50 : 54
+        let mission: [(String, MenuButton.Style, Action)] = [
             ("Продолжить", .normal, .resume),
+            ("Обучение", .ghost, .tutorial),
+            ("Сдаться", .danger, .quit)]
+        let settings: [(String, MenuButton.Style, Action)] = [
             ("Звук: " + (state.soundOn ? "вкл" : "выкл"), .ghost, .sound),
             ("Громкость: \(Int((state.volume * 100).rounded()))%", .ghost, .volume),
             (MenuScreen.qualityLabel(state.quality), .ghost, .quality),
-            ("Обучение", .ghost, .tutorial),
-            ("Вибрация: " + (state.hapticsOn ? "вкл" : "выкл"), .ghost, .haptics),
-            ("Сдаться", .danger, .quit)]
-        let titleH: CGFloat = compact ? 44 : 64
-        let boxH = 8 + titleH + CGFloat(items.count) * step + (compact ? 6 : 14)
-        let top = boxH / 2
-        box(x: -(w + 44) / 2, top: top, width: w + 44, height: boxH)
+            ("Вибрация: " + (state.hapticsOn ? "вкл" : "выкл"), .ghost, .haptics)]
+        let titleH: CGFloat = short ? 48 : 56
+        let rowsH = CGFloat(settings.count) * step - (step - bh)
+        let boxH = 8 + titleH + rowsH + (short ? 16 : 20)
+        let bw = w + 2 * padX
+        // centred, never above the safe top or below the safe bottom
+        var top = boxH / 2
+        top = min(top, size.height / 2 - insets.top - 6)
+        top = max(top, -size.height / 2 + insets.bottom + 6 + boxH)
+        box(x: -bw / 2, top: top, width: bw, height: boxH)
         var check = LayoutCheck("pause")
-        check.add("box", CGRect(x: -(w + 44) / 2, y: top - boxH, width: w + 44, height: boxH))
+        check.add("box", CGRect(x: -bw / 2, y: top - boxH, width: bw, height: boxH))
         // «ПАУЗА · ВЕТЕРАН» (web .p-tier: half size, ink-dim)
-        let ts: CGFloat = compact ? 24 : 34
+        let ts: CGFloat = short ? 28 : 32
+        let x0 = -w / 2
         let title = Label("ПАУЗА", font: Fonts.bold, size: ts, color: UIPalette.ink, kern: 4, align: .left)
-        title.node.position = CGPoint(x: -w / 2, y: top - 8 - titleH / 2)
+        title.node.position = CGPoint(x: x0, y: top - 8 - titleH / 2)
         content.addChild(title.node)
+        check.add("title", node: title.node)
         let tier = Label("· " + state.tierName.uppercased(), font: Fonts.semibold, size: ts * 0.5, color: UIPalette.inkDim, kern: ts * 0.06, align: .left)
-        tier.node.position = CGPoint(x: -w / 2 + title.width + ts * 0.4, y: top - 8 - titleH / 2)
+        tier.node.position = CGPoint(x: x0 + title.width + ts * 0.4, y: top - 8 - titleH / 2)
         content.addChild(tier.node)
-        var y = top - 8 - titleH - bh / 2
-        for it in items {
-            let b = MenuButton(it.0, style: it.1, fontSize: compact ? 13 : 15)
-            b.layout(center: CGPoint(x: 0, y: y), size: CGSize(width: w, height: bh))
-            content.addChild(b.node)
-            buttons.append((b, it.2))
-            check.add("btn." + String(describing: it.2), b.rect)
-            check.tap("btn." + String(describing: it.2), b.hitRect)
-            y -= step
+        check.add("tier", node: tier.node)
+        let y0 = top - 8 - titleH - bh / 2
+        for (col, items) in [(0, mission), (1, settings)] {
+            var y = y0
+            let cx = x0 + colW / 2 + CGFloat(col) * (colW + colGap)
+            for it in items {
+                let b = MenuButton(it.0, style: it.1, fontSize: 15)
+                MenuScreen.fit(b.label, colW - 16)
+                b.layout(center: CGPoint(x: cx, y: y), size: CGSize(width: colW, height: bh))
+                content.addChild(b.node)
+                buttons.append((b, it.2))
+                check.add("btn." + String(describing: it.2), b.rect)
+                check.tap("btn." + String(describing: it.2), b.hitRect)
+                y -= step
+            }
+            // under the mission column: how the sticks work (the pause is where a player looks it up)
+            if col == 0 {
+                let hintTop = y + step - bh / 2 - 12
+                let room = hintTop - (top - boxH + 12)
+                if room >= 30 {
+                    let hint = richParagraph(touchHintParts, size: 12, width: colW, align: .left)
+                    if hint.frame.height <= room {
+                        hint.position = CGPoint(x: x0, y: hintTop)
+                        content.addChild(hint)
+                        check.add("hint", node: hint)
+                    }
+                }
+            }
         }
         if layoutCheck { check.report(size: size, insets: insets) }
     }
@@ -126,10 +155,6 @@ final class MenuScreen {
     private struct Density {
         let title: CGFloat, total: CGFloat, line: CGFloat, lineH: CGFloat, tip: CGFloat, gap: CGFloat, strip: CGFloat
         let mini: CGFloat, miniH: CGFloat, btn: CGFloat, btn2: CGFloat, chipH: CGFloat
-        static let normal = Density(title: 30, total: 34, line: 13, lineH: 17, tip: 13, gap: 9, strip: 22, mini: 16, miniH: 43,
-                                    btn: 52, btn2: 46, chipH: 44)
-        static let tight = Density(title: 26, total: 28, line: 12, lineH: 15.5, tip: 12.5, gap: 7, strip: 20, mini: 15, miniH: 39,
-                                   btn: 46, btn2: 40, chipH: 40)
         static let landscape = Density(title: 24, total: 26, line: 12, lineH: 15, tip: 12, gap: 6, strip: 18, mini: 14, miniH: 34,
                                        btn: 44, btn2: 38, chipH: 38)
         static let landscapeTight = Density(title: 22, total: 22, line: 11, lineH: 13.5, tip: 11, gap: 5, strip: 16, mini: 13, miniH: 30,
@@ -162,18 +187,17 @@ final class MenuScreen {
     }
 
     /// Box geometry of the report on this screen.
-    private func endGeometry(_ size: CGSize, _ insets: UIEdgeInsets) -> (landscape: Bool, bw: CGFloat, padX: CGFloat, colW: CGFloat,
+    private func endGeometry(_ size: CGSize, _ insets: UIEdgeInsets) -> (bw: CGFloat, padX: CGFloat, colW: CGFloat,
                                                                           availH: CGFloat, densities: [Density]) {
         let W = size.width, H = size.height
-        let landscape = W > H && H <= 500
         let sl = max(12, insets.left), sr = max(12, insets.right)
         let availH = H - insets.top - insets.bottom - 16
-        // box: portrait min(560, width − 24), landscape two columns up to 860
-        let bw = landscape ? min(860, W - sl - sr) : min(560, W - sl - sr)
-        let padX: CGFloat = landscape ? 16 : 18
+        // box: two columns up to 860
+        let bw = min(860, W - sl - sr)
+        let padX: CGFloat = 16
         let colGap: CGFloat = 20
-        let colW = landscape ? (bw - 2 * padX - colGap) / 2 : bw - 2 * padX
-        return (landscape, bw, padX, colW, availH, landscape ? [.landscape, .landscapeTight] : [.normal, .tight])
+        let colW = (bw - 2 * padX - colGap) / 2
+        return (bw, padX, colW, availH, [.landscape, .landscapeTight])
     }
 
     /// One piece of the pending report per call (the scene calls it once a frame); true once it is on screen.
@@ -181,21 +205,21 @@ final class MenuScreen {
     func stepEnd() -> Bool {
         guard var e = endBuild else { return true }
         let gm = endGeometry(e.size, e.insets)
-        let landscape = gm.landscape, colW = gm.colW
+        let colW = gm.colW
         if e.pick == nil && e.density < gm.densities.count {
             let d = gm.densities[e.density]
             guard let a0 = e.columnA else {
-                e.columnA = columnA(report: e.report, d: d, colW: colW, subtitle: !landscape)   // web: no subtitle on landscape phones
+                e.columnA = columnA(report: e.report, d: d, colW: colW)   // web: no subtitle on landscape phones
                 endBuild = e
                 return false
             }
-            // the subtitle and the second tip are dropped by filtering the blocks (each density is built once)
+            // the second tip is dropped by filtering the blocks (each density is built once)
             let b0 = columnB(report: e.report, d: d, colW: colW)
-            for (sub, tips2) in [(true, true), (false, true), (false, false)] {
-                let a = sub ? a0 : a0.filter { $0.name != "subtitle" }
+            for tips2 in [true, false] {
+                let a = a0
                 let b = tips2 ? b0 : b0.filter { $0.name != "tip1" }
                 e.last = (a, b, d)
-                if boxHeight(a, b, d, landscape) <= gm.availH { e.pick = (a, b, d); break }
+                if boxHeight(a, b, d) <= gm.availH { e.pick = (a, b, d); break }
             }
             e.density += 1
             e.columnA = nil
@@ -206,10 +230,10 @@ final class MenuScreen {
         let size = e.size, insets = e.insets, report = e.report
         let H = size.height, bw = gm.bw, padX = gm.padX, colGap: CGFloat = 20
         let availH = gm.availH
-        if e.pick == nil { AppLog.info("report: tightest layout \(Int(boxHeight(a, b, d, landscape))) pt for \(Int(availH)) pt") }
+        if e.pick == nil { AppLog.info("report: tightest layout \(Int(boxHeight(a, b, d))) pt for \(Int(availH)) pt") }
         let hA = stackHeight(a), hB = stackHeight(b)
-        let topPad: CGFloat = 8 + (landscape ? 10 : 14), botPad: CGFloat = landscape ? 14 : 18
-        let boxH = topPad + (landscape ? max(hA, hB) : hA + d.gap + hB) + botPad
+        let topPad: CGFloat = 8 + 10, botPad: CGFloat = 14
+        let boxH = topPad + max(hA, hB) + botPad
         // centred, never above the safe top or below the safe bottom
         var top = boxH / 2
         top = min(top, H / 2 - insets.top - 8)
@@ -217,10 +241,10 @@ final class MenuScreen {
         let x0 = -bw / 2
         box(x: x0, top: top, width: bw, height: boxH, edge: report.won ? UIPalette.rgba(63, 227, 210, 0.45) : UIPalette.rgba(255, 59, 59, 0.45))
         var check = LayoutCheck("report")
-        let ax = x0 + padX, bx = landscape ? x0 + padX + colW + colGap : ax
+        let ax = x0 + padX, bx = x0 + padX + colW + colGap
         let yA = top - topPad
         place(a, x: ax, top: yA, check: &check)
-        place(b, x: bx, top: landscape ? yA : yA - hA - d.gap, check: &check)
+        place(b, x: bx, top: yA, check: &check)
         if e.layoutCheck { check.report(size: size, insets: insets) }
         root.isHidden = false
         return true
@@ -249,13 +273,13 @@ final class MenuScreen {
         }
     }
 
-    private func boxHeight(_ a: [Block], _ b: [Block], _ d: Density, _ landscape: Bool) -> CGFloat {
-        let topPad: CGFloat = 8 + (landscape ? 10 : 14), botPad: CGFloat = landscape ? 14 : 18
-        return topPad + (landscape ? max(stackHeight(a), stackHeight(b)) : stackHeight(a) + d.gap + stackHeight(b)) + botPad
+    private func boxHeight(_ a: [Block], _ b: [Block], _ d: Density) -> CGFloat {
+        let topPad: CGFloat = 8 + 10, botPad: CGFloat = 14
+        return topPad + max(stackHeight(a), stackHeight(b)) + botPad
     }
 
-    /// Column A: tag, title, subtitle, strip, score, breakdown + tier line, mini numbers.
-    private func columnA(report r: MissionReport, d: Density, colW: CGFloat, subtitle: Bool) -> [Block] {
+    /// Column A: tag, title, strip, score, breakdown + tier line, mini numbers (no subtitle: web landscape phones).
+    private func columnA(report r: MissionReport, d: Density, colW: CGFloat) -> [Block] {
         var out: [Block] = []
         let tagN = SKNode()
         let tag = Label(r.tag.uppercased(), font: Fonts.mono, size: 12, color: UIPalette.inkDim, kern: 2.4, align: .left)
@@ -269,13 +293,6 @@ final class MenuScreen {
         title.node.position = CGPoint(x: 0, y: -d.title * 0.5)
         tN.addChild(title.node)
         out.append(Block(name: "title", node: tN, height: d.title, gapAbove: 6))
-        if subtitle {
-            let sN = SKNode()
-            let p = paragraph(r.subtitle, font: Fonts.regular, size: 14, color: UIPalette.inkDim, width: colW, align: .left)
-            p.horizontalAlignmentMode = .left
-            sN.addChild(p)
-            out.append(Block(name: "subtitle", node: sN, height: p.frame.height, gapAbove: 4))
-        }
         // the stage strip (web .r-strip: 4 × 1fr, 1.2fr, 1.75fr; 3 pt top border; teal on a win, amber on a loss)
         let stN = SKNode()
         let fr: [CGFloat] = [1, 1, 1, 1, 1.2, 1.75]

@@ -309,6 +309,8 @@ final class GameScene: SKScene {
     }
 
     private var insets: UIEdgeInsets { host?.safeAreaInsets ?? .zero }
+    /// `-layoutCheck`: the HUD of the mission was checked.
+    private var hudChecked = false
 
     /// Station of the title and the missions («Кельвин-9» while generated stations are off).
     private var stationName: String { level?.layout.name ?? "Кельвин-9" }
@@ -430,7 +432,7 @@ final class GameScene: SKScene {
         guard let g = game else { return }
         if g.offer.isEmpty { g.rollUpgrades() }
         levelUpScreen.show(level: g.xpLevel - g.pendingLevels + 1, offer: g.offer, counts: g.upgradeCounts, cls: g.playerClass,
-                           size: size, insets: insets)
+                           size: size, insets: insets, layoutCheck: options.layoutCheck)
         let first = mode != .levelUp
         mode = .levelUp
         input.consumePresses()
@@ -737,6 +739,7 @@ final class GameScene: SKScene {
                 case .pause: pause()
                 case .surrender: if mode == .playing { pause(); menuAction(.quit) }
                 case .end: if mode == .playing { showEnd() }
+                case .layoutSizes: LayoutSizes.run(game: g, station: stationName)
                 }
             }
             acc += Double(dt * ts)
@@ -753,6 +756,11 @@ final class GameScene: SKScene {
         sceneTimer.mark()
 
         if mode == .playing { trackV11(g, dt) }
+        // -layoutCheck in a mission: the HUD on this phone, once, a second into the measured window
+        if options.layoutCheck && !hudChecked && mode == .playing && readyTime > 0 && lastTime - readyTime >= 1 {
+            hudChecked = true
+            hud.checkLayout()
+        }
         if rankUpHapticAt > 0 && lastTime >= rankUpHapticAt { rankUpHapticAt = -1; haptics.play(.success) }
         if mode == .playing && g.wantsLevelUp && !g.autoPickUpgrades { openLevelUp() }
         // the report comes up at once over the frozen world, like the web endGame()

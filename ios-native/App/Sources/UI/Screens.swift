@@ -141,8 +141,10 @@ final class LevelUpScreen {
         root.isHidden = true
     }
 
-    /// `level` = the level these cards are for (web: GS.level − pendingLevels + 1).
-    func show(level: Int, offer: [Upgrade], counts: [UpgradeID: Int], cls: MarineClass, size: CGSize, insets: UIEdgeInsets) {
+    /// `level` = the level these cards are for (web: GS.level − pendingLevels + 1). Landscape (LAND): the head and the
+    /// three cards in a row, the block centred in the safe area; a card is as tall as its longest description needs.
+    func show(level: Int, offer: [Upgrade], counts: [UpgradeID: Int], cls: MarineClass, size: CGSize, insets: UIEdgeInsets,
+              layoutCheck: Bool = false) {
         root.isHidden = false
         content.removeFromParent()
         content = SKNode()
@@ -153,42 +155,15 @@ final class LevelUpScreen {
         shade.size = size
         unlockAt = FrameTimer.now() + LevelUpScreen.lockTime
         let W = size.width, H = size.height
-        let landscape = W > H
-        let cw = min(W - 40 - insets.left - insets.right, landscape ? 900 : 420)
-        var y = landscape ? H / 2 - insets.top - 34 : H * 0.28
-        // web .lv-head: «НОВЫЙ УРОВЕНЬ» + the number, centred together (clamp(26px, 7vw, 40px))
-        let hs = max(24, min(40, W * 0.07))
-        let tag = Label("НОВЫЙ УРОВЕНЬ", font: Fonts.bold, size: hs, color: UIPalette.amber, kern: hs * 0.12, align: .left)
-        let num = Label("\(level)", font: Fonts.monoBold, size: hs, color: UIPalette.ink, align: .left)
-        let x0 = -(tag.width + 12 + num.width) / 2
-        tag.node.position = CGPoint(x: x0, y: y)
-        num.node.position = CGPoint(x: x0 + tag.width + 12, y: y)
-        content.addChild(tag.node)
-        content.addChild(num.node)
-        y -= 30
-        let sub = Label("ВЫБЕРИТЕ УЛУЧШЕНИЕ", font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 3.6)
-        sub.node.position = CGPoint(x: 0, y: y)
-        content.addChild(sub.node)
-        y -= 22
+        let sl = max(20, insets.left), sr = max(20, insets.right)
+        let cw = min(W - sl - sr, 860)
         let n = offer.count
-        let gap: CGFloat = landscape ? 12 : 8
-        let cardW = landscape ? (cw - gap * CGFloat(max(0, n - 1))) / CGFloat(max(1, n)) : cw
-        let cardH: CGFloat = landscape ? 160 : 112
-        for (k, u) in offer.enumerated() {
-            let x = landscape ? -cw / 2 + CGFloat(k) * (cardW + gap) : -cw / 2
-            let top = landscape ? y : y - CGFloat(k) * (cardH + gap)
-            let classCard = u.classes != nil
-            let panel = Shapes.panel(width: cardW, height: cardH, fill: UIPalette.panel2, stroke: classCard ? UIPalette.amberDim : UIPalette.line)
-            panel.position = CGPoint(x: x, y: top)
-            panel.zPosition = -1
-            cardsNode.addChild(panel)
-            let t = Label((classCard ? "Класс · " + cls.spec.name : "Снаряжение").uppercased(), font: Fonts.medium, size: 11,
-                          color: classCard ? UIPalette.amber : UIPalette.teal, kern: 2, align: .left)
-            t.node.position = CGPoint(x: x + 14, y: top - 16)
-            cardsNode.addChild(t.node)
-            let name = Label(u.name.uppercased(), font: Fonts.bold, size: 19, color: UIPalette.ink, kern: 0.8, align: .left)
-            name.node.position = CGPoint(x: x + 14, y: top - 38)
-            cardsNode.addChild(name.node)
+        let gap: CGFloat = 12
+        let cardW = (cw - gap * CGFloat(max(0, n - 1))) / CGFloat(max(1, n))
+        // descriptions first: the cards take the height of the longest one
+        var descs: [SKLabelNode] = []
+        var descH: CGFloat = 0
+        for u in offer {
             let d = SKLabelNode()
             d.numberOfLines = 0
             d.preferredMaxLayoutWidth = cardW - 28
@@ -196,14 +171,63 @@ final class LevelUpScreen {
             d.verticalAlignmentMode = .top
             d.attributedText = NSAttributedString(string: u.desc, attributes: [.font: Fonts.font(Fonts.regular, 13), .foregroundColor: UIPalette.inkDim])
             LabelStats.textsSet += 1
+            descs.append(d)
+            descH = max(descH, d.frame.height)
+        }
+        let cardH = max(128, 52 + descH + 34)
+        // web .lv-head: «НОВЫЙ УРОВЕНЬ» + the number, centred together
+        let hs = max(26, min(36, H * 0.085))
+        let blockH = hs + 18 + 24 + cardH
+        let safeTop = H / 2 - insets.top - 10, safeBottom = -H / 2 + insets.bottom + 10
+        var top = (safeTop + safeBottom) / 2 + blockH / 2
+        top = min(top, safeTop)
+        var check = LayoutCheck("levelup")
+        var y = top - hs / 2
+        let tag = Label("НОВЫЙ УРОВЕНЬ", font: Fonts.bold, size: hs, color: UIPalette.amber, kern: hs * 0.12, align: .left)
+        let num = Label("\(level)", font: Fonts.monoBold, size: hs, color: UIPalette.ink, align: .left)
+        let x0 = -(tag.width + 12 + num.width) / 2
+        tag.node.position = CGPoint(x: x0, y: y)
+        num.node.position = CGPoint(x: x0 + tag.width + 12, y: y)
+        content.addChild(tag.node)
+        content.addChild(num.node)
+        check.add("head#1", node: tag.node)
+        check.add("head#2", node: num.node)
+        y -= hs / 2 + 18
+        let sub = Label("ВЫБЕРИТЕ УЛУЧШЕНИЕ", font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 3.6)
+        sub.node.position = CGPoint(x: 0, y: y)
+        content.addChild(sub.node)
+        check.add("sub", node: sub.node)
+        y -= 24
+        for (k, u) in offer.enumerated() {
+            let x = -cw / 2 + CGFloat(k) * (cardW + gap)
+            let top = y
+            let classCard = u.classes != nil
+            let panel = Shapes.panel(width: cardW, height: cardH, fill: UIPalette.panel2, stroke: classCard ? UIPalette.amberDim : UIPalette.line)
+            panel.position = CGPoint(x: x, y: top)
+            panel.zPosition = -1
+            cardsNode.addChild(panel)
+            let t = Label((classCard ? "Класс · " + cls.spec.name : "Снаряжение").uppercased(), font: Fonts.medium, size: 11,
+                          color: classCard ? UIPalette.amber : UIPalette.teal, kern: 2, align: .left)
+            MenuScreen.fit(t, cardW - 28)
+            t.node.position = CGPoint(x: x + 14, y: top - 16)
+            cardsNode.addChild(t.node)
+            let name = Label(u.name.uppercased(), font: Fonts.bold, size: 19, color: UIPalette.ink, kern: 0.8, align: .left)
+            MenuScreen.fit(name, cardW - 28)
+            name.node.position = CGPoint(x: x + 14, y: top - 38)
+            cardsNode.addChild(name.node)
+            let d = descs[k]
             d.position = CGPoint(x: x + 14, y: top - 52)
             cardsNode.addChild(d)
             let taken = counts[u.id] ?? 0
             let st = Label(taken > 0 ? "Взято: \(taken)" : "Новое", font: Fonts.monoBold, size: 12, color: UIPalette.ink, align: .left)
             st.node.position = CGPoint(x: x + 14, y: top - cardH + 14)
             cardsNode.addChild(st.node)
-            rects.append(CGRect(x: x, y: top - cardH, width: cardW, height: cardH))
+            let r = CGRect(x: x, y: top - cardH, width: cardW, height: cardH)
+            rects.append(r)
+            check.add("card\(k)", r)
+            check.tap("card\(k)", r)
         }
+        if layoutCheck { check.report(size: size, insets: insets) }
         // web .cards.lock .card { opacity: .55 } while locked
         cardsNode.alpha = 0.55
         cardsNode.run(SKAction.sequence([SKAction.wait(forDuration: LevelUpScreen.lockTime), SKAction.fadeAlpha(to: 1, duration: 0.08)]))

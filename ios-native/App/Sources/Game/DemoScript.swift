@@ -10,6 +10,8 @@ import IceHiveCore
 //    -demo title    the title screen (attract mode behind)
 //    -demo calm     mission start with the director off: no bugs, the squad idles on the
 //                   landing pad (lighting / station look)
+//    -demo layout   like calm; 1 s after «scene ready» every screen is laid out and checked on the four
+//                   landscape phones (LayoutSizes: «layout ok|FAIL …», «layout sizes: N ok, M FAIL»)
 //    -demo smoke    alias of combat (the original CI scenario name)
 //    -demo probe    combat, plus one horde ingredient every 4 s (overlay, banner, shake, sounds,
 //                   haptic, then a real horde) — CI hitch attribution
@@ -65,7 +67,7 @@ final class DemoScript {
         case "combat", "smoke", "default": return DemoScript(name: d == "default" ? "combat" : d, options: options, bugs: options.bugs)
         case "beacon": return DemoScript(name: d, options: options, bugs: options.bugs)
         case "title", "calm", "probe", "hold", "holdhint", "extract", "queen", "queenlock", "coach", "pressure", "report", "levelup", "pause", "end",
-             "swarmshot":
+             "swarmshot", "layout":
             return DemoScript(name: d, options: options)
         default:
             AppLog.error("unknown demo \(d), using combat")
@@ -98,11 +100,11 @@ final class DemoScript {
         game.autopilot = true
         game.autoPickUpgrades = true
         switch name {
-        case "calm":
+        case "calm", "layout":
             game.autopilot = false
             game.directorEnabled = false
             target = 0
-            AppLog.info("demo calm: director off, squad idle")
+            AppLog.info("demo \(name): director off, squad idle")
         case "hold", "holdhint", "extract", "queen", "queenlock":
             var guardN = 0
             while game.stage == .beacons && guardN < 6 { game.debugSkip(); guardN += 1 }
@@ -152,8 +154,9 @@ final class DemoScript {
 
     /// Probe steps due this frame (executed by the scene: HUD / audio / haptics live there).
     enum Probe: String { case overlay, banner, shake, sounds, haptic, horde }
-    /// Screen changes the scene performs for a demo (one frame).
-    enum Request { case pause, surrender, end }
+    /// Screen changes the scene performs for a demo (one frame); `layoutSizes`: `-demo layout` checks every screen on
+    /// the four landscape phones (LayoutSizes).
+    enum Request { case pause, surrender, end, layoutSizes }
     private(set) var request: Request? = nil
     private var requested = false
     private let probeSteps: [Probe] = [.overlay, .banner, .shake, .sounds, .haptic, .horde]
@@ -164,6 +167,11 @@ final class DemoScript {
     /// replacements arrive twice a second from 12–30 m away and walk in).
     func frame(game: Game, dt: Float) {
         if name == "swarmshot" { swarmShot(game); return }
+        if name == "layout" {
+            request = nil
+            if !requested && sinceReady >= 1 { requested = true; request = .layoutSizes }
+            return
+        }
         if name == "coach" || name == "pressure" { holdState(game, dt); return }
         if !startsMission || target == 0 { return }
         t += dt

@@ -102,6 +102,9 @@ final class StickView {
         caption.node.isHidden = learned
     }
 
+    /// The caption's size (the layout check).
+    var captionSize: CGSize { CGSize(width: caption.width, height: 14) }
+
     func active(origin: CGPoint, knob offset: CGPoint) {
         node.position = origin
         knob.position = offset
@@ -112,11 +115,17 @@ final class StickView {
 
 // ================================================================
 //  HUD — the in-game overlay (camera child), laid out like the web
-//  #hud / #touchUI for portrait and landscape phones.
+//  #hud / #touchUI on a landscape phone (the app is landscape-only).
+//  Top row: stats · objective · pause; under it the squad alerts
+//  (left), the coach card (centre), the toasts (right column, never
+//  down into the dash button). Bottom: the armour block in the centre,
+//  the move ring on the left, the aim ring on the right with the dash
+//  (above) and ability (below) buttons in an arc at the right edge,
+//  the hint between the rings just above the armour block.
 // ================================================================
 final class HUD {
     let root = SKNode()
-    private(set) var size = CGSize(width: 402, height: 874)
+    private(set) var size = CGSize(width: 874, height: 402)
     private var insets = UIEdgeInsets.zero
 
     // top row
@@ -140,11 +149,11 @@ final class HUD {
     private let objBar = Bar(width: 200, height: 4, fill: UIPalette.teal, track: UIPalette.tealTrack)
     private var objBottom: CGFloat = 0
     // v1.1: threat variants of the objective box (waking amber, converging red, the Матка violet) — left edge, colours,
-    // the converging fill; the portrait box is trimmed to one line (VX-5: no «ЗАДАЧА», 13 pt, ≈ 32 pt tall)
+    // the converging fill
     private let objEdge = SKSpriteNode(color: UIPalette.amber, size: CGSize(width: 3, height: 39))
     private var objStyle: ObjectiveStyle = .normal
     private var objRect = CGRect.zero   // x, y = top-left in view points (y down), size
-    private var objTrim = false
+    private var statsRect = CGRect.zero
     private var objBarShown = true
     // coach «Учебная высадка»: card under the objective, ghost thumb, pulsing target
     let coachCard = CoachCard()
@@ -212,13 +221,13 @@ final class HUD {
     private var toasts: [Toast] = []
     private let toastRoot = SKNode()
     private let hint = Label("", font: Fonts.semibold, size: 14, color: UIPalette.amber, kern: 1.1)
-    /// Second line of a hint wider than its gap (web #hHint wraps at min(90 vw, 560) in portrait, between the stick
-    /// rings in landscape): the v1.1 hold hints are ~450 pt, the revive lines ~370 pt. Two single-line labels, no
-    /// wrapped label (TextWarmup), same style as the first line.
+    /// Second line of a hint wider than its gap (web #hHint wraps between the stick rings in landscape): the v1.1
+    /// hold hints are ~450 pt, the revive lines ~370 pt. Two single-line labels, no wrapped label (TextWarmup), same
+    /// style as the first line.
     private let hint2 = Label("", font: Fonts.semibold, size: 14, color: UIPalette.amber, kern: 1.1)
     private var hintUrgent = false
-    /// Uppercased hint text, the widest a line may be, the first line's centre and whether a second line goes above
-    /// it (landscape: the web anchors the hint at its bottom) or below (portrait: at its top).
+    /// Uppercased hint text, the widest a line may be, the bottom line's centre and whether a second line goes above
+    /// it (the web anchors the landscape hint at its bottom).
     private var hintText = ""
     private var hintMaxW: CGFloat = 360
     private var hintBase = CGPoint.zero
@@ -362,18 +371,32 @@ final class HUD {
     }
 
     // ---------------------------------------------------------------- layout
+    /// Landscape HUD geometry (LAND: the app is landscape-only, this is the one layout), view points (y down) from the
+    /// bottom safe edge `bottom` = H − safe bottom − 8 and the right / left safe edges.
+    enum Geo {
+        /// Stick rings: centre `ringLift` above the bottom safe edge (their circles end above the armour block);
+        /// the move ring `ringInL` in from the left safe edge, the aim ring `ringInR` in from the right one.
+        static let ringLift: CGFloat = 124, ringInL: CGFloat = 100, ringInR: CGFloat = 168, ringR: CGFloat = 62
+        /// The right thumb's arc around the aim ring: dash above-right, ability below-right (centres from the
+        /// right / bottom safe edges).
+        static let dashIn: CGFloat = 64, dashUp: CGFloat = 176, abilityIn: CGFloat = 50, abilityUp: CGFloat = 78
+        /// Armour block: caption + bar + level row, ending 8 pt above the bottom safe edge.
+        static let armourH: CGFloat = 46
+        /// Squad alert rows (left column under the stats), toasts (right column under the band).
+        static let rowW: CGFloat = 117, rowH: CGFloat = 22, rowStep: CGFloat = 26
+    }
+
     func layout(size: CGSize, insets: UIEdgeInsets) {
         self.size = size
         self.insets = insets
         layoutGen += 1
         let W = size.width, H = size.height
-        let landscape = W > H
         let sl = max(16, insets.left), sr = max(16, insets.right), st = insets.top, sb = insets.bottom
         let top = 10 + st
 
         // stats panel (top-left); the time column moves right when the kill count gets wide and the combo counter
         // sits inside the panel (web .hud-tl flex row)
-        let statsH: CGFloat = landscape ? 40 : 44
+        let statsH: CGFloat = 40
         statsTop = top
         statsLeft = sl
         statsKillsW = -1
@@ -381,7 +404,7 @@ final class HUD {
         tealEdge.anchorPoint = CGPoint(x: 0, y: 1)
         tealEdge.position = hp(sl, top)
         killsCap.node.position = hp(sl + 13, top + 12)
-        killsVal.node.position = hp(sl + 13, top + (landscape ? 29 : 31))
+        killsVal.node.position = hp(sl + 13, top + 29)
 
         // pause button (top-right)
         pausePanel.removeFromParent()
@@ -392,12 +415,12 @@ final class HUD {
         pauseBars.position = hp(W - sr - 22, top + 22)
         pauseRect = CGRect(x: W - sr - 52, y: top - 8, width: 60, height: 60)
 
-        // objective box: own row in portrait, between the stats and the pause button in landscape
+        // objective box between the stats and the pause button
         objLayoutStatsRight = -1
         fitStats()
 
-        // squad list (VX-5: rows only for squadmates who need attention, stacked under the top band each frame)
-        let rowW: CGFloat = 117, rowH: CGFloat = 22
+        // squad list (VX-5: rows only for squadmates who need attention, stacked under the stats panel)
+        let rowW = Geo.rowW, rowH = Geo.rowH
         for r in squad {
             r.panel.removeFromParent()
             r.panel = Shapes.panel(width: rowW, height: rowH, cut: 5)
@@ -409,13 +432,12 @@ final class HUD {
             r.bar.node.position = CGPoint(x: rowW - 46, y: -rowH / 2)
         }
         squadShown = -1
-        bandBottom = objBottom
-        placeBand()
 
-        // bottom: armour + level
-        let boxW = landscape ? min(260, W * 0.32) : min(300, W * 0.52)
-        let bottom = H - (landscape ? 8 : 12) - sb
+        // bottom: armour + level, centred
+        let boxW = min(260, W * 0.32)
+        let bottom = H - 8 - sb
         let bx = (W - boxW) / 2
+        armourRect = CGRect(x: bx, y: bottom - Geo.armourH, width: boxW, height: Geo.armourH)
         lvl.node.position = hp(bx, bottom - 6)
         xpBar.resize(width: boxW - 44)
         xpBar.node.position = hp(bx + 44, bottom - 6)
@@ -424,35 +446,31 @@ final class HUD {
         hpCap.node.position = hp(bx, bottom - 12 - 6 - 9 - 4 - 8)
         hpVal.node.position = hp(bx + boxW, bottom - 12 - 6 - 9 - 4 - 8)
 
-        // hint: portrait phones show it under the objective + squad list (web: top 226 + safe top), landscape low, in
-        // the gap between the stick rings (web: min(440, 100vw − 2·max(90, 16vw) − 230)); a longer one takes two lines
-        hintBase = landscape ? hp(W / 2 - 45, H - 64 - sb) : hp(W / 2, 226 + st + 8)
-        hintUp = landscape
-        hintMaxW = landscape ? max(160, min(440, W - 2 * max(90, W * 0.16) - 230)) : min(W * 0.9, 560)
-        fitHint()
-
-        // touch buttons (#tAbility / #tDash)
-        let rIn = insets.right
-        if landscape {
-            abilityButton.node.position = hp(W - 16 - rIn - 39, H - 150 - sb - 39)
-            dashButton.node.position = hp(W - 104 - rIn - 31, H - 196 - sb - 31)
-        } else {
-            abilityButton.node.position = hp(W - 14 - rIn - 39, H - 252 - sb - 39)
-            dashButton.node.position = hp(W - 100 - rIn - 31, H - 230 - sb - 31)
-        }
-        // stick rest positions (placeStick)
-        let sx = max(90, W * 0.16)
-        let sy = H - sb - max(110, H * 0.17) - (landscape ? 0 : 20)
-        stickRestL = hp(sx, sy)
-        stickRestR = hp(W - sx - (landscape ? 90 : 0), sy)
+        // stick rest positions: both rings at thumb height, their circles above the armour block; the right thumb's
+        // buttons in an arc round the aim ring at the right edge (dash above, the ability below)
+        let ringY = H - sb - Geo.ringLift
+        stickRestL = hp(sl + Geo.ringInL, ringY)
+        stickRestR = hp(W - sr - Geo.ringInR, ringY)
         stickL.idle(at: stickRestL)
         stickR.idle(at: stickRestR)
+        dashButton.node.position = hp(W - sr - Geo.dashIn, H - sb - Geo.dashUp)
+        abilityButton.node.position = hp(W - sr - Geo.abilityIn, H - sb - Geo.abilityUp)
+        // toasts never stack down into the dash button
+        toastFloor = hp(0, H - sb - Geo.dashUp - dashButton.radius - 8).y
 
-        // banner (VX-5 portrait: lower, under the trimmed HUD, top at 27 % + safe top; title clamp(24, 7.4 vw, 64))
-        let bw = min(560, W * 0.86)
-        banner.position = hp(W / 2, H * (landscape ? 0.24 : 0.27) + st + 40)
-        bannerTitle.size = landscape ? max(30, min(64, W * 0.08)) : max(24, min(64, W * 0.074))
-        bannerSub.kern = landscape ? 3.6 : 1.9
+        // hint: in the gap between the stick rings, its bottom line just above the armour block (web #hHint in
+        // landscape: anchored at its bottom); a longer one takes two lines growing upward
+        let gapL = sl + Geo.ringInL + Geo.ringR, gapR = W - sr - Geo.ringInR - Geo.ringR
+        hintBase = hp((gapL + gapR) / 2, bottom - Geo.armourH - 15)
+        hintUp = true
+        hintMaxW = max(160, gapR - gapL - 24)
+        fitHint()
+
+        // banner (title clamp(30, 13 % of the height, 52): a landscape phone is short)
+        let bw = min(560, W * 0.7)
+        banner.position = hp(W / 2, H * 0.30 + st)
+        bannerTitle.size = max(30, min(52, H * 0.13))
+        bannerSub.kern = 3.6
         bannerBand.size = CGSize(width: W, height: bannerTitle.size + 22)
         bannerTitle.node.position = CGPoint(x: 0, y: 0)
         bannerSub.node.position = CGPoint(x: 0, y: -bannerTitle.size * 0.5 - 14)
@@ -466,7 +484,19 @@ final class HUD {
         // overlays
         for n in [vignette, damage, horde, flash] { n.size = size; n.position = .zero }
         debugLabel.node.position = hp(max(8, insets.left), H - max(3, sb - 24))
-        plates.topLimit = hp(0, objBottom + 4).y
+        bandBottom = objBottom
+        placeBand()
+    }
+
+    /// Armour block rect (view points, y down), the lowest toast's floor (HUD y).
+    private var armourRect = CGRect.zero
+    private var toastFloor: CGFloat = -1e6
+
+    /// The coach card's widest: centred, clear of the squad alert column on the left (and so of the mirror band on
+    /// the right).
+    private var coachMaxWidth: CGFloat {
+        let sl = max(16, insets.left)
+        return max(240, min(520, size.width - 2 * (sl + Geo.rowW + 10)))
     }
 
     private var statsTop: CGFloat = 0, statsLeft: CGFloat = 0, statsKillsW: CGFloat = -1, statsComboW: CGFloat = -1
@@ -475,73 +505,58 @@ final class HUD {
     /// Stats panel from the current kill-count and combo widths (web .hud-tl: kills, time, combo in one flex row;
     /// re-built only when a column moves by a 10 pt step).
     private func fitStats() {
-        let landscape = size.width > size.height
         let kw = max(38, (killsVal.width / 10).rounded(.up) * 10)
         let cwid: CGFloat = comboLast >= 5 ? max(30, (comboVal.width / 10).rounded(.up) * 10) : 0
         if kw == statsKillsW && cwid == statsComboW { return }
         statsKillsW = kw
         statsComboW = cwid
-        let statsH: CGFloat = landscape ? 40 : 44
+        let statsH: CGFloat = 40
         let timeX = 13 + kw + 13
         let timeW = max(48, timeVal.width)
-        let statsW = max(landscape ? 124 : 130, timeX + timeW + (cwid > 0 ? 14 + cwid : 0) + 14)
+        let statsW = max(124, timeX + timeW + (cwid > 0 ? 14 + cwid : 0) + 14)
+        statsRect = CGRect(x: statsLeft, y: statsTop, width: statsW, height: statsH)
         statsPanel.removeFromParent()
-        statsPanel = Shapes.stretchedPanel(width: statsW, height: statsH, baseWidth: landscape ? 124 : 130)
+        statsPanel = Shapes.stretchedPanel(width: statsW, height: statsH, baseWidth: 124)
         statsPanel.position = hp(statsLeft, statsTop)
         statsPanel.zPosition = -1
         root.addChild(statsPanel)
         timeCap.node.position = hp(statsLeft + timeX, statsTop + 12)
-        timeVal.node.position = hp(statsLeft + timeX, statsTop + (landscape ? 29 : 31))
+        timeVal.node.position = hp(statsLeft + timeX, statsTop + 29)
         comboVal.node.position = hp(statsLeft + timeX + timeW + 14, statsTop + statsH / 2 + 1)
         layoutObjective(statsRight: statsLeft + statsW)
     }
 
-    /// Objective box: its own row in portrait; in landscape centred between the stats panel and the pause button,
-    /// pushed right / narrowed so it never overlaps either (web .hud-obj flex item).
+    /// Objective box: centred between the stats panel and the pause button, pushed right / narrowed so it never
+    /// overlaps either (web .hud-obj flex item in landscape).
     private func layoutObjective(statsRight: CGFloat) {
         let W = size.width
-        let landscape = W > size.height
         let sl = max(16, insets.left), sr = max(16, insets.right)
         let top = 10 + insets.top
-        let statsH: CGFloat = landscape ? 40 : 44
-        var objW: CGFloat, objX: CGFloat
-        let objY: CGFloat
-        if landscape {
-            if statsRight == objLayoutStatsRight { return }
-            objLayoutStatsRight = statsRight
-            objW = min(480, W - sl - sr - 124 - 44 - 40)
-            objX = max((W - objW) / 2, statsRight + 10)
-            objW = max(160, min(objW, W - sr - 44 - 10 - objX))
-            objY = top
-        } else {
-            if objLayoutStatsRight == 0 { return }
-            objLayoutStatsRight = 0
-            objW = W - sl - sr
-            objX = sl
-            objY = top + statsH + 8
-        }
-        // VX-5 portrait (≤ 600 pt): one line, no «ЗАДАЧА», 13 pt, ≈ 32 pt tall (web padding 5 / 10 / 6)
-        objTrim = !landscape && W <= 600
-        let objH: CGFloat = objTrim ? 32 : 46
+        if statsRight == objLayoutStatsRight { return }
+        objLayoutStatsRight = statsRight
+        var objW = min(480, W - sl - sr - 124 - 44 - 40)
+        let objX = max((W - objW) / 2, statsRight + 10)
+        objW = max(160, min(objW, W - sr - 44 - 10 - objX))
+        let objY = top
+        let objH: CGFloat = 46
         objRect = CGRect(x: objX, y: objY, width: objW, height: objH)
-        objCap.node.isHidden = objTrim
-        objText.size = objTrim ? 13 : (W <= 600 ? 14 : 16)
-        objBar.resize(width: objW - (objTrim ? 20 : 32))
-        objBar.node.position = hp(objX + (objTrim ? 10 : 16), objY + objH - (objTrim ? 6 : 5))
+        objText.size = W <= 700 ? 14 : 16
+        objBar.resize(width: objW - 32)
+        objBar.node.position = hp(objX + 16, objY + objH - 5)
         objCap.node.position = hp(objX + objW / 2, objY + 11)
         placeObjText()
         objEdge.size = CGSize(width: 3, height: objH - 7)
         objEdge.position = hp(objX, objY)
         rebuildObjPanel()
         objBottom = objY + objH
-        plates.topLimit = hp(0, objBottom + 4).y
+        if coachTarget == nil && !coachCard.visible { bandBottom = objBottom }
+        placeBand()
     }
 
-    /// The objective text: centred in the trimmed box (a little higher while the bar shows), under the caption else.
+    /// The objective text under its «ЗАДАЧА» caption.
     private func placeObjText() {
         let r = objRect
-        let y = objTrim ? (objBarShown ? r.minY + 13 : r.minY + r.height / 2) : r.minY + 27
-        objText.node.position = hp(r.midX, y)
+        objText.node.position = hp(r.midX, r.minY + 27)
     }
 
     /// Panel texture of the current style (the converging box is filled dark red; one texture per height).
@@ -586,11 +601,10 @@ final class HUD {
         if (was == .converging) != (st == .converging) { rebuildObjPanel() }
     }
 
-    /// Squad alert rows and toasts start under the top band: the objective box, or the coach card while it shows.
+    /// Toasts start under the top band (the objective box, or the coach card while it shows) in the right column.
     private func placeBand() {
-        let landscape = size.width > size.height
         let sr = max(16, insets.right), top = 10 + insets.top
-        toastRoot.position = hp(size.width - sr, landscape ? max(top + 52, bandBottom + 6) : bandBottom + 8)
+        toastRoot.position = hp(size.width - sr, max(top + 52, bandBottom + 6))
         // the nameplates never rise above the band either (web plateTop = max(objective, coach card) bottom + 4)
         plates.topLimit = hp(0, bandBottom + 4).y
     }
@@ -664,8 +678,7 @@ final class HUD {
         // one label per new font / size / colour of the objective box (every text texture is new anyway: what is warmed
         // is the style; few labels, so the warm-up creates and frees as few text textures as possible)
         let objStyles: [(String, CGFloat, SKColor)] = [
-            ("Улей просыпается — к маяку", 13, UIPalette.amber), ("Рой стягивается — к маяку!", 13, UIPalette.red),
-            ("Улей просыпается — к лифту!", 16, UIPalette.amber), ("Рой стягивается — к лифту!", 16, UIPalette.red)]
+            ("Улей просыпается — к маяку", objText.size, UIPalette.amber), ("Рой стягивается — к маяку!", objText.size, UIPalette.red)]
         for (t, sz, c) in objStyles {
             let l = Label(t.uppercased(), font: Fonts.semibold, size: sz, color: c, kern: 0.6)
             l.node.position = CGPoint(x: 0, y: y)
@@ -677,7 +690,7 @@ final class HUD {
             l.node.position = CGPoint(x: -W / 4, y: y); n.addChild(l.node); y -= 16
         }
         for (fill, edge) in [(UIPalette.panel, UIPalette.amber), (UIPalette.redPanel, UIPalette.red), (UIPalette.panel, UIPalette.queen)] {
-            for h in [32, 46] as [CGFloat] {
+            for h in [46] as [CGFloat] {
                 let pnl = Shapes.stretchedPanel(width: 220, height: h, baseWidth: 160, fill: fill)
                 pnl.position = CGPoint(x: -110, y: y); n.addChild(pnl)
                 let e = SKSpriteNode(color: edge, size: CGSize(width: 3, height: h - 7)); e.anchorPoint = CGPoint(x: 0, y: 1)
@@ -695,7 +708,7 @@ final class HUD {
         warmNode = n
         // the card with a two-line text, the thumb, the rings, the red marker
         coachCard.show(step: 1, text: CoachText.text(step: 1, abilityShort: "Граната", keyboard: false).uppercased(), centerX: 0,
-                       top: hp(0, objBottom + 2).y, maxWidth: min(W * 0.92, 520))
+                       top: hp(0, objBottom + 2).y, maxWidth: coachMaxWidth)
         ghost.set(.drag, at: stickRestL)
         abilityRing.isHidden = false; dashRing.isHidden = false; markerRing.isHidden = false
         markerArrow.texture = HUD.chevronRed
@@ -737,6 +750,47 @@ final class HUD {
             abilityButton.warmPies(false)
             dashButton.warmPies(false)
         }
+    }
+
+    /// `-layoutCheck` (LAND): every fixed HUD element and its reserved room — stats, objective, pause, the squad alert
+    /// column, the widest coach card with «Пропустить», the toast column under it down to the dash button, the
+    /// two-line hint, the armour block, both stick rings and captions, the dash and ability buttons — then overlaps,
+    /// elements outside the safe area and taps under 44 pt (LayoutCheck). `tag` names the case in the log line.
+    func checkLayout(tag: String = "hud") {
+        let W = size.width, H = size.height
+        var check = LayoutCheck(tag)
+        func hud(_ r: CGRect) -> CGRect { CGRect(x: r.minX - W / 2, y: H / 2 - r.maxY, width: r.width, height: r.height) }
+        let sl = max(16, insets.left), sr = max(16, insets.right), top = 10 + insets.top
+        check.add("stats", hud(statsRect))
+        check.add("objective", hud(objRect))
+        check.add("pause", hud(CGRect(x: W - sr - 44, y: top, width: 44, height: 44)))
+        check.tap("pause", hud(pauseRect))
+        check.add("squad", hud(CGRect(x: sl, y: top + 48, width: Geo.rowW, height: 3 * Geo.rowStep - 4)))
+        // the widest coach card under the objective, «Пропустить» at its right end
+        let cw = coachMaxWidth, cardTop = objBottom + 2
+        check.add("coach", hud(CGRect(x: (W - cw) / 2, y: cardTop, width: cw, height: 44)))
+        check.tap("coach.skip", MenuButton.tapRect(CGRect(x: cw / 2 - 4 - 60, y: hp(0, cardTop + 44).y, width: 60, height: 44), pad: 0))
+        // toasts: the right column under the card, down to the dash button (room for at least one two-line toast)
+        let toastW = min(320, W * 0.6), toastTop = max(top + 52, cardTop + 44 + 6)
+        let toastBottom = H / 2 - toastFloor
+        check.add("toasts", hud(CGRect(x: W - sr - toastW, y: toastTop, width: toastW, height: max(1, toastBottom - toastTop))))
+        if toastBottom - toastTop < 40 { check.add("toasts.room<40", CGRect(x: -W, y: -H, width: 1, height: 1)) }
+        // the hint at its widest, two lines
+        let hb = viewPoint(hintBase)
+        check.add("hint", hud(CGRect(x: hb.x - hintMaxW / 2, y: hb.y - 17 - 9, width: hintMaxW, height: 35)))
+        check.add("armour", hud(armourRect))
+        for (name, st, rest) in [("move", stickL, stickRestL), ("aim", stickR, stickRestR)] {
+            let c = viewPoint(rest), R = Geo.ringR
+            check.add("ring." + name, hud(CGRect(x: c.x - R, y: c.y - R, width: 2 * R, height: 2 * R)))
+            let cap = st.captionSize
+            check.add("caption." + name, hud(CGRect(x: c.x - cap.width / 2, y: c.y + R + 14 - cap.height / 2, width: cap.width, height: cap.height)))
+        }
+        for (name, b) in [("dash", dashButton), ("ability", abilityButton)] {
+            let c = b.node.position, r = b.radius
+            check.add(name, CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r))
+            check.tap(name, CGRect(x: c.x - r - 10, y: c.y - r - 10, width: 2 * r + 20, height: 2 * r + 20))
+        }
+        check.report(size: size, insets: insets)
     }
 
     func damageFlash(_ a: Float) { damageA = min(1, damageA + a) }
@@ -889,13 +943,12 @@ final class HUD {
         if shown != squadShown || bandBottom != squadBand {
             squadShown = shown
             squadBand = bandBottom
-            let landscape = size.width > size.height
-            let top0 = landscape ? 10 + insets.top + 40 + 8 : bandBottom + 8
-            var y = top0
+            // the left column under the stats panel (the coach card stays clear of it: coachMaxWidth)
+            var y = 10 + insets.top + 40 + 8
             for (k, r) in squad.enumerated() {
                 let on = shown & (1 << k) != 0
                 r.node.isHidden = !on
-                if on { r.node.position = hp(max(16, insets.left), y); y += 26 }
+                if on { r.node.position = hp(max(16, insets.left), y); y += Geo.rowStep }
             }
         }
         hpBar.set(CGFloat(P.hp / max(1, P.maxHp)))
@@ -917,7 +970,14 @@ final class HUD {
             stickR.idle(at: stickRestR, learned: sticksLearned)
         }
 
-        // toasts
+        // toasts (the oldest goes when the column would reach down into the dash button)
+        var stackH: CGFloat = -4
+        for t in toasts { stackH += t.height + 4 }
+        while !warming && toasts.count > 1 && toastRoot.position.y - stackH < toastFloor {
+            stackH -= toasts[0].height + 4
+            toasts[0].discard()
+            toasts.removeFirst()
+        }
         var y: CGFloat = 0
         var k = 0
         while k < toasts.count {
@@ -985,7 +1045,6 @@ final class HUD {
         coachCard.reducedMotion = reducedMotion
         ghost.reducedMotion = reducedMotion
         let target = warming ? nil : game.coach.target
-        let W = size.width
         if let t = target {
             let step = game.coach.step
             let top = objBottom + 2
@@ -993,7 +1052,7 @@ final class HUD {
             if step != cardStep || keyboard != cardKeyboard || layoutGen != cardLayoutGen || !coachCard.visible {
                 cardStep = step; cardKeyboard = keyboard; cardLayoutGen = layoutGen
                 let text = CoachText.text(step: step, abilityShort: game.player.spec.abilityShort, keyboard: keyboard).uppercased()
-                coachCard.show(step: step, text: text, centerX: 0, top: hp(0, top).y, maxWidth: min(W * 0.92, 520))
+                coachCard.show(step: step, text: text, centerX: 0, top: hp(0, top).y, maxWidth: coachMaxWidth)
             }
             coachCard.update(top: hp(0, top).y)
             let bb = top + coachCard.height

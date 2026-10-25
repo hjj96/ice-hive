@@ -49,19 +49,15 @@ enum TextWarmup {
         for t in toasts {
             let s = NSAttributedString(string: t.uppercased(), attributes: [
                 .font: Fonts.font(Fonts.medium, 12), .foregroundColor: UIPalette.ink, .kern: CGFloat(1.0), .paragraphStyle: right])
-            // portrait and landscape toast widths (HUD.toast: min(320, 0.6 × width) − 22)
-            items.append((s, 219))
+            // the toast width of every landscape phone (HUD.toast: min(320, 0.6 × width) − 22)
             items.append((s, 298))
         }
         for u in UPGRADES {
             items.append((NSAttributedString(string: u.desc, attributes: [
                 .font: Fonts.font(Fonts.regular, 13), .foregroundColor: UIPalette.inkDim, .paragraphStyle: left]), 160))
         }
-        for t in MenuScreen.endSubtitles {
-            items.append((NSAttributedString(string: t, attributes: [.font: Fonts.font(Fonts.regular, 14), .paragraphStyle: left]), 342))
-        }
         // v1.1: the tier lines of the title row, the report's tips (loss causes, pressure, promo, «дольше»), the goal
-        // patterns and the coach / revive lines, at the title / report column widths (portrait 402, 375; landscape)
+        // patterns and the coach / revive lines, at the title / report column widths of the landscape phones
         for d in Difficulty.tiers {
             for w in [362, 335, 360] as [CGFloat] {
                 items.append((NSAttributedString(string: d.line, attributes: [.font: Fonts.font(Fonts.regular, 12), .paragraphStyle: left]), w))

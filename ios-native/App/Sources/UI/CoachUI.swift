@@ -20,7 +20,7 @@ final class CoachCard {
     private let line1 = Label("", font: Fonts.semibold, size: 15, color: UIPalette.ink, kern: 0.75, align: .left)
     private let line2 = Label("", font: Fonts.semibold, size: 15, color: UIPalette.ink, kern: 0.75, align: .left)
     private let skip = Label(CoachText.skip.uppercased(), font: Fonts.medium, size: 11, color: UIPalette.inkFaint, kern: 1.1)
-    /// «Пропустить» hit area (HUD coordinates, ≥ 44 × 36).
+    /// «Пропустить» hit area (HUD coordinates, ≥ 44 × 44: the card's full height at its right end).
     private(set) var skipRect = CGRect.zero
     private(set) var height: CGFloat = 44
     private(set) var width: CGFloat = 0
@@ -86,7 +86,7 @@ final class CoachCard {
         }
         skip.node.position = CGPoint(x: w / 2 - 4 - skipW / 2, y: -h / 2)
         node.position = CGPoint(x: centerX, y: top)
-        skipRect = CGRect(x: centerX + w / 2 - 4 - skipW, y: top - h / 2 - 18, width: skipW, height: 36)
+        skipRect = CGRect(x: centerX + w / 2 - 4 - skipW, y: top - h, width: skipW, height: h)
         if fresh { appearT = FrameTimer.now() }
     }
 
