@@ -998,9 +998,11 @@ final class HUD {
             coachCard.update(top: hp(0, top).y)
             let bb = top + coachCard.height
             if bb != bandBottom { bandBottom = bb; placeBand() }
-            if t != coachTarget || keyboard != coachKeyboard {
+            // (a layout — rotation, safe area — moves the sticks and buttons: the ghost follows them)
+            if t != coachTarget || keyboard != coachKeyboard || layoutGen != ghostLayoutGen {
                 coachTarget = t
                 coachKeyboard = keyboard
+                ghostLayoutGen = layoutGen
                 switch t {
                 case .moveStick: ghost.set(keyboard ? .none : .drag, at: stickRestL)
                 case .aimStick: ghost.set(keyboard ? .none : .drag, at: stickRestR)
@@ -1029,8 +1031,8 @@ final class HUD {
         }
     }
     private var coachKeyboard = false
-    private var cardStep = -1, cardKeyboard = false, cardLayoutGen = -1
-    /// Bumped by every layout (rotation, safe area): the coach card is laid out again.
+    private var cardStep = -1, cardKeyboard = false, cardLayoutGen = -1, ghostLayoutGen = -1
+    /// Bumped by every layout (rotation, safe area): the coach card and the ghost thumb are laid out again.
     private var layoutGen = 0
 
     /// Metres last written into the marker label (the string is only formatted when it changes).

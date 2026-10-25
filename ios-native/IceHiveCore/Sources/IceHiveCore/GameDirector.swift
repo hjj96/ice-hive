@@ -12,6 +12,7 @@ extension Game {
         beacons = level.layout.beacons.map { BeaconState(name: $0.name, x: $0.x, z: $0.z) }
         // v1.1 (web resetDirector + queenReset): a pressure clock, a warning or a fight never carries over
         calm = false; beaconHordeMul = 1; pressure = 0; idleMul = 1; huntPressure = false; huntAfk = false; heartAt = -9
+        liftAllowance = -1
         queen = QueenState()
         qWarn = -1; qEdge = -1; qSlot = -1; qBrood = 0; qVolley = 0; qRam = 0; qMeleeCd = 0; qArmed = false
     }
@@ -160,8 +161,10 @@ extension Game {
         }
     }
 
-    /// Horde sizes follow the gameplay cap (the tier's horde multiplier is applied inside startHorde, as on the web).
-    func hordeScale() -> Float { min(1, Float(bugCap) / 1400) }
+    /// Horde sizes no longer follow the gameplay cap (the web's min(1, cap / 1400) halved every horde on «Графика:
+    /// низкая» and broke the tier bands): a low cap only limits the live swarm, so a tier plays the same on every
+    /// quality. The tier's horde multiplier is applied inside startHorde, as on the web.
+    func hordeScale() -> Float { 1 }
 
     // ---------- per-tick ----------
     func tickDirector(_ dt: Float) {
@@ -257,7 +260,15 @@ extension Game {
         // hive pressure: loitering with no beacon running (or dawdling on the way to the lift) wakes the hive — past
         // the tier's grace the trickle and the horde clock speed up and part of the swarm starts hunting the player
         if !attract {
-            let loiter = (stage == .beacons && activeBeacon < 0) || stage == .toLift
+            var loiter = (stage == .beacons && activeBeacon < 0) || stage == .toLift
+            if stage == .toLift {
+                // the walk itself is the objective: the clock starts only once the travel allowance is used up
+                if liftAllowance < 0 { liftAllowance = liftTravelAllowance() ?? -1 }
+                if liftAllowance != 0 {
+                    loiter = false
+                    if liftAllowance > 0 { liftAllowance = max(0, liftAllowance - dt) }
+                }
+            }
             if !calm { pressure = loiter ? pressure + dt : max(0, pressure - 3 * dt) }
             let over = max(0, pressure - D.pressureGrace)
             idleMul = 1 + min(3, 0.05 * over)
@@ -320,6 +331,16 @@ extension Game {
         } else if !simOnly {
             banner("Маяк запущен", "\(beaconsDone) из \(beacons.count) · ищите следующий", true)
         }
+    }
+
+    /// Seconds the walk from the player to the lift may take before it counts as dawdling: the objective-flow path at
+    /// full speed (5.3 m/s) × 1.3 + 5 s. nil while the objective flow still points at the last beacon.
+    func liftTravelAllowance() -> Float? {
+        let L = level.lift, P = marines[0]
+        guard objFlowKey == (Int(L.x.rounded()), Int(L.z.rounded())) else { return nil }
+        let d = objFlow.distance(level.cellOf(P.x, P.z))
+        let path = d < FlowField.unreachable ? Float(d) : hypotf2(L.x - P.x, L.z - P.z) * 1.4
+        return path / 5.3 * 1.3 + 5
     }
 
     func startHold() {

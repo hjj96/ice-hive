@@ -51,7 +51,18 @@ final class MenuButton {
         rect = CGRect(x: c.x - s.width / 2, y: c.y - s.height / 2, width: s.width, height: s.height)
     }
 
-    func hit(_ p: CGPoint) -> Bool { !node.isHidden && rect.insetBy(dx: -4, dy: -4).contains(p) }
+    /// Tap area: the drawn rect + 4 pt, and at least 44 pt tall (compact landscape rows are drawn 34–38 pt high).
+    var hitRect: CGRect { MenuButton.tapRect(rect, pad: 4) }
+    func hit(_ p: CGPoint) -> Bool { !node.isHidden && hitRect.contains(p) }
+    /// Distance from p to the drawn rect (0 inside): neighbours whose tap areas overlap resolve to the nearest one.
+    func distance(to p: CGPoint) -> CGFloat {
+        let dx = max(rect.minX - p.x, 0, p.x - rect.maxX), dy = max(rect.minY - p.y, 0, p.y - rect.maxY)
+        return (dx * dx + dy * dy).squareRoot()
+    }
+    /// `r` grown by `pad` each way, then to at least 44 × 44 pt around its centre (Apple's minimum tap target).
+    static func tapRect(_ r: CGRect, pad: CGFloat) -> CGRect {
+        r.insetBy(dx: -max(pad, (44 - r.width) / 2), dy: -max(pad, (44 - r.height) / 2))
+    }
 
     /// The button sits in a container moved by `d`: its hit rect follows.
     func offset(by d: CGPoint) { rect = rect.offsetBy(dx: d.x, dy: d.y) }

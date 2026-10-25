@@ -266,6 +266,22 @@ enum Shapes {
         return n
     }
 
+    /// A large panel (the pause / report box) as a 9-slice of a small cached panel texture: the corners (cut + stroke)
+    /// stay unscaled, the edges and the fill stretch. One texture per style instead of a screen-sized bitmap per box
+    /// height — a report box rendered at 3x cost 15–35 ms on CI every time its height changed.
+    static func panelStretch(width w0: CGFloat, height h0: CGFloat, cut c: CGFloat = 7, fill: SKColor = UIPalette.panel,
+                             stroke: SKColor? = nil, lineWidth lw: CGFloat = 1) -> SKSpriteNode {
+        let w = max(2, w0.rounded()), h = max(2, h0.rounded())
+        let side = (2 * c + 18).rounded()
+        if w <= side || h <= side { return panel(width: w, height: h, cut: c, fill: fill, stroke: stroke, lineWidth: lw) }
+        let n = panel(width: side, height: side, cut: c, fill: fill, stroke: stroke, lineWidth: lw)
+        let m = (c + 4) / side
+        n.centerRect = CGRect(x: m, y: m, width: 1 - 2 * m, height: 1 - 2 * m)
+        n.xScale = w / side
+        n.yScale = h / side
+        return n
+    }
+
     /// Filled + stroked circle as a cached texture (diameter 2r + stroke).
     static func circle(radius r: CGFloat, fill: SKColor, stroke: SKColor?, lineWidth lw: CGFloat = 2) -> SKSpriteNode {
         let side = (r * 2 + lw).rounded(.up)

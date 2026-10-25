@@ -8,7 +8,8 @@ import IceHiveCore
 //    swift run -c release icehive-calib --agg a.jsonl b.jsonl        (aggregate only; web rows work too)
 //  Options: --preset gate|full|stations|legacy · --tiers 0,1,2 (-1 = legacy v1.0 row) · --n runs per class and tier
 //  · --classes assault,pyro,cryo,gunner · --mode auto|passive|afk|afkbeacon · --maxs s · --seed0 1000 · --station N
-//  · --th JSON (web tier field names) · --tag t · --jobs N · --out file.jsonl (appends) · --summary file.txt · --gate
+//  · --th JSON (web tier field names) · --tag t · --q low|med|high (gameplay bug cap) · --jobs N
+//  · --out file.jsonl (appends) · --summary file.txt · --gate
 //  Exit code: 0, 1 = the gate failed, 2 = bad arguments.
 // ================================================================
 
@@ -78,8 +79,10 @@ if let agg = flags["agg"] {
         let n = Int(flags["n"] ?? "1") ?? 1
         let maxs = flags["maxs"].flatMap { Float($0) }
         let station = UInt32(flags["station"] ?? "0") ?? 0
+        guard let q = QualityTier(rawValue: flags["q"] ?? "med") else { fail("unknown quality \(flags["q"] ?? "") (low|med|high)") }
         for t in tiers {
-            runs += Calibration.batch(tier: t, mode: mode, n: n, classes: classes, seed0: seed0, tag: tag, th: t >= 0 ? th : [:], maxs: maxs, station: station)
+            runs += Calibration.batch(tier: t, mode: mode, n: n, classes: classes, seed0: seed0, tag: tag, th: t >= 0 ? th : [:], maxs: maxs,
+                                      station: station, quality: q)
         }
     }
     let jobs = Int(flags["jobs"] ?? "3") ?? 3

@@ -46,11 +46,16 @@ final class CalibrationTests: XCTestCase {
     }
 
     func testPresets() {
-        let g = Calibration.preset("gate")!
+        let all = Calibration.preset("gate")!
+        XCTAssertEqual(all.count, 32 + 64 + 32 + 4 + 4 + 4 + 8 + 64)
+        let g = all.filter { $0.quality == .med }, low = all.filter { $0.quality == .low }
         XCTAssertEqual(g.count, 32 + 64 + 32 + 4 + 4 + 4 + 8)
         XCTAssertEqual(g.filter { $0.tier == 1 && $0.mode == .auto }.count, 64)
         XCTAssertEqual(g.filter { $0.mode == .afk }.map { $0.maxs }, [Float](repeating: 420, count: 8))
         XCTAssertEqual(Set(g.map { $0.seed }).count, g.count, "disjoint seeds")
+        // the informational low-quality rows replay the first 8 Ветеран / Кошмар seeds per class (paired with med)
+        XCTAssertEqual(Set(low.map { $0.tag }), ["vet-qlow", "nm-qlow"])
+        XCTAssertTrue(Set(low.map { $0.seed }).isSubset(of: Set(g.map { $0.seed })))
         XCTAssertEqual(Calibration.preset("stations")!.map { $0.station }.max(), 4)
         XCTAssertEqual(Calibration.preset("legacy")!.count, 32)
         XCTAssertNil(Calibration.preset("nope"))
@@ -80,6 +85,13 @@ final class CalibrationTests: XCTestCase {
         XCTAssertEqual(g.n, 20); XCTAssertEqual(g.winPct, 80); XCTAssertEqual(g.queenReachedPct, 100); XCTAssertEqual(g.queenKilledPct, 90)
         XCTAssertEqual(g.zeroDownPct, 20); XCTAssertEqual(g.someDownPct, 60); XCTAssertEqual(g.manyDownPct, 20)
         XCTAssertTrue(Calibration.aggregate(rows).contains("vet auto"))
+        // low-quality rows are only reported, never mixed into the gated med groups
+        var lowRows = rows
+        for _ in 0..<10 { var r = synth(1, "auto", won: true); r.q = "low"; r.tag = "vet-qlow"; lowRows.append(r) }
+        let lg = Calibration.gate(lowRows)
+        XCTAssertTrue(lg.passed)
+        XCTAssertTrue(lg.lines.contains { !$0.gated && !$0.ok && $0.text.hasPrefix("vet/auto wins on «Графика: низкая» 100.0%") },
+                      lg.lines.map { $0.text }.joined(separator: "; "))
         // Ветеран too easy → the gate fails with a CALIB: FAILED line
         for k in 20..<40 where k % 5 == 0 { rows[k].result = "won" }
         rows[37].result = "won"; rows[38].result = "won"; rows[39].result = "won"; rows[36].result = "won"

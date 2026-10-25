@@ -200,6 +200,7 @@ final class TitleScreen {
             let r = CGRect(x: x, y: top - cardH, width: cardW, height: cardH)
             cards.append((c, r, panel))
             check.add("card." + c.id, r)
+            check.tap("card." + c.id, r)
         }
         let rows = (MarineClass.allCases.count + perRow - 1) / perRow
         y -= CGFloat(rows) * (cardH + gap) + 6
@@ -258,6 +259,8 @@ final class TitleScreen {
         }
         check.add("go", go.rect)
         check.add("sound", sound.rect)
+        check.tap("go", go.hitRect)
+        check.tap("sound", sound.hitRect)
         return bottom >= -H / 2 + insets.bottom + 6
     }
 
@@ -283,6 +286,7 @@ final class TitleScreen {
                 segment(x: x, top: y, w: w, h: segH, label: l, on: i == tier, red: i == 2)
                 tierRects.append(CGRect(x: x, y: y - segH, width: w, height: segH))
                 check.add("tier.\(i)", CGRect(x: x, y: y - segH, width: w, height: segH))
+                check.tap("tier.\(i)", MenuButton.tapRect(CGRect(x: x, y: y - segH, width: w, height: segH), pad: 0))
                 x += w + 6
             }
             x += 6
@@ -311,6 +315,7 @@ final class TitleScreen {
             segment(x: x, top: y, w: w, h: segH, label: l, on: i == tier, red: i == 2)
             tierRects.append(CGRect(x: x, y: y - segH, width: w, height: segH))
             check.add("tier.\(i)", CGRect(x: x, y: y - segH, width: w, height: segH))
+            check.tap("tier.\(i)", MenuButton.tapRect(CGRect(x: x, y: y - segH, width: w, height: segH), pad: 0))
         }
         y -= segH + 6
         let p = paragraph(line, font: Fonts.regular, size: 12, color: UIPalette.inkDim, width: cw, align: .left)
@@ -335,7 +340,7 @@ final class TitleScreen {
     func hit(_ p: CGPoint) -> Action? {
         if go.hit(p) { return .start }
         if sound.hit(p) { return .sound }
-        for (i, r) in tierRects.enumerated() where r.contains(p) { return .tier(i) }
+        for (i, r) in tierRects.enumerated() where MenuButton.tapRect(r, pad: 0).contains(p) { return .tier(i) }
         for (c, r, _) in cards where r.contains(p) { return .select(c) }
         return nil
     }

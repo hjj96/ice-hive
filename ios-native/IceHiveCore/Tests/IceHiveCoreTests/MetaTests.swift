@@ -336,6 +336,14 @@ final class SettingsStoreV11Tests: XCTestCase {
         d.set(42, forKey: "ledulei.diff")
         s = SettingsStore(defaults: d)
         XCTAssertEqual(s.profile.runs, 0); XCTAssertNil(s.diffPick)
+        // finite values beyond Int's range must not trap in Int(Double) (a crash on every launch)
+        for (v, want) in [("1e20", 1_000_000), ("-1e30", 0), ("1.7976931348623157e308", 1_000_000), ("3.9", 3)] {
+            d.set(v, forKey: "ledulei.sticks")
+            XCTAssertEqual(SettingsStore(defaults: d).stickSeconds, want, v)
+        }
+        d.set("1e20", forKey: "ledulei.seed"); d.set("-1e30", forKey: "ledulei.diff")
+        s = SettingsStore(defaults: d)
+        XCTAssertEqual(s.stationSeed, 0); XCTAssertNil(s.diffPick)
     }
 
     func testV10BestMigratesToTheProfile() {
