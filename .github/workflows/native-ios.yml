@@ -3,7 +3,7 @@ name: native-ios
 # Native build of «Ледяной Улей» 2.0 (ios-native/): Swift, the world drawn with Metal, HUD / menus as a SpriteKit
 # scene in the same Metal pass. Results of every run are committed to branch `ci-results` under <branch>/<short-sha>/:
 #   status.json, core-tests.log, core-perf.log, calib.txt / calib.jsonl (v1.1 balance gate), build.log, release-check.txt,
-#   metrics.txt, fps.txt, hitches.txt, <demo>-<s>s.png,
+#   metrics.txt, fps.txt, hitches.txt, <demo>-<s>s.png (upright landscape: the app is landscape-only), other-phones.txt,
 #   app-<demo>.log, app.log
 on:
   push:
@@ -212,6 +212,8 @@ jobs:
           check ITSAppUsesNonExemptEncryption "$(plutil -extract ITSAppUsesNonExemptEncryption raw "$pl")" false
           check UIRequiredDeviceCapabilities "$(plutil -extract UIRequiredDeviceCapabilities json -o - "$pl" | tr -d ' \n')" '["arm64"]'
           check MinimumOSVersion "$(plutil -extract MinimumOSVersion raw "$pl")" 16.0
+          check UISupportedInterfaceOrientations "$(plutil -extract UISupportedInterfaceOrientations json -o - "$pl" | tr -d ' \n')" '["UIInterfaceOrientationLandscapeRight","UIInterfaceOrientationLandscapeLeft"]'
+          check UIRequiresFullScreen "$(plutil -extract UIRequiresFullScreen raw "$pl")" true
           check executable-archs "$(lipo -archs "$app/IceHive")" arm64
           check privacy-manifest "$(test -f "$app/PrivacyInfo.xcprivacy" && echo present)" present
           check metallib "$(test -f "$app/default.metallib" && echo present)" present
@@ -311,7 +313,12 @@ jobs:
     name: sim-smoke
     needs: build
     runs-on: ${{ vars.NATIVE_MACOS_RUNNER || 'macos-26' }}
-    timeout-minutes: 40
+    timeout-minutes: 55
+    env:
+      # every frame-gated demo, all landscape (the app is landscape-only); `layout` (the four-phone layout check)
+      # runs as well but builds ~40 screens in one go, so it is not gated
+      DEMOS: firstlaunch combat beacon swarmshot swarmshot-dots swarm swarm3x calm title title-fresh title-return title-nm probe hold extract holdhint queen queenlock coach coach3 pressure pressure-amber levelup pause pause-nm end report-first report-win report-loss report-chip release-combat
+      MENUS: levelup,pause,pause-nm,end,report-first,report-win,report-loss,report-chip
     steps:
       - uses: actions/checkout@v4
         with:
@@ -335,7 +342,7 @@ jobs:
           xcrun simctl boot "$udid" || true
           xcrun simctl bootstatus "$udid" -b
           xcrun simctl list devices booted
-      - name: Install and run demos (combat / beacon / title / landscape)
+      - name: Install and run demos (combat / beacon / title / menus / layout — all landscape)
         env:
           UDID: ${{ steps.sim.outputs.udid }}
         run: |
@@ -351,6 +358,10 @@ jobs:
           echo $! > logstream.pid
           sleep 3
           : > results/alive.txt
+          # The app is landscape-only: every run is pinned to landscape right (-orient right: Dynamic Island on the
+          # left) and each screenshot (the simulator writes the portrait framebuffer) is turned upright by the side the
+          # app logged («iface=landscapeRight|Left»; ios-native/ci/upright.sh), so every PNG is a landscape picture.
+          upright() { ios-native/ci/upright.sh "$1" "$2"; }
           # run_demo <label> <seconds> "<launch args>" <screenshot offsets (s)...>
           # The app measures fps for <seconds> after its "scene ready" line (end of loading) and logs "demo done";
           # screenshots come only after that — `simctl io screenshot` takes 5–30 s on these runners and stalls the
@@ -360,7 +371,7 @@ jobs:
             # shellcheck disable=SC2086
             xcrun simctl launch --terminate-running-process \
               --stdout="$PWD/results/app-$label.log" --stderr="$PWD/results/app-$label-stderr.log" \
-              "$UDID" "$BUNDLE_ID" $args -seconds "$secs" -debugHUD
+              "$UDID" "$BUNDLE_ID" $args -orient right -seconds "$secs" -debugHUD
             local w=0
             until grep -q 'scene ready' "results/app-$label.log" 2>/dev/null; do
               sleep 1; w=$((w + 1))
@@ -378,6 +389,7 @@ jobs:
               echo "$label +${s}s start $(python3 -c 'import time; print(f"{time.time():.3f}")')" >> results/shots.txt
               xcrun simctl io "$UDID" screenshot "results/$label-${s}s.png"
               echo "$label +${s}s end   $(python3 -c 'import time; print(f"{time.time():.3f}")')" >> results/shots.txt
+              upright "results/$label-${s}s.png" "results/app-$label.log"
             done
             if xcrun simctl spawn "$UDID" launchctl list | grep -q 'UIKitApplication:com.hjj96.icehive'; then
               echo "$label alive" >> results/alive.txt
@@ -397,8 +409,8 @@ jobs:
           run_demo firstlaunch 20 "-demo combat -seed 7"
           run_demo combat 18 "-demo combat -seed 7" 0 6
           run_demo beacon 15 "-demo beacon -seed 7" 0
-          # the App Store 2-swarm moment staged in the app (gunner at the crossing, 600 bugs, firing, time ~frozen):
-          # look against store/screenshots/6.3/2-swarm.png (same 402x874 @3x size as this simulator)
+          # the App Store 2-swarm moment staged in the app (gunner at the crossing, 600 bugs, firing, time ~frozen),
+          # now in landscape (874x402 @3x)
           run_demo swarmshot 4 "-demo swarmshot -seed 7" 0
           # the same with every speckle drawn again as an anti-aliased dot (-glintDots; default off, like the web)
           run_demo swarmshot-dots 4 "-demo swarmshot -seed 7 -glintDots" 0
@@ -409,51 +421,51 @@ jobs:
           run_demo calm 8 "-demo calm" 0
           run_demo title 6 "-demo title" 0
           # v1.1 title: a fresh profile (НОВОБРАНЕЦ selected, premise, no profile line) and a returning one (ВЕТЕРАН,
-          # profile line, rank chips + medal pips), portrait and landscape; -layoutCheck logs overlaps / off-screen
+          # profile line, rank chips + medal pips); -layoutCheck logs overlaps / off-screen / small taps
           run_demo title-fresh 5 "-demo title -profile fresh -layoutCheck" 0
           run_demo title-return 5 "-demo title -profile veteran -layoutCheck" 0
-          run_demo title-land 5 "-demo title -profile veteran -orient landscape -layoutCheck" 0
           # -tier 2 on the title = the player's pick: КОШМАР selected (red ring) with its line
           run_demo title-nm 5 "-demo title -profile veteran -tier 2 -layoutCheck" 0
-          run_demo landscape 10 "-demo combat -orient landscape -seed 7" 0
+          # LAND: every screen laid out on the four landscape phones (874x402, 932x430, 844x390, 667x375) with their
+          # safe areas, «layout sizes: N ok, 0 FAIL» (not a frame-gate demo: it builds ~40 screens in one go)
+          run_demo layout 3 "-demo layout -seed 7" 0
           # horde ingredients one by one (overlay, banner, shake, sounds, haptic, horde) every 4 s: hitch attribution
           run_demo probe 26 "-demo probe -seed 7"
           # lift: holding out on the platform, then the extraction pinned at +2 s (gore rides up with the deck)
           run_demo hold 8 "-demo hold -seed 3" 0
           run_demo extract 10 "-demo extract -seed 3" 0
           # the Ветеран lift-pulse hint (~450 pt in one line) in the first seconds of the hold, countdown pinned: two
-          # lines under the objective (portrait) / between the stick rings (landscape), «hint 2 lines» in the log
-          run_demo holdhint 8 "-demo holdhint -seed 3" 0
-          run_demo holdhint-land 8 "-demo holdhint -orient landscape -seed 3" 0
+          # lines between the stick rings, «hint 2 lines» in the log; the HUD layout check
+          run_demo holdhint 8 "-demo holdhint -seed 3 -layoutCheck" 0
           # v1.1: the Матка (boss of the hold) on the deck — a brute instance at scale 4.2, violet tint, volley rings
           run_demo queen 10 "-demo queen -tier 1 -seed 3" 0 3
           # the countdown ran out with her alive: «ЛИФТ ЗАБЛОКИРОВАН — МАТКА ЖИВА»
           run_demo queenlock 8 "-demo queenlock -queenHp 1000000 -seed 3" 0
-          # v1.1 coach «Учебная высадка» on the fresh demo profile: step 1 (portrait), step 3 (landscape, 18 runners)
-          run_demo coach 6 "-demo coach -profile fresh -seed 7" 0
-          run_demo coach3-land 6 "-demo coach -coachStep 2 -orient landscape -seed 7" 0
+          # v1.1 coach «Учебная высадка» on the fresh demo profile: step 1 (ghost thumb on the move ring), step 3
+          # (the «Граната» tap with its amber ring, 18 runners); the HUD layout check
+          run_demo coach 6 "-demo coach -profile fresh -seed 7 -layoutCheck" 0
+          run_demo coach3 6 "-demo coach -coachStep 2 -seed 7 -layoutCheck" 0
           # hive pressure: red (converging, urgent marker) and amber (waking)
           run_demo pressure 8 "-demo pressure -pressure red -tier 1 -seed 7" 0
           run_demo pressure-amber 6 "-demo pressure -pressure amber -seed 7" 0
-          run_demo pressure-land 6 "-demo pressure -pressure red -orient landscape -seed 7" 0
           # menus: upgrade cards, pause menu, mission report (30 Hz over the frozen world)
-          run_demo levelup 4 "-demo levelup -seed 5" 0
+          run_demo levelup 4 "-demo levelup -seed 5 -layoutCheck" 0
           run_demo pause 4 "-demo pause -seed 5 -layoutCheck" 0
-          run_demo pause-land 4 "-demo pause -tier 2 -seed 5 -orient landscape -layoutCheck" 0
+          run_demo pause-nm 4 "-demo pause -tier 2 -seed 5 -layoutCheck" 0
           run_demo end 4 "-demo end -seed 5" 0
           # v1.1 mission report fixtures (committed into the demo's in-memory profile)
           run_demo report-first 4 "-demo report -report first -seed 5 -layoutCheck" 0
           run_demo report-win 4 "-demo report -report win -seed 5 -layoutCheck" 0
-          run_demo report-win-land 4 "-demo report -report win -orient landscape -seed 5 -layoutCheck" 0
           run_demo report-loss 4 "-demo report -report loss -seed 5 -layoutCheck" 0
-          run_demo report-chip-land 4 "-demo report -report chip -orient landscape -seed 5 -layoutCheck" 0
+          run_demo report-chip 4 "-demo report -report chip -seed 5 -layoutCheck" 0
           # Metal unusable (-failMetal): a readable message instead of an endless loading screen
           xcrun simctl launch --terminate-running-process \
             --stdout="$PWD/results/app-failmetal.log" --stderr="$PWD/results/app-failmetal-stderr.log" \
-            "$UDID" "$BUNDLE_ID" -demo title -failMetal
+            "$UDID" "$BUNDLE_ID" -demo title -failMetal -orient right
           for _ in $(seq 1 40); do grep -q 'failure screen shown' results/app-failmetal.log 2>/dev/null && break; sleep 1; done
           sleep 2
           xcrun simctl io "$UDID" screenshot results/failmetal-0s.png || true
+          upright results/failmetal-0s.png results/app-failmetal.log
           xcrun simctl terminate "$UDID" "$BUNDLE_ID" || true
           sleep 2
           # the Release build (simulator): a plain launch writes nothing to stdout; then one measured demo
@@ -469,11 +481,13 @@ jobs:
             echo "release-quiet DEAD" >> results/alive.txt
           fi
           xcrun simctl io "$UDID" screenshot results/release-title-0s.png || true
+          # (a plain Release launch logs nothing: it opens in the Info.plist's first orientation, landscape right)
+          upright results/release-title-0s.png /dev/null
           xcrun simctl terminate "$UDID" "$BUNDLE_ID" || true
           sleep 2
           run_demo release-combat 10 "-demo combat -seed 7" 0
           xcrun simctl spawn "$UDID" launchctl list | grep -i icehive | tee results/launchctl.txt || true
-          demos="firstlaunch combat beacon swarmshot swarmshot-dots swarm swarm3x calm title title-fresh title-return title-land title-nm landscape probe hold extract holdhint holdhint-land queen queenlock coach coach3-land pressure pressure-amber pressure-land levelup pause pause-land end report-first report-win report-win-land report-loss report-chip-land release-combat"
+          demos="$DEMOS"
           for d in $demos; do
             f=results/app-$d.log
             { echo "== $f"; grep -h -E 'loading took|pipelines built|metal world ready|demo done' "$f" || true; } >> results/fps.txt
@@ -483,15 +497,15 @@ jobs:
           # GPU-side seconds: frames completed, longest gap between two, slowest command buffer (commit -> done)
           echo "== GPU-side stalls (hb lines with gap > 50 ms)" >> results/hitches.txt
           for d in $demos; do grep -H -E 'hb t=.* gap=([5-9][0-9]|[0-9]{3,})ms' "results/app-$d.log" | sed -E 's/ (mode|bugs|vis|parts|stage|hp|kills|mem|avail|demo|rend|cpu|main|dc|inst|tris)=[^ ]*//g' >> results/hitches.txt || true; done
-          python3 ios-native/ci/frame_metrics.py --cold firstlaunch --cold-max-ms 150 --menus levelup,pause,pause-land,end,report-first,report-win,report-win-land,report-loss,report-chip-land results $demos > results/metrics.txt || true
-          # v1.1 lines (start, title, threat, queen, lift lock, coach, run) and the layout checks
-          for d in $demos; do grep -H -E 'v11 |layout (ok|FAIL)|report: tightest|hint 2 lines' "results/app-$d.log" >> results/v11.txt || true; done
+          python3 ios-native/ci/frame_metrics.py --cold firstlaunch --cold-max-ms 150 --menus "$MENUS" results $demos > results/metrics.txt || true
+          # v1.1 lines (start, title, threat, queen, lift lock, coach, run) and the layout checks (+ the four-phone run)
+          for d in $demos layout; do grep -H -E 'v11 |layout (ok|FAIL)|layout sizes|report: tightest|hint 2 lines' "results/app-$d.log" >> results/v11.txt || true; done
           cat results/alive.txt results/loading.txt results/fps.txt results/shots.txt results/hitches.txt results/metrics.txt results/v11.txt
       - name: Verify app is alive and rendered
         run: |
           echo "--- combat stdout ---"; cat results/app-combat.log || true
           echo "--- combat stderr ---"; tail -n 50 results/app-combat-stderr.log || true
-          for f in results/app-beacon.log results/app-title.log results/app-calm.log results/app-landscape.log results/app-extract.log results/app-end.log results/app-failmetal.log; do echo "--- $f ---"; tail -n 25 "$f" || true; done
+          for f in results/app-beacon.log results/app-title.log results/app-calm.log results/app-layout.log results/app-extract.log results/app-end.log results/app-failmetal.log; do echo "--- $f ---"; tail -n 25 "$f" || true; done
           if grep -q DEAD results/alive.txt; then echo "::error::app died during a demo: $(grep DEAD results/alive.txt | tr '\n' ' ')"; exit 1; fi
           cp results/app-combat.log results/app-stdout.log
           cp results/app-combat-stderr.log results/app-stderr.log
@@ -503,7 +517,7 @@ jobs:
             grep -q 'rend=metal' "results/app-$d.log" || { echo "::error::$d: no Metal heartbeat lines"; exit 1; }
             if grep -q 'ERROR' "results/app-$d.log"; then echo "::error::$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; exit 1; fi
           done
-          for d in title-fresh title-return title-land title-nm holdhint holdhint-land queenlock coach coach3-land pressure pressure-amber pressure-land pause-land report-first report-win report-win-land report-loss report-chip-land; do
+          for d in title-fresh title-return title-nm layout holdhint queenlock coach coach3 pressure pressure-amber pause-nm report-first report-win report-loss report-chip; do
             grep -q 'scene ready' "results/app-$d.log" || { echo "::error::$d: no 'scene ready'"; exit 1; }
             if grep -q 'ERROR' "results/app-$d.log"; then echo "::error::$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; exit 1; fi
           done
@@ -511,67 +525,79 @@ jobs:
           need() { grep -q -E "$2" "results/app-$1.log" || { echo "::error::$1: no line matching '$2'"; exit 1; }; }
           need title-fresh 'v11 title tier=rec runs=0'
           need title-return 'v11 title tier=vet'
-          need title-land 'v11 title tier=vet'
           need title-nm 'v11 title tier=nm .*pick=2'
-          need pause-land 'v11 start tier=nm '
+          need pause-nm 'v11 start tier=nm '
           need coach 'v11 start .*coach=1'
           need coach 'v11 coach step=0'
-          need coach3-land 'v11 coach step=2'
+          need coach3 'v11 coach step=2'
           need pressure 'v11 threat 2'
           need pressure-amber 'v11 threat 1'
           need queen 'v11 queen spawn .*uid=[1-9][0-9]* hp='
           need queen 'v11 threat 3'
           need queenlock 'v11 lift locked'
           need holdhint 'hint 2 lines .*КОНТУР БЬЁТ КАЖДЫЕ 6 С —'
-          need holdhint-land 'hint 2 lines .*КОНТУР БЬЁТ КАЖДЫЕ 6 С —'
           need report-first 'v11 run tier=rec won=1 .*medal=1'
           need report-win 'v11 run tier=vet won=1 .*rank=2→3'
           need report-loss 'v11 run tier=vet won=0 .*downBy=4'
-          need report-chip-land 'v11 run .*recTip=1'
+          need report-chip 'v11 run .*recTip=1'
           need combat 'v11 start tier=vet coach=0'
-          for d in title-fresh title-return title-land title-nm pause pause-land report-first report-win report-win-land report-loss report-chip-land; do
+          # landscape-only: every run reports a landscape interface
+          for d in $DEMOS layout; do
+            need "$d" 'scene presented size=[0-9]+x[0-9]+ iface=landscape'
+            if grep -q -E 'iface=portrait' "results/app-$d.log"; then echo "::error::$d: portrait interface"; exit 1; fi
+          done
+          for d in title-fresh title-return title-nm holdhint coach coach3 levelup pause pause-nm report-first report-win report-loss report-chip layout; do
             need "$d" 'layout (ok|FAIL)'
             if grep -q 'layout FAIL' "results/app-$d.log"; then echo "::error::$d: $(grep -m 2 'layout FAIL' "results/app-$d.log" | tr '\n' ' ')"; exit 1; fi
           done
+          # the four landscape phones (LayoutSizes): 4 × (3 titles + HUD + pause + level-up + 4 reports) = 40 checks
+          need layout 'layout sizes: 40 ok, 0 FAIL on 4 phones'
           grep -q 'failure screen shown' results/app-failmetal.log || { echo "::error::-failMetal: no failure screen"; exit 1; }
           if [ -s results/app-release-quiet.log ]; then echo "::error::plain Release launch wrote to stdout: $(head -3 results/app-release-quiet.log)"; exit 1; fi
       # warm demos: minFps >= 55 on the game loop and no loop hitch > 50 ms after the first second (metrics.txt)
       - name: Frame metrics gate
-        run: python3 ios-native/ci/frame_metrics.py --gate --cold firstlaunch --cold-max-ms 150 --menus levelup,pause,pause-land,end,report-first,report-win,report-win-land,report-loss,report-chip-land results firstlaunch combat beacon swarmshot swarmshot-dots swarm swarm3x calm title title-fresh title-return title-land title-nm landscape probe hold extract holdhint holdhint-land queen queenlock coach coach3-land pressure pressure-amber pressure-land levelup pause pause-land end report-first report-win report-win-land report-loss report-chip-land release-combat
-      # v1.1 small screens (spec §7.2): the tightest iOS 16 phone, 375 x 667, when the runtime offers an iPhone SE —
-      # the title, the report and the pause in both orientations with -layoutCheck (informational: results/se-layout.txt)
-      - name: Small-screen layout check (iPhone SE)
+        # shellcheck disable=SC2086
+        run: python3 ios-native/ci/frame_metrics.py --gate --cold firstlaunch --cold-max-ms 150 --menus "$MENUS" results $DEMOS
+      # LAND: the other landscape phones on real simulators — iPhone SE (667 x 375, no insets), iPhone 16e (844 x 390,
+      # notch) and iPhone 16 Plus (932 x 430, Dynamic Island), each when the runtime offers it: the title, the HUD
+      # (hold hint, coach card + ghost thumb), the pause, the level-up cards and a report with -layoutCheck, upright
+      # landscape screenshots (other-<phone>-<demo>-0s.png), the result lines in other-phones.txt; a «layout FAIL» on
+      # any of them fails the job (the virtual four-phone check of the `layout` demo covers all four sizes)
+      - name: Layout check on the other landscape phones
         if: always()
         env:
           UDID: ${{ steps.sim.outputs.udid }}
         run: |
           set -x
           mkdir -p results
-          : > results/se-layout.txt
+          : > results/other-phones.txt
           rt=$(sed -n 3p sim.txt)
-          dtype=$(xcrun simctl list devicetypes | grep -o 'com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation' | head -1)
-          if [ -z "$dtype" ]; then echo "no iPhone SE (3rd generation) device type: small-screen layouts not run" | tee -a results/se-layout.txt; exit 0; fi
-          se=$(xcrun simctl create "SE layout" "$dtype" "$rt" 2>/dev/null) || { echo "iPhone SE not available on $rt" | tee -a results/se-layout.txt; exit 0; }
+          upright() { ios-native/ci/upright.sh "$1" "$2"; }
           xcrun simctl shutdown "$UDID" || true
-          xcrun simctl boot "$se" && xcrun simctl bootstatus "$se" -b
-          xcrun simctl install "$se" IceHive.app
-          for o in portrait landscape; do
-            for d in "title-return|3|-demo title -profile veteran" "report-win|3|-demo report -report win -seed 5" "pause|3|-demo pause -seed 5" \
-                     "holdhint|8|-demo holdhint -seed 3"; do
-              label="se-${d%%|*}-$o"; rest="${d#*|}"; secs="${rest%%|*}"; args="${rest#*|}"
+          for phone in "se|iPhone-SE-3rd-generation" "16e|iPhone-16e" "16plus|iPhone-16-Plus"; do
+            tag="${phone%%|*}"; dt="com.apple.CoreSimulator.SimDeviceType.${phone#*|}"
+            if ! xcrun simctl list devicetypes | grep -q "$dt"; then echo "== $tag: no device type $dt" | tee -a results/other-phones.txt; continue; fi
+            dev=$(xcrun simctl create "layout $tag" "$dt" "$rt" 2>/dev/null) || { echo "== $tag: not available on $rt" | tee -a results/other-phones.txt; continue; }
+            xcrun simctl boot "$dev" && xcrun simctl bootstatus "$dev" -b
+            xcrun simctl install "$dev" IceHive.app
+            for d in "title-return|3|-demo title -profile veteran" "holdhint|8|-demo holdhint -seed 3" "coach3|6|-demo coach -coachStep 2 -seed 7" \
+                     "pause|3|-demo pause -seed 5" "levelup|3|-demo levelup -seed 5" "report-win|3|-demo report -report win -seed 5"; do
+              label="other-$tag-${d%%|*}"; rest="${d#*|}"; secs="${rest%%|*}"; args="${rest#*|}"
               # shellcheck disable=SC2086
               xcrun simctl launch --terminate-running-process --stdout="$PWD/results/app-$label.log" --stderr="$PWD/results/app-$label-stderr.log" \
-                "$se" "$BUNDLE_ID" $args -orient "$o" -layoutCheck -seconds "$secs"
+                "$dev" "$BUNDLE_ID" $args -orient right -layoutCheck -seconds "$secs"
               for _ in $(seq 1 60); do grep -q 'demo done' "results/app-$label.log" 2>/dev/null && break; sleep 1; done
-              xcrun simctl io "$se" screenshot "results/$label-0s.png" || true
-              { echo "== $label"; grep -h -E 'layout (ok|FAIL)|report: tightest|hint 2 lines' "results/app-$label.log" || echo "no layout line"; } >> results/se-layout.txt
-              xcrun simctl terminate "$se" "$BUNDLE_ID" || true
+              xcrun simctl io "$dev" screenshot "results/$label-0s.png" || true
+              upright "results/$label-0s.png" "results/app-$label.log"
+              { echo "== $label"; grep -h -E 'scene presented|layout (ok|FAIL)|report: tightest|hint 2 lines' "results/app-$label.log" || echo "no layout line"; } >> results/other-phones.txt
+              xcrun simctl terminate "$dev" "$BUNDLE_ID" || true
               sleep 2
             done
+            xcrun simctl shutdown "$dev" || true
+            xcrun simctl delete "$dev" || true
           done
-          cat results/se-layout.txt
-          xcrun simctl shutdown "$se" || true
-          xcrun simctl delete "$se" || true
+          cat results/other-phones.txt
+          if grep -q 'layout FAIL' results/other-phones.txt; then echo "::error::layout FAIL on another phone: $(grep -m 3 'layout FAIL' results/other-phones.txt | tr '\n' ' ')"; exit 1; fi
       - name: Collect crash logs and stop
         if: always()
         env:
