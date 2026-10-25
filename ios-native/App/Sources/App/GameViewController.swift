@@ -6,6 +6,7 @@ final class GameViewController: UIViewController {
     let options: LaunchOptions
     private var presentedScene: GameScene?
     private var observers: [NSObjectProtocol] = []
+    private var lastLayoutSize = CGSize.zero
 
     init(options: LaunchOptions) {
         self.options = options
@@ -99,10 +100,12 @@ final class GameViewController: UIViewController {
             presentedScene = scene
             loop.present(scene)
             scene.boot()
-            AppLog.info("scene presented size=\(Int(size.width))x\(Int(size.height))")
+            AppLog.info("scene presented size=\(Int(size.width))x\(Int(size.height)) iface=\(interfaceOrientationName)")
         } else {
             loop.layout()
+            if size != lastLayoutSize { AppLog.info("view resized \(Int(size.width))x\(Int(size.height)) iface=\(interfaceOrientationName)") }
         }
+        lastLayoutSize = size
     }
 
     override func viewSafeAreaInsetsDidChange() {
@@ -140,13 +143,31 @@ final class GameViewController: UIViewController {
 
     override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { return .bottom }
 
+    /// Landscape only (Info.plist lists landscape right + left): the game, its HUD and its menus have one layout.
+    /// `-orient left|right` pins one side (CI: the screenshots then rotate the same way every run).
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
         switch options.orientation {
-        case "landscape": return .landscape
-        case "portrait": return .portrait
-        default: return .allButUpsideDown
+        case "left": return .landscapeLeft
+        case "right": return .landscapeRight
+        default: return .landscape
         }
     }
 
+    /// Dynamic Island / notch on the left, home indicator at the bottom (the side the Info.plist lists first).
+    override var preferredInterfaceOrientationForPresentation: UIInterfaceOrientation {
+        options.orientation == "left" ? .landscapeLeft : .landscapeRight
+    }
+
     override var shouldAutorotate: Bool { return true }
+
+    /// «landscapeRight» / «landscapeLeft» (CI turns its screenshots upright by it).
+    private var interfaceOrientationName: String {
+        switch view.window?.windowScene?.interfaceOrientation {
+        case .landscapeRight?: return "landscapeRight"
+        case .landscapeLeft?: return "landscapeLeft"
+        case .portrait?: return "portrait"
+        case .portraitUpsideDown?: return "portraitUpsideDown"
+        default: return "unknown"
+        }
+    }
 }

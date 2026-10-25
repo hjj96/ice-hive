@@ -16,7 +16,8 @@ struct LaunchOptions {
     var seed: UInt32?
     /// No audio (`-mute`).
     var mute: Bool = false
-    /// Lock the interface orientation (`-orient portrait|landscape`).
+    /// Pin one landscape side (`-orient left|right`: Dynamic Island on the right / on the left); the app is landscape-only,
+    /// any other value is ignored (logged).
     var orientation: String?
     /// Demo swarm size override (`-bugs N`, combat / beacon demos; capped by the quality tier's bug cap).
     var bugs: Int?
@@ -79,7 +80,10 @@ struct LaunchOptions {
             case "-class", "--class": result.playerClass = value()
             case "-seed", "--seed": if let v = value(), let n = UInt32(v) { result.seed = n }
             case "-mute", "--mute": result.mute = flag()
-            case "-orient", "--orient": result.orientation = value()
+            case "-orient", "--orient":
+                if let v = value() {
+                    if v == "left" || v == "right" { result.orientation = v } else { result.unknown.append("-orient " + v) }
+                }
             case "-bugs", "--bugs": if let v = value(), let n = Int(v), n >= 0 { result.bugs = n }
             case "-mscale", "--mscale": if let v = value(), let n = Double(v), n > 0.4, n <= 4 { result.metalScale = n }
             case "-glintDots", "--glintDots": result.glintDots = flag()
