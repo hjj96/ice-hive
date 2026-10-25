@@ -37,6 +37,7 @@ final class MenuScreen {
     }
 
     private func reset(size: CGSize) {
+        endBuild = nil
         root.isHidden = false
         content.removeFromParent()
         content = SKNode()
@@ -103,6 +104,7 @@ final class MenuScreen {
             content.addChild(b.node)
             buttons.append((b, it.2))
             check.add("btn." + String(describing: it.2), b.rect)
+            check.tap("btn." + String(describing: it.2), b.hitRect)
             y -= step
         }
         if layoutCheck { check.report(size: size, insets: insets) }
@@ -134,8 +136,34 @@ final class MenuScreen {
                                             btn: 38, btn2: 34, chipH: 34)
     }
 
+    /// The report built in one go (a rotation over the report, the warm-up behind the loading cover).
     func showEnd(size: CGSize, insets: UIEdgeInsets, report: MissionReport, layoutCheck: Bool = false) {
+        beginEnd(size: size, insets: insets, report: report, layoutCheck: layoutCheck)
+        while endBuild != nil { stepEnd() }
+    }
+
+    /// The mission-end report over a few frames (built in one frame it cost 63–74 ms on CI): column A, then column B
+    /// with the fit check, per density, then the placement — the screen appears with that last step (stepEnd).
+    private struct EndBuild {
+        let report: MissionReport, size: CGSize, insets: UIEdgeInsets, layoutCheck: Bool
+        var density = 0
+        var columnA: [Block]? = nil
+        var pick: ([Block], [Block], Density)? = nil
+        var last: ([Block], [Block], Density)? = nil
+    }
+    private var endBuild: EndBuild? = nil
+    /// A report is being built (hidden until its last step).
+    var endPending: Bool { endBuild != nil }
+
+    func beginEnd(size: CGSize, insets: UIEdgeInsets, report: MissionReport, layoutCheck: Bool = false) {
         reset(size: size)
+        root.isHidden = true
+        endBuild = EndBuild(report: report, size: size, insets: insets, layoutCheck: layoutCheck)
+    }
+
+    /// Box geometry of the report on this screen.
+    private func endGeometry(_ size: CGSize, _ insets: UIEdgeInsets) -> (landscape: Bool, bw: CGFloat, padX: CGFloat, colW: CGFloat,
+                                                                          availH: CGFloat, densities: [Density]) {
         let W = size.width, H = size.height
         let landscape = W > H && H <= 500
         let sl = max(12, insets.left), sr = max(12, insets.right)
@@ -145,22 +173,40 @@ final class MenuScreen {
         let padX: CGFloat = landscape ? 16 : 18
         let colGap: CGFloat = 20
         let colW = landscape ? (bw - 2 * padX - colGap) / 2 : bw - 2 * padX
-        let densities: [Density] = landscape ? [.landscape, .landscapeTight] : [.normal, .tight]
-        // each density is built once; the subtitle and the second tip are dropped by filtering its blocks
-        var pick: ([Block], [Block], Density)? = nil
-        var last: ([Block], [Block], Density)? = nil
-        outer: for d in densities {
-            let a0 = columnA(report: report, d: d, colW: colW, subtitle: !landscape)   // web: no subtitle on landscape phones
-            let b0 = columnB(report: report, d: d, colW: colW)
+        return (landscape, bw, padX, colW, availH, landscape ? [.landscape, .landscapeTight] : [.normal, .tight])
+    }
+
+    /// One piece of the pending report per call (the scene calls it once a frame); true once it is on screen.
+    @discardableResult
+    func stepEnd() -> Bool {
+        guard var e = endBuild else { return true }
+        let gm = endGeometry(e.size, e.insets)
+        let landscape = gm.landscape, colW = gm.colW
+        if e.pick == nil && e.density < gm.densities.count {
+            let d = gm.densities[e.density]
+            guard let a0 = e.columnA else {
+                e.columnA = columnA(report: e.report, d: d, colW: colW, subtitle: !landscape)   // web: no subtitle on landscape phones
+                endBuild = e
+                return false
+            }
+            // the subtitle and the second tip are dropped by filtering the blocks (each density is built once)
+            let b0 = columnB(report: e.report, d: d, colW: colW)
             for (sub, tips2) in [(true, true), (false, true), (false, false)] {
                 let a = sub ? a0 : a0.filter { $0.name != "subtitle" }
                 let b = tips2 ? b0 : b0.filter { $0.name != "tip1" }
-                last = (a, b, d)
-                if boxHeight(a, b, d, landscape) <= availH { pick = (a, b, d); break outer }
+                e.last = (a, b, d)
+                if boxHeight(a, b, d, landscape) <= gm.availH { e.pick = (a, b, d); break }
             }
+            e.density += 1
+            e.columnA = nil
+            if e.pick != nil || e.density < gm.densities.count { endBuild = e; return false }
         }
-        guard let (a, b, d) = pick ?? last else { return }
-        if pick == nil { AppLog.info("report: tightest layout \(Int(boxHeight(a, b, d, landscape))) pt for \(Int(availH)) pt") }
+        endBuild = nil
+        guard let (a, b, d) = e.pick ?? e.last else { return true }
+        let size = e.size, insets = e.insets, report = e.report
+        let H = size.height, bw = gm.bw, padX = gm.padX, colGap: CGFloat = 20
+        let availH = gm.availH
+        if e.pick == nil { AppLog.info("report: tightest layout \(Int(boxHeight(a, b, d, landscape))) pt for \(Int(availH)) pt") }
         let hA = stackHeight(a), hB = stackHeight(b)
         let topPad: CGFloat = 8 + (landscape ? 10 : 14), botPad: CGFloat = landscape ? 14 : 18
         let boxH = topPad + (landscape ? max(hA, hB) : hA + d.gap + hB) + botPad
@@ -175,7 +221,9 @@ final class MenuScreen {
         let yA = top - topPad
         place(a, x: ax, top: yA, check: &check)
         place(b, x: bx, top: landscape ? yA : yA - hA - d.gap, check: &check)
-        if layoutCheck { check.report(size: size, insets: insets) }
+        if e.layoutCheck { check.report(size: size, insets: insets) }
+        root.isHidden = false
+        return true
     }
 
     private func stackHeight(_ blocks: [Block]) -> CGFloat {
@@ -195,6 +243,7 @@ final class MenuScreen {
                 // the button rects become screen rects (block origin + the button's own rect)
                 btn.offset(by: CGPoint(x: x, y: y))
                 buttons.append((btn, act))
+                check.tap(b.name + "." + String(describing: act), btn.hitRect)
             }
             y -= b.height
         }
@@ -434,11 +483,16 @@ final class MenuScreen {
         return l
     }
 
-    func hide() { root.isHidden = true }
+    func hide() { root.isHidden = true; endBuild = nil }
 
     func hit(_ p: CGPoint) -> Action? {
         if root.isHidden { return nil }
-        for (b, a) in buttons where b.hit(p) { return a }
-        return nil
+        // compact rows sit 5 pt apart, so the 44-pt tap areas of neighbours overlap: the nearest drawn button wins
+        var best: (CGFloat, Action)? = nil
+        for (b, a) in buttons where b.hit(p) {
+            let d = b.distance(to: p)
+            if best == nil || d < best!.0 { best = (d, a) }
+        }
+        return best?.1
     }
 }

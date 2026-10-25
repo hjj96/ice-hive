@@ -50,6 +50,9 @@ final class GameScene: SKScene {
     private var report: MissionReport?
     /// Rank-up haptic, 0.65 s after the report (scene time), -1 = none.
     private var rankUpHapticAt: Double = -1
+    /// The report is built over the frames after the mission ends (MenuScreen.stepEnd): when it began, step timings.
+    private var endBegunAt: Double = -1
+    private var endStepMs: [Double] = []
     /// Cumulative thumb-stick seconds (VX-5 ghost sticks fade at 6; saved per whole second until then).
     private var stickUse: Float = 0
     /// Last logged threat state / lift lock (diagnostics lines on change).
@@ -257,12 +260,12 @@ final class GameScene: SKScene {
     /// The graphics tier in effect: the «Графика» setting, or the demo's own (swarmshot: high, like the store shots).
     private var qualityName: String { demo?.preferredQuality ?? settings.quality }
 
-    /// «Графика»: auto = the web phone tier (med). Bug cap (gameplay), effect density, flashlight shadows (high), and
-    /// 120 Hz for high. A hot device (thermal .serious / .critical) falls back to the med effects without shadows and a
-    /// 1.5x world image; .critical also caps the display at 30 Hz (applyFrameRate).
+    /// «Графика»: auto = the web phone tier (med). Effect density, flashlight shadows (high), and 120 Hz for high apply
+    /// at once; the bug cap (gameplay) is fixed per mission by newGame (GameConfig.quality), so a change from the pause
+    /// menu sizes the swarm from the next mission on. A hot device (thermal .serious / .critical) falls back to the med
+    /// effects without shadows and a 1.5x world image; .critical also caps the display at 30 Hz (applyFrameRate).
     func applyQuality() {
         let q = QualityTier(rawValue: qualityName) ?? .med
-        game?.setQuality(q)
         var fxK: Float = q == .low ? 0.4 : (q == .med ? 0.7 : 1.0)
         var scale = CGFloat(options.metalScale ?? 2)
         let th = ProcessInfo.processInfo.thermalState
@@ -480,7 +483,10 @@ final class GameScene: SKScene {
         settings.saveProfile(prof)
         let rep = MissionReport.make(run: run, result: res, profile: prof, stats: g.stats, newStationShown: AppFeatures.generatedStations)
         report = rep
-        menu.showEnd(size: size, insets: insets, report: rep, layoutCheck: options.layoutCheck)
+        // laid out over the next frames, one column per frame (stepPendingReport), so no frame pays for the whole screen
+        menu.beginEnd(size: size, insets: insets, report: rep, layoutCheck: options.layoutCheck)
+        endBegunAt = lastTime
+        endStepMs.removeAll()
         if res.rankUp { rankUpHapticAt = lastTime + 0.65 }
         applyFrameRate()
         let q = !run.queenSpawned ? "none" : (run.queenDone ? "killed" : "alive")
@@ -489,6 +495,16 @@ final class GameScene: SKScene {
                     + "downBy=\(run.downBy.rawValue) stage=\(run.stage.rawValue) beacons=\(run.beaconsDone) queen=\(q) score=\(res.score.total) "
                     + "xp=\(res.xp) rank=\(res.rank0)→\(res.rank1) medal=\(res.medal ? 1 : 0) recTip=\(res.recTip ? 1 : 0) record=\(res.record ? 1 : 0) "
                     + String(format: "t=%.0f", g.time))
+    }
+
+    /// One piece of the pending report (column A, column B + fit, placement); the step times are logged once it is up.
+    private func stepPendingReport() {
+        let t0 = FrameTimer.now()
+        let done = menu.stepEnd()
+        endStepMs.append((FrameTimer.now() - t0) * 1000)
+        if done {
+            AppLog.info("report built in \(endStepMs.count) frames: " + endStepMs.map { String(format: "%.1f", $0) }.joined(separator: " / ") + " ms")
+        }
     }
 
     /// App went to the background: pause like the web game.
@@ -618,7 +634,7 @@ final class GameScene: SKScene {
             applyQuality()
             audio?.play(.click, pos: nil, listener: listener())
             menu.showPause(size: size, state: pauseState, layoutCheck: options.layoutCheck, insets: insets)
-            AppLog.info("quality \(settings.quality) bugCap=\(game?.bugCap ?? 0)")
+            AppLog.info("quality \(settings.quality) bugCap=\(game?.bugCap ?? 0) next=\((QualityTier(rawValue: qualityName) ?? .med).bugCap)")
         case .haptics:
             settings.setHaptics(!settings.haptics)
             haptics.enabled = settings.haptics
@@ -702,6 +718,7 @@ final class GameScene: SKScene {
                 g.setPlayerInput(move: c.move, aim: c.aim, fire: c.fire, ability: c.ability, dash: c.dash, assist: c.assist)
                 input.consumePresses()
             }
+            demo?.sinceReady = readyTime > 0 ? currentTime - readyTime : -1
             demo?.frame(game: g, dt: dt)
             if let pr = demo?.probe { runProbe(pr, g) }
             if let rq = demo?.request {
@@ -729,6 +746,7 @@ final class GameScene: SKScene {
         if mode == .playing && g.wantsLevelUp && !g.autoPickUpgrades { openLevelUp() }
         // the report comes up at once over the frozen world, like the web endGame()
         if mode == .playing && g.phase != .playing && demo == nil { showEnd() }
+        if mode == .ended && menu.endPending && lastTime > endBegunAt { stepPendingReport() }
         // low armour heartbeat (app side, like the web audioUpdate): faster as the armour falls
         heartT -= dt
         let P0 = g.player

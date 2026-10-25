@@ -5,13 +5,15 @@ import UIKit
 //  LAYOUT CHECK — `-layoutCheck` (v1.1 spec §2.11): every element of a
 //  screen (title, report, pause) is logged with its rect, then any two
 //  that overlap (one inside the other is a container, not an overlap),
-//  any two side by side closer than 4 pt, and any that leave the safe
-//  area. CI greps «layout ok».
+//  any two side by side closer than 4 pt, any that leave the safe
+//  area, and any tap area under 44 × 44 pt. CI greps «layout ok».
 //  Rects are HUD coordinates (origin at the view centre, y up).
 // ================================================================
 struct LayoutCheck {
     let screen: String
     private(set) var items: [(String, CGRect)] = []
+    /// Tap areas (drawn rect + hit inset), checked only for Apple's 44 pt minimum.
+    private(set) var taps: [(String, CGRect)] = []
 
     init(_ screen: String) { self.screen = screen }
 
@@ -19,6 +21,8 @@ struct LayoutCheck {
         guard r.width > 0.5, r.height > 0.5, r.minX.isFinite, r.minY.isFinite else { return }
         items.append((name, r))
     }
+
+    mutating func tap(_ name: String, _ r: CGRect) { taps.append((name, r)) }
 
     /// A node's frame in HUD coordinates (its parent is a direct child of the screen root at the origin).
     mutating func add(_ name: String, node: SKNode, offset: CGPoint = .zero) {
@@ -49,6 +53,9 @@ struct LayoutCheck {
                 let hGap = max(ra.minX, rb.minX) - min(ra.maxX, rb.maxX)
                 if vOverlap > 2 && hGap < 4 { problems.append("touching " + na + " / " + nb) }
             }
+        }
+        for (n, r) in taps where r.width < 43.5 || r.height < 43.5 {
+            problems.append(String(format: "small tap %@ %.0fx%.0f", n, r.width, r.height))
         }
         let tag = String(format: "%@ %.0fx%.0f", screen, size.width, size.height)
         if problems.isEmpty {

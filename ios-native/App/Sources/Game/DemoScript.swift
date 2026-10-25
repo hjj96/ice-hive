@@ -15,19 +15,21 @@ import IceHiveCore
 //                   haptic, then a real horde) — CI hitch attribution
 //    -demo hold     beacons skipped, the squad on the lift holding out against a crowd
 //    -demo extract  like hold, then the lift rises and stays at extract + 2 s (gore rides along)
-//    -demo queen    like hold, and the Матка (v1.1 boss of the hold) climbs up at once (1 000 000 HP unless
-//                   -queenHp, so she stays on the deck for the screenshot)
-//    -demo queenlock  queen, then the lift countdown runs out after 3 s: «Лифт заблокирован — Матка жива»
+//    -demo queen    like hold, and the Матка (v1.1 boss of the hold) climbs up 2 s after «scene ready» (1 000 000 HP
+//                   unless -queenHp, so she stays on the deck for the screenshot)
+//    -demo queenlock  queen, then the lift countdown runs out 1.5 s later: «Лифт заблокирован — Матка жива»
 //    -demo coach    the first mission ever on the fresh demo profile: «Учебная высадка» runs (autopilot off, so the
-//                   steps advance by their timeouts; -coachStep N jumps), time almost stopped after a moment so the
-//                   screenshot shows that step
-//    -demo pressure Ветеран, nobody touches the screen: fast-forward to 15.5 s (-pressure amber) / 26 s (red), the
-//                   hive pressure then pinned in that state
+//                   steps advance by their timeouts; -coachStep N jumps), the next step 1.5 s after «scene ready»,
+//                   then time almost stopped so the screenshot shows that step
+//    -demo pressure Ветеран, nobody touches the screen: fast-forward to 15.5 s, the hive pressure then pinned in the
+//                   amber band (-pressure amber), or amber until 1.5 s after «scene ready» and then red
 //    -demo report   the mission report of a fixture (-report first|win|loss|chip): the run's outcome is forced and
-//                   committed into the demo's in-memory profile after 1.5 s
-//    -demo levelup  a forced level-up after 1.5 s: the upgrade cards
-//    -demo pause    the pause menu after 1.5 s
-//    -demo end      surrender after 1.5 s: the mission report (record highlight on)
+//                   committed into the demo's in-memory profile 2 s after «scene ready»
+//    -demo levelup  a forced level-up 2 s after «scene ready»: the upgrade cards
+//    -demo pause    the pause menu 2 s after «scene ready»
+//    -demo end      surrender 2 s after «scene ready»: the mission report (record highlight on)
+//  (the v1.1 state changes come inside the frame gate's window, from 1.2 s after «scene ready»: their first draw is
+//  measured, not hidden in the first second)
 //    -demo swarmshot  the App Store 2-swarm moment (harness/scenarios/store-shots.mjs (b)):
 //                   gunner, 12 s into the mission, the squad at the crossing (0, -5), a few
 //                   steps, 600 bugs around it, the player aiming up-left and firing for 1.6 s,
@@ -43,6 +45,9 @@ final class DemoScript {
     private var override: Int?
 
     private let options: LaunchOptions
+    /// Seconds since «scene ready» (the scene sets it before every frame; -1 while loading).
+    var sinceReady: Double = -1
+    private var queenSet = false, coachStepped = false
     /// `-demo report`: the fixture whose outcome the mission gets.
     let reportFixture: DemoFixtures.Report?
 
@@ -105,22 +110,17 @@ final class DemoScript {
             target = 260
             let n = game.debugSpawn(target, type: nil, minRadius: 5, maxRadius: 18)
             AppLog.info("demo \(name): stage \(game.stage.rawValue), spawned \(n) bugs around the lift")
-            if name == "queen" || name == "queenlock" {
-                // (the scene logs «v11 queen spawn …» from her event)
-                let uid = game.debugQueen(hp: options.queenHp ?? 1_000_000)
-                if uid == 0 { AppLog.info("demo \(name): the Матка did not come (stage \(game.stage.rawValue))") }
-            }
         case "coach":
             // a novice who does not touch the screen: every step ends by its timeout
             game.autopilot = false
             target = 0
-            if let k = options.coachStep { game.debugCoachStep(k) }
+            // one step before the asked one (-coachStep N, else step 0 → 1): the step change is drawn inside the gate window
+            if let k = options.coachStep, k > 0 { game.debugCoachStep(k - 1) }
             AppLog.info("demo coach: coach \(game.coach.active ? "on" : "off") step \(game.coach.step) tier=\(game.difficulty.id)")
         case "pressure":
             game.autopilot = false
             target = 0
-            let red = options.pressure != "amber"
-            game.fastForward(seconds: red ? 26 : 15.5)
+            game.fastForward(seconds: 15.5)
             AppLog.info(String(format: "demo pressure: t=%.1f pressure %.1f threat %d tier=", game.time, game.pressure, game.threatState.rawValue)
                         + game.difficulty.id)
         case "report":
@@ -169,7 +169,7 @@ final class DemoScript {
         t += dt
         probe = nil
         request = nil
-        if !requested && t >= 1.5 {
+        if !requested && t >= 1.5 && sinceReady >= 2 {
             switch name {
             case "levelup": requested = true; game.debugLevelUp()
             case "pause": requested = true; request = .pause
@@ -181,7 +181,13 @@ final class DemoScript {
             default: break
             }
         }
-        if name == "queenlock" && !lockSet && t >= 3 {
+        if (name == "queen" || name == "queenlock") && !queenSet && sinceReady >= 2 {
+            queenSet = true
+            // (the scene logs «v11 queen spawn …» from her event)
+            let uid = game.debugQueen(hp: options.queenHp ?? 1_000_000)
+            if uid == 0 { AppLog.info("demo \(name): the Матка did not come (stage \(game.stage.rawValue))") }
+        }
+        if name == "queenlock" && !lockSet && queenSet && sinceReady >= 3.5 {
             lockSet = true
             game.debugSetLiftTime(0.01)
             AppLog.info("demo queenlock: lift countdown out, queen alive=\(game.queen.alive)")
@@ -222,13 +228,18 @@ final class DemoScript {
     private func holdState(_ game: Game, _ dt: Float) {
         t += dt
         if name == "coach" {
-            if timeScale == 1 && t >= (options.coachStep != nil ? 1.2 : 2.5) {
+            if !coachStepped && sinceReady >= 1.5 {
+                coachStepped = true
+                game.debugCoachStep(options.coachStep ?? (game.coach.step + 1))
+                AppLog.info(String(format: "demo coach: step %d at td=%.2f", game.coach.step, sinceReady))
+            }
+            if timeScale == 1 && coachStepped && sinceReady >= 2.5 {
                 timeScale = 0.02
                 AppLog.info(String(format: "demo coach: frozen at t=%.1f step %d", game.time, game.coach.step))
             }
         } else {
             let g = game.difficulty.pressureGrace
-            game.debugSetPressure(options.pressure == "amber" ? g - 7 : g + 5)
+            game.debugSetPressure(options.pressure == "amber" || sinceReady < 1.5 ? g - 7 : g + 5)
         }
     }
 
