@@ -396,13 +396,14 @@ public enum Calibration {
 
     /// `n` runs per class of one tier + mode.
     public static func batch(tier: Int, mode: CalibMode, n: Int, classes: [MarineClass] = MarineClass.allCases, seed0: UInt32 = 1000,
-                             tag: String? = nil, th: [String: Double] = [:], maxs: Float? = nil, station: UInt32 = 0) -> [CalibRun] {
+                             tag: String? = nil, th: [String: Double] = [:], maxs: Float? = nil, station: UInt32 = 0,
+                             quality: QualityTier = .med) -> [CalibRun] {
         var out: [CalibRun] = []
         for k in 0..<n {
             for c in classes {
-                let tg = (tag.map { $0 + "-" } ?? "") + tierTag(tier)
+                let tg = (tag.map { $0 + "-" } ?? "") + tierTag(tier) + (quality == .med ? "" : "-q" + quality.rawValue)
                 out.append(CalibRun(tag: tg, cls: c, tier: tier, mode: mode, maxs: maxs, seed: seed(seed0, mode: mode, tier: tier, cls: c, k: k),
-                                    station: station, th: th))
+                                    station: station, th: th, quality: quality))
             }
         }
         return out
@@ -410,7 +411,7 @@ public enum Calibration {
 
     public static let presetNames = ["gate", "full", "stations", "legacy"]
 
-    /// gate: CI (≈ 148 runs); full: tuning; stations: generated seeds 0–4; legacy: the v1.0 port check.
+    /// gate: CI (≈ 212 runs, 64 of them the informational low-quality rows); full: tuning; stations: generated seeds 0–4; legacy: the v1.0 port check.
     public static func preset(_ name: String, seed0: UInt32 = 1000, th: [String: Double] = [:], tag: String? = nil) -> [CalibRun]? {
         switch name {
         case "gate":
@@ -421,6 +422,9 @@ public enum Calibration {
             out += batch(tier: 0, mode: .afk, n: 1, seed0: seed0, tag: tag, th: th)
             out += batch(tier: 1, mode: .passive, n: 1, seed0: seed0, tag: tag, th: th)
             out += batch(tier: -1, mode: .auto, n: 2, seed0: seed0, tag: tag)
+            // informational: «Графика: низкая» (cap 700) must keep the tier bands (hordes no longer shrink with the cap)
+            out += batch(tier: 1, mode: .auto, n: 8, seed0: seed0, tag: tag, th: th, quality: .low)
+            out += batch(tier: 2, mode: .auto, n: 8, seed0: seed0, tag: tag, th: th, quality: .low)
             return out
         case "full":
             var out: [CalibRun] = batch(tier: 0, mode: .auto, n: 40, seed0: seed0, tag: tag, th: th)
@@ -558,12 +562,13 @@ public enum Calibration {
         public let text: String
     }
 
-    /// Spec §5.2 bands on rows grouped by tier + mode (any tag, station 0, no overrides). Gated lines first, then the
-    /// reported ones. `passed` only when every gated band holds and every gated group exists.
+    /// Spec §5.2 bands on rows grouped by tier + mode (any tag, station 0, no overrides, med quality). Gated lines
+    /// first, then the reported ones. `passed` only when every gated band holds and every gated group exists.
     public static func gate(_ rows: [CalibRow]) -> (passed: Bool, lines: [GateLine]) {
-        let base = rows.filter { $0.error == nil && $0.station == 0 && $0.th.isEmpty }
-        func grp(_ tier: Int, _ mode: String) -> Group? {
-            let rs = base.filter { $0.tierIx == tier && $0.mode == mode }
+        let all = rows.filter { $0.error == nil && $0.station == 0 && $0.th.isEmpty }
+        let base = all.filter { $0.q == "med" }
+        func grp(_ tier: Int, _ mode: String, q: String = "med") -> Group? {
+            let rs = all.filter { $0.tierIx == tier && $0.mode == mode && $0.q == q }
             return rs.isEmpty ? nil : group("\(tierTag(tier)) \(mode)", rs)
         }
         var L: [GateLine] = []
@@ -599,6 +604,8 @@ public enum Calibration {
                               text: "\(name) \(fmt(best))–\(worst.isFinite ? fmt(worst) : "never") s (every run) band …\(fmt(lim)) s"))
         }
         if let g = grp(1, "passive") { band("vet/passive wins", g.winPct, nil, 40, gated: false, unit: "%") }
+        if let g = grp(1, "auto", q: "low") { band("vet/auto wins on «Графика: низкая»", g.winPct, 70, 85, gated: false, unit: "%") }
+        if let g = grp(2, "auto", q: "low") { band("nm/auto wins on «Графика: низкая»", g.winPct, nil, 30, gated: false, unit: "%") }
         if let g = grp(-1, "auto") {
             band("v10/auto wins (legacy port check)", g.winPct, nil, nil, gated: false, unit: "%")
             band("v10/auto downs/run", g.downsPerRun, nil, nil, gated: false)

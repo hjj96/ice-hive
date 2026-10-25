@@ -356,6 +356,9 @@ public final class Game {
     /// Part of the swarm hunts the player (web HUNT[0] pressure, HUNT[1] AFK), set once per tick.
     var huntPressure = false, huntAfk = false
     var heartAt: Float = -9
+    /// Travel allowance of the walk to the lift (s): the pressure clock only runs once it is used up. Set when the
+    /// objective flow first points at the lift (the walk at full speed × 1.3 + 5 s); -1 = not measured yet.
+    public internal(set) var liftAllowance: Float = -1
 
     // ---------- v1.1: the Матка ----------
     public internal(set) var queen = QueenState()

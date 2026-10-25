@@ -342,6 +342,41 @@ final class PressureTests: XCTestCase {
         XCTAssertEqual(a.threatState, .calm)
     }
 
+    func testWalkToTheLiftHasATravelAllowance() {
+        // a squad walking straight from the third beacon to the lift never wakes the hive on Ветеран
+        for seed: UInt32 in [23, 24, 25] {
+            let g = tierGame(.veteran, seed: seed, autopilot: true, god: true)
+            g.debugSkip(); g.debugSkip(); g.debugSkip()
+            XCTAssertEqual(g.stage, .toLift)
+            var worst = ThreatState.calm, n = 0
+            while g.stage == .toLift && n < 60 * 120 {
+                g.tick(); n += 1
+                if g.threatState.rawValue > worst.rawValue { worst = g.threatState }
+            }
+            XCTAssertEqual(g.stage, .hold, "seed \(seed): the autopilot reaches the lift")
+            XCTAssertEqual(worst, .calm, "seed \(seed): walk \(Float(n) / 60) s")
+            XCTAssertEqual(g.idleMul, 1)
+        }
+        // dawdling past the allowance still wakes it: amber 15 s after the allowance, as on the beacons stage
+        let h = tierGame(.veteran, seed: 23, god: true)
+        h.debugSkip(); h.debugSkip(); h.debugSkip()
+        h.setPlayerInput(move: Vec2(0, 0), aim: nil, fire: false, ability: false, dash: false)
+        h.step(30)
+        let a = h.liftAllowance
+        let L = h.level.lift, P = h.player
+        XCTAssertGreaterThan(a, hypotf2(L.x - P.x, L.z - P.z) / 5.3 * 1.3 + 4, "path ≥ the straight line")
+        XCTAssertEqual(h.pressure, 0)
+        h.step(Int((a + 14) * 60))
+        XCTAssertEqual(h.threatState, .calm)
+        XCTAssertEqual(h.pressure, 14, accuracy: 0.1)
+        h.step(120)
+        XCTAssertEqual(h.threatState, .waking)
+        XCTAssertEqual(h.objectiveText, "Улей просыпается — к лифту!")
+        // the allowance is measured again on every mission (resetDirector)
+        h.resetWorld()
+        XCTAssertEqual(h.liftAllowance, -1)
+    }
+
     func testCalmFreezesPressure() {
         let g = tierGame(.recruit, seed: 24, god: true) { $0.coach = true }
         g.step(60 * 6)
