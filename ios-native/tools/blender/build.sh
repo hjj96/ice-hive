@@ -9,8 +9,12 @@
 #   tools/blender/build.sh --renders   also the game-camera read-back renders (Cycles; the nightly job) → previews/
 #   tools/blender/build.sh --bake-trims  re-bake the trim sheets in Cycles into kit/trims_src (an authoring step: the
 #                                      bakes are not bit-stable, so the build encodes the committed 8-bit sources)
+#   tools/blender/build.sh --bake-ao   re-bake the kit's AO atlas in Cycles into kit/ao_src (after any change to the
+#                                      pieces' geometry: the build refuses a bake made for other geometry; Cycles
+#                                      differs between CPUs, the committed 8-bit source does not). Both bake flags
+#                                      may be given together.
 #   BLENDER_PY=/path/to/python          another venv
-# Steps: kit/build_kit.py (pieces, AO atlas, station.ihk, kit_ao.iht) → kit/trims.py (kit/trims_src → trim_*.iht) →
+# Steps: kit/build_kit.py (pieces, AO atlas from kit/ao_src, station.ihk, kit_ao.iht) → kit/trims.py (kit/trims_src → trim_*.iht) →
 # creatures/, characters/, env/ build.sh when present (WP3 / WP4 / WP2 own them; each writes into $OUT/<Folder> and a
 # gates report into reports/; without env/build.sh, env/bake_probe.py → Env/station_probe.ihe) → gates.py.
 set -e
@@ -21,13 +25,20 @@ RES="$ROOT/App/Resources"
 cd "$HERE"
 if [ ! -x "$PY" ]; then echo "build.sh: no Blender venv at $PY (see the header)" >&2; exit 1; fi
 BAKE=""
-if [ "$1" = "--bake-trims" ]; then BAKE="--bake"; shift; fi
+BAKE_AO=""
+while :; do
+  case "$1" in
+    --bake-trims) BAKE="--bake"; shift ;;
+    --bake-ao) BAKE_AO="--bake-ao"; shift ;;
+    *) break ;;
+  esac
+done
 
 build() {
   # $1: output root (gets Kit/ and the other asset folders), $2: work dir (sources, logs)
   out=$1; work=$2
   mkdir -p "$out/Kit" "$work"
-  "$PY" kit/build_kit.py "$work/kit" --previews "$work/previews" > "$work/kit.log" 2>&1 || { tail -30 "$work/kit.log"; exit 1; }
+  "$PY" kit/build_kit.py "$work/kit" --previews "$work/previews" $BAKE_AO > "$work/kit.log" 2>&1 || { tail -30 "$work/kit.log"; exit 1; }
   "$PY" kit/trims.py "$work/kit" --previews "$work/previews" $BAKE > "$work/trims.log" 2>&1 || { tail -30 "$work/trims.log"; exit 1; }
   for f in station.ihk kit_ao.iht trim_normal.iht trim_orm.iht; do cp "$work/kit/$f" "$out/Kit/$f"; done
   for d in creatures characters env; do

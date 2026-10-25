@@ -42,7 +42,7 @@ struct LevelParams {
     var lift = F4(0, 0, 0, 0)
     /// x rime strength, y contact-AO strength, z chamfer wear, w snow albedo.
     var look = F4(1, 0.65, 0.55, 0.5)
-    /// x = 1 on the High tier (wet trails, ice rim, grid-light specular).
+    /// x = 1 on the High tier (wet trails, ice rim, grid-light specular); y = 1: the `-deckMask` look-dev view.
     var misc = F4(0, 0, 0, 0)
     /// World mask: xy world origin, z 1 / size (m).
     var mask = F4(-GRID_HALF, -GRID_HALF, 1 / (2 * GRID_HALF), 0)
@@ -65,6 +65,18 @@ final class WorldLevel {
     static let mergeGapTriangles = 6000
     /// Beacon heads vs_kit can spin (Level.metal LEVEL_HEADS).
     static let maxHeads = 8
+    /// Look-dev (`-deckMask`, with `-hideHUD` on a CI test branch): the walkable deck tops (decks, stair treads, the lift
+    /// deck) drawn flat green, the snow drifts blue, the icicles red and the rest of the station black, without the pad
+    /// mark and the floor pools — the mask a script lays over the same deterministic shot (`-demo calm`) to take the
+    /// deck's median luma (WP6 acceptance 40–55) and to check that no snow lies past a rail line.
+    static let deckMask = LaunchOptions.current.unknown.contains("-deckMask")
+    /// The deck tint, or the mask's marker (pure green, matched exactly in fs_level) under `-deckMask`.
+    private static func deckTint(_ c: UInt32) -> UInt32 { deckMask ? 0x00ff00 : c }
+    /// Device measurement (`-noStation`): the station's opaque draws are skipped (casters, pad mark, pools and props
+    /// stay), so `hb gpu frame=` with and without it on the same `-demo stress1400` gives the level's opaque cost on a
+    /// device (budget ≤ 1.6 ms High / ≤ 1.0 ms Efficient). A lower bound: without the deck the abyss haze and fog decks
+    /// behind it are shaded instead. The `hb level` line says `off` in that run.
+    static let noStation = LaunchOptions.current.unknown.contains("-noStation")
 
     /// The station drawn; `rebuild(level:)` switches it (v1.1 generated stations).
     private(set) var level: Level
@@ -101,6 +113,10 @@ final class WorldLevel {
     private(set) var summary = ""
     /// Draw calls of the station in the last frame (runs of visible chunks + the lift).
     private(set) var stationDraws = 0
+    /// Last frame's station triangles, visible chunks, caster draws and caster triangles (`hb level`).
+    private var stationTris = 0, visibleChunks = 0, casterDraws = 0, casterTris = 0
+    private var lastCasters = (0, 0)
+    private var lastLog: Double = 0
     /// The station's fixed light sources as built (for LightGrid's grid lights, WP2): lamp lenses, pillar strips, vent
     /// slats and beacon heads — world position (m) and linear colour (× nominal intensity 1).
     struct StationLight { let kind: Kind; let pos: F3; let color: F3; enum Kind { case lamp, pillar, vent, beacon } }
@@ -130,6 +146,7 @@ final class WorldLevel {
         psShadow = r.pipeline("shadowKit")
         psPad = r.pipeline("pad")
         psGlowQuads = r.pipeline("glowQuads")
+        if WorldLevel.deckMask { params.misc.y = 1 }
         assemble()
         r.register(.opaque, order: 100, "station") { [unowned self] enc in self.encodeStation(enc) }
         r.register(.shadowCasters, order: 50, "station casters") { [unowned self] enc in self.encodeCasters(enc) }
@@ -226,7 +243,14 @@ final class WorldLevel {
     private func encodeStation(_ enc: MTLRenderCommandEncoder) {
         let r = renderer!
         stationDraws = 0
-        guard let ps = psLevel, let vb = vbuf, let ib = ibuf, !chunks.isEmpty else { return }
+        stationTris = 0
+        visibleChunks = 0
+        // the shadow pass ran before this one: its caster draws are this frame's
+        lastCasters = (casterDraws, casterTris)
+        casterDraws = 0
+        casterTris = 0
+        defer { heartbeat() }
+        guard !WorldLevel.noStation, let ps = psLevel, let vb = vbuf, let ib = ibuf, !chunks.isEmpty else { return }
         r.use(enc, ps)
         bindLevel(enc)
         enc.setVertexBuffer(vb, offset: 0, index: BufferIndex.vertices)
@@ -238,10 +262,13 @@ final class WorldLevel {
         enc.setVertexBytes(&p, length: MemoryLayout<LevelParams>.stride, index: BufferIndex.material)
         enc.setFragmentBytes(&p, length: MemoryLayout<LevelParams>.stride, index: BufferIndex.material)
         for (start, count) in WorldLevel.drawRuns(chunks.lazy.filter { !$0.lift }.map {
-            (start: $0.start, count: $0.count, visible: WorldLevel.visible(planes, $0.lo, $0.hi))
+            let v = WorldLevel.visible(planes, $0.lo, $0.hi)
+            if v { self.visibleChunks += 1 }
+            return (start: $0.start, count: $0.count, visible: v)
         }, mergeGap: WorldLevel.mergeGapTriangles * 3) {
             enc.drawIndexedPrimitives(type: .triangle, indexCount: count, indexType: .uint32, indexBuffer: ib, indexBufferOffset: start * 4)
             r.count(triangles: count / 3)
+            stationTris += count / 3
             stationDraws += 1
         }
         for c in chunks where c.lift {
@@ -252,8 +279,22 @@ final class WorldLevel {
             enc.drawIndexedPrimitives(type: .triangle, indexCount: c.count, indexType: .uint32, indexBuffer: ib,
                                       indexBufferOffset: c.start * 4)
             r.count(triangles: c.count / 3)
+            stationTris += c.count / 3
+            visibleChunks += 1
             stationDraws += 1
         }
+    }
+
+    /// Once per second (diagnostics): `hb level` — the station's opaque draws and triangles this frame, visible chunks
+    /// of all, its shadow-caster draws and triangles (all spot tiles), the tier; `off` under `-noStation`.
+    private func heartbeat() {
+        guard AppLog.diagnostics else { return }
+        let now = FrameTimer.now()
+        if now - lastLog < 1 { return }
+        lastLog = now
+        AppLog.info("hb level draws=\(stationDraws) tris=\(stationTris) chunks=\(visibleChunks)/\(chunks.count)"
+                    + " casters=\(lastCasters.0)/\(lastCasters.1) tier=" + (renderer.frameTier == .high ? "high" : "efficient")
+                    + (WorldLevel.noStation ? " off" : ""))
     }
 
     /// Shadow-caster item: the casters (crates, pillars, beacon masts, lamp posts) of the chunks near the view, into the
@@ -273,6 +314,8 @@ final class WorldLevel {
         for (start, count) in runs {
             enc.drawIndexedPrimitives(type: .triangle, indexCount: count, indexType: .uint32, indexBuffer: cb, indexBufferOffset: start * 4)
             r.count(triangles: count / 3)
+            casterDraws += 1
+            casterTris += count / 3
         }
         enc.setDepthBias(0, slopeScale: 0, clamp: 0)
     }
@@ -303,7 +346,7 @@ final class WorldLevel {
 
     /// Transparent item 110: the landing-pad mark (alpha).
     private func encodePad(_ enc: MTLRenderCommandEncoder) {
-        guard let ps = psPad, let vb = padV, let ib = padI else { return }
+        guard !WorldLevel.deckMask, let ps = psPad, let vb = padV, let ib = padI else { return }
         let r = renderer!
         r.use(enc, ps)
         r.bindMain(enc, texPad)
@@ -319,7 +362,7 @@ final class WorldLevel {
 
     /// Transparent item 120: the unlit floor light pools (additive).
     private func encodeGlows(_ enc: MTLRenderCommandEncoder) {
-        guard let ps = psGlowQuads, let vb = glowV, let ib = glowI, glowCount > 0 else { return }
+        guard !WorldLevel.deckMask, let ps = psGlowQuads, let vb = glowV, let ib = glowI, glowCount > 0 else { return }
         let r = renderer!
         r.use(enc, ps)
         r.bindMain(enc, texGlow)
@@ -352,11 +395,19 @@ final class WorldLevel {
     /// The drift pieces' placement scale (length x, height y, width z): the kit's drifts (2–2.7 × 0.56–0.7 × 0.15–0.19 m)
     /// were a few pixels wide at the gameplay camera; frost's drifts banked against the railings read at phone size.
     static let driftScale = F3(1.45, 1.4, 1.6)
+    /// Deck metalness (× the trim's metal mask): grating 0.3, slab / stair treads 0.22 — with Col.deck / Col.plate a
+    /// diffuse response ~1.9× / ~1.6× the first kit's, the deck's unlit median out of the ACES toe.
+    static let gratingMetal: Float = 0.3, plateMetal: Float = 0.22
 
     // palette (sRGB), kitgeo.py C
     private enum Col {
         static let steel: UInt32 = 0x46515c, steelD: UInt32 = 0x29313a, steelL: UInt32 = 0x6a7784, rail: UInt32 = 0x73808c
-        static let girder: UInt32 = 0x1f262e, support: UInt32 = 0x1a2129, deck: UInt32 = 0x3d4651, plate: UInt32 = 0x434c57
+        static let girder: UInt32 = 0x1f262e, support: UInt32 = 0x1a2129
+        /// The walkable deck: painted grating and slab steel, a value step above the girders and the abyss so the dark
+        /// swarm reads against it at phone size (crisp's readability) while the deck stays dark (HUD-off deck median
+        /// ≈ 35–50 under WP2's moonlight; frost's silver deck at 71–78 is out). Was 0x3d4651 / 0x434c57 at metalness
+        /// 0.5 / 0.35: a diffuse albedo of ~2–4 % after the trim's metal mask and AO, near-black outside the beams.
+        static let deck: UInt32 = 0x4b5664, plate: UInt32 = 0x515b68
         static let teal: UInt32 = 0x2af5e0, cyan: UInt32 = 0x38d8ff, amber: UInt32 = 0xffa21a, red: UInt32 = 0xff2a3a
         static let green: UInt32 = 0x3dff9a, orange: UInt32 = 0xff5a1a, dark: UInt32 = 0x0d1115, nosing: UInt32 = 0x8d99a6
         static let crate: [UInt32] = [0x6f7d58, 0x4f6b92, 0x9a6530]
@@ -436,10 +487,10 @@ final class WorldLevel {
 
     // ---------------------------------------------------------------- decks
     private func deckMat(_ kind: FloorKind) -> KitMat {
-        // painted / galvanised steel: low metalness (× the trim's metal mask) so the flashlight pools read as light on
-        // the deck, not as a dark mirror
-        kind == .slab ? KitMat(tint: Col.plate, metal: 0.35, layer: Trim.panels, flags: KitFlag.frost)
-            : KitMat(tint: Col.deck, metal: 0.5, layer: Trim.gratings, flags: KitFlag.frost)
+        // painted / galvanised steel: low metalness (× the trim's metal mask) so the flashlight pools and the moonlight
+        // read as light on the deck, not as a dark mirror of the abyss
+        kind == .slab ? KitMat(tint: WorldLevel.deckTint(Col.plate), metal: WorldLevel.plateMetal, layer: Trim.panels, flags: KitFlag.frost)
+            : KitMat(tint: WorldLevel.deckTint(Col.deck), metal: WorldLevel.gratingMetal, layer: Trim.gratings, flags: KitFlag.frost)
     }
 
     /// Top quad x0..x1 × z0..z1 at height y (counter-clockwise seen from above).
@@ -472,7 +523,7 @@ final class WorldLevel {
                 if stairs {
                     let n = max(1, Int(((b - a) / stepD).rounded()))
                     let bot = min(ha, hb) - 0.5
-                    let tread = KitMat(tint: Col.plate, metal: 0.35, layer: Trim.panels, flags: KitFlag.frost)
+                    let tread = KitMat(tint: WorldLevel.deckTint(Col.plate), metal: WorldLevel.plateMetal, layer: Trim.panels, flags: KitFlag.frost)
                     let side = KitMat(tint: Col.steelD, metal: 0.7, layer: Trim.panels)
                     for s in 0..<n {
                         let za = a + Float(s) * stepD, zb = za + stepD
@@ -936,7 +987,7 @@ final class WorldLevel {
     // ---------------------------------------------------------------- the lift (one chunk, raised at the extraction)
     private func buildLift() {
         let L = level.layout.lift, Y = L.y, m = liftMesh
-        let deck = KitMat(tint: Col.deck, metal: 0.5, layer: Trim.gratings, flags: KitFlag.frost)
+        let deck = KitMat(tint: WorldLevel.deckTint(Col.deck), metal: WorldLevel.gratingMetal, layer: Trim.gratings, flags: KitFlag.frost)
         m.disc(o: F3(L.x, 0, L.z), r: L.r, y: Y + 0.03, seg: 64, deck)
         // rim: chamfered lip + skirt, teal ring under it
         m.lathe(o: F3(L.x, Y, L.z), [(L.r, -0.7), (L.r + 0.15, -0.55), (L.r + 0.15, -0.05), (L.r, 0.03)], seg: 64,

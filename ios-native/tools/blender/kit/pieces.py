@@ -103,8 +103,10 @@ def beacon_mast():
     m.merge(lathe(plinth, 12, pm, mats=[pm, pm.but(flags=F_FROST), pm.but(flags=F_FROST), pm, pm.but(flags=F_FROST)]))
     ring = lathe([(1.5, 0.3), (1.5, 0.315), (1.42, 0.315), (1.42, 0.3)], 24, light(C['amber'], 3.0), cap_top=False)
     m.merge(ring)
-    leg = Mat(C['steelL'], 0.7, layer=PIPES, uv='strip', strip=3)
-    brace = Mat(C['steel'], 0.65, layer=PIPES, uv='strip', strip=3)
+    # painted steel, low metalness: the lattice catches the beacon's own light and the flashlights (a dark mirror at
+    # 0.7 read as a black cage at gameplay size)
+    leg = Mat(C['steelL'], 0.4, layer=PIPES, uv='strip', strip=3)
+    brace = Mat(C['steel'], 0.4, layer=PIPES, uv='strip', strip=3)
     y0, y1 = 0.38, 3.4
     r0, r1 = 0.48, 0.2
     corners = [(1, 1), (-1, 1), (-1, -1), (1, -1)]
@@ -129,13 +131,17 @@ def beacon_mast():
             m.merge(beam(at(k, secs[s]), at(k + 1, secs[s]), 0.045, 0.045, 0.0, brace))
     # top deck of the mast
     m.merge(cbox(0.56, 0.06, 0.56, 0.015, STEEL_D.but(flags=F_FROST), center=(0, y1 + 0.03, 0)))
-    # dish on an arm (faces +z, tilted up)
+    # dish on an arm (faces +z, tilted up: the gameplay camera looks into it): dark steel back, a pale painted bowl that
+    # catches the beacon's light and the flashlights, an amber rim lamp and a red lamp on the feed — a lit dish, not a
+    # dark disc at phone size
     dish = Mesh()
     prof = [(0.0, 0.0), (0.18, 0.012), (0.36, 0.05), (0.52, 0.11), (0.55, 0.13), (0.5, 0.135), (0.34, 0.08), (0.16, 0.04),
             (0.0, 0.03)]
-    dm = Mat(C['steelL'], 0.6, layer=PANELS)
-    dish.merge(lathe(prof, 14, dm, cap_top=False))
+    back = STEEL_D.but(metal=0.5)
+    bowl = Mat(C['dish'], 0.08, layer=PANELS)
+    dish.merge(lathe(prof, 14, back, cap_top=False, mats=[back, back, back, back, light(C['amber'], 2.2), bowl, bowl, bowl]))
     dish.merge(cylinder(0.025, 0.36, 6, STEEL_D, axis='y').merge(Mesh()), T(0, 0.2, 0))
+    dish.merge(cbox(0.06, 0.06, 0.06, 0.0, light(C['red'], 3.5), center=(0.0, 0.4, 0.0)))
     tilt = math.radians(62)
     R = np.eye(4)
     R[:3, :3] = np.array([[1, 0, 0], [0, math.cos(tilt), -math.sin(tilt)], [0, math.sin(tilt), math.cos(tilt)]])

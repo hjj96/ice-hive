@@ -137,6 +137,23 @@ def read(path):
     return out
 
 
+def ao_fingerprint(pieces, kinds):
+    """md5 of what the kit's AO atlas depends on: every piece's positions, AO-atlas uv1 and triangles (sorted by name)
+    and its bake context (`kinds`: name → 'floor' / 'ceiling' / 'none', the occluder plane under / over it). `pieces`
+    are build_kit's exported dicts or `read()`'s records (both: name, VERTEX_DTYPE vertices, indices), so the build and
+    gates.py compute the same value from the same bytes. kit/ao_src/bake.json keeps the one the committed bake was made
+    for; the build refuses a stale bake (build.sh --bake-ao re-bakes)."""
+    import hashlib
+    h = hashlib.md5()
+    for p in sorted(pieces, key=lambda q: q['name']):
+        V = p['vertices']
+        h.update(p['name'].encode('utf-8') + b'\0' + str(kinds.get(p['name'], '?')).encode('utf-8') + b'\0')
+        h.update(np.ascontiguousarray(V['pos'][:, :3]).tobytes())
+        h.update(np.ascontiguousarray(V['uv1']).tobytes())
+        h.update(np.asarray(p['indices'], dtype='<u4').ravel().tobytes())
+    return h.hexdigest()
+
+
 def pack_vertices(pos, nrm, tan, sign, uv0, uv1, tint_srgb, metal, emissive, layer, flags, ao=255):
     """Arrays -> VERTEX_DTYPE. pos (n,3) game metres, nrm/tan (n,3) unit, sign (n,) ±1, uv0 (n,2), uv1 (n,2) 0..1,
     tint_srgb (n,3) 0..1, metal (n,) 0..1, emissive (n,) 0..7.97, layer (n,) int (255 none), flags (n,) int."""

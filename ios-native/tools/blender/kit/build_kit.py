@@ -1,18 +1,22 @@
 """Station kit build (headless Blender, pip bpy 5.2.2 / Python 3.13):
 
-  venv/bin/python kit/build_kit.py OUTDIR [--from-blend kit_src.blend] [--previews DIR]
+  venv/bin/python kit/build_kit.py OUTDIR [--bake-ao | --from-blend kit_src.blend] [--previews DIR]
 
 1. every piece of pieces.PIECES is built from kitgeo primitives (game space) into a Blender object (Blender space:
    X = -x, Y = z, Z = y) carrying its material attributes as face attributes (tint, metal, emis, layer, flags) and
    two UV maps: `trim` (uv0, the trim-sheet rule; Blender v = 1 - Metal v) and `ao`;
-2. the `ao` maps of all pieces are unwrapped (smart project) and packed into ONE atlas, and Cycles bakes ambient
-   occlusion into it (each piece alone over its own ground / ceiling plane, 0.6 m reach);
+2. the `ao` maps of all pieces are unwrapped (smart project) and packed into ONE atlas. With --bake-ao (an authoring
+   step, build.sh --bake-ao) Cycles bakes ambient occlusion into it (each piece alone over its own ground / ceiling
+   plane, 0.6 m reach) and the 8-bit result is written to kit/ao_src/kit_ao.png with the fingerprint of the geometry
+   it was baked for (kit/ao_src/bake.json, ihk.ao_fingerprint); a normal build reads that committed source and fails
+   if the geometry no longer matches it. Cycles is not bit-stable across CPUs (an AVX-512 host and the one the atlas
+   was first baked on differed in 92 bytes of the ASTC atlas), the 8-bit source + astcenc is;
 3. OUTDIR/kit_src.blend is saved (the editable source: an artist moves vertices or repaints face attributes there and
    re-exports with --from-blend, which skips steps 1–2's geometry and keeps the saved UVs and atlas);
 4. the pieces are exported FROM THE BLENDER MESHES (corner normals, MikkTSpace tangents of `trim`, both UV maps,
    the face attributes) into OUTDIR/station.ihk, and the atlas into OUTDIR/kit_ao.iht (ASTC 6×6 + mips).
-Deterministic: fixed seeds, fixed thread count, sorted output; two clean builds give identical bytes (build.sh
---verify checks it).
+Deterministic: fixed seeds, fixed thread count, sorted output, the AO bake read from its committed 8-bit source; two
+clean builds give identical bytes on any host (build.sh --verify checks it).
 """
 import json
 import math
@@ -38,6 +42,7 @@ AO_SAMPLES = 96
 AO_DIST = 0.6
 THREADS = 3
 GRID = 9.0          # metres between pieces in the bake scene (no cross-occlusion)
+AO_SRC = os.path.join(HERE, 'ao_src')      # committed 8-bit AO bake + the geometry fingerprint it was baked for
 
 
 def log(*a):
@@ -256,6 +261,55 @@ def export_piece(ob):
                 budget=int(ob.get('budget', 200)), bounds=(lo.tolist(), hi.tolist()))
 
 
+# ---------------------------------------------------------------- the committed AO source (host-independent builds)
+def quantize_ao(ao):
+    """The atlas as the committed 8-bit source holds it (the bake path encodes exactly what a later build reads)."""
+    return (np.round(np.clip(ao, 0.0, 1.0) * 255.0) / 255.0).astype(np.float32)
+
+
+def save_ao_source(ao, fingerprint):
+    from PIL import Image
+    os.makedirs(AO_SRC, exist_ok=True)
+    Image.fromarray(np.round(np.clip(ao, 0, 1) * 255).astype(np.uint8), 'L').save(os.path.join(AO_SRC, 'kit_ao.png'),
+                                                                                optimize=True)
+    with open(os.path.join(AO_SRC, 'bake.json'), 'w') as f:
+        json.dump(dict(fingerprint=fingerprint, size=AO_SIZE, samples=AO_SAMPLES, distance=AO_DIST, mean=float(ao.mean())),
+                  f, indent=1, sort_keys=True)
+        f.write('\n')
+    log(f'wrote kit/ao_src (kit_ao.png, bake.json: geometry {fingerprint})')
+
+
+def load_ao_source():
+    from PIL import Image
+    p = os.path.join(AO_SRC, 'kit_ao.png')
+    if not os.path.exists(p):
+        sys.exit('build_kit: kit/ao_src/kit_ao.png missing: run tools/blender/build.sh --bake-ao and commit kit/ao_src')
+    a = np.asarray(Image.open(p).convert('L')).astype(np.float32) / 255.0
+    assert a.shape == (AO_SIZE, AO_SIZE), f'kit_ao.png is {a.shape}, expected {AO_SIZE}²'
+    return a
+
+
+def check_ao_source(fingerprint):
+    with open(os.path.join(AO_SRC, 'bake.json')) as f:
+        b = json.load(f)
+    want = dict(fingerprint=fingerprint, size=AO_SIZE, samples=AO_SAMPLES, distance=AO_DIST)
+    bad = [k for k in want if b.get(k) != want[k]]
+    if bad:
+        sys.exit(f'build_kit: kit/ao_src was baked for other {", ".join(bad)} (pieces / AO settings changed): run '
+                 f'tools/blender/build.sh --bake-ao (≈1 min) and commit kit/ao_src')
+    log(f'AO atlas from kit/ao_src (baked for this geometry: {fingerprint})')
+
+
+def put_ao_image(ao):
+    """The atlas into the .blend (the packed image `kit_ao`, Blender row order), so --from-blend re-exports keep it."""
+    img = bpy.data.images.get('kit_ao') or bpy.data.images.new('kit_ao', AO_SIZE, AO_SIZE, alpha=False, float_buffer=True)
+    img.colorspace_settings.name = 'Non-Color'
+    px = np.ones((AO_SIZE, AO_SIZE, 4), np.float32)
+    px[..., 0] = px[..., 1] = px[..., 2] = ao[::-1]
+    img.pixels.foreach_set(px.ravel())
+    img.pack()
+
+
 def encode_ao(ao, path):
     img = np.zeros(ao.shape + (4,), np.float32)
     img[..., 0] = img[..., 1] = img[..., 2] = np.clip(ao, 0, 1)
@@ -271,22 +325,23 @@ def main():
     src_blend = args[args.index('--from-blend') + 1] if '--from-blend' in args else None
     prev = os.path.abspath(args[args.index('--previews') + 1]) if '--previews' in args else None
     report = dict(pieces={}, log=[])
+    bake = '--bake-ao' in args
+    kinds = {n: pieces.PIECES[n][2] for n in pieces.PIECES}
     if src_blend:
         bpy.ops.wm.open_mainfile(filepath=src_blend)
         objs = {o.name: o for o in bpy.data.objects if 'piece_flags' in o}
         img = bpy.data.images['kit_ao']
         a = np.empty(AO_SIZE * AO_SIZE * 4, np.float32)
         img.pixels.foreach_get(a)
-        ao = a.reshape(AO_SIZE, AO_SIZE, 4)[::-1, :, 0].copy()
+        ao = quantize_ao(a.reshape(AO_SIZE, AO_SIZE, 4)[::-1, :, 0])
         log(f'opened {src_blend}: {len(objs)} pieces')
     else:
         reset()
         objs, occs = build_scene()
         log(f'built {len(objs)} pieces, {sum(len(o.data.polygons) for o in objs.values())} polygons')
         unwrap_ao(objs)
-        ao = bake_ao(objs)
-        img = bpy.data.images['kit_ao']
-        img.pack()
+        ao = quantize_ao(bake_ao(objs)) if bake else load_ao_source()
+        put_ao_image(ao)
         bpy.ops.wm.save_as_mainfile(filepath=os.path.join(out, 'kit_src.blend'), compress=True)
         log('saved kit_src.blend')
     exported = [export_piece(objs[n]) for n in sorted(objs)]
@@ -294,6 +349,11 @@ def main():
                      trim_density=kitgeo.DENSITY, kit_name='station')
     log(f'wrote station.ihk: {size} bytes, {len(exported)} pieces, '
         f'{sum(len(p["indices"]) // 3 for p in exported)} triangles, {sum(len(p["vertices"]) for p in exported)} vertices')
+    fp = ihk.ao_fingerprint(exported, kinds)
+    if bake:
+        save_ao_source(ao, fp)
+    elif not src_blend:
+        check_ao_source(fp)
     asz = encode_ao(ao, os.path.join(out, 'kit_ao.iht'))
     log(f'wrote kit_ao.iht: {asz} bytes (ASTC 6x6, {AO_SIZE}², mips)')
     for p in exported:

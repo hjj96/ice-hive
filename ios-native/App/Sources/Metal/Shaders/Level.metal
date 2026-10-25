@@ -48,7 +48,7 @@ struct KitVertex {
 struct LevelParams {
     float4 lift;     // x = vertical offset of this draw (the lift's rise)
     float4 look;     // x rime strength, y contact-AO strength, z chamfer wear, w snow albedo
-    float4 misc;     // x = 1 on the High tier
+    float4 misc;     // x = 1 on the High tier, y = 1: the -deckMask look-dev view
     float4 mask;     // world mask: xy world origin, z = 1 / size, w unused
 };
 
@@ -168,6 +168,15 @@ fragment float4 fs_level(KitOut in [[stage_in]],
                          texture2d_array<float> trimORM [[texture(9)]],
                          texture2d<float> aoAtlas [[texture(10)]]
                          LEVEL_LIGHT_PARAMS) {
+    if (P.misc.y > 0.5) {
+        // -deckMask (look-dev): the walkable deck tops (WorldLevel tints them pure green) flat green, the snow drifts
+        // blue, the icicles red, the rest black (a script checks the deck's luma and that no snow lies past a rail)
+        bool deck = all(abs(in.albedo - float3(0.0, 1.0, 0.0)) < float3(0.002));
+        float3 c = deck ? float3(0.0, 0.6, 0.0) : float3(0.0);
+        if ((in.flags & KF_SNOW) != 0u) c = float3(0.0, 0.0, 0.6);
+        if ((in.flags & KF_ICE) != 0u) c = float3(0.6, 0.0, 0.0);
+        return float4(c, 1.0);
+    }
     float3 Nv = normalize(in.normal);
     float3 V = normalize(F.camPos.xyz - in.world);
     float3 N = Nv;
@@ -202,10 +211,26 @@ fragment float4 fs_level(KitOut in [[stage_in]],
         rough = max(rough, 0.55);
     }
     if ((fl & KF_SNOW) != 0u) {
-        albedo = float3(0.84, 0.9, 1.0) * P.look.w;
+        // wind-packed snow: faint, irregular ripples across the wind (≈ 0.55 m apart, warped by two slow waves, their
+        // strength swelling and dying along the drift) tilt the normal a little and shade the albedo by a few percent,
+        // so a lamp or a flashlight shows a drift's surface instead of a smooth pillow — never regular stripes, no
+        // sparkle (frost's glitter is out). They fade to the plain mound where a ripple would be under ~3 px.
+        float2 wp = in.world.xz;
+        float warp = 0.55 * sin(dot(wp, float2(-0.55, 0.83)) * 1.1) + 0.3 * sin(dot(wp, float2(0.31, 0.95)) * 2.3 + 1.7);
+        float ph = dot(wp, float2(0.83, 0.55)) * 1.8 + warp;
+        float amp = 0.5 + 0.5 * sin(dot(wp, float2(0.2, -0.9)) * 0.9 + 0.4);
+        float fade = (1.0 - saturate(fwidth(ph) * 3.0 - 0.5)) * amp;
+        float s = sin(ph * 6.2832), c = cos(ph * 6.2832);
+        float3 wind = float3(0.83, 0.0, 0.55);
+        albedo = float3(0.84, 0.9, 1.0) * P.look.w * (1.0 - 0.05 * fade * (0.5 - 0.5 * s));
+        // the outline: the snow thins out toward the drift's edge (in.uv0.y = height above its base, KitMesh.place) so
+        // the dark painted grating shows through a dusting instead of a hard pill edge; the world mask's frost noise
+        // breaks the line up
+        float thin = 1.0 - smoothstep(0.0, 0.5, saturate(in.uv0.y) + 0.3 * (mk.r - 0.5));
+        albedo = mix(albedo, float3(0.09, 0.11, 0.14), thin * 0.8);
         rough = 0.9;
         metal = 0.0;
-        N = Nv;
+        N = normalize(Nv + wind * (0.13 * c * fade * saturate(Nv.y)));
     }
     if ((fl & KF_ICE) != 0u) {
         // clear blue ice: light enough to catch the flashlight and the strip above it against the abyss
