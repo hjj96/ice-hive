@@ -109,6 +109,8 @@ func richParagraph(_ parts: [String], size: CGFloat, width: CGFloat, align: NSTe
 
 /// Touch control hint of the web title / pause screens (controlHint(), touch mode).
 let touchHintParts = ["Левый палец", " — движение · ", "правый палец", " — прицел и автоогонь · кнопки справа — способность и рывок"]
+/// The same, shorter: two lines under the pause menu's mission column.
+let pauseHintParts = ["Левый палец", " — бег · ", "правый", " — прицел и огонь · ", "справа", " — способность и рывок"]
 
 /// Amber / black hazard band (web .hz: 8 px, right end cut at 45°), top-left anchored.
 func hazardBand(width: CGFloat, height: CGFloat) -> SKSpriteNode {

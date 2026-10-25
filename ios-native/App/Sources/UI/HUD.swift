@@ -230,6 +230,9 @@ final class HUD {
     /// it (the web anchors the landscape hint at its bottom).
     private var hintText = ""
     private var hintMaxW: CGFloat = 360
+    /// The gap between the stick rings (HUD x of its left / right ends): the hint sits over the armour block (the
+    /// screen centre) when its lines fit there with 12 pt to each ring, else as close to it as they do.
+    private var hintGap: (CGFloat, CGFloat) = (-180, 180)
     private var hintBase = CGPoint.zero
     private var hintUp = false
     private let banner = SKNode()
@@ -461,7 +464,8 @@ final class HUD {
         // hint: in the gap between the stick rings, its bottom line just above the armour block (web #hHint in
         // landscape: anchored at its bottom); a longer one takes two lines growing upward
         let gapL = sl + Geo.ringInL + Geo.ringR, gapR = W - sr - Geo.ringInR - Geo.ringR
-        hintBase = hp((gapL + gapR) / 2, bottom - Geo.armourH - 15)
+        hintGap = (gapL - W / 2, gapR - W / 2)
+        hintBase = hp((gapL + gapR) / 2, bottom - Geo.armourH - 24)
         hintUp = true
         hintMaxW = max(160, gapR - gapL - 24)
         fitHint()
@@ -778,6 +782,7 @@ final class HUD {
         // the hint at its widest, two lines
         let hb = viewPoint(hintBase)
         check.add("hint", hud(CGRect(x: hb.x - hintMaxW / 2, y: hb.y - 17 - 9, width: hintMaxW, height: 35)))
+        if hb.y + 9 > armourRect.minY - 8 { check.add("hint.clearance<8", CGRect(x: -W, y: -H, width: 1, height: 1)) }
         check.add("armour", hud(armourRect))
         for (name, st, rest) in [("move", stickL, stickRestL), ("aim", stickR, stickRestR)] {
             let c = viewPoint(rest), R = Geo.ringR
@@ -822,14 +827,17 @@ final class HUD {
             AppLog.info(String(format: "hint 2 lines widest=%.0f max=%.0f scale=%.2f", widest, hintMaxW, s) + " «\(l1)» / «\(l2)»")
         }
         let lh = 17 * s
+        let half = widest * s / 2
+        let lo = hintGap.0 + 12 + half, hi = hintGap.1 - 12 - half
+        let base = CGPoint(x: lo <= hi ? max(lo, min(hi, 0)) : hintBase.x, y: hintBase.y)
         if l2.isEmpty {
-            hint.node.position = hintBase
+            hint.node.position = base
         } else if hintUp {
-            hint.node.position = CGPoint(x: hintBase.x, y: hintBase.y + lh)
-            hint2.node.position = hintBase
+            hint.node.position = CGPoint(x: base.x, y: base.y + lh)
+            hint2.node.position = base
         } else {
-            hint.node.position = hintBase
-            hint2.node.position = CGPoint(x: hintBase.x, y: hintBase.y - lh)
+            hint.node.position = base
+            hint2.node.position = CGPoint(x: base.x, y: base.y - lh)
         }
     }
 

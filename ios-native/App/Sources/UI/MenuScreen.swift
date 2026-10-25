@@ -127,7 +127,7 @@ final class MenuScreen {
                 let hintTop = y + step - bh / 2 - 12
                 let room = hintTop - (top - boxH + 12)
                 if room >= 30 {
-                    let hint = richParagraph(touchHintParts, size: 12, width: colW, align: .left)
+                    let hint = richParagraph(pauseHintParts, size: 12, width: colW, align: .left)
                     if hint.frame.height <= room {
                         hint.position = CGPoint(x: x0, y: hintTop)
                         content.addChild(hint)

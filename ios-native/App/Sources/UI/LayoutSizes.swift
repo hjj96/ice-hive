@@ -8,8 +8,8 @@ import IceHiveCore
 //  safe areas, on detached screen instances (nothing is drawn), each
 //  through LayoutCheck: «layout ok|FAIL <screen> WxH <phone> <case>».
 //    874 × 402  6.1" Dynamic Island (iPhone 14–17 Pro)  62 | 62, bottom 20
-//    932 × 430  6.7" Dynamic Island (Plus / Pro Max)    59 | 59, bottom 21
-//    844 × 390  6.1" notch (iPhone 12–14, 16e)          47 | 47, bottom 21
+//    932 × 430  6.7" Dynamic Island (Plus / Pro Max)    59 | 59, bottom 20
+//    844 × 390  6.1" notch (iPhone 12–14, 16e)          47 | 47, bottom 20
 //    667 × 375  iPhone SE 2 / 3                          no insets
 //  (iOS reports the Dynamic Island / notch inset on both sides in
 //  landscape.) Screens: the title (fresh, returning, Кошмар), the HUD
@@ -27,8 +27,8 @@ enum LayoutSizes {
 
     static let phones: [Phone] = [
         Phone(name: "6.1", size: CGSize(width: 874, height: 402), insets: UIEdgeInsets(top: 0, left: 62, bottom: 20, right: 62)),
-        Phone(name: "6.7", size: CGSize(width: 932, height: 430), insets: UIEdgeInsets(top: 0, left: 59, bottom: 21, right: 59)),
-        Phone(name: "6.1notch", size: CGSize(width: 844, height: 390), insets: UIEdgeInsets(top: 0, left: 47, bottom: 21, right: 47)),
+        Phone(name: "6.7", size: CGSize(width: 932, height: 430), insets: UIEdgeInsets(top: 0, left: 59, bottom: 20, right: 59)),
+        Phone(name: "6.1notch", size: CGSize(width: 844, height: 390), insets: UIEdgeInsets(top: 0, left: 47, bottom: 20, right: 47)),
         Phone(name: "SE", size: CGSize(width: 667, height: 375), insets: .zero)]
 
     /// Lay out and check everything on every phone; logs the totals («layout sizes: N ok, M FAIL»).

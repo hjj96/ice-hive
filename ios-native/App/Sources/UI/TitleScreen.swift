@@ -45,16 +45,30 @@ final class TitleScreen {
     func layout(size: CGSize, insets: UIEdgeInsets, selected cls: MarineClass, soundOn: Bool, meta: Meta, layoutCheck: Bool = false) {
         selected = cls
         var check = LayoutCheck("title")
+        let floor = -size.height / 2 + insets.bottom + 6
         for level in 0...3 {
             check = LayoutCheck("title")
-            if build(size: size, insets: insets, soundOn: soundOn, meta: meta, level: level, check: &check) || level == 3 { break }
+            let bottom = build(size: size, insets: insets, soundOn: soundOn, meta: meta, level: level, extra: 0, check: &check)
+            if bottom >= floor {
+                // a taller phone: the room left under the buttons goes between the blocks (logo · cards · tier row ·
+                // buttons) instead of a dark band at the bottom
+                let spare = bottom - floor - 8
+                if spare > 8 {
+                    check = LayoutCheck("title")
+                    _ = build(size: size, insets: insets, soundOn: soundOn, meta: meta, level: level, extra: min(spare, 60), check: &check)
+                }
+                break
+            }
+            if level == 3 { break }
         }
         if layoutCheck { check.report(size: size, insets: insets) }
     }
 
-    /// One layout attempt; `level` 0 everything, 1 no control hint, 2 no premise either, 3 compact. True when the
-    /// last element stays above the bottom safe edge.
-    private func build(size: CGSize, insets: UIEdgeInsets, soundOn: Bool, meta: Meta, level: Int, check: inout LayoutCheck) -> Bool {
+    /// One layout attempt; `level` 0 everything, 1 no control hint, 2 no premise either, 3 compact; `extra` points
+    /// spread between the blocks (0.4 above the class row, 0.3 above the tier row and above the buttons). Returns the
+    /// lowest element's bottom (HUD y).
+    private func build(size: CGSize, insets: UIEdgeInsets, soundOn: Bool, meta: Meta, level: Int, extra: CGFloat,
+                       check: inout LayoutCheck) -> CGFloat {
         content.removeFromParent()
         content = SKNode()
         root.addChild(content)
@@ -88,9 +102,10 @@ final class TitleScreen {
         stMeta.node.position = CGPoint(x: right, y: y)
         content.addChild(stMeta.node)
         check.add("meta.station", node: stMeta.node)
-        y -= compact ? 30 : 36
         var ts = min(52, H * 0.12)
         if compact { ts *= 0.84 }
+        // the logo's line box is ≈ 1.26 × its size (Oswald), centred on y: its top 3 pt under the meta row
+        y -= max(compact ? 30 : 36, 11 + 0.63 * ts)
         let t1 = Label("ЛЕДЯНОЙ", font: Fonts.bold, size: ts, color: UIPalette.ink, kern: 1, align: .left)
         t1.node.position = CGPoint(x: left, y: y)
         content.addChild(t1.node)
@@ -114,6 +129,7 @@ final class TitleScreen {
         } else {
             y -= 2
         }
+        y -= (extra * 0.4).rounded()
         let lab = Label("ВЫБЕРИТЕ КЛАСС", font: Fonts.medium, size: 12, color: UIPalette.amber, kern: 3.1, align: .left)
         lab.node.position = CGPoint(x: left, y: y - 6)
         content.addChild(lab.node)
@@ -204,7 +220,9 @@ final class TitleScreen {
         y -= CGFloat(rows) * (cardH + gap) + 6
 
         // tier row (web .t-tier): СЛОЖНОСТЬ + rule, three segments, the chosen tier's line
+        y -= (extra * 0.3).rounded()
         y = tierRow(left: left, cw: cw, y: y, compact: compact, tier: meta.tier, narrow: W <= 700, check: &check)
+        y -= (extra * 0.3).rounded()
 
         // «В бой» + «Звук» (web .t-actions), then the control hint and the profile line
         sound.setText("Звук: " + (soundOn ? "вкл" : "выкл"))
@@ -223,6 +241,7 @@ final class TitleScreen {
             content.addChild(hint)
             check.add("hint", node: hint)
             ly -= hint.frame.height + 6
+            bottom = min(bottom, ly + 6)
         }
         if let p = profLine {
             let best = Label(p, font: Fonts.mono, size: 12, color: UIPalette.teal, kern: 0.7, align: .left)
@@ -236,7 +255,7 @@ final class TitleScreen {
         check.add("sound", sound.rect)
         check.tap("go", go.hitRect)
         check.tap("sound", sound.hitRect)
-        return bottom >= -H / 2 + insets.bottom + 6
+        return bottom
     }
 
     /// The tier selector (web max-height 500): head, the three segments sized to their text and the chosen tier's

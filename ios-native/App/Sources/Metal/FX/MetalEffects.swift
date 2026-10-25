@@ -570,6 +570,7 @@ final class MetalEffects {
     private var turretSight: Float = 0
     /// Longest sight glint (m): no long laser line across the screen, only a short fading glint off the muzzle.
     static let sightGlintLength: Float = 1.2
+    private static var sightLogged = false
 
     /// Sights (owner feedback: the constant long coloured laser lines got in the way, LAND): while a marine fires, a short
     /// class-coloured glint fades off its muzzle (≤ 1.2 m, brightest at the barrel, gone at the tip) and a small dot of
@@ -589,17 +590,21 @@ final class MetalEffects {
             let oy = p.y + 1.22
             let col = linearRGB(m.spec.laser)
             let ex = ox + m.ax * L, ez = oz + m.az * L
+            if !MetalEffects.sightLogged && lv > 0.9 {
+                MetalEffects.sightLogged = true
+                AppLog.info(String(format: "sights: glint %.1f m (no laser line), first on marine %d (%@)", L, k, m.cls.id))
+            }
             // glint: a soft halo and a thin hot core, both fading to nothing at the tip (ribbon mode 3: k² along it)
-            glint(ox, oy, oz, ex, oy - 0.06, ez, 0.09, col, 0.55 * lv)
-            glint(ox, oy, oz, ex, oy - 0.06, ez, 0.022, col, 2.4 * lv)
+            glint(ox, oy, oz, ex, oy - 0.06, ez, 0.12, col, 0.9 * lv)
+            glint(ox, oy, oz, ex, oy - 0.06, ez, 0.03, col, 1.9 * lv)
             // target dot on the aimed bug (the player's a little larger and brighter)
             if lv > 0.35 {
                 let hit = game.raycastBugs(origin: Vec2(ox, oz), dir: Vec2(m.ax, m.az), maxDistance: 24)
                 if hit.bug >= 0 && hit.bug < B.count {
                     let hx = ox + m.ax * hit.distance, hz = oz + m.az * hit.distance
                     let hy = level.groundY(hx, hz) + max(-0.5, B.heights[hit.bug]) + 0.5
-                    let c = col * (m.isPlayer ? 1.6 : 1.0) * lv
-                    pa.emit(hx, hy, hz, 0, 0, 0, 0.04, m.isPlayer ? 0.42 : 0.3, 0.5, c.x, c.y, c.z, 1, 0, 0, 0, absolute: true)
+                    let c = col * (m.isPlayer ? 2.2 : 1.3) * lv
+                    pa.emit(hx, hy, hz, 0, 0, 0, 0.04, m.isPlayer ? 0.5 : 0.34, 0.5, c.x, c.y, c.z, 1, 0, 0, 0, absolute: true)
                 }
             }
         }
