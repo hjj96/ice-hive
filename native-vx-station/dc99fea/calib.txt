@@ -1,0 +1,28 @@
+tag mode             n  win%  dn/r  0dn%  1-3%  4+%  pDn  pMin  hold%  Qrch%  Qkil%  Qmed  idleMd  idleMx   pDn1  tWin  tLoss  perClass | downs by stage | hurt% env/run/spit/brute/boom/queen
+nm auto             32    16   5.2     0     9   91  1.1     5     62     53     29  38.3    1.35    3.93   251*   336    246  as0/8 py0/8 cr3/8 gu2/8 | b3:1.5 hold:2.8 b2:0.8 toLift:0.0 | 0/49/3/6/34/9
+rec afk              4     0  19.5     0     0  100 16.2     0      0      0      -     -    4.00    4.00    110     -    347  as0/1 py0/1 cr0/1 gu0/1 | trav:19.5 | 0/24/44/9/23/0
+rec auto            32    97   0.2    84    12    3  0.1    86    100     97    100  12.8    1.00    1.26   186*   333    283  as8/8 py7/8 cr8/8 gu8/8 | hold:0.2 b2:0.1 | 0/44/8/5/32/11
+v10 auto             8   100   0.4    75    25    0  0.0    83    100      0      -     -    1.00    1.00      -   332      -  as2/2 py2/2 cr2/2 gu2/2 | b3:0.1 hold:0.2 | 0/59/4/2/35/0
+vet afk              4     0  12.5     0     0  100  9.5     2      0      0      -     -    4.00    4.00     70     -    191  as0/1 py0/1 cr0/1 gu0/1 | trav:12.5 | 0/25/41/6/27/0
+vet auto            64    83   2.0    25    48   27  0.4    22     95     94     88  26.6    1.00    3.18   272*   341    270  as11/16 py15/16 cr14/16 gu13/16 | b2:0.2 hold:1.5 b3:0.2 toLift:0.1 extract:0.0 | 0/40/5/7/35/14
+vet passive          4    25   5.0     0     0  100  1.5     5     25     25    100  28.6    1.00    1.40    166   364    177  as0/1 py1/1 cr0/1 gu0/1 | b3:4.2 b1:0.2 extract:0.2 trav:0.2 | 0/52/3/4/39/2
+(downs = squad downs per run, all four marines; pDn1: median time of the first player down, * = some runs had none; Qkil% is of the runs that reached her.)
+
+CALIB: passed
+  gate ok   rec/auto wins 96.9% band 90…%
+  gate ok   rec/auto downs/run 0.2 band …0.5
+  gate ok   vet/auto wins 82.8% band 70…85%
+  gate ok   vet/auto queen reached 93.8% band 75…%
+  gate ok   vet/auto queen killed of reached 88.3% band 85…%
+  gate ok   nm/auto wins 15.6% band …30%
+  gate ok   vet/afk first player down 64–76 s (every run) band …120 s
+  gate ok   rec/afk first player down 97–178 s (every run) band …270 s
+  info ok   vet/auto queen kill median 26.6 s band 20…35 s
+  info MISS vet/auto runs with 1-3 downs 48.4% band 55…%
+  info MISS vet/auto idleMax max 3.2 band …1.3
+  info ok   nm/auto hold reached 62.5% band 50…%
+  info ok   vet/passive wins 25.0% band …40%
+  info ok   v10/auto wins (legacy port check) 100.0% band …%
+  info ok   v10/auto downs/run 0.4 band …
+
+148 rows in 59.8 s
