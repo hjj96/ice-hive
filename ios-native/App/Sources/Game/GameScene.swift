@@ -344,7 +344,10 @@ final class GameScene: SKScene {
         if mode == .title { layoutTitle() }
         // a rotation under the pause menu or the report lays it out again for the new size
         if mode == .paused { menu.showPause(size: size, state: pauseState, layoutCheck: options.layoutCheck, insets: insets) }
-        if mode == .ended, let r = report { menu.showEnd(size: size, insets: insets, report: r, layoutCheck: options.layoutCheck) }
+        if mode == .ended, let r = report {
+            menu.showEnd(size: size, insets: insets, report: r, layoutCheck: options.layoutCheck)
+            applyFrameRate()   // (a rotation while the report was still being built: it is up now)
+        }
     }
 
     override func didChangeSize(_ oldSize: CGSize) {
@@ -475,6 +478,7 @@ final class GameScene: SKScene {
         mode = .ended
         input.reset()
         taps.removeAll()
+        let tEnd = FrameTimer.now()
         let won = g.phase == .won
         if demo == nil { settings.recordMission(kills: g.kills, won: won, time: g.time) }
         let run = g.runSummary(won: won, surrendered: surrendered)
@@ -483,12 +487,18 @@ final class GameScene: SKScene {
         settings.saveProfile(prof)
         let rep = MissionReport.make(run: run, result: res, profile: prof, stats: g.stats, newStationShown: AppFeatures.generatedStations)
         report = rep
-        // laid out over the next frames, one column per frame (stepPendingReport), so no frame pays for the whole screen
+        let tModel = FrameTimer.now()
+        // laid out over the next frames, one column per frame (stepPendingReport), so no frame pays for the whole screen;
+        // the menus' 30 Hz comes with its last step: the build frames run at 60 Hz, and the rate switch lands on a tick
+        // with ~2 ms of work instead of this one (the end events + the profile + the report model)
         menu.beginEnd(size: size, insets: insets, report: rep, layoutCheck: options.layoutCheck)
         endBegunAt = lastTime
         endStepMs.removeAll()
         if res.rankUp { rankUpHapticAt = lastTime + 0.65 }
-        applyFrameRate()
+        if AppLog.diagnostics {
+            AppLog.info(String(format: "end tick: profile + report model %.1f ms, menu reset %.1f ms", (tModel - tEnd) * 1000,
+                               (FrameTimer.now() - tModel) * 1000))
+        }
         let q = !run.queenSpawned ? "none" : (run.queenDone ? "killed" : "alive")
         AppLog.info("mission over won=\(won) time=\(formatTime(g.time)) kills=\(g.kills) record=\(res.record)")
         AppLog.info("v11 run tier=\(g.difficulty.id) won=\(won ? 1 : 0) surrendered=\(run.surrendered ? 1 : 0) downs=\(run.downs) "
@@ -504,6 +514,7 @@ final class GameScene: SKScene {
         endStepMs.append((FrameTimer.now() - t0) * 1000)
         if done {
             AppLog.info("report built in \(endStepMs.count) frames: " + endStepMs.map { String(format: "%.1f", $0) }.joined(separator: " / ") + " ms")
+            applyFrameRate()
         }
     }
 
@@ -789,13 +800,17 @@ final class GameScene: SKScene {
         let lis = listener()
         let inMission = mode != .title
         let diag = AppLog.diagnostics
+        let endPendingDrain = mode == .ended && menu.endPending
         g.drainEvents { e in
             let te = diag ? FrameTimer.now() : 0
             defer {
                 // CI attribution of multi-second stalls inside the event drain (579f726: 7–9 s once per run)
                 if diag {
                     let ms = (FrameTimer.now() - te) * 1000
-                    if ms > 40 { AppLog.info(String(format: "slow event %.0f ms: ", ms) + String(String(describing: e).prefix(80))) }
+                    // (the mission-end tick, which also builds the profile and the report model: anything over 3 ms)
+                    if ms > (endPendingDrain ? 3 : 40) {
+                        AppLog.info(String(format: "slow event %.0f ms: ", ms) + String(String(describing: e).prefix(80)))
+                    }
                 }
             }
             r.handle(e, game: g)
