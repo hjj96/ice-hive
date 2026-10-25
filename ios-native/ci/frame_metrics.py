@@ -40,7 +40,11 @@ Gate (exit 1 with --gate), the plan's common gate for every package:
                       took > 100 ms, over 10x the slowest frame's own GPU span (GPU side) — and pass if those
                       hold over >= 4 clean seconds and the demo has no app hitch (noted in the row)
   frame graph         simulator GPU ema <= --gpu-ema-max (1.0 ms); one world-target allocation per launch; a DRS
-                      sweep (when present) has 10 steps and no second with a scale step has a loop tick > 34 ms
+                      sweep (when present) has 10 steps and no second with a scale step has a loop tick > 34 ms that
+                      the step can own: with that second's frames fast on the GPU (< 8 ms), a host-stall tick, or one
+                      under 50 ms in a second where the app's own maxima add up to < 10 ms, is the host's; from any
+                      other the second's maxima of the sections a scale step does not touch (sim, ev, cam, hud, au, the
+                      HUD render's CPU, the drawable wait) are taken away first (the rest is reported as `step share`)
 Usage: frame_metrics.py [--gate] [--menus a,b] [--cold a,b] [--cold-max-ms N] [--cold-load-s S] [--drawn-gated a,b]
                         [--gpu-ema-max MS] <results dir> <demo> [<demo> ...]
 """
@@ -251,16 +255,60 @@ for d in demos:
     ema = sorted(emas)[len(emas) // 2] if emas else None
     allocs = sum(1 for line in lines if rx_alloc.search(line))
     sweep = max((int(s.group(1)) for line in lines for s in [rx_sweep.search(line)] if s), default=0)
-    # the worst loop tick of each second that holds a DRS sweep step (the heartbeat after the step's line)
-    sweep_worst, pending = 0, False
-    for line in lines:
+    # the worst loop tick of each second that holds a DRS sweep step (the heartbeat after the step's line), and the part
+    # of it the step can own. A scale step moves the viewport (MetalWorld.update → prepareViewport) and changes what the
+    # world encode and the GPU draw; it does not touch the simulation, the event drain, the camera, the HUD or audio.
+    # A long tick is the host's when the GPU drew that second's frames fast (slowest frame < 8 ms — a GPU-side cost of
+    # the step would show there) and either it is a host-stall tick classified above, or — under the hitch line's 50 ms
+    # — the app's own maxima in that second (every `hb ms … max` section, the HUD render's CPU, the drawable wait ≤ 3
+    # ms, a logged world encode) add up to < 10 ms. From any other long tick the second's maxima of the sections the
+    # step does not touch (sim, ev, cam, hud, au), the HUD render's CPU (skcpu=) and the drawable wait are taken away;
+    # what remains — an upper bound of the step's own share — must stay ≤ 34 ms
+    stall_pairs = list(zip(host_stalls, stall_tds))
+    sweep_worst, sweep_own, sweep_host, sweep_other, pending, enc_sec = 0, 0, 0, 0, False, 0.0
+    for k, line in enumerate(lines):
+        se = rx_slow_enc.search(line)
+        if se:
+            enc_sec = max(enc_sec, float(se.group(1)))
+            continue
         if rx_sweep.search(line):
             pending = True
             continue
         hw = rx_hb_worst.search(line)
-        if pending and hw:
-            sweep_worst = max(sweep_worst, int(hw.group(1)))
-            pending = False
+        if not hw:
+            continue
+        enc_max, enc_sec = enc_sec, 0.0
+        if not pending:
+            continue
+        pending = False
+        w = int(hw.group(1))
+        sweep_worst = max(sweep_worst, w)
+        if w <= 34:
+            sweep_own = max(sweep_own, w)
+            continue
+        tdm, gm = rx_hb_td.search(line), rx_hb_gpumax.search(line)
+        t_end = float(tdm.group(2)) if tdm else None
+        gpu_fast = gm is not None and float(gm.group(1)) < 8
+        nxt = lines[k + 1] if k + 1 < len(lines) else ''
+        mm = rx_hb_max.search(nxt)
+        sk, dw = rx_hb_skcpu.search(line), rx_hb_drw.search(line)
+        loop_other = (int(sk.group(1)) if sk else 99) + (min(3, int(dw.group(1))) if dw else 99)
+        sections = dict((n, 0) for n in ('sim', 'ev', 'cam', 'hud', 'au'))
+        app = None
+        if mm:
+            scene, _, world_sub = mm.group(1).partition(' / ')
+            for n, v in re.findall(r'(\w+)=(\d+)', scene):
+                if n in sections:
+                    sections[n] += int(v)
+            app = sum(int(v) for v in re.findall(r'=(\d+)', mm.group(1))) + loop_other + enc_max
+        stalled = t_end is not None and any(abs(w - ms) <= 1 and t_end - 1.2 < t0 <= t_end + 0.05 for ms, t0 in stall_pairs)
+        if gpu_fast and (stalled or (w <= 50 and app is not None and app < 10)):
+            sweep_host += 1
+            continue
+        own = max(0, w - sum(sections.values()) - (loop_other if loop_other < 99 else 0))
+        if own <= 34:
+            sweep_other += 1
+        sweep_own = max(sweep_own, own)
     worst_h = max((h[0] for h in hitches), default=0)
     if drawn_avg != '-' and d not in menus and d not in cold:
         gpu_avg.append((d, float(drawn_avg)))
@@ -332,15 +380,18 @@ for d in demos:
     if sweep:
         if sweep < 10:
             bad.append(f'drs sweep stopped at step {sweep}/10')
-        if sweep_worst > 34:
-            bad.append(f'drs sweep: worst tick {sweep_worst} ms > 34 in a second with a scale step')
+        if sweep_own > 34:
+            bad.append(f'drs sweep: a {sweep_worst} ms tick in a second with a scale step, up to {sweep_own} ms of it '
+                       f'not the simulation / events / HUD (> 34)')
     if bad:
         verdict = 'FAIL: ' + '; '.join(bad)
         failed.append(f'{d}: ' + '; '.join(bad))
     elif notes:
         verdict += ' (' + '; '.join(notes) + ')'
     fg = (f'gpu ema {ema:.2f} ms' if ema is not None else 'gpu ema -') + f' allocs {allocs}' \
-        + (f' tier {"/".join(sorted(tiers))} scale {"/".join(sorted(scales))}' if tiers else '') + (f' drs {sweep}/10 worst {sweep_worst} ms' if sweep else '')
+        + (f' tier {"/".join(sorted(tiers))} scale {"/".join(sorted(scales))}' if tiers else '') + (f' drs {sweep}/10 worst {sweep_worst} ms' if sweep else '') \
+        + (f' (step share <= {sweep_own} ms' + (f', host {sweep_host}' if sweep_host else '')
+           + (f', sim/events {sweep_other}' if sweep_other else '') + ')' if sweep and sweep_worst > 34 else '')
     rows.append((d, f'load {lm.group(1) if lm else "-"} s | loop avg {avg:.1f} min {mn:.1f} worst {worst:.0f} ms '
                     f'hitches {len(hitches)}' + (f' host-stalls {len(host_stalls)} ({max(host_stalls)} ms)' if host_stalls else '')
                     + f' | gpu drawn avg {drawn_avg} min {drawn_min} gap {gap} ms '
