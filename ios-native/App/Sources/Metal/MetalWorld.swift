@@ -199,7 +199,7 @@ final class MetalWorld: HUDProjection {
         camera.resize(width: Float(viewSize.width), height: Float(viewSize.height), drawableHeight: Float(max(1, th)))
         let ex: Float = game.stage == .extract ? smooth01f(game.extractT / 4.5) : 0
         camera.update(focus: F3(cam.focus.0, cam.focus.1, cam.focus.2), shake: F3(cam.shakeOffset.0, cam.shakeOffset.1, cam.shakeOffset.2),
-                      title: game.attract, time: time, extract: ex)
+                      title: game.attract, time: time, extract: ex, zoom: cam.zoom)
         game.setVisibleQuad(camera.ground(ndcX: -1, ndcY: -1, height: cam.ty), camera.ground(ndcX: 1, ndcY: -1, height: cam.ty),
                             camera.ground(ndcX: 1, ndcY: 1, height: cam.ty), camera.ground(ndcX: -1, ndcY: 1, height: cam.ty))
         timer.mark()

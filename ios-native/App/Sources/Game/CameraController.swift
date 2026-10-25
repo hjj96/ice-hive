@@ -2,19 +2,20 @@ import SpriteKit
 import IceHiveCore
 
 // ================================================================
-//  CAMERA — follows the player like updateCamera() of 12-main.js:
-//  look-at point 2.4 m ahead along the aim, pushed toward screen-down
-//  on touch (1.5 m portrait / 3 m landscape) so the thumbs hide less,
-//  damped follow, floor-height follow, shake and a tiny recoil kick.
-//  MetalCamera builds the web's perspective camera from `focus` and
-//  `shakeOffset`. v1.1 VX-6 (portrait): the look-at point 3.2 m toward
-//  screen-down and the lead split into screen axes (3.4 m sideways, 1.4 m
-//  along the screen's depth): the portrait view is ~23 m wide but ~50 m
-//  deep, so the narrow axis is the one worth leading into; `zoom` (1.10
-//  in a packed screen, hysteresis 240 / 180 bugs) waits for MetalCamera to
-//  apply it (handoff M2: `dist *= zoom`). `node` is the SpriteKit camera the HUD, menus and
-//  loading cover hang from: it stays at the scene origin, unscaled, so
-//  HUD points are view points (origin at the centre, y up).
+//  CAMERA — follows the player like updateCamera() of 12-main.js, for
+//  the landscape-only screen (LAND): the view is ≈ 47 m across but only
+//  ≈ 26 m of deck top to bottom, so the aim lead runs along the screen's
+//  long axis (3.6 m sideways, 1.5 m along the depth) and the look-at
+//  point sits 2.4 m toward screen-down — the player stands a little above
+//  the centre, in the free band between the top HUD row and the thumbs
+//  / armour bar at the bottom; damped follow, floor-height follow, shake
+//  and a tiny recoil kick. `zoom` (1.10 in a packed screen, hysteresis
+//  240 / 180 bugs near the target) is the crowd pull-back MetalCamera
+//  applies to its distance. MetalCamera builds the web's perspective
+//  camera from `focus`, `shakeOffset` and `zoom`. `node` is the SpriteKit
+//  camera the HUD, menus and loading cover hang from: it stays at the
+//  scene origin, unscaled, so HUD points are view points (origin at the
+//  centre, y up).
 // ================================================================
 final class CameraController {
     let node = SKCameraNode()
@@ -30,8 +31,10 @@ final class CameraController {
     /// Look-at point of this frame (target + recoil kick) and the camera position jitter (shake).
     private(set) var focus: (Float, Float, Float) = (0, 0, 0)
     private(set) var shakeOffset: (Float, Float, Float) = (0, 0, 0)
-    /// VX-6 crowd pull-back: camera distance factor, 1 … 1.10 (smoothed; not applied by the renderer yet — M2).
+    /// Crowd pull-back: camera distance factor, 1 … 1.10 (smoothed; MetalCamera multiplies its distance by it).
     private(set) var zoom: Float = 1
+    /// Aim lead along the screen's long (right) axis and its depth (up) axis, and the push toward screen-down (m).
+    static let leadSide: Float = 3.6, leadDepth: Float = 1.5, pushDown: Float = 2.4
     private var zoomWant: Float = 1
 
     func addShake(_ a: Float) {
@@ -45,12 +48,10 @@ final class CameraController {
     /// `bugsNear` = live bugs within 22 m of the camera target (web nearCam).
     func update(game: Game, feet: (Float, Float, Float), dt: Float, viewSize: CGSize, title: Bool, liftRise: Float, bugsNear: Int = 0) {
         let P = game.player
-        let portrait = !title && viewSize.height > viewSize.width
-        let lead: Float = title ? 0 : 2.4
-        let dn: Float = title ? 0 : (portrait ? 3.2 : 3)
-        // lead along the screen's axes (portrait: mostly sideways), then the push toward screen-down
+        let dn: Float = title ? 0 : CameraController.pushDown
+        // lead along the screen's axes (mostly sideways: the long axis), then the push toward screen-down
         let sr = P.ax * RIGHT_X + P.az * RIGHT_Z, su = P.ax * FWD_X + P.az * FWD_Z
-        let lr: Float = portrait ? 3.4 : lead, lu: Float = portrait ? 1.4 : lead
+        let lr: Float = title ? 0 : CameraController.leadSide, lu: Float = title ? 0 : CameraController.leadDepth
         let wantX = feet.0 + RIGHT_X * sr * lr + FWD_X * su * lu - FWD_X * dn
         let wantZ = feet.2 + RIGHT_Z * sr * lr + FWD_Z * su * lu - FWD_Z * dn
         if title { zoomWant = 1 } else if bugsNear > 240 { zoomWant = 1.1 } else if bugsNear < 180 { zoomWant = 1 }

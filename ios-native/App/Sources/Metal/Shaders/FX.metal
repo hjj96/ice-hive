@@ -3,7 +3,7 @@
 //  (multiply), flat floor sprites (light pools, splashes, telegraphs,
 //  team rings; the procedural beacon / lift / revive progress rings),
 //  camera-facing particles (additive / alpha with a noise edge) and
-//  ribbons (laser sights, tracers, cryo beam, beacon beams).
+//  ribbons (sight glints, tracers, cryo beam, beacon beams).
 //  Struct layouts mirror FX/MetalEffects.swift.
 // ================================================================
 #include "Common.h"
@@ -122,7 +122,7 @@ fragment float4 fs_particle_alpha(QuadOut in [[stage_in]],
     return float4(in.color.rgb, in.color.a * a);
 }
 
-// ribbons: laser sights (dash texture), tracers (flat), cryo beam (streak noise), beacon beams (vertical fade)
+// ribbons: dashed line (mode 0, unused since the laser sights went), tracers (flat), cryo beam (streak noise), fade along u (sight glints, beacon beams)
 vertex QuadOut vs_ribbon(uint vid [[vertex_id]],
                          constant Frame& F [[buffer(1)]],
                          const device RibbonVertex* V [[buffer(2)]]) {

@@ -9,7 +9,8 @@ import IceHiveCore
 //  (fxBugDeath, fxExplosion, fxAcid, fxBulletHit, fxDash,
 //  fxNapalmBurst, fxNova, fxTurretDrop, fxHeal), and the per-frame
 //  part of renderFx: muzzle flashes, flames, cryo beam, napalm fields,
-//  vent steam, laser sights, tracers, telegraphs, beacon beams, and
+//  vent steam, sight glints + target dots (no long laser sights since
+//  LAND), tracers, telegraphs, beacon beams, and
 //  the light pool (point light 0 follows flames / the player's muzzle,
 //  1–2 are short blasts). Corpses go to Swarm/Corpses.swift (`corpses`,
 //  fed with this file's random sequence), the squad's team rings and
@@ -50,9 +51,10 @@ struct ParticleInstance {
     var extra: F4
 }
 
-/// Ribbon vertex (`struct RibbonVertex` in FX.metal): laser sights, tracers, the cryo beam.
+/// Ribbon vertex (`struct RibbonVertex` in FX.metal): sight glints, tracers, the cryo beam, beacon beams.
 struct RibbonVertex {
-    /// xyz world position, w = mode (0 laser dash, 1 flat tracer, 2 cryo beam).
+    /// xyz world position, w = mode (0 dashed line — unused since the laser sights went, 1 flat tracer, 2 cryo beam,
+    /// 3 fade along u: sight glints, beacon beams).
     var pos: F4
     /// rgb colour, w = intensity.
     var color: F4
@@ -136,6 +138,8 @@ final class MetalEffects {
         liftRiseLast = 0
         splashes.removeAll(keepingCapacity: true)
         for k in 0..<3 { lights[k].intensity = 0; flashPeak[k] = 0 }
+        for k in 0..<sightLevel.count { sightLevel[k] = 0 }
+        turretSight = 0
     }
 
     /// Memory warning: the live particles and splashes go (stains and corpses stay; they are part of the battle).
@@ -509,7 +513,7 @@ final class MetalEffects {
         liftRise(rise)
         telegraphs(game: game, time: time)
         tracers(game: game)
-        lasers(game: game, time: time, poses: poses)
+        sights(game: game, dt: dt, poses: poses)
         beam(game: game, time: time, poses: poses)
         beaconBeams(game: game, time: time, focus: focus)
         pointLights(game: game, dt: dt, time: time, poses: poses)
@@ -561,44 +565,73 @@ final class MetalEffects {
         ribbons.append(va); ribbons.append(vc); ribbons.append(vd)
     }
 
-    /// web setRibbon: flat ribbon from (x0, y0, z0) to (x1, y1, z1), colour fading to `fadeEnd` at the far end.
-    private func ribbon(_ x0: Float, _ y0: Float, _ z0: Float, _ x1: Float, _ y1: Float, _ z1: Float, _ w: Float,
-                        _ col: F3, _ fadeEnd: Float, _ len: Float) {
+    /// Sight level 0…1 of each marine (fades in while it fires, out after) and of the turret.
+    private var sightLevel = [Float](repeating: 0, count: 4)
+    private var turretSight: Float = 0
+    /// Longest sight glint (m): no long laser line across the screen, only a short fading glint off the muzzle.
+    static let sightGlintLength: Float = 1.2
+
+    /// Sights (owner feedback: the constant long coloured laser lines got in the way, LAND): while a marine fires, a short
+    /// class-coloured glint fades off its muzzle (≤ 1.2 m, brightest at the barrel, gone at the tip) and a small dot of
+    /// the same hue sits on the bug it aims at; nothing while it does not fire. The turret gets the same in green.
+    private func sights(game: Game, dt: Float, poses: [MarinePose]) {
+        let B = game.bugs
+        let L = MetalEffects.sightGlintLength
+        for (k, m) in game.marines.enumerated() where k < poses.count && k < sightLevel.count {
+            let want: Float = m.firing && !m.downed ? 1 : 0
+            let rate: Float = want > sightLevel[k] ? 14 : 5
+            sightLevel[k] += (want - sightLevel[k]) * min(1, rate * dt)
+            if m.downed { sightLevel[k] = 0 }
+            let lv = sightLevel[k]
+            if lv < 0.02 { continue }
+            let p = poses[k]
+            let (ox, oz) = muzzle(m, p)
+            let oy = p.y + 1.22
+            let col = linearRGB(m.spec.laser)
+            let ex = ox + m.ax * L, ez = oz + m.az * L
+            // glint: a soft halo and a thin hot core, both fading to nothing at the tip (ribbon mode 3: k² along it)
+            glint(ox, oy, oz, ex, oy - 0.06, ez, 0.09, col, 0.55 * lv)
+            glint(ox, oy, oz, ex, oy - 0.06, ez, 0.022, col, 2.4 * lv)
+            // target dot on the aimed bug (the player's a little larger and brighter)
+            if lv > 0.35 {
+                let hit = game.raycastBugs(origin: Vec2(ox, oz), dir: Vec2(m.ax, m.az), maxDistance: 24)
+                if hit.bug >= 0 && hit.bug < B.count {
+                    let hx = ox + m.ax * hit.distance, hz = oz + m.az * hit.distance
+                    let hy = level.groundY(hx, hz) + max(-0.5, B.heights[hit.bug]) + 0.5
+                    let c = col * (m.isPlayer ? 1.6 : 1.0) * lv
+                    pa.emit(hx, hy, hz, 0, 0, 0, 0.04, m.isPlayer ? 0.42 : 0.3, 0.5, c.x, c.y, c.z, 1, 0, 0, 0, absolute: true)
+                }
+            }
+        }
+        let T = game.turret
+        let tWant: Float = T.active ? 1 : 0
+        turretSight += (tWant - turretSight) * min(1, (tWant > turretSight ? 14 : 5) * dt)
+        if T.active && turretSight > 0.02 {
+            let ax = sinf(T.angle), az = cosf(T.angle)
+            let ox = T.x + ax * 0.75, oz = T.z + az * 0.75
+            let ty = level.groundY(T.x, T.z) + 1.05
+            let dist = game.turretLaserLength
+            let hit = game.raycastBugs(origin: Vec2(ox, oz), dir: Vec2(ax, az), maxDistance: dist + 0.01)
+            let on: Float = hit.bug >= 0 ? 1 : 0.4
+            let g = F3(0.4, 2.2, 0.6)
+            glint(ox, ty, oz, ox + ax * L, ty - 0.08, oz + az * L, 0.016, g, 1.1 * on * turretSight)
+            if hit.bug >= 0 && hit.bug < B.count {
+                let hx = ox + ax * hit.distance, hz = oz + az * hit.distance
+                let hy = level.groundY(hx, hz) + max(-0.5, B.heights[hit.bug]) + 0.5
+                pa.emit(hx, hy, hz, 0, 0, 0, 0.04, 0.3, 0.5, 0.25, 1.4, 0.4, 1, 0, 0, 0, absolute: true)
+            }
+        }
+    }
+
+    /// Short glint ribbon from (x0, y0, z0) to (x1, y1, z1), half width `w`: brightest at the start, k² to nothing at the
+    /// end (fs_ribbon mode 3 with uv.x 0 → 1 along it).
+    private func glint(_ x0: Float, _ y0: Float, _ z0: Float, _ x1: Float, _ y1: Float, _ z1: Float, _ w: Float, _ col: F3, _ inten: Float) {
         let dx = x1 - x0, dz = z1 - z0
         let l = max(1e-4, (dx * dx + dz * dz).squareRoot())
         let px = -dz / l * w, pz = dx / l * w
-        let c0 = F4(col.x, col.y, col.z, 1), c1 = F4(col.x * fadeEnd, col.y * fadeEnd, col.z * fadeEnd, 1)
+        let c = F4(col.x, col.y, col.z, inten)
         quad(F3(x0 + px, y0, z0 + pz), F3(x0 - px, y0, z0 - pz), F3(x1 - px, y1, z1 - pz), F3(x1 + px, y1, z1 + pz),
-             c0, c0, c1, c1, F4(0, 0, 0, 0), F4(0, 1, 0, 0), F4(len, 1, 0, 0), F4(len, 0, 0, 0), mode: 0)
-    }
-
-    private func lasers(game: Game, time: Float, poses: [MarinePose]) {
-        let B = game.bugs
-        for (k, m) in game.marines.enumerated() where !m.downed && k < poses.count {
-            let p = poses[k]
-            let (ox, oz) = muzzle(m, p)
-            let hit = game.raycastBugs(origin: Vec2(ox, oz), dir: Vec2(m.ax, m.az), maxDistance: 24)
-            let dist = hit.distance
-            let col = linearRGB(m.spec.laser)
-            let k2: Float = m.firing ? 1.6 : 1.0
-            let oy = p.y + 1.22
-            let ex = ox + m.ax * dist, ez = oz + m.az * dist
-            let ey: Float = hit.bug >= 0 && hit.bug < B.count ? level.groundY(ex, ez) + max(-0.5, B.heights[hit.bug]) + 0.5 : p.y + 0.9
-            let fade: Float = hit.bug >= 0 ? 1 : 0.15
-            ribbon(ox, oy, oz, ex, ey, ez, 0.22, col * (0.5 * k2), fade, dist)
-            ribbon(ox, oy, oz, ex, ey, ez, 0.055, col * (3 * k2), fade, dist)
-            if hit.bug >= 0 { pa.emit(ex, ey, ez, 0, 0, 0, 0.04, 0.5, 0.5, col.x, col.y, col.z, 1, 0, 0, 0, absolute: true) }
-        }
-        let T = game.turret
-        if T.active {
-            let ax = sinf(T.angle), az = cosf(T.angle)
-            let ox = T.x + ax * 0.75, oz = T.z + az * 0.75
-            let ty = level.groundY(T.x, T.z)
-            let dist = game.turretLaserLength
-            let hit = game.raycastBugs(origin: Vec2(ox, oz), dir: Vec2(ax, az), maxDistance: dist + 0.01).bug >= 0
-            let ex = ox + ax * dist, ez = oz + az * dist
-            ribbon(ox, ty + 1.05, oz, ex, hit ? level.groundY(ex, ez) + 0.6 : ty + 0.6, ez, 0.025, F3(0.4, 2.2, 0.6), hit ? 1 : 0, dist)
-        }
+             c, c, c, c, F4(0, 0, 0, 0), F4(0, 1, 0, 0), F4(1, 1, 0, 0), F4(1, 0, 0, 0), mode: 3)
     }
 
     private static let tracerColors: [F3] = [F3(2.6, 0.35, 0.25), F3(2.4, 1.9, 0.7), F3(0.7, 2.4, 0.8)]

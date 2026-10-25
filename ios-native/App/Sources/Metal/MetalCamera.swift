@@ -2,25 +2,35 @@ import Foundation
 import IceHiveCore
 
 // ================================================================
-//  METAL CAMERA — the web game's perspective camera (03-render.js
-//  resize, 12-main.js updateCamera): fov 40° landscape / 50° portrait,
-//  pitch 57°, yaw 45°, distance fitted so ~11 m of world stay visible
-//  on the short axis; the follow target, lead, floor-height follow,
-//  shake and recoil kick come from CameraController (whose SpriteKit
-//  camera node also parents the HUD), the title sway and the
-//  extraction pull-back are applied here. Also projects world points
-//  into HUD space.
+//  METAL CAMERA — the web game's landscape perspective camera
+//  (03-render.js resize, 12-main.js updateCamera): fov 40°, pitch 57°,
+//  yaw 45°, distance fitted so 10.8 m of world stay visible above and
+//  below the focus on the screen's short (vertical) axis — every phone
+//  shows the same depth, a wider one more to the sides (874 × 402:
+//  ≈ 47 m across, ≈ 26 m of deck top to bottom). The app is landscape-
+//  only (LAND): no portrait fit. The follow target, lead, floor-height
+//  follow, shake, recoil kick and the crowd pull-back (`zoom`, 1 …
+//  1.10) come from CameraController (whose SpriteKit camera node also
+//  parents the HUD); the title sway and composition (the squad in the
+//  free space right of the logo) and the extraction pull-back are
+//  applied here. Also projects world points into HUD space.
 // ================================================================
 final class MetalCamera {
     static let pitch: Float = 57 * Float.pi / 180
     static let yaw: Float = Float.pi / 4
 
+    /// Vertical field of view (degrees) and the world kept visible above / below the focus (m, at the focus).
+    static let fovDeg: Float = 40
+    static let halfHeight: Float = 10.8
+    /// Title: where on screen (NDC) the squad stands — right of the «ЛЕДЯНОЙ УЛЕЙ» logo, above the class cards.
+    static let titleSquadNDC = (x: Float(0.5), y: Float(0.52))
+
     /// View size in points (HUD space) and the drawable height in pixels.
-    private(set) var viewW: Float = 402, viewH: Float = 874
-    private(set) var drawableH: Float = 1748
-    private(set) var fov: Float = 50
-    private(set) var camDist: Float = 28
-    private(set) var aspect: Float = 0.46
+    private(set) var viewW: Float = 874, viewH: Float = 402
+    private(set) var drawableH: Float = 804
+    private(set) var fov: Float = MetalCamera.fovDeg
+    private(set) var camDist: Float = 30
+    private(set) var aspect: Float = 2.17
     private(set) var near: Float = 1
     private(set) var far: Float = 168
     private(set) var view = Mat4.identity
@@ -42,19 +52,30 @@ final class MetalCamera {
         viewH = max(1, height)
         drawableH = max(1, drawableHeight)
         aspect = viewW / viewH
-        fov = aspect < 1 ? 50 : 40
-        let vis: Float = aspect < 1 ? 11.5 : 10.8
-        camDist = vis / (tanf(fov * Float.pi / 360) * min(1, aspect))
+        fov = MetalCamera.fovDeg
+        camDist = MetalCamera.halfHeight / tanf(fov * Float.pi / 360)
         far = camDist + 140
     }
 
-    /// `focus` = look-at point (target + recoil kick), `shake` = camera position jitter.
-    func update(focus f: F3, shake: F3, title: Bool, time: Float, extract: Float) {
-        focus = f
+    /// `focus` = look-at point (target + recoil kick), `shake` = camera position jitter, `zoom` = the crowd pull-back
+    /// (CameraController.zoom, not on the title).
+    func update(focus f: F3, shake: F3, title: Bool, time: Float, extract: Float, zoom: Float = 1) {
         let ex = extract
         let yaw = MetalCamera.yaw + (title ? sinf(time * 0.06) * 0.35 : 0)
         let pitch = MetalCamera.pitch - (title ? 0.08 : 0) + 0.12 * ex
-        let dist = camDist * (title ? 1.12 : 1) * (1 + 0.35 * ex)
+        let dist = camDist * (title ? 1.12 : max(1, min(1.2, zoom))) * (1 + 0.35 * ex)
+        place(f, yaw: yaw, pitch: pitch, dist: dist, shake: shake)
+        if title {
+            // composed title: the ray through the squad's screen spot hits the deck `d` away from the focus — look at
+            // f − d instead, and the squad (at f) stands on that spot whatever the sway
+            let n = MetalCamera.titleSquadNDC
+            let g = ground(ndcX: n.x, ndcY: n.y, height: f.y)
+            place(F3(f.x - (g.x - f.x), f.y, f.z - (g.y - f.z)), yaw: yaw, pitch: pitch, dist: dist, shake: shake)
+        }
+    }
+
+    private func place(_ f: F3, yaw: Float, pitch: Float, dist: Float, shake: F3) {
+        focus = f
         eye = f + F3(sinf(yaw) * cosf(pitch) * dist, sinf(pitch) * dist, cosf(yaw) * cosf(pitch) * dist) + shake
         view = Mat4.lookAt(eye: eye, target: f)
         proj = Mat4.perspective(fovY: fov * Float.pi / 180, aspect: aspect, near: near, far: far)
