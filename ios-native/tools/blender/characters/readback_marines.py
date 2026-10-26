@@ -10,6 +10,7 @@ class hue glowing from visors and strips.
             death, the gunner's barrel spin
     game    OUTDIR/marine_game.png   — the squad at the game camera (pitch 57°, yaw 45°, fov 40) at iPhone 3× pixels,
             phone-size and 100 % crops
+    details OUTDIR/marine_details.png — close-ups of each class (helmet, weapon, torso, legs, back), not in the default set
 Material: base colour = vertex albedo (+ the paint mask's class hue / light markings, worn steel on painted
 chamfers) × baked AO; roughness / metal from the ORM array; the tangent-space normal array; emission = albedo × glow.
 """
@@ -153,21 +154,21 @@ def material(A, cls):
     glow.attribute_name = 'glow'
     paintf = N.new('ShaderNodeAttribute')
     paintf.attribute_name = 'painted'
-    # paint mask (ORM alpha): 0.5 light marking, 1 class hue
+    # paint mask (ORM alpha, like fs_marine): 0.5 dark stencil, 1 the class hue
     pa = to.outputs['Alpha']
     mk = N.new('ShaderNodeMapRange')
-    mk.inputs['From Min'].default_value = 0.3
-    mk.inputs['From Max'].default_value = 0.45
+    mk.inputs['From Min'].default_value = 0.25
+    mk.inputs['From Max'].default_value = 0.42
     L.new(pa, mk.inputs['Value'])
     mk2 = N.new('ShaderNodeMapRange')
-    mk2.inputs['From Min'].default_value = 0.62
-    mk2.inputs['From Max'].default_value = 0.8
+    mk2.inputs['From Min'].default_value = 0.7
+    mk2.inputs['From Max'].default_value = 0.88
     L.new(pa, mk2.inputs['Value'])
     mix1 = N.new('ShaderNodeMix')
     mix1.data_type = 'RGBA'
     L.new(mk.outputs[0], mix1.inputs['Factor'])
     L.new(col.outputs['Color'], mix1.inputs[6])
-    mix1.inputs[7].default_value = (0.72, 0.72, 0.7, 1)
+    mix1.inputs[7].default_value = (0.025, 0.027, 0.03, 1)
     mix2 = N.new('ShaderNodeMix')
     mix2.data_type = 'RGBA'
     L.new(mk2.outputs[0], mix2.inputs['Factor'])
@@ -365,6 +366,47 @@ def sheet(A, out, samples):
     compose_sheet(tiles, os.path.join(out, 'marine_sheet.png'))
 
 
+DETAIL_VIEWS = [
+    # name, eye (game), target, lens, key from
+    ('шлем', (0.55, 1.86, 0.95), (0.0, 1.76, 0.05), 50, (-0.5, 2.6, 2.2)),
+    ('оружие', (-0.85, 1.55, 1.75), (0.25, 1.15, 0.45), 40, (-0.8, 2.6, 2.0)),
+    ('корпус', (0.9, 1.45, 1.75), (0.0, 1.3, 0.1), 45, (-0.6, 2.8, 2.6)),
+    ('ноги', (1.0, 0.75, 1.75), (0.0, 0.55, 0.05), 45, (1.4, 2.6, 2.6)),
+    ('спина', (-0.9, 1.6, -1.8), (0.0, 1.3, -0.1), 45, (-1.2, 2.8, -2.2)),
+]
+
+
+def details(A, out, samples):
+    """Close-ups from the shipped files (helmet, weapon, torso, legs, back): the baked detail at 100 %."""
+    from PIL import Image, ImageDraw
+    W, H = 560, 600
+    rows = []
+    for cls in CLASSES_SHOWN:
+        tiles = []
+        for name, eye, tgt, lens, key in DETAIL_VIEWS:
+            reset(samples)
+            deck()
+            lights(key_from=g(*key), key=380.0, aim=g(*tgt))
+            posed_object(A, cls, 'idle', 0.0, cls)
+            camera(g(*eye), g(*tgt), lens=lens)
+            p = os.path.join(out, f'_detail_{cls}_{name}.png')
+            render(p, W, H)
+            tiles.append(p)
+        rows.append((cls, tiles))
+    S = Image.new('RGB', (W * len(DETAIL_VIEWS), len(rows) * (H + 44) + 60), (8, 10, 14))
+    d = ImageDraw.Draw(S)
+    d.text((16, 14), 'ЛЕДЯНОЙ УЛЕЙ · ОТРЯД — крупные планы из отгруженных файлов: ' + ' · '.join(v[0] for v in DETAIL_VIEWS),
+           fill=(230, 235, 240), font=font(28))
+    for r, (cls, tiles) in enumerate(rows):
+        hu = HUE[cls]
+        d.text((16, 60 + r * (H + 44) + 6), TITLES[cls], fill=((hu >> 16) & 255, (hu >> 8) & 255, hu & 255), font=font(26))
+        for c, p in enumerate(tiles):
+            S.paste(Image.open(p).convert('RGB'), (c * W, 60 + r * (H + 44) + 40))
+            os.remove(p)
+    S.save(os.path.join(out, 'marine_details.png'))
+    log('details → marine_details.png')
+
+
 def font(size):
     from PIL import ImageFont
     for p in [os.path.join(HERE, '..', '..', '..', 'App', 'Resources', 'Fonts', 'Oswald-SemiBold.ttf'),
@@ -509,6 +551,8 @@ def main():
         strips(A, out, samples)
     if not what or 'game' in what:
         game_view(A, out, samples)
+    if 'details' in what:
+        details(A, out, samples)
 
 
 if __name__ == '__main__':

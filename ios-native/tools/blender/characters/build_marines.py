@@ -45,7 +45,7 @@ import skeleton as SK  # noqa: E402
 
 T0 = time.time()
 NRM_SIZE = 1024
-ORM_SIZE = 512
+ORM_SIZE = 1024
 BAKE_SRC = os.path.join(HERE, 'bake_src')
 THREADS = 3
 # the floor gate: no clip may put a skinned vertex deeper than this under the deck (the sole's chamfer, a plate's rim
@@ -98,14 +98,16 @@ def region_of(bone):
 
 # ---------------------------------------------------------------- parts → Blender objects
 def make_object(name, items, smooth_angle=None):
-    """items: [(V (game), F, bone idx, mat, sharp_deg, blend (other bone idx, per-vertex weight) | None, decal value)]."""
+    """items: [(V (game), F, bone idx, mat, sharp_deg, blend (other bone idx, per-vertex weight) | None, decal value,
+    part index)]."""
     bm = bmesh.new()
     lay_bone = bm.faces.layers.int.new('bone')
     lay_mat = bm.faces.layers.int.new('mat')
     lay_dec = bm.faces.layers.float.new('decal')
+    lay_part = bm.faces.layers.int.new('part')
     vb = bm.verts.layers.int.new('bone2')
     vw = bm.verts.layers.float.new('w2')
-    for V, F, bone, mat, sharp, blend, dec in items:
+    for V, F, bone, mat, sharp, blend, dec, part in items:
         Vb = g2b(V)
         vs = [bm.verts.new(tuple(p)) for p in Vb]
         if blend is not None:
@@ -128,6 +130,7 @@ def make_object(name, items, smooth_angle=None):
             fa[lay_bone] = bone
             fa[lay_mat] = mat
             fa[lay_dec] = dec
+            fa[lay_part] = part
             fa.smooth = True
             new_faces.append(fa)
         if new_faces:
@@ -154,16 +157,45 @@ def make_object(name, items, smooth_angle=None):
     return ob
 
 
+def assign_floaters(b, lob):
+    """The LOW part each HIGH floater / decal belongs to — the part it was laid on (Builder.floater_target /
+    decal_target), else the nearest LOW part surface to its centre: the bake renders a part's floaters onto that part
+    only."""
+    from mathutils import Vector
+    from mathutils.bvhtree import BVHTree
+    trees = []
+    for p in lob.parts:
+        tris = []
+        for f in p.faces:
+            for k in range(1, len(f) - 1):
+                tris.append((f[0], f[k], f[k + 1]))
+        trees.append(BVHTree.FromPolygons([tuple(map(float, v)) for v in p.verts], tris, all_triangles=True))
+
+    def nearest(V):
+        c = Vector(tuple(map(float, np.asarray(V).mean(0))))
+        best, bi = 1e9, 0
+        for i, t in enumerate(trees):
+            hit = t.find_nearest(c, 0.25)
+            if hit[0] is not None and hit[3] < best:
+                best, bi = hit[3], i
+        return bi
+    ft = getattr(b, 'floater_target', [None] * len(b.floaters))
+    dt = getattr(b, 'decal_target', [None] * len(b.decals))
+    b.floater_part = [t if t is not None else nearest(V) for ((V, F), bone, mat), t in zip(b.floaters, ft)]
+    b.decal_part = [t if t is not None else nearest(V) for ((V, F), bone, val), t in zip(b.decals, dt)]
+
+
 def objects_for(b, tag, with_details):
     groups = {r: [] for r in REGIONS}
-    for p in b.parts:
+    for i, p in enumerate(b.parts):
         bl = None
         if p.blend is not None:
             bl = (SK.IDX[p.blend[0]], p.blend[1])
-        groups[region_of(p.bone)].append((p.verts, p.faces, SK.IDX[p.bone], p.mat, p.sharp_deg, bl, 0.0))
+        groups[region_of(p.bone)].append((p.verts, p.faces, SK.IDX[p.bone], p.mat, p.sharp_deg, bl, 0.0, i))
     if with_details:
-        for (V, F), bone, mat in b.floaters:
-            groups[region_of(bone)].append((V, F, SK.IDX[bone], mat, 50.0, None, 0.0))
+        fp = getattr(b, 'floater_part', [0] * len(b.floaters))
+        for k, ((V, F), bone, mat) in enumerate(b.floaters):
+            groups[region_of(bone)].append((V, F, SK.IDX[bone], mat, 50.0, None, 0.0, fp[k]))
     objs = {}
     for r in REGIONS:
         if groups[r]:
@@ -171,8 +203,9 @@ def objects_for(b, tag, with_details):
     decals = {}
     if with_details:
         dg = {r: [] for r in REGIONS}
-        for (V, F), bone, val in b.decals:
-            dg[region_of(bone)].append((V, F, SK.IDX[bone], shapes.PAINT, 80.0, None, float(val)))
+        dp = getattr(b, 'decal_part', [0] * len(b.decals))
+        for k, ((V, F), bone, val) in enumerate(b.decals):
+            dg[region_of(bone)].append((V, F, SK.IDX[bone], shapes.PAINT, 80.0, None, float(val), dp[k]))
         for r in REGIONS:
             if dg[r]:
                 decals[r] = make_object(f'{tag}_{r}_decal', dg[r])
@@ -263,7 +296,7 @@ def high_material(cls, kind):
             edge.inputs['From Max'].default_value = 0.96
             L.new(dot.outputs['Value'], edge.inputs['Value'])
             noise = N.new('ShaderNodeTexNoise')
-            noise.inputs['Scale'].default_value = 38.0
+            noise.inputs['Scale'].default_value = 70.0
             noise.inputs['Detail'].default_value = 4.0
             tc = N.new('ShaderNodeTexCoord')
             L.new(tc.outputs['Object'], noise.inputs['Vector'])
@@ -278,8 +311,8 @@ def high_material(cls, kind):
             L.new(nmap.outputs['Result'], wear.inputs[1])
             # roughness: the slot's, ±0.06 of the noise, worn edges smoother
             rn = N.new('ShaderNodeMapRange')
-            rn.inputs['To Min'].default_value = rough - 0.06
-            rn.inputs['To Max'].default_value = rough + 0.06
+            rn.inputs['To Min'].default_value = rough - 0.03
+            rn.inputs['To Max'].default_value = rough + 0.03
             L.new(noise.outputs['Fac'], rn.inputs['Value'])
             rmix = N.new('ShaderNodeMix')
             rmix.data_type = 'FLOAT'
@@ -309,58 +342,198 @@ def assign_slots(ob, mats):
     ob.data.polygons.foreach_set('material_index', a)
 
 
-def bake_class(cls, lo, hi, dec):
+def bake_groups(lob, grow=0.03):
+    """Greedy colouring of the LOW parts: two parts whose boxes (grown by `grow`) overlap never bake together, so a
+    part's rays only ever meet its own HIGH surface and floaters (no plate stealing its neighbour's normals)."""
+    boxes = [(p.verts.min(0) - grow, p.verts.max(0) + grow) for p in lob.parts]
+    groups = []
+    for i, (a0, a1) in enumerate(boxes):
+        for g in groups:
+            if all(np.any(a1 < boxes[j][0]) or np.any(boxes[j][1] < a0) for j in g):
+                g.append(i)
+                break
+        else:
+            groups.append([i])
+    return groups
+
+
+def subset_object(lo, parts, name):
+    """One bake target holding the LOW faces of `parts` from every region object, with their atlas UVs and the
+    exported (weighted) corner normals, so the tangent space is the shipped one."""
+    dg = bpy.context.evaluated_depsgraph_get()
+    Vs, Fs, UVs, Ns = [], [], [], []
+    off = 0
+    keep = np.array(sorted(parts), np.int32)
+    for r in REGIONS:
+        if r not in lo:
+            continue
+        ev = lo[r].evaluated_get(dg)
+        me = ev.to_mesh()
+        n = len(me.vertices)
+        co = np.empty(n * 3, np.float32)
+        me.vertices.foreach_get('co', co)
+        part = np.empty(len(me.polygons), np.int32)
+        me.attributes['part'].data.foreach_get('value', part)
+        ls = np.empty(len(me.polygons), np.int32)
+        me.polygons.foreach_get('loop_start', ls)
+        lt = np.empty(len(me.polygons), np.int32)
+        me.polygons.foreach_get('loop_total', lt)
+        lv = np.empty(len(me.loops), np.int32)
+        me.loops.foreach_get('vertex_index', lv)
+        uv = np.empty(len(me.loops) * 2, np.float32)
+        me.uv_layers['uv'].data.foreach_get('uv', uv)
+        cn = np.empty(len(me.loops) * 3, np.float32)
+        me.corner_normals.foreach_get('vector', cn)
+        uv, cn = uv.reshape(-1, 2), cn.reshape(-1, 3)
+        for pi in np.nonzero(np.isin(part, keep))[0]:
+            sl = slice(ls[pi], ls[pi] + lt[pi])
+            Fs.append([off + int(v) for v in lv[sl]])
+            UVs.append(uv[sl])
+            Ns.append(cn[sl])
+        Vs.append(co.reshape(-1, 3))
+        off += n
+        ev.to_mesh_clear()
+    me = bpy.data.meshes.new(name)
+    me.from_pydata(np.concatenate(Vs).tolist(), [], Fs)
+    me.update()
+    ul = me.uv_layers.new(name='uv')
+    ul.data.foreach_set('uv', np.concatenate(UVs).astype(np.float32).ravel())
+    for poly in me.polygons:
+        poly.use_smooth = True
+    me.normals_split_custom_set([tuple(map(float, v)) for v in np.concatenate(Ns)])
+    ob = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(ob)
+    return ob
+
+
+def no_rays(ob):
+    for a in ('visible_camera', 'visible_diffuse', 'visible_glossy', 'visible_transmission', 'visible_volume_scatter',
+              'visible_shadow'):
+        setattr(ob, a, False)
+
+
+def dilate(img, cover, steps=10):
+    """Grow the baked islands into the empty atlas (mip / bilinear bleed): each empty pixel next to covered ones takes
+    their mean, `steps` times."""
+    img = img.copy()
+    cov = cover.copy()
+    for _ in range(steps):
+        acc = np.zeros_like(img)
+        cnt = np.zeros(cov.shape, np.float32)
+        for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)):
+            sh = np.roll(np.roll(img * cov[..., None], dy, 0), dx, 1)
+            sc = np.roll(np.roll(cov, dy, 0), dx, 1)
+            acc += sh
+            cnt += sc
+        grow = (~cov.astype(bool)) & (cnt > 0)
+        img[grow] = acc[grow] / cnt[grow][:, None]
+        cov = cov.copy()
+        cov[grow] = 1.0
+    return img
+
+
+def bake_class(cls, lo, lob, hib):
+    """Bake the HIGH source into the atlas group by group (bake_groups): tangent normals, AO (every HIGH part occludes:
+    contact shadows between plates), roughness / metal with worn chamfers and the paint mask; margin 0 per group, then
+    one dilation from the atlas coverage."""
     sc = bpy.context.scene
     w = bpy.data.worlds.new('w')
     sc.world = w
     w.use_nodes = True
     w.light_settings.distance = 0.07
-    imgs = {}
-    for k, size in (('NORMAL', NRM_SIZE), ('AO', NRM_SIZE), ('EMIT', NRM_SIZE), ('DECAL', NRM_SIZE)):
-        im = bpy.data.images.new(f'{cls}_{k}', size, size, alpha=False, float_buffer=True)
-        im.colorspace_settings.name = 'Non-Color'
-        imgs[k] = im
+    assign_floaters(hib, lob)
+    groups = bake_groups(lob)
+    log(f'{cls}: {len(lob.parts)} parts in {len(groups)} bake groups, {len(hib.floaters)} floaters, {len(hib.decals)} decals')
+    for o in lo.values():
+        no_rays(o)
     hp_props = high_material(cls, 'props')
     hp_decal = high_material(cls, 'decal')
+    fpart = np.array(hib.floater_part, np.int32)
+    dpart = np.array(hib.decal_part, np.int32)
+    tg, hi, dec = [], [], []
+    for gi, g in enumerate(groups):
+        gs = set(g)
+        tg.append(subset_object(lo, g, f'bake_lo_{gi}'))
+        no_rays(tg[-1])
+        items = []
+        for i in g:
+            p = hib.parts[i]
+            bl = (SK.IDX[p.blend[0]], p.blend[1]) if p.blend is not None else None
+            items.append((p.verts, p.faces, SK.IDX[p.bone], p.mat, p.sharp_deg, bl, 0.0, i))
+        for k, ((V, F), bone, mat) in enumerate(hib.floaters):
+            if fpart[k] in gs:
+                items.append((V, F, SK.IDX[bone], mat, 50.0, None, 0.0, int(fpart[k])))
+        o = make_object(f'bake_hi_{gi}', items)
+        assign_slots(o, hp_props)
+        hi.append(o)
+        ditems = [(V, F, SK.IDX[bone], shapes.PAINT, 80.0, None, float(val), int(dpart[k]))
+                  for k, ((V, F), bone, val) in enumerate(hib.decals) if dpart[k] in gs]
+        if ditems:
+            d = make_object(f'bake_dec_{gi}', ditems)
+            assign_slots(d, hp_decal)
+            no_rays(d)
+            dec.append(d)
+        else:
+            dec.append(None)
+    imgs = {}
+    for k in ('NORMAL', 'AO', 'EMIT', 'DECAL', 'COVER'):
+        im = bpy.data.images.new(f'{cls}_{k}', NRM_SIZE, NRM_SIZE, alpha=False, float_buffer=True)
+        im.colorspace_settings.name = 'Non-Color'
+        imgs[k] = im
+    # atlas coverage: an emission of 1 from every LOW region, margin 0
+    cm = bake_material(imgs['COVER'])
+    em = cm.node_tree.nodes.new('ShaderNodeEmission')
+    cm.node_tree.links.new(em.outputs[0], cm.node_tree.nodes['Material Output'].inputs[0])
+    first = True
+    for r, o in lo.items():
+        o.data.materials.clear()
+        o.data.materials.append(cm)
+        for x in bpy.data.objects:
+            x.select_set(False)
+        o.select_set(True)
+        bpy.context.view_layer.objects.active = o
+        sc.cycles.samples = 1
+        bpy.ops.object.bake(type='EMIT', margin=0, use_clear=first)
+        first = False
     for kind in ('NORMAL', 'AO', 'EMIT', 'DECAL'):
-        tgt = bake_material(imgs[kind])
-        for r, o in lo.items():
-            o.data.materials.clear()
-            o.data.materials.append(tgt)
+        if kind == 'DECAL':
+            # the paper-thin decals stayed out of the rays (they would shade the AO under them) until their own pass
+            for d in dec:
+                if d is not None:
+                    for a in ('visible_camera', 'visible_diffuse', 'visible_glossy', 'visible_shadow'):
+                        setattr(d, a, True)
+        tm = bake_material(imgs[kind])
         first = True
-        for r in REGIONS:
-            if r not in lo:
+        t = time.time()
+        for gi, g in enumerate(groups):
+            srcs = [dec[gi]] if kind == 'DECAL' else [hi[gi]]
+            if srcs[0] is None:
                 continue
-            if kind == 'DECAL':
-                srcs = [dec[r]] if r in dec else []
-                for o in srcs:
-                    assign_slots(o, hp_decal)
-            else:
-                srcs = [hi[r]] if r in hi else []
-                for o in srcs:
-                    assign_slots(o, hp_props)
-            if not srcs and kind != 'DECAL':
-                continue
-            for o in bpy.data.objects:
-                o.select_set(False)
+            tgt = tg[gi]
+            tgt.data.materials.clear()
+            tgt.data.materials.append(tm)
+            for x in bpy.data.objects:
+                x.select_set(False)
             for o in srcs:
                 o.select_set(True)
-            lo[r].select_set(True)
-            bpy.context.view_layer.objects.active = lo[r]
-            if not srcs:
-                continue
-            sc.cycles.samples = {'NORMAL': 4, 'AO': 64, 'EMIT': 4, 'DECAL': 1}[kind]
+            tgt.select_set(True)
+            bpy.context.view_layer.objects.active = tgt
+            sc.cycles.samples = {'NORMAL': 4, 'AO': 128, 'EMIT': 4, 'DECAL': 1}[kind]
             kw = dict(normal_space='TANGENT') if kind == 'NORMAL' else {}
-            t = time.time()
             bpy.ops.object.bake(type='EMIT' if kind == 'DECAL' else kind, use_selected_to_active=True,
-                                cage_extrusion=0.008, max_ray_distance=0.016, margin=6, use_clear=first, **kw)
+                                cage_extrusion=0.012, max_ray_distance=0.03, margin=0, use_clear=first, **kw)
             first = False
-            log(f'{cls}: {kind} {r} {time.time() - t:.1f}s')
+        log(f'{cls}: {kind} {len(groups)} groups {time.time() - t:.1f}s')
     out = {}
     for k, im in imgs.items():
         a = np.empty(im.size[0] * im.size[1] * 4, np.float32)
         im.pixels.foreach_get(a)
         out[k] = a.reshape(im.size[1], im.size[0], 4)[::-1].copy()      # Metal row order
+    cover = (out.pop('COVER')[..., 0] > 0.5).astype(np.float32)
+    for k in out:
+        out[k] = dilate(out[k], cover)
+    for o in tg + hi + [d for d in dec if d is not None]:
+        bpy.data.objects.remove(o)
     return out
 
 
@@ -483,14 +656,11 @@ def write_bake(cls, maps, fp):
     os.makedirs(BAKE_SRC, exist_ok=True)
     n = maps['NORMAL'][..., :3]
     Image.fromarray(np.clip(np.round(n * 255), 0, 255).astype(np.uint8), 'RGB').save(os.path.join(BAKE_SRC, f'{cls}_normal.png'))
-    def down(a):
-        return 0.25 * (a[0::2, 0::2] + a[1::2, 0::2] + a[0::2, 1::2] + a[1::2, 1::2])
     orm = np.zeros((NRM_SIZE, NRM_SIZE, 4), np.float32)
     orm[..., 0] = maps['AO'][..., 0]
     orm[..., 1] = maps['EMIT'][..., 0]
     orm[..., 2] = maps['EMIT'][..., 1]
     orm[..., 3] = maps['DECAL'][..., 0]
-    orm = down(orm)
     Image.fromarray(np.clip(np.round(orm * 255), 0, 255).astype(np.uint8), 'RGBA').save(os.path.join(BAKE_SRC, f'{cls}_orm.png'))
     bj = os.path.join(BAKE_SRC, 'bake.json')
     J = json.load(open(bj)) if os.path.exists(bj) else {}
@@ -551,10 +721,10 @@ def main():
         log(f'{cls}: low {tris} triangles, fingerprint {fp[:8]}')
         if bake:
             hib = MR.build(cls, hi=True)
-            hi, dec = objects_for(hib, 'hi', True)
-            htris = sum(len(p.vertices) - 2 for o in hi.values() for p in o.data.polygons)
-            log(f'{cls}: high {htris} triangles, {len(hib.floaters)} floaters, {len(hib.decals)} decals')
-            maps = bake_class(cls, lo, hi, dec)
+            names_lo, names_hi = [p.name for p in lob.parts], [p.name for p in hib.parts]
+            if names_lo != names_hi:
+                raise SystemExit(f'{cls}: the LOW and HIGH builds have different parts')
+            maps = bake_class(cls, lo, lob, hib)
             write_bake(cls, maps, fp)
         if noflat:
             n, orm = read_bake(cls, fp)

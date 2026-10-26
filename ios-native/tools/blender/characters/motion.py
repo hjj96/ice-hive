@@ -638,17 +638,18 @@ def fire(cls, report):
     wp, wq = stance_weapon(cls)
     piv = st.pelvis_p + np.array([0.0, 0.45, 0.0])
     if cls == 'assault':
-        prof = [0.0, 1.0, 0.62, 0.27, 0.08, 0.0]
+        # a hard, short kick: the peak on the first frame (33 ms), a small overshoot past rest, settled by 0.2 s
+        prof = [0.0, 1.0, 0.58, 0.2, -0.06, 0.0]
         poses = []
         for a in prof:
             s = st.copy()
-            dq = qeuler(x=-3.2 * a, y=-1.6 * a)
+            dq = qeuler(x=-4.4 * a, y=-2.0 * a)
             s.chest_q = qmul(dq, st.chest_q)
             carried(cls, s, piv, dq)
-            s.weapon_p = s.weapon_p + np.array([0.005 * a, 0.019 * a, -0.062 * a])
-            s.weapon_q = qmul(qeuler(x=-7.0 * a, y=1.1 * a), s.weapon_q)
-            s.head_q = qeuler(x=4.0 - 2.2 * a)
-            s.pelvis_p = st.pelvis_p + np.array([0, 0, -0.009 * a])
+            s.weapon_p = s.weapon_p + np.array([0.006 * a, 0.024 * a, -0.075 * a])
+            s.weapon_q = qmul(qeuler(x=-9.5 * a, y=1.4 * a), s.weapon_q)
+            s.head_q = qeuler(x=4.0 - 3.0 * a)
+            s.pelvis_p = st.pelvis_p + np.array([0, -0.004 * max(a, 0.0), -0.012 * a])
             poses.append(build(cls, s, report))
         return Clip('fire', poses, False, additive=True)
     n = 6 if cls == 'gunner' else 12
@@ -659,12 +660,13 @@ def fire(cls, report):
         push = 0.0 if k == 0 else 1.0
         if cls == 'gunner':
             j = np.array([np.sin(2 * np.pi * u * 2 + 0.3), np.sin(2 * np.pi * u * 3), np.sin(2 * np.pi * u + 1.0)])
-            dq = qeuler(x=(-2.8 + 0.7 * j[2]) * push)
+            # the rotary leans the whole body back into its push and judders through chest, shoulders and gun
+            dq = qeuler(x=(-3.6 + 0.9 * j[2]) * push, y=0.6 * j[0] * push)
             s.chest_q = qmul(dq, st.chest_q)
             carried(cls, s, piv, dq)
-            s.weapon_p = s.weapon_p + np.array([0.006 * j[0], 0.007 * j[1], -0.027]) * push
-            s.weapon_q = qmul(qeuler(x=-1.8 * j[1] * push, y=1.2 * j[0] * push), s.weapon_q)
-            s.pelvis_p = st.pelvis_p + np.array([0, 0, -0.018 * push])
+            s.weapon_p = s.weapon_p + np.array([0.008 * j[0], 0.009 * j[1], -0.032]) * push
+            s.weapon_q = qmul(qeuler(x=-2.4 * j[1] * push, y=1.5 * j[0] * push), s.weapon_q)
+            s.pelvis_p = st.pelvis_p + np.array([0, -0.006 * push, -0.024 * push])
         else:
             w = np.sin(2 * np.pi * u)
             tr = np.sin(2 * np.pi * u * 3) if cls == 'cryo' else np.sin(2 * np.pi * u * 2)
