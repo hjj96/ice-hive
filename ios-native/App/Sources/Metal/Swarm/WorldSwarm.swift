@@ -471,6 +471,8 @@ final class WorldSwarm {
         for b in 0..<hist.count { hist[b] = 0 }
         var nAll = 0
         var t2sum = 0, t1sum = 0, t0sum = 0
+        // corpses keep the LOD they died with until they settle: their extra triangles come off the live bugs' room
+        var held = 0
         for t in 0..<4 {
             let L = lib.types[t].lods
             let tr0 = L[0].triangles, tr1 = L[min(1, L.count - 1)].triangles, tr2 = L[min(2, L.count - 1)].triangles
@@ -478,6 +480,10 @@ final class WorldSwarm {
             nAll += allN[t]
             for k in 0..<allN[t] {
                 hist[min(hist.count - 1, Int(pxs[t][k] * 0.5))] += 1
+                if slots[t][k] < 0 && forcedLOD == nil && sheet == nil {
+                    let p = lodHint[t][k]
+                    if p == 0 { held += (high ? tr0 : tr1) - tr2 } else if p == 1 { held += tr1 - tr2 }
+                }
             }
         }
         if nAll == 0 { return }
@@ -501,7 +507,7 @@ final class WorldSwarm {
         }
         // LOD1: as many as the cap and the triangle budget allow
         let budget = high ? WorldSwarm.triBudget.high : WorldSwarm.triBudget.efficient
-        let room = Float(budget - t2sum) - Float(n0) * avgD0
+        let room = Float(budget - t2sum - held) - Float(n0) * avgD0
         let cap1 = min(high ? WorldSwarm.lod1Cap.high : WorldSwarm.lod1Cap.efficient, max(0, Int(room / avgD1)))
         var acc = 0
         var b = high ? min(hist.count - 1, Int(th0 * 0.5) - 1) : hist.count - 1
