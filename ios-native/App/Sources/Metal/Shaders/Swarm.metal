@@ -37,6 +37,7 @@ struct CreatureOut {
     half glow;
     half rough;
     half4 state;                 // hit flash, burn, frost, dead
+    half rimK;                   // the type rim's scale at this LOD (fx.w)
     float depth;
     uint flags [[flat]];         // vertex flags | type << 8 | instance flags << 16
 };
@@ -140,6 +141,7 @@ vertex CreatureOut vs_creature(uint vid [[vertex_id]], uint iid [[instance_id]],
     o.glow = half(glow * (1.0 + 1.5 * boost));
     o.rough = half(float(v.material.y) * (1.0 / 255.0));
     o.state = half4(unpack_unorm4x8_to_float(b.fx.x));
+    o.rimK = half(1.0 - float(b.fx.w & 0xffu) * (1.0 / 255.0));
     o.depth = -(F.view * float4(w, 1.0)).z;
     o.flags = vflags | (((b.anim.w >> 16) & 0xffu) << 8) | ((b.anim.w >> 24) << 16);
     return o;
@@ -183,7 +185,7 @@ fragment float4 fs_chitin(CreatureOut in [[stage_in]],
     // the type's cold Fresnel rim: outlines the silhouette against the dark deck (crisp's readability), dimmed on the dead
     float rim = pow(1.0 - NoV, 3.0);
     float3 rimC = (inst & CI_QUEEN) != 0u ? SP.queen.rgb : T.rim.rgb;
-    if (!gland && !eyeF) c += rimC * (T.rim.w * rim * (1.0 - 0.8 * dead) * (1.0 - 0.6 * frz) * (1.0 - 0.5 * burn));
+    if (!gland && !eyeF) c += rimC * (T.rim.w * float(in.rimK) * rim * (1.0 - 0.8 * dead) * (1.0 - 0.6 * frz) * (1.0 - 0.5 * burn));
     c += float3(0.08, 0.22, 0.38) * (frz * (0.05 + 0.6 * rim));
     // pores: HDR from the glow table (they pulse, flare on the attack, fade through the death clip)
     float glow = float(in.glow);

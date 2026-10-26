@@ -99,8 +99,12 @@ final class WorldSwarm {
     static let sizeK: [Float] = [1, 1, 0.8, 1]
     /// Albedo value per type × LOD (the tint of the instances drawn at that LOD): the brute's LOD2 read 6.4–6.7 luma
     /// brighter than its LOD1 over its own pixels on the held bug sheet (CI 028fd69, gate ≤ 6) — its legs' lit edges
-    /// are wider at 146 triangles. 0.9 brought it to 5.3–6.0 (CI 1a6507c, the worst brute 6.04); 0.85 leaves a margin.
-    static let lodValue: [[Float]] = [[1, 1, 1], [1, 1, 1], [1, 1, 0.85], [1, 1, 1]]
+    /// are wider at 146 triangles. 0.9 brought it to 5.3–6.0 (CI 1a6507c, the worst brute 6.04), 0.85 only to 5.5–5.8
+    /// (CI c4c6ff6): the step is the ember rim on the faceted LOD2 shell and legs, not the albedo — `lodRim`.
+    static let lodValue: [[Float]] = [[1, 1, 1], [1, 1, 1], [1, 1, 0.9], [1, 1, 1]]
+    /// The type rim's scale per type × LOD (CreatureInstance.fx.w): the brute's 146-triangle shell turns more of its
+    /// surface to the camera at a grazing angle than LOD1's dome, so its ember rim covers a wider band at LOD2.
+    static let lodRim: [[Float]] = [[1, 1, 1], [1, 1, 1], [1, 1, 0.6], [1, 1, 1]]
     /// Ichor of each type (WP5's impact sparks / splashes; MetalEffects.ichor).
     static let ichor: [F3] = [F3(0.62, 0.1, 0.22), F3(0.5, 0.58, 0.1), F3(0.58, 0.12, 0.15), F3(0.62, 0.24, 0.08)]
 
@@ -561,6 +565,8 @@ final class WorldSwarm {
                 var inst = scratch[t][k]
                 let lv = WorldSwarm.lodValue[t][l]
                 if lv != 1 { inst.tint.x *= lv; inst.tint.y *= lv; inst.tint.z *= lv }
+                let rk = WorldSwarm.lodRim[t][l]
+                if rk != 1 { inst.fx.w = UInt32(max(0, min(255, ((1 - rk) * 255).rounded()))) }
                 p[regions[t][l].count] = inst
                 regions[t][l].count += 1
                 if slots[t][k] >= 0 { animator?.setLOD(Int(slots[t][k]), UInt8(l)) }
