@@ -1,0 +1,56 @@
+icehive-calib: 212 runs, 3 jobs
+[10/212] 5 s  last: rec gunner won t=333
+[20/212] 8 s  last: rec cryo won t=322
+[30/212] 13 s  last: rec gunner won t=337
+[40/212] 17 s  last: vet assault lost t=192
+[50/212] 23 s  last: vet assault lost t=282
+[60/212] 27 s  last: vet gunner won t=344
+[70/212] 31 s  last: vet pyro lost t=266
+[80/212] 36 s  last: vet cryo won t=334
+[90/212] 40 s  last: vet pyro won t=338
+[100/212] 43 s  last: nm gunner lost t=296
+[110/212] 47 s  last: nm pyro lost t=307
+[120/212] 50 s  last: nm cryo lost t=290
+[130/212] 54 s  last: nm gunner won t=372
+[140/212] 57 s  last: v10 assault won t=343
+[150/212] 62 s  last: vet-qlow assault lost t=192
+[160/212] 68 s  last: vet-qlow pyro won t=336
+[170/212] 73 s  last: vet-qlow pyro won t=356
+[180/212] 76 s  last: nm-qlow cryo lost t=191
+[190/212] 79 s  last: nm-qlow cryo lost t=329
+[200/212] 82 s  last: nm-qlow gunner lost t=278
+[210/212] 87 s  last: nm-qlow gunner lost t=292
+[212/212] 89 s  last: nm-qlow pyro lost t=226
+tag mode             n  win%  dn/r  0dn%  1-3%  4+%  pDn  pMin  hold%  Qrch%  Qkil%  Qmed  idleMd  idleMx   pDn1  tWin  tLoss  perClass | downs by stage | hurt% env/run/spit/brute/boom/queen
+nm auto             32    22   4.8     3     9   88  0.9     9     62     53     41  44.9    1.00    3.93   234*   348    235  as2/8 py0/8 cr2/8 gu3/8 | b3:1.5 toLift:0.1 hold:2.4 b2:0.8 | 0/45/3/5/36/9
+nm-qlow auto        32    25   4.7     3    12   84  0.9     8     62     59     47  40.5    1.00    3.93   243*   342    239  as2/8 py0/8 cr3/8 gu3/8 | b3:1.5 toLift:0.1 hold:2.3 b2:0.8 | 0/46/3/5/36/9
+rec afk              4     0  19.5     0     0  100 16.2     0      0      0      -     -    4.00    4.00    110     -    347  as0/1 py0/1 cr0/1 gu0/1 | trav:19.5 | 0/24/44/9/23/0
+rec auto            32    97   0.2    84    12    3  0.1    86    100     97    100  12.8    1.00    1.00   186*   333    283  as8/8 py7/8 cr8/8 gu8/8 | hold:0.2 b2:0.1 toLift:0.0 | 0/44/8/6/32/11
+v10 auto             8   100   0.4    75    25    0  0.0    83    100      0      -     -    1.00    1.00      -   332      -  as2/2 py2/2 cr2/2 gu2/2 | b3:0.1 hold:0.2 | 0/59/4/2/35/0
+vet afk              4     0  12.5     0     0  100  9.5     2      0      0      -     -    4.00    4.00     70     -    191  as0/1 py0/1 cr0/1 gu0/1 | trav:12.5 | 0/25/41/6/27/0
+vet auto            64    83   2.1    23    52   25  0.5    23     97     92     90  26.0    1.00    2.64   267*   340    271  as13/16 py12/16 cr14/16 gu14/16 | b2:0.2 hold:1.6 b3:0.2 extract:0.0 toLift:0.1 | 0/40/5/6/34/14
+vet passive          4    25   5.2     0     0  100  1.5     5     25     25    100  30.0    1.00    1.00    166   365    177  as0/1 py1/1 cr0/1 gu0/1 | b3:4.2 b1:0.2 hold:0.2 extract:0.2 trav:0.2 | 0/51/3/5/37/4
+vet-qlow auto       32    88   1.8    34    41   25  0.5    32     94     94     93  25.8    1.00    1.00   262*   340    239  as6/8 py7/8 cr7/8 gu8/8 | b2:0.2 hold:1.1 b3:0.4 extract:0.1 toLift:0.0 | 0/41/6/5/37/11
+(downs = squad downs per run, all four marines; pDn1: median time of the first player down, * = some runs had none; Qkil% is of the runs that reached her.)
+
+CALIB: passed
+  gate ok   rec/auto wins 96.9% band 90…%
+  gate ok   rec/auto downs/run 0.2 band …0.5
+  gate ok   vet/auto wins 82.8% band 70…85%
+  gate ok   vet/auto queen reached 92.2% band 75…%
+  gate ok   vet/auto queen killed of reached 89.8% band 85…%
+  gate ok   nm/auto wins 21.9% band …30%
+  gate ok   vet/afk first player down 64–76 s (every run) band …120 s
+  gate ok   rec/afk first player down 97–178 s (every run) band …270 s
+  info ok   vet/auto queen kill median 26.0 s band 20…35 s
+  info MISS vet/auto runs with 1-3 downs 51.6% band 55…%
+  info MISS vet/auto idleMax max 2.6 band …1.3
+  info ok   nm/auto hold reached 62.5% band 50…%
+  info ok   vet/passive wins 25.0% band …40%
+  info MISS vet/auto wins on «Графика: низкая» 87.5% band 70…85%
+  info ok   nm/auto wins on «Графика: низкая» 25.0% band …30%
+  info ok   v10/auto wins (legacy port check) 100.0% band …%
+  info ok   v10/auto downs/run 0.4 band …
+
+212 rows in 88.9 s
+
