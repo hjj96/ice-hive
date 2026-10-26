@@ -147,10 +147,10 @@ class Leg:
         fwd = (0.30, 0.0, -0.30)[self.i]
         return np.array([r[0] + self.s * fwd, math.radians(-30), math.radians(-150), math.radians(118)])
 
-    def splay_params(self):
-        """sprawled flat out to the side (a heavy body collapsed onto its belly)"""
+    def splay_params(self, a1=5.0, a2=-10.0, a3=-25.0):
+        """sprawled flat out to the side (a body collapsed onto its belly): femur / tibia / tarsus pitch in degrees"""
         r = self.rest[0].copy()
-        return np.array([r[0] + self.s * (0.18, 0.0, -0.18)[self.i], math.radians(5), math.radians(-10), math.radians(-25)])
+        return np.array([r[0] + self.s * (0.18, 0.0, -0.18)[self.i], math.radians(a1), math.radians(a2), math.radians(a3)])
 
     def crumple_params(self):
         """buckled under the body (a corpse lying on its belly): femur flat out, tibia folded back under"""

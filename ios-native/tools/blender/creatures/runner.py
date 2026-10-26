@@ -265,7 +265,7 @@ def _death_crumple(st, f):
     slide = smoothstep(3, 14, f)
     roll = smoothstep(8, 18, f)
     tw = sum(amp * bell(f, t0, 1.3) for t0, amp in ((19, 1.0), (25, 0.6)))
-    st.set('root', tr(0.02 * roll, 0.14 * slide, -0.12 * drop) @ rz(14 * D2R * slide) @ ry(-34 * D2R * roll))
+    st.set('root', tr(0.02 * roll, 0.14 * slide, -0.14 * drop) @ rz(14 * D2R * slide) @ ry(-6 * D2R * roll))
     st.set('thorax', tr(0, -0.05 * k, 0.02 * k) @ rx((12 * k - 6 * drop) * D2R))
     st.set('head', rx((16 * k + 20 * drop) * D2R) @ rz(-8 * tw * D2R))
     st.set('abd.1', rx((-6 * k + 7 * drop) * D2R) @ rz(4 * tw * D2R))
@@ -278,7 +278,7 @@ def _death_crumple(st, f):
         seed = lg.i * 2.1 + (lg.s + 1) * 1.3
         kick = tw * (1.0 if (lg.i + (lg.s > 0)) % 2 else 0.35)
         jitter = np.array([0.0, 0.35 * kick * math.sin(seed), -0.55 * kick, 0.6 * kick])
-        st.feet[lg.name] = ('mix', lg.F0 + np.array([lg.s * 0.06, 0, 0]) * k, lg.crumple_params() + jitter, buckle)
+        st.feet[lg.name] = ('mix', lg.F0 + np.array([lg.s * 0.06, 0, 0]) * k, lg.splay_params() + jitter, buckle)
     fade = 1 - smoothstep(3, 26, f)
     flick = sum(0.8 * bell(f, t0, 0.8) for t0 in (19, 25))
     st.glow.update(gland=max(0.06, (1.0 + 1.4 * k) * (0.08 + 0.92 * fade) + flick * (0.3 + 0.7 * fade)),

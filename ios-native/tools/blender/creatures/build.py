@@ -237,12 +237,13 @@ def key_clips(D, rig):
                     bn = f'{ln}.{seg}'
                     pose[bn] = Bt @ lg.frames(p)[k] @ np.linalg.inv(rest_frames[ln][k]) @ rest[bn]
             if name in D.GROUND_CLAMP:
-                zmin = min(float((pose[bn] @ inv_rest[bn] @ pts.T)[2].min()) for bn, pts in probes.items())
-                lift = max(0.0, 0.003 - zmin)
+                zb = {bn: float((pose[bn] @ inv_rest[bn] @ pts.T)[2].min()) for bn, pts in probes.items()}
+                low = min(zb, key=zb.get)
+                lift = max(0.0, 0.003 - zb[low])
                 if lift > 0:
                     Tl = np.eye(4); Tl[2, 3] = lift
                     pose = {bn: Tl @ M for bn, M in pose.items()}
-                    lifts.append((name, f, lift))
+                    lifts.append((name, f, lift, low))
             for b in order:
                 basis = np.linalg.inv(rest_rel[b]) @ (np.linalg.inv(pose[parent[b]]) @ pose[b] if parent[b] else pose[b])
                 loc, q, sc = Matrix(basis.tolist()).decompose()
@@ -267,10 +268,10 @@ def key_clips(D, rig):
         sc.timeline_markers.new(c['name'], frame=c['first'])
     sc['ihv_clips'] = json.dumps(clips)
     rig.animation_data.action.name = f'{D.NAME}_clips'
-    big = [(n, f, l) for n, f, l in lifts if l > 0.01]
+    big = [(n, f, l, b) for n, f, l, b in lifts if l > 0.01]
     if big:
-        log('floor clamp lifted the root in ' + ', '.join(f'{n}#{f} {l * 100:.1f}cm' for n, f, l in big[:12])
-            + (' …' if len(big) > 12 else '') + f' ({len(lifts)} frames total)')
+        log('floor clamp lifted the root in ' + ', '.join(f'{n}#{f} {l * 100:.1f}cm ({b})' for n, f, l, b in big[:60])
+            + (' …' if len(big) > 60 else '') + f' ({len(lifts)} frames total)')
     log(f'keyed {len(clips)} clips, {row} frames, {len(order)} bones; IK reach error (m, max per clip): '
         + ', '.join(f'{k} {v:.3f}' for k, v in max_ik_err.items()))
     return clips, row, max_ik_err

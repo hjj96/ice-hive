@@ -191,12 +191,12 @@ def _death_burst(st, f):
     drop = smoothstep(3, 12, f)
     roll = smoothstep(6, 16, f)
     tw = bell(f, 20, 1.4) + 0.6 * bell(f, 25, 1.2)
-    st.set('root', tr(0.04 * roll, 0.05 * drop, -0.3 * drop) @ rz(-12 * D2R * drop) @ ry(28 * D2R * roll))
-    st.set('thorax', tr(0, -0.04 * k, 0.03 * k) @ rx((10 * k - 10 * drop) * D2R))
-    st.set('head', rx((18 * k + 26 * drop) * D2R))
+    st.set('root', tr(0.02 * roll, 0.05 * drop, -0.36 * drop) @ rz(-12 * D2R * drop) @ ry(5 * D2R * roll))
+    st.set('thorax', tr(0, -0.04 * k, 0.03 * k) @ rx((10 * k - 3 * drop) * D2R))
+    st.set('head', rx((18 * k + 12 * drop) * D2R))
     st.set('prob', rx((20 * drop - 15 * tw) * D2R))
-    st.set('abd.1', rx((-12 * k + 22 * drop) * D2R))
-    st.set('abd.2', rx((16 * drop) * D2R) @ rz(8 * tw * D2R))
+    st.set('abd.1', rx((12 * k - 12 * drop) * D2R))
+    st.set('abd.2', rx((-10 * drop) * D2R) @ rz(8 * tw * D2R))
     _sac_scale(st, 1.0 + 0.18 * k - 0.42 * burst)
     for s in SIDES:
         st.set(f'mand.{SN[s]}', rz(-s * (20 * k + 25 * drop) * D2R))
@@ -204,7 +204,7 @@ def _death_burst(st, f):
     for lg in LEGS:
         kick = tw * (1.0 if (lg.i + (lg.s > 0)) % 2 else 0.3)
         jitter = np.array([0.0, 0.3 * kick, -0.5 * kick, 0.6 * kick])
-        st.feet[lg.name] = ('mix', lg.F0 + np.array([lg.s * 0.06, 0, 0]) * k, lg.crumple_params() + jitter, buckle)
+        st.feet[lg.name] = ('mix', lg.F0 + np.array([lg.s * 0.06, 0, 0]) * k, lg.splay_params(14, -2, -14) + jitter, buckle)
     fade = 1 - smoothstep(2, 22, f)
     st.glow.update(gland=max(0.05, (1.0 + 2.5 * bell(f, 2, 1.2)) * (0.06 + 0.94 * fade)), eye=max(0.05, 1 - smoothstep(2, 16, f)))
 
