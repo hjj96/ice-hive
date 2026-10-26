@@ -20,7 +20,7 @@ import IceHiveCore
 //  its clips (idle, run, strafe, fire, dash, down, crawl, revive); with
 //  -closeup the camera frames them (MetalWorld asks closeUpCamera).
 //  `hb squad` (diagnostics, once a second): rig CPU per frame, the worst
-//  planted-foot slide and hand-to-grip error, each marine's state.
+//  planted-foot slide over one contact (stride), hand-to-grip error, states.
 // ================================================================
 
 /// Per-draw constants of a marine (`struct MarineDraw` in Characters.metal), 64 bytes.
@@ -177,7 +177,7 @@ final class WorldSquad {
             draws[k] = MarineDraw(hue: F4(hue.x, hue.y, hue.z, visor),
                                   trim: F4(tr.x, tr.y, tr.z, Float(m.cls.rawValue)),
                                   flash: F4(0.55 * hurt + inv * 0.4, 0.04 * hurt + inv * 0.9, 0.03 * hurt + inv, m.downed && !I.dead ? 0.6 : (I.dead ? 1 : 0)),
-                                  params: F4(m.isPlayer ? 0.07 : 0.05, 5.5, 3.5, high ? 1 : 0))
+                                  params: F4(m.isPlayer ? 0.16 : 0.12, 5.5, 3.5, high ? 1 : 0))
             drawn.append(k)
         }
         let ms = (FrameTimer.now() - c0) * 1000

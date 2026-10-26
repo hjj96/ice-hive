@@ -172,9 +172,11 @@ fragment float4 fs_marine(MarineOut in [[stage_in]],
     s.P = in.world; s.N = N; s.V = V; s.albedo = albedo; s.rough = rough; s.metal = metal;
     s.coat = painted ? 0.35 : 0.0; s.coatRough = 0.18; s.ao = ao; s.shadow = 1.0;
     float3 c = shadeLit(LIGHTING_ARGS, s, D.params.w > 0.5);
-    // the class hue as a faint rim (the squad reads against the dark deck and the swarm)
-    float fr = pow(1.0 - saturate(dot(N0, V)), 4.0);
+    // the class hue as a rim and a faint suit fill (the squad reads against the dark deck and the swarm even
+    // outside the beams: the armour never sinks into the fog colour)
+    float fr = pow(1.0 - saturate(dot(N0, V)), 3.0);
     c += D.hue.rgb * fr * D.params.x;
+    c += albedo * ao * 0.035;
     // emission: visors / strips in the class hue (× the visor curve), lamps white
     if ((in.flags & 2u) != 0u) {
         float e = in.glow * ((in.flags & 1u) != 0u ? D.params.y * D.hue.w : D.params.z);

@@ -418,15 +418,21 @@ final class MarineRig {
     private var lockPos = [F3](repeating: .zero, count: 2)
     private var stepClock: [Float] = [1, 1]
     private var stepFrom = [F3](repeating: .zero, count: 2)
+    /// pelvis drop that keeps the planted feet within reach (m, eases back up)
+    private var pelvisDrop: Float = 0
+    private var prevPos = F3(0, 0, 0)
+    private var hasPrev = false
     // world placement of this frame
     private(set) var world = Mat4.identity
     private(set) var yaw: Float = 0
     private(set) var origin = F3(0, 0, 0)
-    // diagnostics: worst planted-foot slide (m, world) and hand-to-grip error (m) since the last read
+    // diagnostics: worst planted-foot slide per stride (m, world: how far a planted ball moved over one contact) and
+    // hand-to-grip error (m) since the last read
     var slideMax: Float = 0
     var gripErrMax: Float = 0
     private var lastBall = [F3](repeating: .zero, count: 2)
     private var lastPlanted = [false, false]
+    private var slideAcc: [Float] = [0, 0]
     private(set) var state = "idle"
 
     private let iDirs: [[Int]]      // [walk, run] × 8 directions (f fl l bl b br r fr)
@@ -454,6 +460,7 @@ final class MarineRig {
     func reset() {
         phase = 0; dashClock = 10; flinchClock = 10; fireClock = 10; fireLoopW = 0; wasDowned = false; overrideW = 0
         getUpClock = 10; reviveW = 0; lockOn = [false, false]; speedSm = 0; prevDash = 0; prevHurt = 0; prevMuzzle = 0
+        pelvisDrop = 0; hasPrev = false; lastPlanted = [false, false]; slideAcc = [0, 0]
     }
 
     // ---------------------------------------------------------------- sampling
@@ -639,7 +646,9 @@ final class MarineRig {
         let moveW = min(1, max(0, (v - 0.08) / 0.7))
         let strideW = asset.clips[iDirs[0][0]].stride, strideR = asset.clips[iDirs[1][0]].stride
         let stride = strideW + (strideR - strideW) * gaitRun
-        phase += v * dt / max(0.2, stride)
+        // the phase runs on the distance actually covered this frame (raw speed: a smoothed one lags the body when it
+        // speeds up, and the planted foot would be dragged)
+        phase += sp * dt / max(0.2, stride)
         phase -= floorf(phase)
         idleClock += dt
         // 8-way: the angle of the movement relative to the aim (0 = forward, +90 = toward the marine's left)
@@ -803,48 +812,92 @@ final class MarineRig {
         }
         // ---- feet: planted balls stay put in the world (leg IK); a turning idle marine re-steps
         let inv = Mat4.rotationY(-I.yaw)
+        // a jump in position (lift, spawn, revive warp): no lock survives it
+        if hasPrev {
+            let j = I.pos - prevPos
+            if (j.x * j.x + j.z * j.z) > 0.8 * 0.8 { lockOn = [false, false]; lastPlanted = [false, false]; slideAcc = [0, 0] }
+        }
+        prevPos = I.pos
+        hasPrev = true
+        // the planted targets of this frame (model space ball positions), and the pelvis drop that keeps them in reach
+        var targets: [F3?] = [nil, nil]
+        var drop: Float = 0
         for side in 0..<2 {
             let (th, sh, ft, toe) = asset.iLeg[side]
             let ballM = wt[toe]
             let ballW = I.pos + Quat.rotate(Quat.axis(F3(0, 1, 0), I.yaw), ballM)
             let planted = plant[side] > 0.5 && overrideW < 0.5
-            if planted {
-                if !lockOn[side] {
-                    lockOn[side] = true
-                    lockPos[side] = F3(ballW.x, ballM.y + I.pos.y, ballW.z)
-                    stepClock[side] = 1
-                }
-                // too far from where the clip wants it (a turn on the spot): step there
-                let dx = lockPos[side] - F3(ballW.x, lockPos[side].y, ballW.z)
-                if len3(dx) > 0.32 && stepClock[side] >= 1 && moveW < 0.3 {
-                    stepFrom[side] = lockPos[side]
-                    stepClock[side] = 0
-                }
-                var target = lockPos[side]
-                if stepClock[side] < 1 {
-                    stepClock[side] = min(1, stepClock[side] + dt / 0.2)
-                    let e = stepClock[side] * stepClock[side] * (3 - 2 * stepClock[side])
-                    let goal = F3(ballW.x, lockPos[side].y, ballW.z)
-                    target = stepFrom[side] + (goal - stepFrom[side]) * e + F3(0, 0.09 * sinf(Float.pi * stepClock[side]), 0)
-                    if stepClock[side] >= 1 { lockPos[side] = goal }
-                }
-                // world → model, ankle from the ball through the foot's current rotation
-                let tm4 = inv.point(target.x - I.pos.x, target.y - I.pos.y, target.z - I.pos.z)
-                let tm = F3(tm4.x, tm4.y, tm4.z)
-                let ankle = tm - Quat.rotate(wq[ft], lt[toe])
-                twoBone(th, sh, ft, ankle, endRot: nil, weight: 1)
-                // diagnostics: the locked ball's world drift while planted (a slide)
-                let now = I.pos + Quat.rotate(Quat.axis(F3(0, 1, 0), I.yaw), wt[toe])
-                if lastPlanted[side] && stepClock[side] >= 1 {
-                    let d = now - lastBall[side]
-                    slideMax = max(slideMax, (d.x * d.x + d.z * d.z).squareRoot())
-                }
-                lastBall[side] = now
-                lastPlanted[side] = stepClock[side] >= 1
-            } else {
+            if !planted {
                 lockOn[side] = false
-                lastPlanted[side] = false
+                continue
             }
+            if !lockOn[side] {
+                lockOn[side] = true
+                lockPos[side] = F3(ballW.x, ballM.y + I.pos.y, ballW.z)
+                stepClock[side] = 1
+                slideAcc[side] = 0
+            }
+            // too far from where the clip wants it (a turn on the spot): step there
+            let dx = lockPos[side] - F3(ballW.x, lockPos[side].y, ballW.z)
+            if len3(dx) > 0.32 && stepClock[side] >= 1 && moveW < 0.3 {
+                stepFrom[side] = lockPos[side]
+                stepClock[side] = 0
+            }
+            var target = lockPos[side]
+            if stepClock[side] < 1 {
+                stepClock[side] = min(1, stepClock[side] + dt / 0.2)
+                let e = stepClock[side] * stepClock[side] * (3 - 2 * stepClock[side])
+                let goal = F3(ballW.x, lockPos[side].y, ballW.z)
+                target = stepFrom[side] + (goal - stepFrom[side]) * e + F3(0, 0.09 * sinf(Float.pi * stepClock[side]), 0)
+                if stepClock[side] >= 1 { lockPos[side] = goal }
+            }
+            let tm4 = inv.point(target.x - I.pos.x, target.y - I.pos.y, target.z - I.pos.z)
+            let tm = F3(tm4.x, tm4.y, tm4.z)
+            targets[side] = tm
+            // the ankle the ball needs (through the foot's current rotation) vs the leg's reach from the hip
+            let ankle = tm - Quat.rotate(wq[ft], lt[toe])
+            let hip = wt[th]
+            let reach = (len3(wt[sh] - hip) + len3(wt[ft] - wt[sh])) * 0.995
+            let h = ankle - hip
+            let dxz2 = h.x * h.x + h.z * h.z
+            if dxz2 < reach * reach {
+                let need = (-h.y) - (reach * reach - dxz2).squareRoot()   // > 0: the hip must come down this much
+                drop = max(drop, need)
+            } else {
+                drop = max(drop, 0.07)
+            }
+        }
+        // drop at once, ease back up (the "pelvis drop on contact" the stance needs), 7 cm at most
+        pelvisDrop = min(0.07, max(drop, pelvisDrop - dt * 0.35))
+        if pelvisDrop > 1e-4 {
+            lt[asset.iPelvis].y -= pelvisDrop
+            fkFrom(asset.iPelvis)
+        }
+        for side in 0..<2 {
+            guard let tm = targets[side] else { lastPlanted[side] = false; continue }
+            let (th, sh, ft, toe) = asset.iLeg[side]
+            // world → model, ankle from the ball through the foot's current rotation; out of reach even so: the
+            // lock gives way to the nearest reachable point (that is a slide, and it is counted)
+            var ankle = tm - Quat.rotate(wq[ft], lt[toe])
+            let hip = wt[th]
+            let reach = (len3(wt[sh] - hip) + len3(wt[ft] - wt[sh])) * 0.999
+            let h = ankle - hip
+            if len3(h) > reach {
+                ankle = hip + unit3(h) * reach
+                let ball = ankle + Quat.rotate(wq[ft], lt[toe])
+                let bw = I.pos + Quat.rotate(Quat.axis(F3(0, 1, 0), I.yaw), ball)
+                lockPos[side] = F3(bw.x, lockPos[side].y, bw.z)
+            }
+            twoBone(th, sh, ft, ankle, endRot: nil, weight: 1)
+            // diagnostics: how far the planted ball moved in the world over this contact
+            let now = I.pos + Quat.rotate(Quat.axis(F3(0, 1, 0), I.yaw), wt[toe])
+            if lastPlanted[side] && stepClock[side] >= 1 {
+                let d = now - lastBall[side]
+                slideAcc[side] += (d.x * d.x + d.z * d.z).squareRoot()
+                slideMax = max(slideMax, slideAcc[side])
+            }
+            lastBall[side] = now
+            lastPlanted[side] = stepClock[side] >= 1
         }
         // ---- secondary armour follows (after IK)
         for (dst, src, k, liftOnly) in asset.iFollow {
