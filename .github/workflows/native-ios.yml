@@ -369,7 +369,7 @@ jobs:
           run_demo() {
             local label=$1 secs=$2 args=$3; shift 3
             # TEST BRANCH ONLY: the look shots + the swarm's frame-gate demos, nothing else (a short run)
-            case " ${LOOK_DEMOS:-combat swarmshot swarmshot-nohud beacon-nohud ss-lod1 ss-lod2 bugsheet bugsheet-game strip-runner strip-spitter strip-brute strip-boomer swarm swarm3x} " in
+            case " ${LOOK_DEMOS:-combat swarmshot swarmshot-nohud beacon-nohud sheet-l1 sheet-l2 bugsheet bugsheet-game strip-runner strip-spitter strip-brute strip-boomer swarm swarm3x} " in
               *" $label "*) ;;
               *) return 0;;
             esac
@@ -426,8 +426,8 @@ jobs:
           # studio light and game light), one strip per type (every clip × 8 frames)
           run_demo swarmshot-nohud 4 "-demo swarmshot -seed 7 -hideHUD" 0
           run_demo beacon-nohud 15 "-demo beacon -seed 7 -hideHUD" 0
-          run_demo ss-lod1 4 "-demo swarmshot -seed 7 -hideHUD -swarmLOD 1" 0
-          run_demo ss-lod2 4 "-demo swarmshot -seed 7 -hideHUD -swarmLOD 2" 0
+          run_demo sheet-l1 4 "-demo calm -hideHUD -bugsheet 1 -bugsheetGame -bugsheetT 0.4 -swarmLOD 1" 0
+          run_demo sheet-l2 4 "-demo calm -hideHUD -bugsheet 1 -bugsheetGame -bugsheetT 0.4 -swarmLOD 2" 0
           run_demo bugsheet 5 "-demo calm -hideHUD -bugsheet" 0
           run_demo bugsheet-game 5 "-demo calm -hideHUD -bugsheet -bugsheetGame" 0
           run_demo strip-runner 4 "-demo calm -hideHUD -bugstrip runner 2.2" 0
