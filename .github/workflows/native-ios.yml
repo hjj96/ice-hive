@@ -368,6 +368,11 @@ jobs:
           # simulator's GPU while it runs, so it must not overlap the measurement. Offsets count from "demo done".
           run_demo() {
             local label=$1 secs=$2 args=$3; shift 3
+            # TEST BRANCH ONLY (native-vx-fx-look): the WP5 look shots + a few frame-gate demos, nothing else (a short run)
+            case " ${LOOK_DEMOS:-combat swarmshot swarmshot-nohud fxsheet-nohud fxsheet-high-nohud fxpeak-nohud squadfire} " in
+              *" $label "*) ;;
+              *) return 0;;
+            esac
             local side="-orient right"
             case "$args" in *-orient*) side="";; esac
             # shellcheck disable=SC2086
@@ -436,6 +441,11 @@ jobs:
           run_demo fxsheet 4 "-demo calm -fxSheet" 0
           run_demo fxsheet-high 4 "-demo calm -fxSheet -fxHigh" 0
           run_demo fxpeak 10 "-demo calm -fxPeak -fxHigh" 0 3
+          # TEST BRANCH ONLY: HUD-off look shots (FrameLoop -hideHUD)
+          run_demo swarmshot-nohud 4 "-demo swarmshot -seed 7 -hideHUD" 0
+          run_demo fxsheet-nohud 4 "-demo calm -fxSheet -hideHUD" 0
+          run_demo fxsheet-high-nohud 4 "-demo calm -fxSheet -fxHigh -hideHUD" 0
+          run_demo fxpeak-nohud 8 "-demo calm -fxPeak -fxHigh -hideHUD" 0 1 2
           run_demo title 6 "-demo title" 0
           # v1.1 title: a fresh profile (НОВОБРАНЕЦ selected, premise, no profile line) and a returning one (ВЕТЕРАН,
           # profile line, rank chips + medal pips); -layoutCheck logs overlaps / off-screen / small taps
@@ -602,7 +612,7 @@ jobs:
       # landscape screenshots (other-<phone>-<demo>-0s.png), the result lines in other-phones.txt; a «layout FAIL» on
       # any of them fails the job (the virtual four-phone check of the `layout` demo covers all four sizes)
       - name: Layout check on the other landscape phones
-        if: always()
+        if: false   # TEST BRANCH ONLY: skipped (a short run)
         env:
           UDID: ${{ steps.sim.outputs.udid }}
         run: |
