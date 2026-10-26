@@ -190,12 +190,15 @@ fragment float4 fs_chitin(CreatureOut in [[stage_in]],
     float live = (1.0 - frz) * (1.0 - 0.85 * dead);
     if (gland) c += float3(in.albedo) * (T.gland.w * glow * live);
     if (eyeF) c += T.eye.rgb * (T.eye.w * glow * live);
-    // translucent sac: the thick middle glows from inside, the thin rim stays dark; light that hits it scatters through
+    // translucent sac: the thick middle glows from inside, the thin rim stays dark; light that hits it scatters through.
+    // The painted veins / keel / belly (dark vertex albedo) block the inner light, so every LOD's sac keeps its value.
     if (sac) {
         float thick = 0.25 + 0.75 * NoV * NoV;
         float pulse = 0.8 + 0.2 * sin(SP.info.x * 3.1 + in.world.x * 1.7 + in.world.z * 2.3);
         float trans = lightIn * 0.12;
-        c += T.sac.rgb * ((T.sac.w * thick * pulse + trans) * (1.0 - 0.9 * dead) * (1.0 - frz) * (1.0 + 2.0 * glow));
+        float3 a0 = float3(in.albedo);
+        float veil = saturate(max(max(a0.r, a0.g), a0.b) * 4.0);
+        c += T.sac.rgb * ((T.sac.w * thick * pulse + trans) * veil * (1.0 - 0.9 * dead) * (1.0 - frz) * (1.0 + 2.0 * glow));
     }
     // fire: char + embers in the seams
     c += float3(1.0, 0.32, 0.05) * (burn * (0.06 + 0.8 * glow + 0.3 * rim));

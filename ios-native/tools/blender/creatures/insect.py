@@ -147,6 +147,11 @@ class Leg:
         fwd = (0.30, 0.0, -0.30)[self.i]
         return np.array([r[0] + self.s * fwd, math.radians(-30), math.radians(-150), math.radians(118)])
 
+    def splay_params(self, a1=5.0, a2=-10.0, a3=-25.0):
+        """sprawled flat out to the side (a body collapsed onto its belly): femur / tibia / tarsus pitch in degrees"""
+        r = self.rest[0].copy()
+        return np.array([r[0] + self.s * (0.18, 0.0, -0.18)[self.i], math.radians(a1), math.radians(a2), math.radians(a3)])
+
     def crumple_params(self):
         """buckled under the body (a corpse lying on its belly): femur flat out, tibia folded back under"""
         r = self.rest[0].copy()
@@ -285,8 +290,8 @@ def leg_parts(lg, lod, pal, thick=1.0, claw=None):
             b = K + (A - K) * f
             P.append(Part(lg.name + f'.spur{f}', *cone(b, b + inward * 0.04 * k + dirA * 0.02 * k, 0.009 * k, 3), lg.name + '.tibia', pal['claw'], rough=0.4))
         P.append(Part(lg.name + '.ankle', *octa(A, 0.021 * k), lg.name + '.tibia', pal['joint'], rough=0.35))
-        hook = F + np.array([math.cos(p[0]), math.sin(p[0]), 0]) * 0.025 * k + [0, 0, 0.012]
-        V, Fc = tube([A, A + (F - A) * 0.55, F + [0, 0, 0.01], hook], [0.017 * k, 0.012 * k, 0.009 * k, 0.0], 4, up=n, tip=True)
+        hook = F + np.array([math.cos(p[0]), math.sin(p[0]), 0]) * 0.025 * k + [0, 0, 0.012 * k]
+        V, Fc = tube([A, A + (F - A) * 0.55, F + [0, 0, 0.01 * k], hook], [0.017 * k, 0.012 * k, 0.009 * k, 0.0], 4, up=n, tip=True)
         t = np.linspace(0, 1, len(V))
         P.append(Part(lg.name + '.tarsus', V, Fc, lg.name + '.tarsus', pal['leg_dist'], rough=0.4, sharp_deg=95,
                       vcolor=col_ramp(len(V), pal['leg_dist'], pal['claw'], t ** 2)))
