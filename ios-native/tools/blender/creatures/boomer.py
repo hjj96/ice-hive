@@ -21,7 +21,7 @@ SWITCH_PX = (80.0, 16.0, 0.0)
 
 PAL = dict(plate=0x1a1614, edge=0x4e3a2c, keel=0x2c221c, core=0x100c0b, belly=0x2a1a12, leg=0x17120f, leg_dist=0x34261c,
            joint=0x3a2c22, claw=0xc0a888, mand=0x3a2a20, mand_tip=0xd8c0a0, ant=0x1e1814, ant_tip=0x5a4430,
-           gland=0xff3c7a, gland_hot=0xffc6dc, gland_red=0xe0183a, eye=0xffa030, sac=0x8a4614, sac_vein=0x1e0c04)
+           gland=0xff3c7a, gland_hot=0xffc6dc, gland_red=0xe0183a, eye=0xffa030, sac=0x7c3e12, sac_vein=0x1e0c04)
 
 BODY_Z = 0.30
 SAC_C = np.array([0.0, -0.12, 0.50])

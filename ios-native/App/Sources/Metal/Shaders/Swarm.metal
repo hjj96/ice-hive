@@ -202,7 +202,8 @@ fragment float4 fs_chitin(CreatureOut in [[stage_in]],
     }
     // fire: char + embers in the seams
     c += float3(1.0, 0.32, 0.05) * (burn * (0.06 + 0.8 * glow + 0.3 * rim));
-    c += float3(1.0, 0.86, 0.80) * (hit * 0.5);
+    // hit flash: a warm edge flare plus a small lift (a brute under sustained fire must not turn into a white ghost)
+    c += float3(1.0, 0.62, 0.48) * (hit * (0.05 + 0.4 * rim));
     return float4(heightFog(F, LB, c, in.world, in.depth), 1.0);
 }
 
