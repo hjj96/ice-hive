@@ -99,8 +99,8 @@ final class WorldSwarm {
     static let sizeK: [Float] = [1, 1, 0.8, 1]
     /// Albedo value per type × LOD (the tint of the instances drawn at that LOD): the brute's LOD2 read 6.4–6.7 luma
     /// brighter than its LOD1 over its own pixels on the held bug sheet (CI 028fd69, gate ≤ 6) — its legs' lit edges
-    /// are wider at 146 triangles; a 10 % darker albedo there keeps the switch under the gate.
-    static let lodValue: [[Float]] = [[1, 1, 1], [1, 1, 1], [1, 1, 0.9], [1, 1, 1]]
+    /// are wider at 146 triangles. 0.9 brought it to 5.3–6.0 (CI 1a6507c, the worst brute 6.04); 0.85 leaves a margin.
+    static let lodValue: [[Float]] = [[1, 1, 1], [1, 1, 1], [1, 1, 0.85], [1, 1, 1]]
     /// Ichor of each type (WP5's impact sparks / splashes; MetalEffects.ichor).
     static let ichor: [F3] = [F3(0.62, 0.1, 0.22), F3(0.5, 0.58, 0.1), F3(0.58, 0.12, 0.15), F3(0.62, 0.24, 0.08)]
 
