@@ -66,8 +66,8 @@ enum VertexLayout {
     }
 }
 
-/// Colour blending of a world pipeline.
-enum BlendMode { case none, alpha, add, multiply }
+/// Colour blending of a world pipeline (max: per-channel maximum, the ground glyphs — overlaps never sum to white).
+enum BlendMode { case none, alpha, add, multiply, max }
 
 /// One render pipeline a module draws with, compiled by MetalRenderer.compilePipelines.
 struct PipelineSpec {
@@ -352,6 +352,14 @@ final class MetalRenderer {
                 c.sourceRGBBlendFactor = .destinationColor
                 c.destinationRGBBlendFactor = .zero
                 c.sourceAlphaBlendFactor = .zero
+                c.destinationAlphaBlendFactor = .one
+            case .max:
+                c.isBlendingEnabled = true
+                c.rgbBlendOperation = .max
+                c.alphaBlendOperation = .max
+                c.sourceRGBBlendFactor = .one
+                c.destinationRGBBlendFactor = .one
+                c.sourceAlphaBlendFactor = .one
                 c.destinationAlphaBlendFactor = .one
             }
             return try device.makeRenderPipelineState(descriptor: d)

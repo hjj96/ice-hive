@@ -74,6 +74,19 @@ final class MetalCamera {
         }
     }
 
+    /// Look-dev close-up (WP4 `-squadSheet -closeup`): look at `target` from `eye` with a `fovDeg` vertical field of view.
+    func lookAt(eye e: F3, target t: F3, fovDeg: Float) {
+        fov = fovDeg
+        focus = t
+        eye = e
+        view = Mat4.lookAt(eye: e, target: t)
+        proj = Mat4.perspective(fovY: fov * Float.pi / 180, aspect: aspect, near: 0.3, far: far)
+        viewProj = proj * view
+        right = F3(view.c0.x, view.c1.x, view.c2.x)
+        up = F3(view.c0.y, view.c1.y, view.c2.y)
+        forward = -F3(view.c0.z, view.c1.z, view.c2.z)
+    }
+
     private func place(_ f: F3, yaw: Float, pitch: Float, dist: Float, shake: F3) {
         focus = f
         eye = f + F3(sinf(yaw) * cosf(pitch) * dist, sinf(pitch) * dist, cosf(yaw) * cosf(pitch) * dist) + shake
