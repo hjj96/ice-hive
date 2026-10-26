@@ -271,8 +271,9 @@ final class WorldSquad {
             if newShot { h = min(0.8, h + 0.035) }
             h = max(0, h - 0.3 * dt)
             // the brake throws two side jets, a fan of sparks and a pressure ring on the first frames of each round
-            let a = max(0, 1 - shotAge[k] / 0.085)
-            inten = a * a * (0.8 + 0.2 * shotSeed[k])
+            // (the core fires 9 rounds/s: the flash holds most of the 111 ms between rounds, brightest on the first frames)
+            let a = max(0, 1 - shotAge[k] / 0.1)
+            inten = a * a.squareRoot() * (0.8 + 0.2 * shotSeed[k])
             len = 0.86 * (0.85 + 0.35 * shotSeed[k]); wid = 0.21; kind = 0; rays = 4
             col = F3(3.1, 0.95, 0.36); lcol = F3(1.0, 0.5, 0.28); light = 5.0 * a
             jets = 1; sparks = 0.9; ring = 1
@@ -489,7 +490,8 @@ final class SquadLookDev {
             I.firing = true
             I.spin = 1
             let r: Float = [9, 0, 0, 22][k % 4]
-            let ph = fmodf(time * max(1, r) + Float(k) * 0.37, 1)
+            // (+0.2: the CI's screenshots land on whole seconds, and 9 rounds/s would put every one between two rounds)
+            let ph = fmodf(time * max(1, r) + Float(k) * 0.37 + 0.2, 1)
             I.muzzle = r > 0 ? (ph < 0.5 ? 1 - ph * 2 : 0) : 0
             return
         }
