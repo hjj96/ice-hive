@@ -1167,7 +1167,11 @@ final class HUD {
 
 // ================================================================
 //  NAMEPLATES — callsign + HP bar over each marine (web .plate),
-//  stacked upward when they overlap.
+//  stacked upward when they overlap. VX-2 (WP4): while the ground HP
+//  arcs are on (GroundGlyphs.hpArcs — armour pips under every marine,
+//  the player's magazine / heat as the arc's inner line) a plate shows
+//  only while its marine is downed / being revived, or for 1.5 s after
+//  it took damage.
 // ================================================================
 final class Nameplates {
     let root = SKNode()
@@ -1206,9 +1210,16 @@ final class Nameplates {
         (plates[k].player ? 31 : 26) + (m.downed ? 4 : 0)
     }
     private var px = [CGFloat](repeating: 0, count: 4), py = [CGFloat](repeating: 0, count: 4)
+    // VX-2: which plates show this frame, until when after a hit, the armour last frame
+    private var shown = [Bool](repeating: true, count: 4)
+    private var shownUntil = [Float](repeating: 0, count: 4)
+    private var lastHp = [Float](repeating: -1, count: 4)
 
     func setSquad(_ marines: [Marine]) {
         for p in plates { p.node.removeFromParent() }
+        shown = [Bool](repeating: true, count: max(4, marines.count))
+        shownUntil = [Float](repeating: 0, count: max(4, marines.count))
+        lastHp = [Float](repeating: -1, count: max(4, marines.count))
         plates = marines.map { m in
             let p = Plate(name: m.isPlayer ? "ВЫ" : m.name, player: m.isPlayer)
             root.addChild(p.node)
@@ -1224,13 +1235,20 @@ final class Nameplates {
             let s = projection.hudPoint(f.0, f.1 + (m.downed ? 1.3 : 2.55), f.2)
             px[k] = s.x
             py[k] = s.y + 30
+            if GroundGlyphs.hpArcs {
+                if lastHp[k] >= 0 && m.hp < lastHp[k] - 0.01 { shownUntil[k] = game.time + 1.5 }
+                lastHp[k] = m.hp
+                shown[k] = m.downed || game.time < shownUntil[k]
+            } else {
+                shown[k] = true
+            }
         }
         // overlapping plates stack upward (PLATE_GAP 26 for a squadmate's plate; the player's hangs lower — its magazine
         // dashes, a downed marine's revive bar — so it rises further and stays clear of the name under it); near the
         // objective box they spread sideways, bar ends 6 pt apart
         for _ in 0..<6 {
-            for a in 0..<n {
-                for b in (a + 1)..<max(a + 1, n) {
+            for a in 0..<n where shown[a] {
+                for b in (a + 1)..<max(a + 1, n) where shown[b] {
                     let dx = px[a] - px[b]
                     let wide = (plates[a].width + plates[b].width) / 2 + 6
                     if abs(dx) >= wide { continue }
@@ -1255,6 +1273,8 @@ final class Nameplates {
         }
         for k in 0..<n {
             let m = game.marines[k], p = plates[k]
+            if p.node.isHidden == shown[k] { p.node.isHidden = !shown[k] }
+            if !shown[k] { continue }
             let x = max(-halfW + 40, min(halfW - 40, px[k]))
             p.node.position = CGPoint(x: x, y: py[k])
             // HUD y is up: the plate spans py − 28 … py + 4 around its anchor in web terms (top-down)
