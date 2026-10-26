@@ -25,7 +25,7 @@ import numpy as np
 
 import motion
 import skeleton as SK
-from shapes import (ARMOUR, BRASS, DARK, GLASS, GLOW, LAMP, METAL, PAINT, SOLE, Part, R, S, T, bolt, cyl, frame,
+from shapes import (ARMOUR, BRASS, DARK, GLASS, GLOW, HOT, LAMP, METAL, PAINT, SOLE, Part, R, S, T, bolt, cyl, frame,
                     lathe, merge, mirror_x, mm, prism, slots, xform)
 from subd import (Surface, box_cage, conform, deform, frame_at, grid_cage, inset_seams, loft_cage, rect_outline, rimmed,
                   ring, sector_shell, subd, superellipse, thicken)
@@ -56,17 +56,18 @@ def rgb(h):
 
 def materials(cls):
     """slot → (sRGB albedo, roughness, metal, glow 0..1, flags). flags: bit0 class-hue strip / visor, bit1 emissive,
-    bit2 painted armour (worn chamfers show steel)."""
+    bit2 painted armour (worn chamfers show steel), bit3 heats up under sustained fire."""
     return {
-        ARMOUR: ((150, 153, 156), 0.5, 0.06, 0.0, 4),
-        PAINT: (rgb(TRIM[cls]), 0.44, 0.05, 0.0, 4),
-        DARK: ((30, 32, 36), 0.72, 0.0, 0.0, 0),
-        METAL: ((72, 76, 82), 0.36, 0.85, 0.0, 0),
+        ARMOUR: ((138, 142, 147), 0.42, 0.06, 0.0, 4),
+        PAINT: (rgb(TRIM[cls]), 0.4, 0.05, 0.0, 4),
+        DARK: ((42, 45, 50), 0.62, 0.0, 0.0, 0),
+        METAL: ((70, 74, 80), 0.34, 0.85, 0.0, 0),
         GLOW: (rgb(HUE[cls]), 0.2, 0.0, 1.0, 3),
-        GLASS: ((12, 18, 26), 0.05, 0.0, 0.0, 0),
+        GLASS: ((22, 64, 92), 0.06, 0.0, 0.16, 3),    # the cryo's dome / canister: dark glass with a faint inner glow
         SOLE: ((22, 22, 24), 0.85, 0.0, 0.0, 0),
         LAMP: ((255, 244, 222), 0.2, 0.0, 1.0, 2),
         BRASS: ((150, 112, 60), 0.34, 0.9, 0.0, 0),
+        HOT: ((64, 67, 72), 0.32, 0.88, 0.0, 8),
     }
 
 
@@ -147,72 +148,81 @@ def se_ring(a, b, y, n=12, e=3.6, cz=0.0, front=0.0, back=0.0):
 # ================================================================ shared body
 def torso(b):
     c = b.cls
-    rings = [se_ring(0.172, 0.122, 1.29, cz=0.015),
-             se_ring(0.205, 0.148, 1.36, cz=0.025, front=0.022),
-             se_ring(0.245, 0.15, 1.45, cz=0.022, front=0.036, back=0.008),
-             se_ring(0.258, 0.148, 1.53, cz=0.008, front=0.03, back=0.018),
-             se_ring(0.228, 0.138, 1.59, cz=0.0, front=0.012, back=0.014),
-             se_ring(0.15, 0.108, 1.632, cz=-0.005)]
+    # a power-armour cuirass: broad lats, a deep keeled chest, the upper back built up under the cowl
+    rings = [se_ring(0.185, 0.13, 1.28, cz=0.015),
+             se_ring(0.222, 0.158, 1.36, cz=0.025, front=0.03),
+             se_ring(0.266, 0.165, 1.45, cz=0.025, front=0.05, back=0.012),
+             se_ring(0.278, 0.162, 1.53, cz=0.012, front=0.04, back=0.026),
+             se_ring(0.245, 0.148, 1.592, cz=0.0, front=0.016, back=0.024),
+             se_ring(0.16, 0.115, 1.635, cz=-0.005)]
     cu = loft_cage(rings, cap0=False, cap1=False)
     seams = (lambda p, n, a: n[2] > 0.55 and 1.33 < p[1] < 1.58, 0.012, 0.004)
     cu = b.sd(cu, 1, 3, 28.0, 0.55, seams=seams, boundary=0.6)
     b.add('cuirass', 'chest', ARMOUR, cu, sharp=60.0, keep=True)
-    # pectoral plates (class paint on the assault and gunner), conformed to the cuirass
+    # pectoral plates, conformed to the cuirass: big slabs that give the chest its mass
     for s in (1.0, -1.0):
-        pl = b.plate(['cuirass'], (s * 0.112, 1.468, 0.5), (1, 0, 0), (-s * 0.25, 1, 0.25), (0, 0, -1), 0.175, 0.15, 0.016, nu=2,
+        pl = b.plate(['cuirass'], (s * 0.122, 1.47, 0.5), (1, 0, 0), (-s * 0.25, 1, 0.25), (0, 0, -1), 0.205, 0.17, 0.02, nu=2,
                      nv=2, r=0.14, taper=-0.18, gap=0.0055)
-        b.add('pec', 'chest', PAINT if c in ('assault', 'gunner') else ARMOUR, pl, sharp=55.0)
-        b.decal(b.sticker(['cuirass'], (s * 0.135, 1.56, 0.5), (1, 0, 0), (0, 1, 0.2), (0, 0, -1), 0.045, 0.018), 'chest', 0.5)
-    b.bolts_on(['cuirass'], [(s * x, y, 0.4) for s in (1, -1) for x, y in ((0.06, 1.38), (0.19, 1.43))], (0, 0, -1), 'chest')
+        b.add('pec', 'chest', ARMOUR, pl, sharp=55.0)
+        b.decal(b.sticker(['cuirass'], (s * 0.15, 1.565, 0.5), (1, 0, 0), (0, 1, 0.2), (0, 0, -1), 0.05, 0.02), 'chest', 0.5)
+    b.bolts_on(['cuirass'], [(s * x, y, 0.4) for s in (1, -1) for x, y in ((0.06, 1.38), (0.21, 1.43))], (0, 0, -1), 'chest')
     # under-collar glow strips (the class hue)
     for s in (1.0, -1.0):
-        st = b.sticker(['cuirass'], (s * 0.15, 1.575, 0.5), (1, -0.35 * s, 0), (0, 1, 0.3), (0, 0, -1), 0.075, 0.011, t=0.004)
+        st = b.sticker(['cuirass'], (s * 0.165, 1.578, 0.5), (1, -0.35 * s, 0), (0, 1, 0.3), (0, 0, -1), 0.085, 0.012, t=0.004)
         b.add('chest_glow', 'chest', GLOW, st)
     # back plate (the backpack mounts on it)
-    bp = b.plate(['cuirass'], (0, 1.45, -0.5), (1, 0, 0), (0, 1, 0), (0, 0, 1), 0.36, 0.25, 0.022, nu=3, nv=2, r=0.3)
+    bp = b.plate(['cuirass'], (0, 1.45, -0.5), (1, 0, 0), (0, 1, 0), (0, 0, 1), 0.4, 0.27, 0.024, nu=3, nv=2, r=0.3)
     b.add('backplate', 'chest', METAL, bp, sharp=55.0)
-    # collar / gorget
-    col = lathe([(0.105, 1.6), (0.148, 1.608), (0.158, 1.63), (0.15, 1.655), (0.118, 1.668), (0.094, 1.664)], 12)
+    # collar / gorget, and a cowl rising behind the neck (frames the helmet from the game camera)
+    col = lathe([(0.11, 1.598), (0.165, 1.606), (0.178, 1.632), (0.168, 1.662), (0.13, 1.678), (0.104, 1.672)], 12)
     b.add('collar', 'chest', METAL, col, sharp=60.0)
+    cw = wrap(0.178, 0.158, 112.0, 248.0, 0.105, 0.022, nu=4, nv=1, bulge=0.006, y0=1.6)
+    b.add('cowl', 'chest', ARMOUR, b.sd(cw, 1, 3, 50.0, 0.8), sharp=55.0)
     # abdomen band (spine2), ribbed waist (spine1) with its front plate
-    ab = loft_cage([se_ring(0.162, 0.118, 1.17, cz=0.01), se_ring(0.178, 0.132, 1.23, cz=0.016, front=0.012),
-                    se_ring(0.17, 0.126, 1.295, cz=0.012)], cap0=False, cap1=False)
+    ab = loft_cage([se_ring(0.176, 0.128, 1.17, cz=0.01), se_ring(0.194, 0.143, 1.23, cz=0.016, front=0.016),
+                    se_ring(0.186, 0.137, 1.295, cz=0.012)], cap0=False, cap1=False)
     ab = b.sd(ab, 1, 3, 70.0, 0.0, seams=(lambda p, n, a: n[2] > 0.6, 0.01, 0.004), boundary=0.6)
     b.add('abdomen', 'spine2', ARMOUR, ab, sharp=60.0, keep=True)
-    rib = lathe([(0.128, 1.03), (0.152, 1.045), (0.142, 1.072), (0.156, 1.1), (0.144, 1.128), (0.152, 1.156), (0.13, 1.19)], 12)
-    b.add('waist', 'spine1', DARK, xform(rib, S(1.0, 1.0, 0.82)), sharp=70.0, keep=True)
-    abp = b.plate(['waist'], (0, 1.11, 0.5), (1, 0, 0), (0, 1, 0), (0, 0, -1), 0.17, 0.1, 0.02, nu=2, nv=2, r=0.4)
+    rib = lathe([(0.142, 1.03), (0.166, 1.045), (0.156, 1.072), (0.17, 1.1), (0.158, 1.128), (0.166, 1.156), (0.144, 1.19)], 12)
+    b.add('waist', 'spine1', DARK, xform(rib, S(1.0, 1.0, 0.84)), sharp=70.0, keep=True)
+    abp = b.plate(['waist'], (0, 1.11, 0.5), (1, 0, 0), (0, 1, 0), (0, 0, -1), 0.2, 0.11, 0.022, nu=2, nv=2, r=0.4)
     b.add('abplate', 'spine1', ARMOUR, abp, sharp=55.0)
-    neck = lathe([(0.084, 1.6), (0.076, 1.64), (0.083, 1.67), (0.074, 1.7), (0.066, 1.735)], 10)
+    neck = lathe([(0.088, 1.6), (0.08, 1.64), (0.086, 1.67), (0.078, 1.7), (0.07, 1.735)], 10)
     b.add('neck', 'neck', DARK, neck, sharp=70.0)
 
 
 def pelvis(b):
-    belt = loft_cage([se_ring(0.198, 0.138, 0.935, cz=0.0), se_ring(0.214, 0.15, 0.995, cz=0.005, front=0.01),
-                      se_ring(0.204, 0.144, 1.055, cz=0.0)], cap0=True, cap1=True)
+    belt = loft_cage([se_ring(0.214, 0.15, 0.935, cz=0.0), se_ring(0.232, 0.163, 0.995, cz=0.005, front=0.012),
+                      se_ring(0.222, 0.156, 1.055, cz=0.0)], cap0=True, cap1=True)
     belt = b.sd(belt, 1, 3, 50.0, 0.9)
     b.add('belt', 'pelvis', DARK, belt, sharp=60.0, keep=True)
-    bk = box_cage(0.11, 0.075, 0.035)
-    b.add('buckle', 'pelvis', METAL, xform(b.sd(bk, 1, 2), T(0, 0.99, 0.165)), sharp=50.0)
+    bk = box_cage(0.12, 0.08, 0.04)
+    b.add('buckle', 'pelvis', METAL, xform(b.sd(bk, 1, 2), T(0, 0.99, 0.18)), sharp=50.0)
     # codpiece: a curved shield
-    cp = grid_cage(2, 2, lambda u, v: ((u - 0.5) * 0.15 * (1 - 0.35 * (1 - v)), 0.83 + 0.14 * v,
-                                       0.17 + 0.02 * math.cos((u - 0.5) * 2.2) - 0.03 * (1 - v)))
+    cp = grid_cage(2, 2, lambda u, v: ((u - 0.5) * 0.17 * (1 - 0.35 * (1 - v)), 0.82 + 0.15 * v,
+                                       0.185 + 0.02 * math.cos((u - 0.5) * 2.2) - 0.03 * (1 - v)))
     cp = b.sd(rimmed(*cp, 0.03, inner=(0, 0.9, 0)), 1, 3, 50.0, 0.8)
     b.add('codpiece', 'pelvis', ARMOUR, cp, sharp=55.0)
     # hip plates (outer) and the rear plate, curved round the pelvis
     for s in (1.0, -1.0):
-        hp = wrap(0.235, 0.215, 45.0, 135.0, 0.17, 0.022, nu=2, nv=2, flare=0.01, y0=0.86)
+        hp = wrap(0.258, 0.238, 42.0, 138.0, 0.19, 0.024, nu=2, nv=2, flare=0.014, y0=0.845)
         hp = (hp[0] * np.array([s, 1, 1]), hp[1] if s > 0 else [f[::-1] for f in hp[1]])
         hp = b.sd(hp, 1, 3, 50.0, 0.8)
         b.add('hip', 'pelvis', ARMOUR, hp, sharp=55.0)
-    rp = wrap(0.2, 0.19, 145.0, 215.0, 0.15, 0.022, nu=2, nv=2, y0=0.86)
+    rp = wrap(0.222, 0.21, 145.0, 215.0, 0.16, 0.024, nu=2, nv=2, y0=0.855)
     b.add('rearplate', 'pelvis', ARMOUR, b.sd(rp, 1, 3, 50.0, 0.8), sharp=55.0)
+    # belt pouches at the back hips
+    for s in (1.0, -1.0):
+        po = box_cage(0.075, 0.085, 0.055)
+        po = deform(po, lambda p: np.array([p[0], p[1], p[2] + 0.012 * (1 - (2 * p[0] / 0.075) ** 2)]))
+        M = mm(T(s * 0.165, 0.985, -0.128), R('Y', s * 142.0))
+        b.add('pouch', 'pelvis', DARK, xform(b.sd(po, 1, 2, 50.0, 0.8), M), sharp=55.0)
     # tassets: front thigh plates hanging from the belt
     for s, bone in ((1.0, 'tasset_L'), (-1.0, 'tasset_R')):
         j = b.J(bone)
-        ts = grid_cage(2, 2, lambda u, v, j=j: (j[0] + (u - 0.5) * 0.15 * (0.85 + 0.15 * v), j[1] - 0.175 + 0.175 * v,
-                                                j[2] + 0.05 + 0.025 * math.cos((u - 0.5) * 2.4) + 0.02 * (1 - v)))
-        ts = b.sd(rimmed(*ts, 0.024, inner=(j[0], j[1] - 0.09, j[2] - 0.1)), 1, 3, 50.0, 0.8)
+        ts = grid_cage(2, 2, lambda u, v, j=j: (j[0] + (u - 0.5) * 0.17 * (0.85 + 0.15 * v), j[1] - 0.2 + 0.2 * v,
+                                                j[2] + 0.065 + 0.028 * math.cos((u - 0.5) * 2.4) + 0.022 * (1 - v)))
+        ts = b.sd(rimmed(*ts, 0.026, inner=(j[0], j[1] - 0.1, j[2] - 0.1)), 1, 3, 50.0, 0.8)
         b.add('tasset', bone, PAINT if b.cls == 'gunner' else ARMOUR, ts, sharp=55.0)
 
 
@@ -220,46 +230,46 @@ def legs(b):
     for side, s in (('L', 1.0), ('R', -1.0)):
         hip, knee, ank, toe = b.J('thigh_' + side), b.J('shin_' + side), b.J('foot_' + side), b.J('toe_' + side)
         F = frame(knee, hip - knee, (0, 0, 1))
-        und = lathe([(0.068, 0.0), (0.078, 0.18), (0.082, 0.36), (0.075, 0.42)], 8)
+        und = lathe([(0.08, 0.0), (0.09, 0.18), (0.095, 0.36), (0.087, 0.42)], 8)
         b.add('thigh_suit', 'thigh_' + side, DARK, xform(und, F), sharp=70.0)
-        # thigh armour wraps the front and the outside
-        a0, a1 = (-55.0, 125.0) if s > 0 else (-125.0, 55.0)
-        tp = wrap(0.09, 0.118, a0, a1, 0.34, 0.024, nu=4, nv=2, bulge=0.016, y0=0.05)
+        # thigh armour wraps the front and the outside, down over the top of the knee pad
+        a0, a1 = (-65.0, 135.0) if s > 0 else (-135.0, 65.0)
+        tp = wrap(0.104, 0.132, a0, a1, 0.36, 0.026, nu=4, nv=2, bulge=0.018, y0=0.035)
         tp = b.sd(tp, 1, 3, 50.0, 0.85, seams=(lambda p, n, a: a > 0.004, 0.008, 0.003))
         b.add('thigh_plate', 'thigh_' + side, ARMOUR, xform(tp, F), sharp=55.0, keep=True)
-        # knee pad (class paint): a domed, pointed cap
-        kp = box_cage(0.112, 0.13, 0.05, 1, 2, 1)
-        kp = deform(kp, lambda p: np.array([p[0] * (1 - 0.3 * max(0, -p[1]) / 0.065), p[1],
-                                            p[2] + 0.034 * (1 - (2 * p[0] / 0.112) ** 2) * (1 - (p[1] / 0.065) ** 2)]))
+        # knee pad (class paint): a big domed, pointed cap
+        kp = box_cage(0.135, 0.155, 0.06, 1, 2, 1)
+        kp = deform(kp, lambda p: np.array([p[0] * (1 - 0.3 * max(0, -p[1]) / 0.078), p[1],
+                                            p[2] + 0.04 * (1 - (2 * p[0] / 0.135) ** 2) * (1 - (p[1] / 0.078) ** 2)]))
         kp = b.sd(kp, 1, 3, 55.0, 0.7)
-        b.add('knee', 'shin_' + side, PAINT, xform(kp, T(knee[0], knee[1] - 0.005, knee[2] + 0.085)), sharp=55.0)
-        # shin guard: front keel, flared at the ankle
+        b.add('knee', 'shin_' + side, PAINT, xform(kp, T(knee[0], knee[1] - 0.008, knee[2] + 0.098)), sharp=55.0)
+        # shin guard: front keel, flared at the ankle, reaching up behind the knee pad
         F2 = frame(ank, knee - ank, (0, 0, 1))
-        sg = wrap(0.084, 0.1, -100.0, 100.0, 0.31, 0.024, nu=4, nv=2, ridge=0.016, flare=0.012, y0=0.06)
+        sg = wrap(0.098, 0.118, -112.0, 112.0, 0.335, 0.026, nu=4, nv=2, ridge=0.02, flare=0.018, y0=0.045)
         sg = b.sd(sg, 1, 3, 50.0, 0.85, seams=(lambda p, n, a: a > 0.004, 0.008, 0.003))
         b.add('shin', 'shin_' + side, ARMOUR, xform(sg, F2), sharp=55.0, keep=True)
-        cf = wrap(0.075, 0.085, 125.0, 235.0, 0.26, 0.02, nu=2, nv=1, y0=0.07)
+        cf = wrap(0.088, 0.098, 120.0, 240.0, 0.27, 0.022, nu=2, nv=1, y0=0.06)
         b.add('calf', 'shin_' + side, METAL, xform(b.sd(cf, 1, 2, 50.0, 0.8), F2), sharp=55.0)
-        st = b.sticker(['shin'], ank + np.array([s * 0.04, 0.2, 0.3]), (0, 1, 0), (s, 0, 0), (0, 0, -1), 0.2, 0.016, t=0.004)
+        st = b.sticker(['shin'], ank + np.array([s * 0.05, 0.2, 0.3]), (0, 1, 0), (s, 0, 0), (0, 0, -1), 0.21, 0.018, t=0.004)
         b.add('shin_glow', 'shin_' + side, GLOW, st)
-        b.decal(b.sticker(['shin'], ank + np.array([-s * 0.02, 0.33, 0.3]), (1, 0, 0), (0, 1, 0), (0, 0, -1), 0.05, 0.06), 'shin_' + side, 1.0)
+        b.decal(b.sticker(['shin'], ank + np.array([-s * 0.022, 0.32, 0.3]), (1, 0, 0), (0, 1, 0), (0, 0, -1), 0.055, 0.075), 'shin_' + side, 1.0)
         # boot (foot bone): a sculpted shell, sole; toe cap on the toe bone
         secs = []
-        for z, w, top in ((-0.125, 0.056, 0.035), (-0.06, 0.066, 0.052), (0.055, 0.068, -0.005), (0.125, 0.064, -0.04)):
-            yb, yt = 0.024 - ank[1], top
+        for z, w, top in ((-0.14, 0.066, 0.045), (-0.068, 0.08, 0.064), (0.06, 0.082, -0.0), (0.135, 0.076, -0.036)):
+            yb, yt = 0.026 - ank[1], top
             pts = superellipse(w, 0.5 * (yt - yb), 8, 3.0)
             secs.append(np.array([(px, 0.5 * (yb + yt) + pz, z) for px, pz in pts]))
         bt = b.sd(loft_cage(secs), 1, 3, 55.0, 0.75)
         b.add('boot', 'foot_' + side, ARMOUR, xform(bt, T(ank[0], ank[1], ank[2])), sharp=55.0)
-        cuff = lathe([(0.072, 0.06), (0.08, 0.085), (0.078, 0.12), (0.07, 0.135)], 10)
+        cuff = lathe([(0.085, 0.07), (0.094, 0.095), (0.092, 0.13), (0.083, 0.145)], 10)
         b.add('cuff', 'foot_' + side, METAL, xform(cuff, T(ank[0], ank[1], ank[2] - 0.01)), sharp=70.0)
-        so = box_cage(0.145, 0.028, 0.26, 1, 1, 2)
-        b.add('sole', 'foot_' + side, SOLE, xform(b.sd(so, 0, 2, 50.0, 0.9), T(ank[0], 0.014, ank[2] + 0.0)), sharp=55.0)
-        tc = box_cage(0.138, 0.07, 0.13, 1, 1, 2)
-        tc = deform(tc, lambda p: np.array([p[0] * (1 - 0.2 * max(0, p[2]) / 0.065), p[1] - 0.25 * max(0, p[2]) * (p[1] + 0.035) / 0.065 * 0.5, p[2]]))
-        b.add('toecap', 'toe_' + side, PAINT if b.cls == 'cryo' else ARMOUR, xform(b.sd(tc, 1, 3, 55.0, 0.75), T(toe[0], 0.045, toe[2] + 0.025)), sharp=55.0)
-        ts = box_cage(0.145, 0.022, 0.13)
-        b.add('toesole', 'toe_' + side, SOLE, xform(b.sd(ts, 0, 2, 50.0, 0.9), T(toe[0], 0.011, toe[2] + 0.03)), sharp=55.0)
+        so = box_cage(0.172, 0.03, 0.3, 1, 1, 2)
+        b.add('sole', 'foot_' + side, SOLE, xform(b.sd(so, 0, 2, 50.0, 0.9), T(ank[0], 0.015, ank[2] + 0.0)), sharp=55.0)
+        tc = box_cage(0.158, 0.078, 0.14, 1, 1, 2)
+        tc = deform(tc, lambda p: np.array([p[0] * (1 - 0.2 * max(0, p[2]) / 0.07), p[1] - 0.25 * max(0, p[2]) * (p[1] + 0.039) / 0.07 * 0.5, p[2]]))
+        b.add('toecap', 'toe_' + side, PAINT if b.cls == 'cryo' else ARMOUR, xform(b.sd(tc, 1, 3, 55.0, 0.75), T(toe[0], 0.05, toe[2] + 0.028)), sharp=55.0)
+        ts = box_cage(0.168, 0.024, 0.14)
+        b.add('toesole', 'toe_' + side, SOLE, xform(b.sd(ts, 0, 2, 50.0, 0.9), T(toe[0], 0.012, toe[2] + 0.032)), sharp=55.0)
 
 
 def hand_canonical(b, side):
@@ -274,7 +284,7 @@ def hand_canonical(b, side):
     c = np.array([0.0, -0.012, 0.078])
     for x in (-0.03, -0.01, 0.01, 0.03):
         pts = []
-        for th in (5.0, 75.0, 140.0, 200.0):
+        for th in (5.0, 100.0, 200.0):
             a = math.radians(th)
             pts.append(c + np.array([x, 0.031 * math.cos(a), 0.031 * math.sin(a) + 0.006]))
         for k in range(len(pts) - 1):
@@ -302,31 +312,33 @@ def arms(b):
         sh, el, wr = b.J('upperarm_' + side), b.J('forearm_' + side), b.J('hand_' + side)
         out = np.array([s, 0.25, 0.0])
         F = frame(el, sh - el, out)
-        ua = lathe([(0.06, -0.01), (0.068, 0.12), (0.072, 0.25), (0.066, 0.31)], 8)
+        ua = lathe([(0.072, -0.01), (0.08, 0.12), (0.084, 0.25), (0.078, 0.31)], 8)
         b.add('upperarm', 'upperarm_' + side, DARK, xform(ua, F), sharp=70.0)
-        bp = wrap(0.072, 0.08, -105.0, 105.0, 0.19, 0.022, nu=4, nv=2, bulge=0.008, y0=0.075)
+        bp = wrap(0.089, 0.098, -118.0, 118.0, 0.2, 0.024, nu=4, nv=2, bulge=0.01, y0=0.068)
         b.add('bicep', 'upperarm_' + side, ARMOUR, xform(b.sd(bp, 1, 3, 50.0, 0.85), F), sharp=55.0)
-        hub = lathe([(0.0, -0.075), (0.06, -0.06), (0.08, 0.0), (0.06, 0.06), (0.0, 0.075)], 8)
-        b.add('hub', 'clav_' + side, METAL, xform(hub, mm(T(sh[0], sh[1], sh[2]), R('Z', 90))), sharp=70.0)  # (8 segs)
+        hub = lathe([(0.0, -0.085), (0.07, -0.07), (0.092, 0.0), (0.07, 0.07), (0.0, 0.085)], 6)
+        b.add('hub', 'clav_' + side, METAL, xform(hub, mm(T(sh[0], sh[1], sh[2]), R('Z', 90))), sharp=70.0)  # (6 segs: under the pauldron)
         F2 = frame(wr, el - wr, out)
         bd = np.array([0.0, 0.0, -1.0]) + out * 0.35
         bd /= np.linalg.norm(bd)
-        cop = lathe([(0.0, 0.0), (0.04, 0.008), (0.064, 0.035), (0.068, 0.062)], 10)
-        b.add('elbow', 'forearm_' + side, METAL, xform(cop, frame(el + bd * 0.072, -bd, (0, 1, 0))), sharp=70.0)
-        g = wrap(0.062, 0.07, -150.0, 150.0, 0.23, 0.022, nu=4, nv=2, bulge=0.006, flare=0.012, y0=0.025)
+        cop = lathe([(0.0, 0.0), (0.048, 0.009), (0.076, 0.04), (0.081, 0.07)], 10)
+        b.add('elbow', 'forearm_' + side, METAL, xform(cop, frame(el + bd * 0.084, -bd, (0, 1, 0))), sharp=70.0)
+        # gauntlets: big flared forearm armour in the class paint (they frame the weapon from the game camera)
+        g = wrap(0.078, 0.09, -152.0, 152.0, 0.235, 0.024, nu=4, nv=2, bulge=0.01, flare=0.018, y0=0.02)
         g = b.sd(g, 1, 3, 50.0, 0.85, seams=(lambda p, n, a: a > 0.003, 0.007, 0.003))
-        b.add('gauntlet', 'forearm_' + side, PAINT if c in ('pyro', 'cryo') else ARMOUR, xform(g, F2), sharp=55.0, keep=True)
-        st = b.sticker(['gauntlet'], wr + (el - wr) * 0.45 + out * 0.4, (el - wr), np.cross(el - wr, out), -out, 0.14, 0.012, t=0.004)
+        b.add('gauntlet', 'forearm_' + side, PAINT, xform(g, F2), sharp=55.0, keep=True)
+        st = b.sticker(['gauntlet'], wr + (el - wr) * 0.45 + out * 0.4, (el - wr), np.cross(el - wr, out), -out, 0.15, 0.013, t=0.004)
         if st is not None:
             b.add('wrist_glow', 'forearm_' + side, GLOW, st)
         if side == 'L':
-            wu = box_cage(0.05, 0.016, 0.065)
-            wu = xform(b.sd(wu, 1, 2, 50.0, 0.8), mm(F2, T(-0.06, 0.13, 0.0), R('Z', -90)))
+            wu = box_cage(0.06, 0.02, 0.075)
+            wu = xform(b.sd(wu, 1, 2, 50.0, 0.8), mm(F2, T(-0.075, 0.13, 0.0), R('Z', -90)))
             b.add('wrist_unit', 'forearm_' + side, METAL, wu, sharp=55.0)
         Hq = motion.hand_bind_q(side)
         HM = np.eye(4)
         HM[:3, :3] = SK.qmat(Hq)
         HM[:3, 3] = wr
+        HM = HM @ S(SK.HAND_SCALE)
         for m, mat in hand_canonical(b, side):
             b.add('hand', 'hand_' + side, mat, xform(m, HM), sharp=55.0)
 
@@ -335,31 +347,34 @@ def arms(b):
 def helmet(b):
     c = b.cls
     if c == 'assault':
-        rings = [se_ring(0.086, 0.11, 1.665, e=3.0, cz=0.03, front=0.04), se_ring(0.114, 0.138, 1.705, e=3.0, cz=0.03, front=0.042),
-                 se_ring(0.134, 0.15, 1.762, e=3.0, cz=0.02, front=0.016), se_ring(0.14, 0.154, 1.815, e=3.0, cz=0.012, front=0.03),
-                 se_ring(0.124, 0.142, 1.876, e=3.0, cz=0.0), se_ring(0.08, 0.098, 1.922, e=3.0, cz=-0.006)]
+        rings = [se_ring(0.086, 0.11, 1.665, e=3.0, n=10, cz=0.03, front=0.04), se_ring(0.114, 0.138, 1.705, e=3.0, n=10, cz=0.03, front=0.042),
+                 se_ring(0.134, 0.15, 1.762, e=3.0, n=10, cz=0.02, front=0.016), se_ring(0.14, 0.154, 1.815, e=3.0, n=10, cz=0.012, front=0.03),
+                 se_ring(0.124, 0.142, 1.876, e=3.0, n=10, cz=0.0), se_ring(0.08, 0.098, 1.922, e=3.0, n=10, cz=-0.006)]
         hm = b.sd(loft_cage(rings, cap0=False, cap1=True), 1, 3, 30.0, 0.6, boundary=0.5)
-        b.add('helmet', 'head', ARMOUR, hm, sharp=60.0, keep=True)
-        # T-visor in a dark recess
-        for (w, h, y, t, mat) in ((0.19, 0.04, 1.783, 0.003, DARK), (0.17, 0.026, 1.783, 0.006, GLOW),
-                                  (0.05, 0.085, 1.735, 0.003, DARK), (0.032, 0.07, 1.735, 0.006, GLOW)):
-            v = b.sticker(['helmet'], (0, y, 0.4), (1, 0, 0), (0, 1, 0), (0, 0, -1), w, h, r=0.3, nu=4, nv=2, t=t)
+        b.add('helmet', 'head', PAINT, hm, sharp=60.0, keep=True)
+        # a gunmetal faceplate (wide at the brow, narrow at the chin) with the T-visor cut into it
+        fp = b.plate(['helmet'], (0, 1.752, 0.5), (1, 0, 0), (0, 1, 0), (0, 0, -1), 0.17, 0.165, 0.012, nu=4, nv=2, r=0.3,
+                     taper=-0.32, gap=0.004)
+        b.add('faceplate', 'head', METAL, fp, sharp=55.0, keep=True)
+        for (w, h, y, t, mat) in ((0.2, 0.042, 1.783, 0.003, DARK), (0.18, 0.027, 1.783, 0.006, GLOW),
+                                  (0.052, 0.088, 1.735, 0.003, DARK), (0.034, 0.072, 1.735, 0.006, GLOW)):
+            v = b.sticker(['faceplate'], (0, y, 0.4), (1, 0, 0), (0, 1, 0), (0, 0, -1), w, h, r=0.3, nu=3, nv=2, t=t)
             b.add('visor', 'head', mat, v)
-        # crest fin
-        cr = box_cage(0.032, 0.05, 0.27, 1, 1, 3)
-        cr = deform(cr, lambda p: np.array([p[0] * (1 - 0.5 * max(0, p[1]) / 0.025), p[1] + 0.03 * math.cos(p[2] * 6) - 0.03 * max(0, -p[2]) * 3, p[2]]))
-        b.add('crest', 'head', PAINT, xform(b.sd(cr, 1, 3, 50.0, 0.7), T(0, 1.935, 0.0)), sharp=55.0)
+        # crest fin (gunmetal over the red helmet: the assault's signature from the game camera)
+        cr = box_cage(0.036, 0.055, 0.29, 1, 1, 3)
+        cr = deform(cr, lambda p: np.array([p[0] * (1 - 0.5 * max(0, p[1]) / 0.0275), p[1] + 0.032 * math.cos(p[2] * 6) - 0.03 * max(0, -p[2]) * 3, p[2]]))
+        b.add('crest', 'head', METAL, xform(b.sd(cr, 1, 3, 50.0, 0.7), T(0, 1.935, 0.0)), sharp=55.0)
         for s in (1.0, -1.0):
-            em = lathe([(0.0, 0.0), (0.042, 0.0), (0.048, 0.018), (0.04, 0.034), (0.0, 0.036)], 12)
+            em = lathe([(0.0, 0.0), (0.042, 0.0), (0.048, 0.018), (0.04, 0.034), (0.0, 0.036)], 8)
             b.add('ear', 'head', METAL, xform(em, mm(T(s * 0.13, 1.79, 0.005), R('Z', -s * 90))), sharp=70.0)
         b.add('lamp_house', 'head', METAL, xform(cyl(0.022, 0.055, 10), mm(T(-0.155, 1.795, 0.03), R('X', 90))), sharp=70.0)
         b.add('lamp', 'head', LAMP, xform(cyl(0.017, 0.006, 10), mm(T(-0.155, 1.795, 0.088), R('X', 90))))
         for s in (1.0, -1.0):
             b.decal(b.sticker(['helmet'], (s * 0.1, 1.9, 0.0), (0, 0, 1), (1, 0, 0), (-s * 0.6, -1, 0), 0.16, 0.02), 'head', 1.0)
     elif c == 'pyro':
-        rings = [se_ring(0.112, 0.118, 1.665, e=2.0, cz=0.02), se_ring(0.138, 0.15, 1.72, e=2.0, cz=0.025, front=0.01),
-                 se_ring(0.145, 0.158, 1.79, e=2.0, cz=0.02), se_ring(0.135, 0.148, 1.86, e=2.0, cz=0.012),
-                 se_ring(0.095, 0.106, 1.912, e=2.0, cz=0.004), se_ring(0.04, 0.045, 1.935, e=2.0)]
+        rings = [se_ring(0.112, 0.118, 1.665, e=2.0, n=10, cz=0.02), se_ring(0.138, 0.15, 1.72, e=2.0, n=10, cz=0.025, front=0.01),
+                 se_ring(0.145, 0.158, 1.79, e=2.0, n=10, cz=0.02), se_ring(0.135, 0.148, 1.86, e=2.0, n=10, cz=0.012),
+                 se_ring(0.095, 0.106, 1.912, e=2.0, n=10, cz=0.004), se_ring(0.04, 0.045, 1.935, e=2.0, n=10)]
         hm = b.sd(loft_cage(rings, cap0=False, cap1=True), 1, 3, 70.0, 0.0, boundary=0.5)
         b.add('helmet', 'head', PAINT, hm, sharp=70.0, keep=True)
         band = lathe([(0.15, 1.81), (0.158, 1.818), (0.157, 1.835), (0.149, 1.842)], 18, 205, 515)
@@ -371,13 +386,13 @@ def helmet(b):
         for s in (1.0, -1.0):
             fl = lathe([(0.0, 0.0), (0.03, 0.0), (0.034, 0.014), (0.034, 0.048), (0.0, 0.058)], 10)
             b.add('filter', 'head', BRASS, xform(fl, mm(T(s * 0.078, 1.69, 0.18), R('Z', -s * 55), R('X', 20))), sharp=70.0)
-            rim = lathe([(0.028, -0.005), (0.046, -0.005), (0.048, 0.02), (0.038, 0.027)], 10)
-            b.add('goggle_rim', 'head', METAL, xform(rim, mm(T(s * 0.056, 1.795, 0.148), R('X', 90))), sharp=70.0)
-            b.add('goggle', 'head', GLOW, xform(lathe([(0.0, 0.0), (0.037, 0.0), (0.036, 0.008), (0.0, 0.012)], 10), mm(T(s * 0.056, 1.795, 0.162), R('X', 90))))
+            rim = lathe([(0.032, -0.005), (0.052, -0.005), (0.054, 0.022), (0.043, 0.03)], 8)
+            b.add('goggle_rim', 'head', METAL, xform(rim, mm(T(s * 0.06, 1.795, 0.146), R('X', 90))), sharp=70.0)
+            b.add('goggle', 'head', GLOW, xform(lathe([(0.0, 0.0), (0.042, 0.0), (0.041, 0.009), (0.0, 0.013)], 10), mm(T(s * 0.06, 1.795, 0.162), R('X', 90))))
         b.decal(b.sticker(['helmet'], (0, 1.9, 0.0), (0, 0, 1), (1, 0, 0), (0, -1, 0), 0.2, 0.03), 'head', 0.5)
     elif c == 'cryo':
         inner = lathe([(0.098, 1.665), (0.118, 1.69), (0.12, 1.735)], 14)
-        b.add('helmet_base', 'head', ARMOUR, xform(inner, T(0, 0, 0.01)), sharp=70.0)
+        b.add('helmet_base', 'head', PAINT, xform(inner, T(0, 0, 0.01)), sharp=70.0)
         prof = [(0.118, 1.72)] + [(0.154 * math.cos(math.radians(a)), 1.765 + 0.172 * math.sin(math.radians(a))) for a in (0, 18, 36, 54, 72, 84)] + [(0.0, 1.938)]
         dome = lathe(prof, 20)
         b.add('dome', 'head', GLASS, xform(dome, T(0, 0, 0.02)), sharp=80.0, keep=True)
@@ -387,8 +402,8 @@ def helmet(b):
         b.add('dome_ring', 'head', METAL, xform(ring_, T(0, 0, 0.02)), sharp=70.0)
         rg = lathe([(0.162, 1.731), (0.166, 1.735), (0.162, 1.739)], 20)
         b.add('ring_glow', 'head', GLOW, xform(rg, T(0, 0, 0.02)))
-        bm_ = box_cage(0.12, 0.09, 0.06)
-        b.add('helmet_pack', 'head', ARMOUR, xform(b.sd(bm_, 1, 3, 50.0, 0.7), T(0, 1.77, -0.15)), sharp=55.0)
+        bm_ = box_cage(0.13, 0.1, 0.07)
+        b.add('helmet_pack', 'head', PAINT, xform(b.sd(bm_, 1, 3, 50.0, 0.7), T(0, 1.77, -0.155)), sharp=55.0)
         b.add('lamp_house', 'head', METAL, xform(cyl(0.02, 0.05, 10), mm(T(-0.145, 1.745, 0.04), R('X', 90))), sharp=70.0)
         b.add('lamp', 'head', LAMP, xform(cyl(0.016, 0.006, 10), mm(T(-0.145, 1.745, 0.093), R('X', 90))))
     else:  # gunner: squared bucket
@@ -428,11 +443,11 @@ def pauldrons(b):
     c = b.cls
     for side, s in (('L', 1.0), ('R', -1.0)):
         bone = 'pauldron_' + side
-        cx = b.J('upperarm_' + side) + np.array([s * 0.035, 0.0, -0.01])
-        big = {'assault': 1.0, 'pyro': 1.05, 'cryo': 0.92, 'gunner': 1.24}[c]
-        rx, ry, rz = 0.155 * big, 0.115 * big, 0.175 * big
+        cx = b.J('upperarm_' + side) + np.array([s * 0.045, 0.006, -0.01])
+        big = {'assault': 1.0, 'pyro': 1.0, 'cryo': 0.98, 'gunner': 1.16}[c]
+        rx, ry, rz = 0.182 * big, 0.145 * big, 0.2 * big
         cap_lo = {'assault': 22.0, 'pyro': -20.0, 'cryo': 0.0, 'gunner': 30.0}[c]
-        VF = dome_patch(cx, s, rx, ry, rz, 78.0, -78.0, 88.0, cap_lo, 5, 3)
+        VF = dome_patch(cx, s, rx, ry, rz, 78.0, -78.0, 124.0, cap_lo, 5, 3)
         VF = b.sd(rimmed(*VF, 0.022, inner=cx), 1, 3, 50.0, 0.85)
         b.add('pauldron', bone, PAINT, VF, sharp=55.0, keep=True)
         cap_surface = ['pauldron']
@@ -442,7 +457,7 @@ def pauldrons(b):
                 th0 = cap_lo + 10.0 - (26.0 if c == 'assault' else 32.0) * k
                 th1 = th0 - 30.0
                 g = 1.05 + 0.05 * k
-                L = dome_patch(cx, s, rx * g, ry * g, rz * g, 74.0, -74.0, th0, th1, 4, 1)
+                L = dome_patch(cx, s, rx * g, ry * g, rz * g, 74.0, -74.0, th0, th1, 3, 1)
                 b.add('pauldron_lame', bone, PAINT, b.sd(rimmed(*L, 0.02, inner=cx), 1, 3, 50.0, 0.85), sharp=55.0)
             gl = dome_patch(cx, s, rx * g + 0.002, ry * g + 0.002, rz * g + 0.002, 60.0, -60.0, th1 + 7.0, th1 + 3.5, 6, 1)
             b.add('pauldron_glow', bone, GLOW, thicken(*gl, -0.004))
@@ -487,67 +502,72 @@ def backpack(b):
     c = b.cls
     bone = 'backpack'
     if c == 'assault':
-        bx = box_cage(0.3, 0.3, 0.13, 2, 2, 1)
-        bx = deform(bx, lambda p: np.array([p[0] * (1 - 0.12 * (p[1] + 0.15) / 0.3), p[1], p[2] - 0.02 * (p[1] + 0.15) / 0.3]))
+        bx = box_cage(0.36, 0.34, 0.16, 2, 2, 1)
+        bx = deform(bx, lambda p: np.array([p[0] * (1 - 0.12 * (p[1] + 0.17) / 0.34), p[1], p[2] - 0.024 * (p[1] + 0.17) / 0.34]))
         bx = b.sd(bx, 1, 3, 50.0, 0.85, seams=(lambda p, n, a: n[2] < -0.6, 0.012, 0.004))
-        b.add('pack', bone, ARMOUR, xform(bx, T(0, 1.44, -0.25)), sharp=55.0)
-        tp = box_cage(0.22, 0.05, 0.1)
-        b.add('pack_top', bone, METAL, xform(b.sd(tp, 1, 2, 50.0, 0.8), T(0, 1.605, -0.255)), sharp=55.0)
+        b.add('pack', bone, ARMOUR, xform(bx, T(0, 1.44, -0.296)), sharp=55.0)
+        tp = box_cage(0.26, 0.056, 0.12)
+        b.add('pack_top', bone, METAL, xform(b.sd(tp, 1, 2, 50.0, 0.8), T(0, 1.628, -0.3)), sharp=55.0)
         for s in (1.0, -1.0):
-            nz = lathe([(0.052, 0.0), (0.058, 0.025), (0.05, 0.055), (0.044, 0.12)], 14, cap0=False, cap1=False)
-            M = mm(T(s * 0.11, 1.33, -0.29), R('X', 165), R('Z', -s * 12))
+            nz = lathe([(0.06, 0.0), (0.067, 0.029), (0.058, 0.063), (0.051, 0.138)], 10, cap0=False, cap1=False)
+            M = mm(T(s * 0.13, 1.31, -0.35), R('X', 165), R('Z', -s * 12))
             b.add('thruster', bone, METAL, xform(nz, M), sharp=70.0)
-            b.add('thruster_glow', bone, GLOW, xform(lathe([(0.0, 0.0), (0.04, 0.0), (0.04, 0.006), (0.0, 0.006)], 12), mm(M, T(0, 0.02, 0))))
-        b.detail(slots(np.array([0, 1.46, -0.318]), (0, 0, -1), (1, 0, 0), 6, 0.12, 0.012, 0.012), bone)
-        b.add('pack_glow', bone, GLOW, xform(box_cage(0.2, 0.012, 0.008), T(0, 1.565, -0.318)))
+            b.add('thruster_glow', bone, GLOW, xform(lathe([(0.0, 0.0), (0.046, 0.0), (0.046, 0.006), (0.0, 0.006)], 8), mm(M, T(0, 0.022, 0))))
+        b.detail(slots(np.array([0, 1.46, -0.378]), (0, 0, -1), (1, 0, 0), 7, 0.13, 0.013, 0.012), bone)
+        b.add('pack_glow', bone, GLOW, xform(box_cage(0.24, 0.013, 0.008), T(0, 1.58, -0.378)))
         a = b.J('antenna')
-        b.add('antenna_base', 'antenna', METAL, xform(cyl(0.018, 0.04, 10), T(a[0], a[1] - 0.04, a[2])), sharp=70.0)
-        b.add('antenna', 'antenna', METAL, xform(cyl(0.006, 0.42, 6, r1=0.004), T(a[0], a[1], a[2])), sharp=70.0)
-        b.add('antenna_tip', 'antenna', GLOW, xform(cyl(0.012, 0.02, 8), T(a[0], a[1] + 0.42, a[2])))
+        b.add('antenna_base', 'antenna', METAL, xform(cyl(0.02, 0.045, 8), T(a[0], a[1] - 0.045, a[2])), sharp=70.0)
+        b.add('antenna', 'antenna', METAL, xform(cyl(0.007, 0.44, 6, r1=0.004), T(a[0], a[1], a[2])), sharp=70.0)
+        b.add('antenna_tip', 'antenna', GLOW, xform(cyl(0.013, 0.022, 8), T(a[0], a[1] + 0.44, a[2])))
     elif c == 'pyro':
+        tz = -0.318
         for s in (1.0, -1.0):
-            tk = lathe([(0.0, 1.2), (0.05, 1.204), (0.072, 1.23), (0.079, 1.27), (0.079, 1.58), (0.072, 1.62), (0.046, 1.646), (0.0, 1.652)], 9)
-            b.add('tank', bone, PAINT, xform(tk, T(s * 0.096, 0, -0.285)), sharp=70.0, keep=(s > 0))
-            for y in (1.3, 1.52):
-                band = lathe([(0.08, y), (0.086, y + 0.006), (0.086, y + 0.029), (0.08, y + 0.035)], 8)
-                b.add('tank_band', bone, METAL, xform(band, T(s * 0.096, 0, -0.285)), sharp=70.0)
-            b.decal(xform(box_cage(0.06, 0.1, 0.002), T(s * 0.096, 1.4, -0.285 - 0.0795)), bone, 0.5)
-        b.add('valve', bone, BRASS, xform(cyl(0.024, 0.07, 10), mm(T(0, 1.665, -0.285), R('Z', 90), T(0, -0.035, 0))), sharp=70.0)
-        b.add('pilot', bone, GLOW, xform(cyl(0.012, 0.02, 8), T(0.0, 1.675, -0.255)))
-        fr = box_cage(0.3, 0.36, 0.05, 2, 2, 1)
-        b.add('tank_frame', bone, METAL, xform(b.sd(fr, 1, 2, 50.0, 0.85), T(0, 1.43, -0.2)), sharp=55.0)
+            tk = lathe([(0.0, 1.18), (0.056, 1.184), (0.081, 1.212), (0.09, 1.256), (0.09, 1.6), (0.081, 1.645), (0.052, 1.674), (0.0, 1.68)], 9)
+            b.add('tank', bone, PAINT, xform(tk, T(s * 0.108, 0, tz)), sharp=70.0, keep=(s > 0))
+            for y in (1.29, 1.53):
+                band = lathe([(0.091, y), (0.098, y + 0.006), (0.098, y + 0.032), (0.091, y + 0.038)], 8)
+                b.add('tank_band', bone, METAL, xform(band, T(s * 0.108, 0, tz)), sharp=70.0)
+            b.decal(xform(box_cage(0.068, 0.11, 0.002), T(s * 0.108, 1.41, tz - 0.0905)), bone, 0.5)
+        b.add('valve', bone, BRASS, xform(cyl(0.027, 0.08, 10), mm(T(0, 1.695, tz), R('Z', 90), T(0, -0.04, 0))), sharp=70.0)
+        b.add('pilot', bone, GLOW, xform(cyl(0.013, 0.022, 8), T(0.0, 1.705, tz + 0.03)))
+        fr = box_cage(0.34, 0.4, 0.05, 2, 2, 1)
+        b.add('tank_frame', bone, METAL, xform(b.sd(fr, 1, 2, 50.0, 0.85), T(0, 1.43, -0.222)), sharp=55.0)
         g = SK.WEAPON['pyro']['grip']
-        hose(b, [(0.096, 1.215, -0.3), (0.2, 1.06, -0.2), (0.3, 1.02, 0.0), (g[0] + 0.01, g[1] + 0.04, g[2] - 0.15)], 0.022, 'backpack', 'weapon')
+        hose(b, [(0.108, 1.195, tz - 0.015), (0.22, 1.06, -0.22), (0.32, 1.02, 0.0), (g[0] + 0.01, g[1] + 0.05, g[2] - 0.15)], 0.025, 'backpack', 'weapon')
     elif c == 'cryo':
-        tk = lathe([(0.0, 1.22), (0.07, 1.224), (0.1, 1.255), (0.112, 1.3), (0.112, 1.56), (0.1, 1.602), (0.07, 1.632), (0.0, 1.637)], 12)
-        b.add('tank', bone, ARMOUR, xform(tk, T(0, 0, -0.295)), sharp=70.0, keep=True)
-        win = lathe([(0.113, 1.33), (0.117, 1.336), (0.117, 1.53), (0.113, 1.536)], 12, 140, 220)
-        b.add('tank_glow', bone, GLOW, xform(win, T(0, 0, -0.295)))
-        for y in (1.29, 1.42, 1.56):
-            fin = lathe([(0.11, y), (0.13, y + 0.004), (0.13, y + 0.016), (0.11, y + 0.02)], 12)
-            b.add('fin', bone, METAL, xform(fin, T(0, 0, -0.295)), sharp=70.0)
-        b.add('tank_cap', bone, METAL, xform(cyl(0.04, 0.05, 12), T(0, 1.632, -0.295)), sharp=70.0)
-        mt = box_cage(0.24, 0.3, 0.05, 2, 2, 1)
-        b.add('tank_mount', bone, METAL, xform(b.sd(mt, 1, 2, 50.0, 0.85), T(0, 1.42, -0.195)), sharp=55.0)
+        tz = -0.345
+        tk = lathe([(0.0, 1.2), (0.08, 1.204), (0.114, 1.238), (0.128, 1.29), (0.128, 1.57), (0.114, 1.615), (0.08, 1.648), (0.0, 1.653)], 12)
+        b.add('tank', bone, ARMOUR, xform(tk, T(0, 0, tz)), sharp=70.0, keep=True)
+        win = lathe([(0.129, 1.33), (0.133, 1.336), (0.133, 1.54), (0.129, 1.546)], 12, 140, 220)
+        b.add('tank_glow', bone, GLOW, xform(win, T(0, 0, tz)))
+        for y in (1.28, 1.42, 1.57):
+            fin = lathe([(0.126, y), (0.148, y + 0.004), (0.148, y + 0.018), (0.126, y + 0.022)], 12)
+            b.add('fin', bone, METAL, xform(fin, T(0, 0, tz)), sharp=70.0)
+        b.add('tank_cap', bone, METAL, xform(cyl(0.046, 0.055, 12), T(0, 1.648, tz)), sharp=70.0)
+        mt = box_cage(0.27, 0.33, 0.05, 2, 2, 1)
+        b.add('tank_mount', bone, METAL, xform(b.sd(mt, 1, 2, 50.0, 0.85), T(0, 1.42, -0.222)), sharp=55.0)
         g = SK.WEAPON['cryo']['grip']
-        hose(b, [(0.06, 1.25, -0.37), (0.19, 1.1, -0.24), (0.29, 1.08, -0.02), (g[0], g[1] + 0.05, g[2] - 0.16)], 0.02, 'backpack', 'weapon')
+        hose(b, [(0.07, 1.25, tz - 0.08), (0.21, 1.1, -0.26), (0.31, 1.08, -0.02), (g[0], g[1] + 0.07, g[2] - 0.16)], 0.023, 'backpack', 'weapon')
     else:  # gunner: ammo drum
-        dr = lathe([(0.0, -0.19), (0.13, -0.19), (0.15, -0.17), (0.15, 0.17), (0.13, 0.19), (0.0, 0.19)], 12)
-        M = mm(T(0.0, 1.43, -0.33), R('Z', 90))
+        dz = -0.392
+        dr = lathe([(0.0, -0.21), (0.15, -0.21), (0.172, -0.188), (0.172, 0.188), (0.15, 0.21), (0.0, 0.21)], 12)
+        M = mm(T(0.0, 1.43, dz), R('Z', 90))
         b.add('drum', bone, PAINT, xform(dr, M), sharp=60.0, keep=True)
-        for x in (-0.12, 0.0, 0.12):
-            band = lathe([(0.152, -0.015), (0.158, -0.01), (0.158, 0.01), (0.152, 0.015)], 12)
-            b.add('drum_band', bone, METAL, xform(band, mm(T(x, 1.43, -0.33), R('Z', 90))), sharp=70.0)
-        b.add('drum_hub', bone, METAL, xform(lathe([(0.0, 0.19), (0.07, 0.19), (0.06, 0.215), (0.0, 0.22)], 12), M), sharp=70.0)
-        b.add('drum_glow', bone, GLOW, xform(box_cage(0.3, 0.012, 0.008), T(0, 1.585, -0.34)))
-        mt = box_cage(0.32, 0.32, 0.06, 2, 2, 1)
-        b.add('drum_mount', bone, METAL, xform(b.sd(mt, 1, 2, 50.0, 0.85), T(0, 1.44, -0.19)), sharp=55.0)
+        for x in (-0.135, 0.0, 0.135):
+            band = lathe([(0.174, -0.016), (0.181, -0.011), (0.181, 0.011), (0.174, 0.016)], 12)
+            b.add('drum_band', bone, METAL, xform(band, mm(T(x, 1.43, dz), R('Z', 90))), sharp=70.0)
+        b.add('drum_hub', bone, METAL, xform(lathe([(0.0, 0.21), (0.08, 0.21), (0.068, 0.238), (0.0, 0.243)], 12), M), sharp=70.0)
+        b.add('drum_glow', bone, GLOW, xform(box_cage(0.34, 0.013, 0.008), T(0, 1.606, dz - 0.012)))
+        mt = box_cage(0.34, 0.34, 0.06, 2, 2, 1)
+        b.add('drum_mount', bone, METAL, xform(b.sd(mt, 1, 2, 50.0, 0.85), T(0, 1.44, -0.215)), sharp=55.0)
         g = SK.WEAPON['gunner']['grip']
-        hose(b, [(0.2, 1.36, -0.33), (0.3, 1.2, -0.2), (0.33, 1.1, -0.02), (g[0] + 0.07, g[1] + 0.06, g[2] + 0.05)], 0.03, 'backpack', 'weapon', mat=METAL, segs=6)
+        hose(b, [(0.22, 1.36, dz), (0.32, 1.2, -0.22), (0.35, 1.12, -0.02), (g[0] + 0.085, g[1] + 0.09, g[2] + 0.05)], 0.034, 'backpack', 'weapon', mat=METAL, segs=6)
 
 
 # ================================================================ weapons (weapon-local, placed at the grip)
 def weapon(b):
+    """Each class's weapon, oversized for the game camera (≈ 1.35× a realistic cross-section), the bore raised over the
+    gauntleted fist; muzzles stay where the core spawns the bolts (≈ 0.95 m ahead of the feet in the stance)."""
     c = b.cls
     g = np.asarray(SK.WEAPON[c]['grip'], dtype=np.float64)
     G = T(*g)
@@ -566,90 +586,96 @@ def weapon(b):
         return xform(b.sd(VF, lo, hi, 50.0, crease, seams=seams), T(*pos))
 
     # pistol grip under the gun hand, tilted back
-    add('grip', DARK, xform(blk(0.034, 0.11, 0.05, (0, -0.005, 0), lo=1, hi=2, crease=0.6), R('X', -15)))
+    add('grip', DARK, xform(blk(0.04, 0.12, 0.056, (0, -0.006, 0), lo=1, hi=2, crease=0.6), R('X', -15)))
+    sup = np.asarray(motion.GRIPS[c]['sup'])
     if c == 'assault':
-        add('receiver', METAL, blk(0.072, 0.095, 0.42, (0, 0.068, 0.02), (1, 2, 3),
-                                   fn=lambda p: np.array([p[0] * (1 - 0.15 * max(0, p[1]) / 0.047), p[1], p[2]]),
+        by = 0.088
+        add('receiver', METAL, blk(0.094, 0.125, 0.44, (0, by, 0.02), (1, 2, 3),
+                                   fn=lambda p: np.array([p[0] * (1 - 0.15 * max(0, p[1]) / 0.0625), p[1], p[2]]),
                                    seams=(lambda p, n, a: abs(n[0]) > 0.8, 0.008, 0.003)))
-        add('shroud', ARMOUR, blk(0.064, 0.07, 0.34, (0, 0.07, 0.39), (1, 1, 3),
-                                  fn=lambda p: np.array([p[0] * (1 - 0.1 * (p[2] + 0.17) / 0.34), p[1] * (1 - 0.15 * (p[2] + 0.17) / 0.34), p[2]])))
-        det(slots(np.array([0.032, 0.07, 0.39]), (1, 0, 0), (0, 0, 1), 7, 0.035, 0.01, 0.022))
-        det(slots(np.array([-0.032, 0.07, 0.39]), (-1, 0, 0), (0, 0, 1), 7, 0.035, 0.01, 0.022))
-        add('barrel', METAL, xform(cyl(0.016, 0.14, 12), mm(T(0, 0.065, 0.56), R('X', 90))), sharp=70.0)
-        add('muzzle', METAL, blk(0.044, 0.044, 0.06, (0, 0.065, 0.68), (1, 1, 2), lo=1, hi=2))
-        det(slots(np.array([0.022, 0.065, 0.68]), (1, 0, 0), (0, 0, 1), 3, 0.03, 0.008, 0.008))
-        add('stock', ARMOUR, blk(0.052, 0.1, 0.17, (0, 0.05, -0.27), (1, 2, 2),
-                                 fn=lambda p: np.array([p[0], p[1] - 0.4 * max(0, -p[2] - 0.02) * (p[1] + 0.05), p[2]])))
-        add('mag', METAL, xform(blk(0.04, 0.14, 0.07, (0, -0.06, 0), (1, 2, 1), lo=1, hi=2,
-                                    fn=lambda p: np.array([p[0], p[1], p[2] + 0.12 * (p[1] + 0.07) ** 2])), mm(T(0, 0.02, 0.1), R('X', 10))))
-        add('optic', METAL, blk(0.042, 0.045, 0.12, (0, 0.135, 0.08), (1, 1, 2), lo=1, hi=2))
-        add('optic_lens', GLOW, xform(cyl(0.014, 0.004, 12), mm(T(0, 0.137, 0.141), R('X', 90))))
-        add('cell_glow', GLOW, blk(0.006, 0.014, 0.26, (0.034, 0.075, 0.14), lo=0, hi=0))
-        sup = np.asarray(motion.GRIPS[c]['sup'])
-        add('foregrip', DARK, xform(blk(0.032, 0.1, 0.038, (0, -0.01, 0), lo=1, hi=2, crease=0.6), mm(T(*sup), R('X', 6))))
-        add('fg_mount', METAL, blk(0.06, 0.03, 0.045, (sup[0] + 0.02, 0.045, sup[2]), lo=1, hi=2))
+        add('shroud', ARMOUR, blk(0.086, 0.094, 0.33, (0, by + 0.004, 0.38), (1, 1, 3),
+                                  fn=lambda p: np.array([p[0] * (1 - 0.1 * (p[2] + 0.165) / 0.33), p[1] * (1 - 0.15 * (p[2] + 0.165) / 0.33), p[2]])))
+        det(slots(np.array([0.043, by + 0.004, 0.38]), (1, 0, 0), (0, 0, 1), 7, 0.045, 0.012, 0.024))
+        det(slots(np.array([-0.043, by + 0.004, 0.38]), (-1, 0, 0), (0, 0, 1), 7, 0.045, 0.012, 0.024))
+        add('barrel', HOT, xform(cyl(0.021, 0.13, 12), mm(T(0, by, 0.53), R('X', 90))), sharp=70.0)
+        add('muzzle', HOT, blk(0.062, 0.062, 0.085, (0, by, 0.668), (1, 1, 2), lo=1, hi=2))
+        det(slots(np.array([0.031, by, 0.668]), (1, 0, 0), (0, 0, 1), 3, 0.04, 0.01, 0.01))
+        det(slots(np.array([-0.031, by, 0.668]), (-1, 0, 0), (0, 0, 1), 3, 0.04, 0.01, 0.01))
+        add('launcher', METAL, xform(cyl(0.03, 0.24, 12), mm(T(0, 0.016, 0.3), R('X', 90))), sharp=70.0)
+        add('launcher_cap', DARK, xform(cyl(0.024, 0.012, 12), mm(T(0, 0.016, 0.54), R('X', 90))), sharp=70.0)
+        add('stock', ARMOUR, blk(0.064, 0.125, 0.2, (0, 0.066, -0.28), (1, 2, 2),
+                                 fn=lambda p: np.array([p[0], p[1] - 0.4 * max(0, -p[2] - 0.02) * (p[1] + 0.06), p[2]])))
+        add('mag', METAL, xform(blk(0.05, 0.16, 0.08, (0, -0.07, 0), (1, 2, 1), lo=1, hi=2,
+                                    fn=lambda p: np.array([p[0], p[1], p[2] + 0.12 * (p[1] + 0.08) ** 2])), mm(T(0, 0.03, 0.11), R('X', 10))))
+        add('optic', METAL, blk(0.05, 0.056, 0.14, (0, by + 0.088, 0.08), (1, 1, 2), lo=1, hi=2))
+        add('optic_lens', GLOW, xform(cyl(0.017, 0.004, 12), mm(T(0, by + 0.09, 0.151), R('X', 90))))
+        for s in (1.0, -1.0):
+            add('cell_glow', GLOW, blk(0.006, 0.016, 0.3, (s * 0.047, by + 0.012, 0.14), lo=0, hi=0))
+        add('foregrip', DARK, xform(blk(0.036, 0.11, 0.042, (0, -0.012, 0), lo=1, hi=2, crease=0.6), mm(T(*sup), R('X', 6))))
+        add('fg_mount', METAL, blk(0.066, 0.036, 0.05, (sup[0] + 0.022, 0.036, sup[2]), lo=1, hi=2))
     elif c == 'pyro':
-        body = lathe([(0.0, -0.13), (0.045, -0.13), (0.056, -0.1), (0.056, 0.42), (0.046, 0.45), (0.0, 0.45)], 12)
-        add('body', METAL, xform(body, mm(T(0, 0.075, 0), R('X', 90))), sharp=70.0)
-        for z in (0.47, 0.52, 0.57):
-            fin = lathe([(0.04, 0.0), (0.07, 0.004), (0.07, 0.016), (0.04, 0.02)], 8)
-            add('fin', METAL, xform(fin, mm(T(0, 0.075, z), R('X', 90))), sharp=70.0)
-        nz = lathe([(0.032, 0.0), (0.036, 0.08), (0.05, 0.16), (0.058, 0.2), (0.05, 0.205), (0.042, 0.18), (0.03, 0.1), (0.026, 0.0)], 16, cap0=False, cap1=False)
-        add('nozzle', METAL, xform(nz, mm(T(0, 0.075, 0.55), R('X', 90))), sharp=70.0)
-        add('nozzle_glow', GLOW, xform(lathe([(0.0, 0.0), (0.03, 0.0), (0.03, 0.006), (0.0, 0.006)], 12), mm(T(0, 0.075, 0.72), R('X', 90))))
-        add('igniter', BRASS, blk(0.022, 0.022, 0.06, (0.0, 0.025, 0.73), lo=1, hi=2))
-        add('pilot', LAMP, xform(cyl(0.007, 0.01, 8), mm(T(0.0, 0.03, 0.765), R('X', 90))))
-        can = lathe([(0.0, 0.0), (0.035, 0.0), (0.041, 0.02), (0.041, 0.27), (0.035, 0.29), (0.0, 0.29)], 12)
-        add('canister', PAINT, xform(can, mm(T(0, -0.005, 0.03), R('X', 90))), sharp=70.0)
-        sup = np.asarray(motion.GRIPS[c]['sup'])
-        add('handle', DARK, xform(blk(0.032, 0.1, 0.038, (0, -0.005, 0), lo=1, hi=2, crease=0.6), mm(T(*sup), R('X', -10))))
-        add('handle_mount', METAL, blk(0.06, 0.04, 0.05, (sup[0] + 0.03, sup[1] + 0.045, sup[2]), lo=1, hi=2))
-        det(slots(np.array([0.056, 0.075, 0.2]), (1, 0, 0), (0, 0, 1), 6, 0.04, 0.008, 0.02))
-        add('strip', GLOW, blk(0.006, 0.01, 0.2, (0.055, 0.1, 0.2), lo=0, hi=0))
+        by = 0.088
+        body = lathe([(0.0, -0.14), (0.056, -0.14), (0.07, -0.11), (0.07, 0.42), (0.058, 0.45), (0.0, 0.45)], 12)
+        add('body', METAL, xform(body, mm(T(0, by, 0), R('X', 90))), sharp=70.0)
+        for z in (0.465, 0.515, 0.565):
+            fin = lathe([(0.05, 0.0), (0.09, 0.004), (0.09, 0.018), (0.05, 0.022)], 8)
+            add('fin', METAL, xform(fin, mm(T(0, by, z), R('X', 90))), sharp=70.0)
+        nz = lathe([(0.04, 0.0), (0.044, 0.08), (0.06, 0.15), (0.072, 0.2), (0.062, 0.208), (0.052, 0.18), (0.038, 0.1),
+                    (0.033, 0.0)], 16, cap0=False, cap1=False)
+        add('nozzle', HOT, xform(nz, mm(T(0, by, 0.55), R('X', 90))), sharp=70.0)
+        add('nozzle_glow', GLOW, xform(lathe([(0.0, 0.0), (0.038, 0.0), (0.038, 0.006), (0.0, 0.006)], 12), mm(T(0, by, 0.718), R('X', 90))))
+        add('igniter', BRASS, blk(0.028, 0.028, 0.075, (0.0, by - 0.062, 0.725), lo=1, hi=2))
+        add('pilot', LAMP, xform(cyl(0.009, 0.012, 8), mm(T(0.0, by - 0.056, 0.765), R('X', 90))))
+        can = lathe([(0.0, 0.0), (0.044, 0.0), (0.05, 0.022), (0.05, 0.28), (0.044, 0.3), (0.0, 0.3)], 12)
+        add('canister', PAINT, xform(can, mm(T(0, -0.014, 0.035), R('X', 90))), sharp=70.0)
+        add('handle', DARK, xform(blk(0.036, 0.11, 0.042, (0, -0.006, 0), lo=1, hi=2, crease=0.6), mm(T(*sup), R('X', -10))))
+        add('handle_mount', METAL, blk(0.05, 0.045, 0.055, (sup[0] + 0.035, sup[1] + 0.05, sup[2]), lo=1, hi=2))
+        det(slots(np.array([0.07, by, 0.2]), (1, 0, 0), (0, 0, 1), 6, 0.05, 0.01, 0.022))
+        add('strip', GLOW, blk(0.006, 0.012, 0.22, (0.069, by + 0.026, 0.2), lo=0, hi=0))
     elif c == 'cryo':
-        add('body', ARMOUR, blk(0.082, 0.1, 0.46, (0, 0.05, 0.07), (1, 2, 3),
-                                fn=lambda p: np.array([p[0] * (1 - 0.12 * max(0, p[1]) / 0.05), p[1], p[2]]),
+        by = 0.08
+        add('body', ARMOUR, blk(0.11, 0.13, 0.46, (0, by - 0.012, 0.07), (1, 2, 3),
+                                fn=lambda p: np.array([p[0] * (1 - 0.12 * max(0, p[1]) / 0.065), p[1], p[2]]),
                                 seams=(lambda p, n, a: abs(n[0]) > 0.8, 0.01, 0.003)))
-        add('barrel', METAL, xform(cyl(0.024, 0.42, 14), mm(T(0, 0.06, 0.3), R('X', 90))), sharp=70.0)
+        add('barrel', HOT, xform(cyl(0.03, 0.42, 14), mm(T(0, by, 0.29), R('X', 90))), sharp=70.0)
         for z in (0.48, 0.56, 0.64):
-            coil = lathe([(0.03, -0.008), (0.05, -0.008), (0.056, 0.0), (0.05, 0.008), (0.03, 0.008)], 12)
-            b.add('coil', 'weapon_aux', GLOW, xform(coil, mm(G, T(0, 0.06, z), R('X', 90))))
-        add('emitter', METAL, xform(lathe([(0.0, 0.0), (0.033, 0.0), (0.037, 0.03), (0.022, 0.05), (0.0, 0.05)], 12), mm(T(0, 0.06, 0.7), R('X', 90))), sharp=70.0)
-        can = lathe([(0.0, 0.0), (0.03, 0.0), (0.033, 0.02), (0.033, 0.2), (0.03, 0.22), (0.0, 0.22)], 12)
-        add('canister', GLASS, xform(can, mm(T(0, 0.13, -0.02), R('X', 90))), sharp=70.0)
-        add('can_glow', GLOW, blk(0.008, 0.012, 0.16, (0.0, 0.163, 0.09), lo=0, hi=0))
+            coil = lathe([(0.04, -0.011), (0.066, -0.011), (0.075, 0.0), (0.066, 0.011), (0.04, 0.011)], 12)
+            b.add('coil', 'weapon_aux', GLOW, xform(coil, mm(G, T(0, by, z), R('X', 90))))
+        add('emitter', HOT, xform(lathe([(0.0, 0.0), (0.042, 0.0), (0.048, 0.034), (0.03, 0.058), (0.0, 0.058)], 12), mm(T(0, by, 0.7), R('X', 90))), sharp=70.0)
+        can = lathe([(0.0, 0.0), (0.036, 0.0), (0.04, 0.022), (0.04, 0.22), (0.036, 0.24), (0.0, 0.24)], 12)
+        add('canister', GLASS, xform(can, mm(T(0, by + 0.083, -0.03), R('X', 90))), sharp=70.0)
+        add('can_glow', GLOW, blk(0.009, 0.013, 0.18, (0.0, by + 0.124, 0.09), lo=0, hi=0))
         for z in (0.05, 0.12, 0.19):
-            add('fin', METAL, blk(0.125, 0.07, 0.012, (0, 0.05, z), lo=1, hi=2))
-        sup = np.asarray(motion.GRIPS[c]['sup'])
-        add('foregrip', DARK, xform(blk(0.032, 0.1, 0.038, (0, -0.01, 0), lo=1, hi=2, crease=0.6), T(*sup)))
-        add('fg_mount', METAL, blk(0.05, 0.03, 0.045, (sup[0] + 0.02, 0.04, sup[2]), lo=1, hi=2))
-        add('stock', ARMOUR, blk(0.046, 0.085, 0.13, (0, 0.05, -0.23), (1, 1, 2), lo=1, hi=3))
+            add('fin', METAL, blk(0.15, 0.085, 0.014, (0, by - 0.01, z), lo=1, hi=2))
+        add('foregrip', DARK, xform(blk(0.036, 0.11, 0.042, (0, -0.012, 0), lo=1, hi=2, crease=0.6), T(*sup)))
+        add('fg_mount', METAL, blk(0.056, 0.036, 0.05, (sup[0] + 0.022, 0.032, sup[2]), lo=1, hi=2))
+        add('stock', ARMOUR, blk(0.056, 0.1, 0.15, (0, by - 0.02, -0.24), (1, 1, 2), lo=1, hi=3))
     else:  # gunner: rotary cannon
-        add('housing', METAL, blk(0.12, 0.14, 0.44, (-0.01, 0.06, 0.1), (1, 2, 3),
-                                  fn=lambda p: np.array([p[0], p[1] * (1 - 0.1 * (p[2] + 0.22) / 0.44), p[2]]),
+        by = 0.1
+        add('housing', METAL, blk(0.16, 0.175, 0.46, (-0.01, by, 0.1), (1, 2, 3),
+                                  fn=lambda p: np.array([p[0], p[1] * (1 - 0.1 * (p[2] + 0.23) / 0.46), p[2]]),
                                   seams=(lambda p, n, a: abs(n[0]) > 0.8, 0.012, 0.004)))
-        det(slots(np.array([0.05, 0.06, 0.1]), (1, 0, 0), (0, 0, 1), 8, 0.08, 0.01, 0.02))
-        add('status', GLOW, blk(0.006, 0.014, 0.18, (0.051, 0.1, 0.06), lo=0, hi=0))
+        det(slots(np.array([0.07, by, 0.1]), (1, 0, 0), (0, 0, 1), 8, 0.1, 0.012, 0.024))
+        add('status', GLOW, blk(0.006, 0.016, 0.2, (0.071, by + 0.042, 0.06), lo=0, hi=0))
         aux = np.asarray(SK.WEAPON[c]['aux']) - g
         for k in range(6):
             a = 2 * math.pi * k / 6
-            bx, by = aux[0] + 0.036 * math.cos(a), aux[1] + 0.036 * math.sin(a)
-            b.add('barrel', 'weapon_aux', METAL, xform(cyl(0.012, 0.55, 8), mm(G, T(bx, by, 0.31), R('X', 90))), sharp=70.0)
-        for z in (0.33, 0.55, 0.8):
-            cl = lathe([(0.0, 0.0), (0.056, 0.0), (0.059, 0.012), (0.056, 0.024), (0.0, 0.024)], 10)
+            bx, by_ = aux[0] + 0.05 * math.cos(a), aux[1] + 0.05 * math.sin(a)
+            b.add('barrel', 'weapon_aux', HOT, xform(cyl(0.017, 0.56, 8), mm(G, T(bx, by_, 0.31), R('X', 90))), sharp=70.0)
+        for z in (0.33, 0.57, 0.81):
+            cl = lathe([(0.0, 0.0), (0.075, 0.0), (0.079, 0.014), (0.075, 0.028), (0.0, 0.028)], 10)
             b.add('clamp', 'weapon_aux', METAL, xform(cl, mm(G, T(aux[0], aux[1], z), R('X', 90))), sharp=70.0)
-        b.add('spindle', 'weapon_aux', DARK, xform(cyl(0.02, 0.52, 8), mm(G, T(aux[0], aux[1], 0.31), R('X', 90))), sharp=70.0)
-        mz = lathe([(0.045, 0.0), (0.06, 0.0), (0.062, 0.015), (0.06, 0.03), (0.045, 0.03)], 14, cap0=False, cap1=False)
-        b.add('muzzle_ring', 'weapon_aux', METAL, xform(mz, mm(G, T(aux[0], aux[1], 0.83), R('X', 90))), sharp=70.0)
-        sup = np.asarray(motion.GRIPS[c]['sup'])
-        add('handle', DARK, xform(cyl(0.016, 0.16, 10), mm(T(sup[0], sup[1], sup[2] - 0.08), R('X', 90))), sharp=70.0)
-        for z in (-0.07, 0.07):
-            add('handle_post', METAL, blk(0.025, 0.065, 0.025, (sup[0], sup[1] - 0.04, sup[2] + z), lo=1, hi=2))
-        add('feed', METAL, blk(0.05, 0.06, 0.08, (0.07, 0.06, 0.05), lo=1, hi=2))
-        add('rear', METAL, blk(0.05, 0.11, 0.1, (0, 0.06, -0.12), (1, 1, 1), lo=1, hi=2))
-    lx = -0.05 if c != 'gunner' else -0.075
-    add('torch', METAL, xform(cyl(0.022, 0.07, 12), mm(T(lx, 0.07, 0.3), R('X', 90))), sharp=70.0)
-    add('torch_lens', LAMP, xform(cyl(0.018, 0.005, 12), mm(T(lx, 0.07, 0.37), R('X', 90))))
+        b.add('spindle', 'weapon_aux', DARK, xform(cyl(0.026, 0.53, 8), mm(G, T(aux[0], aux[1], 0.31), R('X', 90))), sharp=70.0)
+        mz = lathe([(0.06, 0.0), (0.079, 0.0), (0.082, 0.018), (0.079, 0.034), (0.06, 0.034)], 14, cap0=False, cap1=False)
+        b.add('muzzle_ring', 'weapon_aux', HOT, xform(mz, mm(G, T(aux[0], aux[1], 0.84), R('X', 90))), sharp=70.0)
+        add('handle', DARK, xform(cyl(0.019, 0.18, 10), mm(T(sup[0], sup[1], sup[2] - 0.09), R('X', 90))), sharp=70.0)
+        for z in (-0.075, 0.075):
+            add('handle_post', METAL, blk(0.028, 0.075, 0.028, (sup[0], sup[1] - 0.04, sup[2] + z), lo=1, hi=2))
+        add('feed', METAL, blk(0.06, 0.075, 0.095, (0.088, by, 0.05), lo=1, hi=2))
+        add('rear', METAL, blk(0.06, 0.13, 0.11, (0, by, -0.135), (1, 1, 1), lo=1, hi=2))
+    tx, ty = {'assault': (-0.066, 0.088), 'pyro': (-0.078, 0.1), 'cryo': (-0.07, 0.085), 'gunner': (-0.1, 0.11)}[c]
+    add('torch', METAL, xform(cyl(0.026, 0.075, 12), mm(T(tx, ty, 0.3), R('X', 90))), sharp=70.0)
+    add('torch_lens', LAMP, xform(cyl(0.021, 0.005, 12), mm(T(tx, ty, 0.375), R('X', 90))))
 
 
 def build(cls, hi=False):
@@ -671,9 +697,9 @@ def sockets(cls):
     out = []
     mz = np.asarray(motion.GRIPS[cls]['muzzle'], dtype=np.float64)
     out.append(('muzzle', 'weapon', mz))
-    lx = -0.05 if cls != 'gunner' else -0.075
-    out.append(('torch', 'weapon', np.array([lx, 0.07, 0.375])))
-    out.append(('eject', 'weapon', np.array([0.04, 0.08, 0.05])))
+    tx, ty = {'assault': (-0.066, 0.088), 'pyro': (-0.078, 0.1), 'cryo': (-0.07, 0.085), 'gunner': (-0.1, 0.11)}[cls]
+    out.append(('torch', 'weapon', np.array([tx, ty, 0.385])))
+    out.append(('eject', 'weapon', np.array([0.05, 0.1, 0.05])))
     for side in ('L', 'R'):
         off, q = g[side]
         m = SK.qmat(q)

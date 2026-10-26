@@ -317,7 +317,7 @@ jobs:
     env:
       # every frame-gated demo, all landscape (the app is landscape-only); `layout` (the four-phone layout check)
       # runs as well but builds ~40 screens in one go, so it is not gated
-      DEMOS: firstlaunch combat beacon swarmshot swarmshot-dots swarm swarm3x calm squad squadclose squadtight title title-fresh title-return title-nm title-left probe hold extract holdhint queen queenlock coach coach3 pressure pressure-amber levelup pause pause-nm end report-first report-win report-loss report-chip release-combat
+      DEMOS: firstlaunch combat beacon swarmshot swarmshot-dots swarm swarm3x calm squad squadclose squadtight squadfire title title-fresh title-return title-nm title-left probe hold extract holdhint queen queenlock coach coach3 pressure pressure-amber levelup pause pause-nm end report-first report-win report-loss report-chip release-combat
       MENUS: levelup,pause,pause-nm,end,report-first,report-win,report-loss,report-chip
     steps:
       - uses: actions/checkout@v4
@@ -427,6 +427,8 @@ jobs:
           run_demo squad 8 "-demo calm -squadSheet" 0 2
           run_demo squadclose 8 "-demo calm -squadSheet -closeup" 0 2 4
           run_demo squadtight 6 "-demo calm -squadSheet -closeupTight" 0 3
+          # the four weapons firing at once in the close-up (flashes side-on, barrel heat, the shooters lit by them)
+          run_demo squadfire 6 "-demo calm -squadSheet -squadFire -closeup" 0 2 4
           run_demo title 6 "-demo title" 0
           # v1.1 title: a fresh profile (НОВОБРАНЕЦ selected, premise, no profile line) and a returning one (ВЕТЕРАН,
           # profile line, rank chips + medal pips); -layoutCheck logs overlaps / off-screen / small taps
@@ -561,7 +563,7 @@ jobs:
           need combat 'v11 start tier=vet coach=0'
           # WP4: the four skinned marines loaded (IHV1 skinned + texture arrays) and animated (rig CPU, foot slide,
           # hand-to-grip error once a second)
-          for d in combat squad squadclose squadtight; do
+          for d in combat squad squadclose squadtight squadfire; do
             need "$d" 'squad: 4 marines'
             need "$d" 'hb squad cpu='
             if grep -q 'ERROR' "results/app-$d.log"; then fail "$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; fi

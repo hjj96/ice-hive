@@ -160,6 +160,15 @@ final class WorldSquad {
     /// Muzzle of marine k this frame (world), when its rig has run.
     func muzzle(_ k: Int) -> F3? { k >= 0 && k < rigs.count ? rigs[k]?.worldSocket("muzzle") : nil }
 
+    /// Any socket of marine k this frame (world): "muzzle", "eject" (spent casings), "torch", "thrust" (jump pack).
+    func socket(_ k: Int, _ name: String) -> F3? { k >= 0 && k < rigs.count ? rigs[k]?.worldSocket(name) : nil }
+
+    /// The bore direction of marine k's weapon this frame (world, unit), when its rig has run.
+    func bore(_ k: Int) -> F3? {
+        guard k >= 0 && k < rigs.count, let r = rigs[k], let b = r.asset.sockets["muzzle"]?.bone else { return nil }
+        return r.worldAxis(b, F3(0, 0, 1))
+    }
+
     // ---------------------------------------------------------------- per frame
     /// Pose the squad for this frame.
     func build(game: Game, alpha: Float, dt: Float, time: Float, rise: Float) {
@@ -404,11 +413,13 @@ final class WorldSquad {
 
 // ================================================================ look-dev
 /// `-squadSheet`: the squad lined up across the game camera's view, facing it, each marine cycling through its clips
-/// (offset per marine, so one frame shows several); `-closeup` frames the line, `-closeupTight` the player's marine.
+/// (offset per marine, so one frame shows several); `-closeup` frames the line, `-closeupTight` the player's marine;
+/// `-squadFire`: all four hold and fire, their bores turned across the camera (the weapon flashes side-on).
 final class SquadLookDev {
     let on: Bool
     let closeUp: Bool
     let tight: Bool
+    let fire: Bool
     private var anchor = F3(0, 0, 0)
     private var anchored = false
 
@@ -416,6 +427,7 @@ final class SquadLookDev {
         let u = LaunchOptions.current.unknown
         on = u.contains("-squadSheet")
         tight = u.contains("-closeupTight")
+        fire = u.contains("-squadFire")
         closeUp = on && (u.contains("-closeup") || tight)
     }
 
@@ -450,6 +462,16 @@ final class SquadLookDev {
         I.revive = 0
         I.dead = false
         I.invulnerable = false
+        if fire {
+            // hold and fire: the bores across the camera, a slow sway so the frames differ
+            I.yaw = face + [1.15, 0.85, -0.85, -1.15][k % 4] + 0.12 * sinf(time * 0.7 + Float(k))
+            I.firing = true
+            I.spin = 1
+            let r: Float = [9, 0, 0, 22][k % 4]
+            let ph = fmodf(time * max(1, r) + Float(k) * 0.37, 1)
+            I.muzzle = r > 0 ? (ph < 0.5 ? 1 - ph * 2 : 0) : 0
+            return
+        }
         let cyc: Float = 12
         let t = fmodf(time + Float(k) * 3.1, cyc)
         switch t {

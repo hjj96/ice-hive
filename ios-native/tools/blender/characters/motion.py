@@ -49,10 +49,10 @@ GAIT = {
 # weapon-local (the weapon bone sits on the gun hand's grip; its axes are the model axes in the aim stance):
 # centre of each grip, its axis (the fist's knuckle line), the support hand's kind ('vertical' foregrip / 'top' handle)
 GRIPS = {
-    'assault': dict(sup=(-0.045, 0.01, 0.145), gun_axis=(0, 1, -0.27), sup_axis=(0, 1, 0.12), kind='vertical', muzzle=(0.0, 0.065, 0.71)),
-    'pyro':    dict(sup=(-0.07, 0.06, 0.17), gun_axis=(0, 1, -0.3), sup_axis=(0, 1, 0.2), kind='vertical', muzzle=(-0.01, 0.075, 0.76)),
-    'cryo':    dict(sup=(-0.055, 0.015, 0.15), gun_axis=(0, 1, -0.27), sup_axis=(0, 1, 0.1), kind='vertical', muzzle=(0.0, 0.06, 0.73)),
-    'gunner':  dict(sup=(-0.065, 0.17, 0.17), gun_axis=(0, 1, -0.2), sup_axis=(0, 0, 1), kind='top', muzzle=(-0.015, 0.06, 0.85)),
+    'assault': dict(sup=(-0.045, 0.01, 0.145), gun_axis=(0, 1, -0.27), sup_axis=(0, 1, 0.12), kind='vertical', muzzle=(0.0, 0.088, 0.715)),
+    'pyro':    dict(sup=(-0.095, 0.06, 0.17), gun_axis=(0, 1, -0.3), sup_axis=(0, 1, 0.2), kind='vertical', muzzle=(0.0, 0.088, 0.765)),
+    'cryo':    dict(sup=(-0.055, 0.015, 0.15), gun_axis=(0, 1, -0.27), sup_axis=(0, 1, 0.1), kind='vertical', muzzle=(0.0, 0.08, 0.765)),
+    'gunner':  dict(sup=(-0.07, 0.25, 0.17), gun_axis=(0, 1, -0.2), sup_axis=(0, 0, 1), kind='top', muzzle=(-0.015, 0.1, 0.88)),
 }
 
 
@@ -103,7 +103,8 @@ def grip_frames(cls):
     x = -ax
     y = np.cross(z, x)
     q = S.mat2q(np.stack([x, y, z], 1))
-    out['L'] = (np.zeros(3) - z * 0.078 + y * 0.012, q)
+    hs = S.HAND_SCALE
+    out['L'] = (np.zeros(3) - z * 0.078 * hs + y * 0.012 * hs, q)
     # support hand: from the right shoulder, across the body
     c = np.asarray(g['sup'], dtype=np.float64)
     if g['kind'] == 'vertical':
@@ -120,7 +121,7 @@ def grip_frames(cls):
         x = ax
         y = np.cross(z, x)
     q = S.mat2q(np.stack([x, y, z], 1))
-    out['R'] = (c - z * 0.078 + y * 0.014, q)
+    out['R'] = (c - z * 0.078 * hs + y * 0.014 * hs, q)
     return out
 
 
@@ -214,8 +215,27 @@ def stance_weapon(cls):
     return np.asarray(S.WEAPON[cls]['grip'], dtype=np.float64), Q0.copy()
 
 
-def build(cls, spec, report=None):
-    """Spec → Pose (FK + IK). `report`: list collecting the IK reach errors (m)."""
+def build(cls, spec, report=None, floor=True):
+    """Spec → Pose (FK + IK). `report`: list collecting the IK reach errors (m). A weapon that would sink into the deck
+    (a fall, the crawl, a dropped gun) is lifted by rebuilding with the gun hand / the weapon raised."""
+    rep = []
+    p = _build(cls, spec, rep)
+    if floor and spec.weapon_p is not None or floor and spec.weapon_mode == 'hand':
+        lift = weapon_floor_lift(cls, p)
+        if lift > 0:
+            s2 = spec.copy()
+            if s2.weapon_mode == 'hand':
+                s2.wrist['L'] = s2.wrist['L'] + np.array([0.0, lift, 0.0])
+            else:
+                s2.weapon_p = s2.weapon_p + np.array([0.0, lift, 0.0])
+            rep = []
+            p = _build(cls, s2, rep)
+    if report is not None:
+        report.extend(rep)
+    return p
+
+
+def _build(cls, spec, report=None):
     p = Pose(cls)
     # pelvis, spine, chest, neck / head (model-space targets → local)
     p.t[IDX['pelvis']] = spec.pelvis_p - p.t[IDX['root']]
@@ -280,6 +300,7 @@ def build(cls, spec, report=None):
         a = spec.ankle[side]
         if a is None:
             continue
+        a = floor_ankle(a, spec.foot_q[side], spec.toe[side])
         d = np.linalg.norm(a - hip)
         pole = (hip + a) * 0.5 + spec.knee_pole[side]
         err = solve_limb(p, 'thigh_' + side, 'shin_' + side, 'foot_' + side, a, pole, end_rot=spec.foot_q[side])
@@ -292,6 +313,43 @@ def build(cls, spec, report=None):
         p.q[IDX[n]] = qnorm(q)
     p.ctrl(spec.ik['L'], spec.ik['R'], spec.plant['L'], spec.plant['R'], spec.visor)
     return p
+
+
+def floor_ankle(a, fq, toe=0.0):
+    """The deck is a floor: a foot pivots on its ball (toes rolled under, a kneel, a fall) instead of sinking into it —
+    the ankle rises until the soles of the boot (under the heel, the ball and the bent toe's tip) clear the deck."""
+    a = np.asarray(a, dtype=np.float64)
+    ball = a + qrotate(fq, np.array([0.0, -0.08, 0.168]))
+    qt = qmul(fq, qeuler(x=-toe))
+    pts = [a + qrotate(fq, np.array([0.0, -0.112, -0.14])),          # heel sole
+           ball + qrotate(fq, np.array([0.0, -BALL_Y, 0.0])),        # sole under the ball
+           ball + qrotate(qt, np.array([0.0, -BALL_Y + 0.004, 0.1]))]  # sole under the toe's tip
+    lift = max(0.0, -min(p[1] for p in pts))
+    return a + np.array([0.0, lift, 0.0]) if lift > 0 else a
+
+
+# weapon-local bounds of each class's weapon (marines.weapon, the torch and the support grip included): a weapon in a
+# fall / crawl / drop must not sink into the deck
+WEAPON_BOX = {
+    'assault': ((-0.095, -0.13, -0.38), (0.055, 0.21, 0.72)),
+    'pyro':    ((-0.115, -0.075, -0.14), (0.095, 0.19, 0.77)),
+    'cryo':    ((-0.098, -0.075, -0.32), (0.078, 0.205, 0.77)),
+    'gunner':  ((-0.13, -0.075, -0.2), (0.125, 0.275, 0.88)),
+}
+
+
+def weapon_floor_lift(cls, p, clearance=0.006):
+    """How far the posed weapon's lowest corner is under `clearance` above the deck (0 when clear)."""
+    WQ, WP = p.world()
+    k = IDX['weapon']
+    lo, hi = (np.asarray(v, dtype=np.float64) for v in WEAPON_BOX[cls])
+    m = qmat(WQ[k])
+    ymin = 9.0
+    for cx in (lo[0], hi[0]):
+        for cy in (lo[1], hi[1]):
+            for cz in (lo[2], hi[2]):
+                ymin = min(ymin, float(WP[k][1] + (m @ np.array([cx, cy, cz]))[1]))
+    return max(0.0, clearance - ymin)
 
 
 FOLLOW = [('pauldron_L', 'upperarm_L', 0.4), ('pauldron_R', 'upperarm_R', 0.4),
@@ -411,24 +469,30 @@ def gait(cls, kind, dname, report, drift):
                 # toes down off the deck, level mid-swing, toes up before a walking heel strike
                 heel = G['heel'] * (1 - ease(ss / 0.45)) * (0.0 if back else 1.0) + (8.0 * ease((ss - 0.6) / 0.4) if back else 0.0)
                 if kind == 'walk' and not back:
-                    heel -= 10.0 * ease((ss - 0.55) / 0.35)
+                    heel -= 10.0 * ease((ss - 0.55) / 0.25) * (1.0 - ease((ss - 0.82) / 0.18))
                 plant = 0.0
                 lift_s = ss
             yaw = np.degrees(np.arctan2(legdir[0], legdir[2])) + 9.0 * sgn
             fq = qmul(qeuler(y=yaw), qeuler(x=heel))
             # ankle from the ball and the foot pitch; heel lifts further when the leg cannot reach (deck stays flat)
             hip = s.pelvis_p + qrotate(s.pelvis_q, np.array([sgn * 0.12, -0.03, 0.01]))
+            if heel < 0:
+                # toes up: the boot's heel (≈ 0.31 m behind the ball) would dip under the deck
+                ball = ball + np.array([0.0, 0.31 * np.sin(np.radians(-heel)), 0.0])
             ank = None
+            pitch = heel
             for extra in np.linspace(0.0, 60.0, 61):
                 fq2 = qmul(qeuler(y=yaw), qeuler(x=heel + extra))
                 a = ball + qrotate(fq2, np.array([0.0, 0.08, -0.168]))
                 if np.linalg.norm(a - hip) < LEG - 0.004 or extra >= 60.0:
-                    ank, fq = a, fq2
+                    ank, fq, pitch = a, fq2, heel + extra
                     break
             s.ankle[side] = ank
             s.foot_q[side] = fq
             s.knee_pole[side] = legdir * 1.0 + left_of(legdir) * 0.18 * sgn
-            s.toe[side] = max(0.0, heel) * (0.9 if plant > 0 else 0.3)
+            # toes stay flat on the deck through toe-off (bent up by the heel lift) and only point down mid-swing
+            tb = 0.97 if plant > 0 else 0.97 - 0.67 * ease(lift_s / 0.35)
+            s.toe[side] = max(0.0, pitch) * tb
             s.plant[side] = plant
             plant_hist[side].append((k, plant, ball, lift_s))
         s.extra['antenna'] = qeuler(x=-6.0 * bob / max(G['bob'], 1e-6) * 0.5 - (4.0 if kind == 'run' else 1.0),
@@ -578,13 +642,13 @@ def fire(cls, report):
         poses = []
         for a in prof:
             s = st.copy()
-            dq = qeuler(x=-2.4 * a, y=-1.2 * a)
+            dq = qeuler(x=-3.2 * a, y=-1.6 * a)
             s.chest_q = qmul(dq, st.chest_q)
             carried(cls, s, piv, dq)
-            s.weapon_p = s.weapon_p + np.array([0.004 * a, 0.014 * a, -0.045 * a])
-            s.weapon_q = qmul(qeuler(x=-5.0 * a, y=0.9 * a), s.weapon_q)
-            s.head_q = qeuler(x=4.0 - 1.6 * a)
-            s.pelvis_p = st.pelvis_p + np.array([0, 0, -0.006 * a])
+            s.weapon_p = s.weapon_p + np.array([0.005 * a, 0.019 * a, -0.062 * a])
+            s.weapon_q = qmul(qeuler(x=-7.0 * a, y=1.1 * a), s.weapon_q)
+            s.head_q = qeuler(x=4.0 - 2.2 * a)
+            s.pelvis_p = st.pelvis_p + np.array([0, 0, -0.009 * a])
             poses.append(build(cls, s, report))
         return Clip('fire', poses, False, additive=True)
     n = 6 if cls == 'gunner' else 12
@@ -595,12 +659,12 @@ def fire(cls, report):
         push = 0.0 if k == 0 else 1.0
         if cls == 'gunner':
             j = np.array([np.sin(2 * np.pi * u * 2 + 0.3), np.sin(2 * np.pi * u * 3), np.sin(2 * np.pi * u + 1.0)])
-            dq = qeuler(x=(-2.2 + 0.5 * j[2]) * push)
+            dq = qeuler(x=(-2.8 + 0.7 * j[2]) * push)
             s.chest_q = qmul(dq, st.chest_q)
             carried(cls, s, piv, dq)
-            s.weapon_p = s.weapon_p + np.array([0.004 * j[0], 0.005 * j[1], -0.02]) * push
-            s.weapon_q = qmul(qeuler(x=-1.3 * j[1] * push, y=0.9 * j[0] * push), s.weapon_q)
-            s.pelvis_p = st.pelvis_p + np.array([0, 0, -0.014 * push])
+            s.weapon_p = s.weapon_p + np.array([0.006 * j[0], 0.007 * j[1], -0.027]) * push
+            s.weapon_q = qmul(qeuler(x=-1.8 * j[1] * push, y=1.2 * j[0] * push), s.weapon_q)
+            s.pelvis_p = st.pelvis_p + np.array([0, 0, -0.018 * push])
         else:
             w = np.sin(2 * np.pi * u)
             tr = np.sin(2 * np.pi * u * 3) if cls == 'cryo' else np.sin(2 * np.pi * u * 2)
@@ -608,7 +672,7 @@ def fire(cls, report):
             dq = qeuler(x=(-1.6 if cls == 'pyro' else -0.8) * push)
             s.chest_q = qmul(dq, st.chest_q)
             carried(cls, s, piv, dq)
-            s.weapon_p = s.weapon_p + np.array([amp * tr, amp * w, -0.018 if cls == 'pyro' else -0.01]) * push
+            s.weapon_p = s.weapon_p + np.array([amp * tr, amp * w, -0.024 if cls == 'pyro' else -0.012]) * push
             s.weapon_q = qmul(qeuler(x=((-1.8 if cls == 'pyro' else -0.6) + (1.0 if cls == 'pyro' else 0.3) * w) * push,
                                      y=(0.8 if cls == 'pyro' else 0.25) * tr * push), s.weapon_q)
         poses.append(build(cls, s, report))
@@ -638,14 +702,14 @@ def prone(cls, phase=0.0, reach=0.0):
     drawn up by the crawl phase."""
     s = Spec()
     sp = np.sin(phase)
-    s.pelvis_p = np.array([0.0, 0.215 + 0.025 * reach, -0.3])
+    s.pelvis_p = np.array([0.0, 0.24 + 0.025 * reach, -0.3])
     s.pelvis_q = qmul(qeuler(y=3.0 * sp), qmul(qeuler(x=88.0), qeuler(z=4.0 * reach)))
     s.chest_q = qmul(qeuler(y=-3.0 * sp), qmul(qeuler(x=78.0 - 10.0 * reach), qeuler(z=-5.0 * reach)))
     s.spine_k = (0.4, 0.72)
     s.head_q = qmul(qeuler(y=6.0 * np.sin(phase * 0.5)), qeuler(x=34.0 - 10.0 * reach))
     # gun hand on the deck beside the head, the weapon lying on its side, muzzle forward
     s.weapon_mode = 'hand'
-    s.wrist['L'] = np.array([0.33, 0.075, 0.42 + 0.04 * reach])
+    s.wrist['L'] = np.array([0.33, 0.105, 0.42 + 0.04 * reach])
     s.hand_q['L'] = hand_rot('L', x=(0.0, 0.0, -1.0), y=(1.0, 0.0, 0.0), z=(0.0, -1.0, 0.0))
     s.hand_q['L'] = hand_rot('L', x=(0.2, 0.0, -1.0), y=(0.25, 1.0, 0.0), z=(1.0, -0.15, 0.25))
     s.elbow_pole['L'] = np.array([0.7, 0.3, -0.4])
@@ -653,14 +717,17 @@ def prone(cls, phase=0.0, reach=0.0):
     s.wrist['R'] = np.array([-0.3, 0.075, 0.42 + 0.34 * reach])
     s.hand_q['R'] = hand_rot('R', x=(1.0, 0.0, 0.0), y=(0.0, 1.0, 0.0), z=(0.1, 0.0, 1.0))
     s.elbow_pole['R'] = np.array([-0.9, 0.4, -0.2])
+    # legs: an army crawl — the knee of the pushing leg swings out to the side (it bends in the deck's plane, never
+    # down into it), the toes dig in (feet steep, the ankle high enough that the toe cap rests on the deck)
     kL = 0.5 + 0.5 * sp
     kR = 0.5 - 0.5 * sp
-    s.ankle['L'] = np.array([0.2 + 0.14 * kL, 0.13, -1.12 + 0.34 * kL])
-    s.ankle['R'] = np.array([-0.2 - 0.14 * kR, 0.13, -1.12 + 0.34 * kR])
-    s.foot_q['L'] = qeuler(x=92.0, y=8.0)
-    s.foot_q['R'] = qeuler(x=92.0, y=-8.0)
-    s.knee_pole['L'] = np.array([0.5, -1.0, 0.2])
-    s.knee_pole['R'] = np.array([-0.5, -1.0, 0.2])
+    s.ankle['L'] = np.array([0.2 + 0.2 * kL, 0.2, -1.1 + 0.3 * kL])
+    s.ankle['R'] = np.array([-0.2 - 0.2 * kR, 0.2, -1.1 + 0.3 * kR])
+    s.foot_q['L'] = qmul(qeuler(y=10.0 + 25.0 * kL), qeuler(x=78.0))
+    s.foot_q['R'] = qmul(qeuler(y=-10.0 - 25.0 * kR), qeuler(x=78.0))
+    s.knee_pole['L'] = np.array([1.0, 0.08, 0.2])
+    s.knee_pole['R'] = np.array([-1.0, 0.08, 0.2])
+    s.toe = {'L': 66.0, 'R': 66.0}
     s.plant = {'L': 0.0, 'R': 0.0}
     s.pauldron = 0.25
     s.visor = 0.75
@@ -670,7 +737,7 @@ def prone(cls, phase=0.0, reach=0.0):
 def kneel_both(cls):
     """On both knees, slumped forward (the fall's middle)."""
     s = Spec()
-    s.pelvis_p = np.array([0.0, 0.56, -0.06])
+    s.pelvis_p = np.array([0.0, 0.63, -0.06])
     s.pelvis_q = qeuler(x=14.0)
     s.chest_q = qeuler(x=34.0, z=-6.0, y=8.0)
     s.head_q = qeuler(x=30.0, z=8.0)
@@ -683,9 +750,10 @@ def kneel_both(cls):
     s.hand_q['R'] = hand_rot('R', x=(1.0, 0.0, 0.0), y=(0.0, 0.3, -1.0), z=(0.0, -1.0, -0.3))
     s.elbow_pole['R'] = np.array([-0.9, -0.4, -0.2])
     for sd, sg in (('L', 1.0), ('R', -1.0)):
-        s.ankle[sd] = np.array([0.14 * sg, 0.13, -0.42])
-        s.foot_q[sd] = qeuler(x=150.0, y=6.0 * sg)
+        s.ankle[sd] = np.array([0.14 * sg, 0.2, -0.42])
+        s.foot_q[sd] = qeuler(x=84.0, y=6.0 * sg)
         s.knee_pole[sd] = np.array([0.1 * sg, -0.4, 1.0])
+        s.toe[sd] = 66.0
     s.plant = {'L': 0.0, 'R': 0.0}
     s.visor = 0.9
     return s
@@ -709,7 +777,7 @@ def down(cls, report):
     kn = kneel_both(cls)
     pr = prone(cls)
     mid = lerp_spec(bake_hand_keys(cls, [(0, kn)])[0][1], bake_hand_keys(cls, [(0, pr)])[0][1], 0.6)
-    mid.wrist['R'] = np.array([-0.28, 0.08, 0.5])
+    mid.wrist['R'] = np.array([-0.28, 0.115, 0.5])
     mid.pelvis_p = mid.pelvis_p + np.array([0, 0.08, 0])
     keys = [(0, st), (5, buckle), (12, kn), (19, mid), (27, pr)]
     return keyed(cls, 'down', keys, 28, report=report, easing=[ease_out, ease, ease, ease_out])
@@ -735,12 +803,12 @@ def revive(cls, report):
     aim stance (44). The app scrubs it by the revive progress, then plays the rest once revived."""
     pr = prone(cls)
     hk = Spec()
-    hk.pelvis_p = np.array([0.0, 0.6, -0.34])
+    hk.pelvis_p = np.array([0.0, 0.65, -0.34])
     hk.pelvis_q = qeuler(x=38.0)
     hk.chest_q = qeuler(x=64.0)
     hk.head_q = qeuler(x=22.0)
     hk.weapon_mode = 'hand'
-    hk.wrist['L'] = np.array([0.3, 0.075, 0.34])
+    hk.wrist['L'] = np.array([0.3, 0.105, 0.34])
     hk.hand_q['L'] = pr.hand_q['L']
     hk.elbow_pole['L'] = np.array([0.8, 0.3, -0.3])
     hk.ik = {'L': 1.0, 'R': 0.0}
@@ -748,13 +816,14 @@ def revive(cls, report):
     hk.hand_q['R'] = pr.hand_q['R']
     hk.elbow_pole['R'] = np.array([-0.9, 0.3, -0.2])
     for sd, sg in (('L', 1.0), ('R', -1.0)):
-        hk.ankle[sd] = np.array([0.15 * sg, 0.13, -0.86])
-        hk.foot_q[sd] = qeuler(x=150.0, y=6.0 * sg)
-        hk.knee_pole[sd] = np.array([0.1 * sg, -1.0, 0.5])
+        hk.ankle[sd] = np.array([0.15 * sg, 0.2, -0.86])
+        hk.foot_q[sd] = qeuler(x=84.0, y=6.0 * sg)
+        hk.knee_pole[sd] = np.array([0.15 * sg, -0.5, 1.0])
+        hk.toe[sd] = 66.0
     hk.plant = {'L': 0.0, 'R': 0.0}
     hk.visor = 0.9
     kneel = stance(cls)
-    kneel.pelvis_p = np.array([0.03, 0.6, -0.12])
+    kneel.pelvis_p = np.array([0.03, 0.66, -0.12])
     kneel.pelvis_q = qeuler(x=6.0, y=8.0)
     kneel.chest_q = qeuler(x=14.0, y=STYLE[cls]['blade'] * 0.7)
     kneel.head_q = qeuler(x=6.0)
@@ -762,8 +831,9 @@ def revive(cls, report):
     kneel.weapon_p = wp + np.array([-0.02, -0.36, -0.1])
     kneel.weapon_q = qeuler(x=14.0)
     kneel.ik = {'L': 1.0, 'R': 1.0}
-    kneel.ankle['L'] = np.array([0.16, 0.13, -0.55])
-    kneel.foot_q['L'] = qeuler(x=150.0, y=10.0)
+    kneel.ankle['L'] = np.array([0.16, 0.2, -0.55])
+    kneel.foot_q['L'] = qeuler(x=84.0, y=10.0)
+    kneel.toe['L'] = 66.0
     kneel.knee_pole['L'] = np.array([0.05, -1.0, 0.3])
     kneel.ankle['R'] = np.array([-0.15, 0.115, 0.3])
     kneel.foot_q['R'] = qeuler(y=-4.0)
@@ -786,21 +856,23 @@ def death(cls, report):
     spasm.head_q = qeuler(x=44.0, z=12.0)
     spasm.visor = 0.95
     limp = prone(cls)
-    limp.pelvis_p = limp.pelvis_p + np.array([0.0, -0.02, 0.0])
+    limp.pelvis_p = limp.pelvis_p + np.array([0.0, 0.01, 0.0])
     limp.pelvis_q = qmul(qeuler(x=90.0), qeuler(z=-10.0))
     limp.chest_q = qmul(qeuler(x=90.0), qeuler(z=-18.0))
     limp.head_q = qeuler(x=80.0, z=-26.0, y=18.0)
     limp.weapon_mode = 'world'
     wl = bake_hand_keys(cls, [(0, pr)])[0][1]
-    limp.weapon_p = wl.weapon_p + np.array([0.16, -0.01, 0.12])
+    limp.weapon_p = wl.weapon_p + np.array([0.16, 0.02, 0.12])
     limp.weapon_q = qmul(qeuler(y=-24.0), wl.weapon_q)
     limp.ik = {'L': 0.0, 'R': 0.0}
     limp.wrist['L'] = np.array([0.36, 0.075, 0.3])
     limp.hand_q['L'] = hand_rot('L', x=(0.0, 0.0, -1.0), y=(0.3, 1.0, 0.0), z=(1.0, -0.2, 0.2))
     limp.wrist['R'] = np.array([-0.4, 0.075, 0.36])
     limp.elbow_pole['R'] = np.array([-0.9, 0.5, 0.0])
-    limp.ankle['L'] = np.array([0.26, 0.13, -1.06])
-    limp.ankle['R'] = np.array([-0.24, 0.13, -1.1])
+    limp.ankle['L'] = np.array([0.3, 0.2, -1.04])
+    limp.ankle['R'] = np.array([-0.26, 0.2, -1.08])
+    limp.foot_q['L'] = qmul(qeuler(y=30.0), qeuler(x=74.0))
+    limp.foot_q['R'] = qmul(qeuler(y=-14.0), qeuler(x=80.0))
     limp.visor = 0.0
     fade = lerp_spec(bake_hand_keys(cls, [(0, spasm)])[0][1], limp, 0.5)
     fade.visor = 0.3

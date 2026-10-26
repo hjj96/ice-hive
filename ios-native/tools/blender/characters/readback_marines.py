@@ -279,7 +279,7 @@ def deck(size=30.0, z=0.0):
     return ob
 
 
-def lights(key_from=(-2.5, 3.2, 3.2), key=420.0, rim=160.0, fill=0.05):
+def lights(key_from=(-2.5, 3.2, 3.2), key=420.0, rim=160.0, fill=0.05, aim=(0.0, 0.0, 1.0)):
     """Warm flashlight key (a spot), cold rim from behind, faint cold fill — the blend's light."""
     sc = bpy.context.scene
     ld = bpy.data.lights.new('key', 'SPOT')
@@ -291,7 +291,7 @@ def lights(key_from=(-2.5, 3.2, 3.2), key=420.0, rim=160.0, fill=0.05):
     k = bpy.data.objects.new('key', ld)
     sc.collection.objects.link(k)
     k.location = key_from
-    k.rotation_euler = (Vector((0, 0, 1.0)) - Vector(key_from)).to_track_quat('-Z', 'Y').to_euler()
+    k.rotation_euler = (Vector(aim) - Vector(key_from)).to_track_quat('-Z', 'Y').to_euler()
     lr = bpy.data.lights.new('rim', 'AREA')
     lr.energy = rim
     lr.color = (0.55, 0.75, 1.0)
@@ -358,7 +358,7 @@ def sheet(A, out, samples):
         deck()
         lights(key_from=g(-0.6, 2.4, 2.6), key=180.0)
         posed_object(A, cls, 'idle', 0.0, cls)
-        camera(g(0.7, 1.55, 1.25), g(0.08, 1.45, 0.25), lens=50)
+        camera(g(1.05, 1.62, 1.75), g(0.12, 1.38, 0.3), lens=50)
         p = os.path.join(out, f'_sheet_{cls}_close.png')
         render(p, 520, 700)
         tiles.append(p)
@@ -396,6 +396,8 @@ STRIPS = [
     ('assault', 'run_f', 8, 'Штурмовик · бег вперёд (фаза по пройденному пути, стопы стоят)'),
     ('pyro', 'run_l', 8, 'Огнемётчик · бег боком (8 направлений, корпус держит прицел)'),
     ('assault', 'fire', 6, 'Штурмовик · отдача выстрела (корпус — плечи — оружие)'),
+    ('gunner', 'fire', 6, 'Пулемётчик · огонь: дрожь ротора через корпус, стволы крутятся'),
+    ('pyro', 'fire', 6, 'Огнемётчик · огонь: давление струи, раскачка сопла'),
     ('gunner', 'run_fr', 8, 'Пулемётчик · бег по диагонали, стволы крутятся'),
     ('cryo', 'dash_f', 8, 'Криотехник · рывок: присед — толчок — приземление'),
     ('assault', 'flinch_f', 6, 'Штурмовик · попадание спереди'),
@@ -407,35 +409,57 @@ STRIPS = [
 
 
 def strips(A, out, samples):
+    """Each strip: the clip's frames posed side by side in one scene (4 m apart), each rendered as its own tile with
+    its own camera and flashlight key (3/4 from the weapon side), so every frame reads at ≈ 400 px tall."""
+    from PIL import Image, ImageDraw
+    TW, TH = 300, 440
     rows = []
     for cls, clip, n, title in STRIPS:
         if cls not in CLASSES_SHOWN:
             continue
         reset(samples)
-        deck(60.0)
-        lights(key_from=g(-1.5, 4.5, 6.0), key=900.0, rim=400.0)
+        deck(80.0)
         c = A.clip(cls, clip)
         dur = c['duration'] if c['frames'] > 1 else 0.0
         add = clip in ('fire', 'flinch_f', 'flinch_b')
-        gap = 1.45
+        gap = 4.0
+        prone = clip in ('down', 'downed', 'revive', 'death')
         for k in range(n):
             t = dur * k / (n - 1 if not c['loop'] else n)
             if add:
                 t = dur * k / (n - 1)
             aux = (k * 40.0) if cls == 'gunner' else 0.0
             posed_object(A, cls, clip, t, f'{cls}_{k}', loc=g((k - (n - 1) / 2) * gap, 0, 0), yaw=0.0, aux=aux)
-        camera(g(-0.0 + 4.5, 3.6, 5.2 + 6.0), g(0.0, 0.7, 0.0), lens=34)
-        p = os.path.join(out, f'_strip_{cls}_{clip}.png')
-        render(p, 1800, 330)
-        rows.append((p, title, cls))
-    from PIL import Image, ImageDraw
-    S = Image.new('RGB', (1800, len(rows) * 372 + 60), (8, 10, 14))
+        tiles = []
+        for k in range(n):
+            x = (k - (n - 1) / 2) * gap
+            for o in [o for o in bpy.context.scene.objects if o.type in ('LIGHT', 'CAMERA')]:
+                bpy.data.objects.remove(o)
+            lights(key_from=g(x - 1.2, 3.4, 3.0), key=380.0, rim=150.0, aim=g(x, 0.9, 0.0))
+            for o in bpy.context.scene.objects:
+                if o.type == 'LIGHT' and o.name.startswith('rim'):
+                    o.location = g(x - 2.0, 3.0, -2.5)
+            ty = 0.45 if prone else 0.95
+            camera(g(x + 2.0, 1.55 if not prone else 1.9, 3.3), g(x + 0.05, ty, 0.1 if not prone else -0.2), lens=40)
+            pth = os.path.join(out, f'_strip_{cls}_{clip}_{k}.png')
+            render(pth, TW, TH)
+            tiles.append(pth)
+        strip = Image.new('RGB', (TW * n, TH), (8, 10, 14))
+        for k, pth in enumerate(tiles):
+            strip.paste(Image.open(pth).convert('RGB'), (k * TW, 0))
+        sp = os.path.join(out, f'_strip_{cls}_{clip}.png')
+        strip.save(sp)
+        for pth in tiles:
+            os.remove(pth)
+        rows.append((sp, title, cls, TW * n))
+    W = max(r[3] for r in rows) if rows else 1800
+    S = Image.new('RGB', (W, len(rows) * (TH + 44) + 60), (8, 10, 14))
     d = ImageDraw.Draw(S)
-    d.text((16, 14), 'ЛЕДЯНОЙ УЛЕЙ · ОТРЯД — анимационные полосы из отгруженных дорожек клипов', fill=(230, 235, 240), font=font(28))
-    for r, (p, title, cls) in enumerate(rows):
+    d.text((16, 14), 'ЛЕДЯНОЙ УЛЕЙ · ОТРЯД — анимационные полосы из отгруженных дорожек клипов (кадры слева направо)', fill=(230, 235, 240), font=font(28))
+    for r, (p, title, cls, _) in enumerate(rows):
         hu = HUE[cls]
-        d.text((16, 60 + r * 372 + 4), title, fill=((hu >> 16) & 255, (hu >> 8) & 255, hu & 255), font=font(24))
-        S.paste(Image.open(p).convert('RGB'), (0, 60 + r * 372 + 40))
+        d.text((16, 60 + r * (TH + 44) + 6), title, fill=((hu >> 16) & 255, (hu >> 8) & 255, hu & 255), font=font(26))
+        S.paste(Image.open(p).convert('RGB'), (0, 60 + r * (TH + 44) + 40))
     S.save(os.path.join(out, 'marine_strips.png'))
     log('strips → marine_strips.png')
 

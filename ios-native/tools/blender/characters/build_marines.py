@@ -48,6 +48,9 @@ NRM_SIZE = 1024
 ORM_SIZE = 512
 BAKE_SRC = os.path.join(HERE, 'bake_src')
 THREADS = 3
+# the floor gate: no clip may put a skinned vertex deeper than this under the deck (the sole's chamfer, a plate's rim
+# pressed into the grating — the deck's own grid bevels hide that much)
+FLOOR_GATE = -0.02
 REGIONS = ['body', 'head', 'pauldron', 'hands', 'pack', 'weapon']
 # texel share per region (relative scale of its islands before packing)
 REGION_SCALE = {'body': 1.0, 'head': 1.45, 'pauldron': 1.25, 'hands': 0.8, 'pack': 0.9, 'weapon': 1.1}
@@ -228,7 +231,7 @@ def high_material(cls, kind):
     armour show steel), B 0; kind 'decal': R = the decal's paint value (face attribute 'decal')."""
     mats = MR.materials(cls)
     out = []
-    for slot in range(9):
+    for slot in range(len(mats)):
         alb, rough, metal, glow, flags = mats[slot]
         m = bpy.data.materials.new(f'hp_{kind}_{slot}')
         m.use_nodes = True
@@ -569,10 +572,17 @@ def main():
         D.update(dict(bone_rest=rest, tracks=tracks.astype(np.float32)))
         lod = dict(vertices=V)
         lo_min, lo_max = np.full(3, np.inf), np.full(3, -np.inf)
-        for row in range(0, len(tracks), 3):
-            Pp, _ = ihv.skin_row(D, lod, row)
-            lo_min = np.minimum(lo_min, Pp.min(0))
-            lo_max = np.maximum(lo_max, Pp.max(0))
+        # floor clearance: the lowest skinned vertex of each clip (a prone / kneeling armour plate must not sink into
+        # the deck: gate ≥ −1.5 cm, the sole's chamfer and the deck's own bevel hide that much)
+        floor = {}
+        for r in recs:
+            ymin = np.inf
+            for row in range(r['first'], r['first'] + r['frames']):
+                Pp, _ = ihv.skin_row(D, lod, row)
+                lo_min = np.minimum(lo_min, Pp.min(0))
+                lo_max = np.maximum(lo_max, Pp.max(0))
+                ymin = min(ymin, float(Pp[:, 1].min()))
+            floor[r['name']] = ymin
         socks = [(nm, [], SK.IDX[bone], 0, tuple(float(x) for x in off)) for nm, bone, off in MR.sockets(cls)]
         path = os.path.join(out, f'marine_{cls}.ihv')
         size = ihv.write(path, motion.FPS, recs, [dict(vertices=V, indices=I, draw_vertex_count=len(V), switch_px=0.0,
@@ -585,6 +595,14 @@ def main():
             report['gates']['foot_drift_m'][f'{cls}/{k}'] = round(float(v), 5)
         for k, v in ik.items():
             report['gates']['ik_err_m'][f'{cls}/{k}'] = round(float(v), 6)
+        report['gates'].setdefault('floor_min_y_m', {})
+        for k, v in floor.items():
+            report['gates']['floor_min_y_m'][f'{cls}/{k}'] = round(v, 4)
+        worst = min(floor.items(), key=lambda kv: kv[1])
+        log(f'{cls}: lowest vertex {worst[1] * 100:.1f} cm in {worst[0]}; IK worst {max(ik.values()) * 1000:.1f} mm; '
+            f'drift worst {max(drift.values()) * 100:.2f} cm')
+        if worst[1] < FLOOR_GATE:
+            raise SystemExit(f'{cls}: {worst[0]} puts a vertex {-worst[1] * 100:.1f} cm under the deck (gate {-FLOOR_GATE * 100:.1f} cm)')
     if len(normals) == len(MR.CLASSES):
         nl = iht.encode_layers([np.dstack([n, np.ones(n.shape[:2])]) for n in normals], 3, 'normal')
         iht.write(os.path.join(out, 'marine_normal.iht'), 3, NRM_SIZE, NRM_SIZE, nl, flags=iht.FL_NORMAL | iht.FL_ARRAY)

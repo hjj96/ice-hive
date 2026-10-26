@@ -13,8 +13,9 @@ import bmesh
 import numpy as np
 from mathutils import Matrix, Vector
 
-# material slots (marines.py MATERIALS gives colour / roughness / metal per class)
-ARMOUR, PAINT, DARK, METAL, GLOW, GLASS, SOLE, LAMP, BRASS = range(9)
+# material slots (marines.py MATERIALS gives colour / roughness / metal per class); HOT = gunmetal that glows with heat
+# under sustained fire (barrels, muzzle brakes, the flamer's nozzle, the cryo emitter: vertex flag bit3)
+ARMOUR, PAINT, DARK, METAL, GLOW, GLASS, SOLE, LAMP, BRASS, HOT = range(10)
 
 
 class Part:

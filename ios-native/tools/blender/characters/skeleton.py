@@ -48,7 +48,7 @@ BONES = [
     ('pauldron_L', 7, (0.265, 1.625, -0.02)),
     ('pauldron_R', 11, (-0.265, 1.625, -0.02)),
     ('backpack', 4, (0.0, 1.43, -0.215)),
-    ('antenna', 27, (0.115, 1.62, -0.29)),
+    ('antenna', 27, (0.135, 1.655, -0.33)),
     ('tasset_L', 1, (0.125, 1.005, 0.115)),
     ('tasset_R', 1, (-0.125, 1.005, 0.115)),
     ('ctrl', 0, (0.0, 0.0, 0.0)),
@@ -61,6 +61,7 @@ assert NB == 32
 
 UPPERARM, FOREARM, HAND = 0.30, 0.285, 0.105
 ARM_DOWN = np.radians(50.0)          # A-pose: the arms 50° below the horizontal, slightly forward
+HAND_SCALE = 1.12                    # the gauntleted fists (marines.hand_canonical) and their grip offsets (motion.grip_frames)
 
 
 def arm_dirs(side):
@@ -90,8 +91,8 @@ def _arm(side):
 WEAPON = {
     'assault': dict(grip=(0.215, 1.15, 0.24), aux=(0.215, 1.215, 0.60)),
     'pyro':    dict(grip=(0.235, 1.075, 0.19), aux=(0.225, 1.155, 0.90)),
-    'cryo':    dict(grip=(0.22, 1.13, 0.22), aux=(0.22, 1.19, 0.62)),
-    'gunner':  dict(grip=(0.26, 1.04, 0.13), aux=(0.245, 1.10, 0.60)),
+    'cryo':    dict(grip=(0.22, 1.13, 0.22), aux=(0.22, 1.21, 0.62)),
+    'gunner':  dict(grip=(0.26, 1.04, 0.13), aux=(0.245, 1.14, 0.60)),
 }
 
 
