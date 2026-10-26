@@ -148,6 +148,13 @@ final class WorldSwarm {
     /// Body length of each type (model m): the LOD size measure.
     private var lens: [Float] = [1, 1, 1, 1]
     private var buildMs: Double = 0
+    /// writeRegions scratch (instances per type × LOD, their arena pointers), kept so a frame allocates nothing on the heap.
+    private var lodN = [[Int]](repeating: [0, 0, 0], count: 4)
+    private var lodPtr = [[UnsafeMutablePointer<CreatureInstance>?]](repeating: [nil, nil, nil], count: 4)
+    /// A build slower than this (wall ms, diagnostics) is logged with the main thread's CPU time inside it — `swarm: slow
+    /// build N ms (thread cpu M ms) wall=…` — so CI tells the swarm's own work from time the thread spent off the CPU (a
+    /// simulator host stall that lands in the build: CI a3c4878 release-combat's one 49 ms `bug` section).
+    static let slowBuildMs: Double = 8
     // look-dev options
     private let forcedLOD: Int?
     private let glintsOff: Bool
@@ -260,9 +267,11 @@ final class WorldSwarm {
     /// burning bugs.
     func build(game: Game, alpha: Float, time: Float, dt: Float, camera: MetalCamera, spot: (pos: F3, dir: F3)?, fx: MetalEffects) {
         let t0 = FrameTimer.now()
+        let c0 = AppLog.diagnostics ? CPUTime.thread() : 0
         for t in 0..<4 { for l in 0..<3 { regions[t][l] = Region() }; liveN[t] = 0; allN[t] = 0 }
         glintRegion = Region(); glintCount = 0; proxies = Region()
-        visible = 0; corpsesDrawn = 0; swarmTriangles = 0; lodCounts = [0, 0, 0]
+        visible = 0; corpsesDrawn = 0; swarmTriangles = 0
+        for l in 0..<3 { lodCounts[l] = 0 }
         guard let lib = library, let A = animator, let r = renderer else { return }
         clock += dt
         A.beginFrame()
@@ -281,7 +290,12 @@ final class WorldSwarm {
         writeRegions(lib, high: high)
         if sheet == nil { buildProxies(r, high: high, squad: spot != nil) }
         buildParams(time: time)
-        buildMs += ((FrameTimer.now() - t0) * 1000 - buildMs) * 0.1
+        let wallMs = (FrameTimer.now() - t0) * 1000
+        buildMs += (wallMs - buildMs) * 0.1
+        if AppLog.diagnostics && wallMs > WorldSwarm.slowBuildMs {
+            AppLog.info(String(format: "swarm: slow build %.0f ms (thread cpu %.1f ms) wall=%.3f", wallMs,
+                               (CPUTime.thread() - c0) * 1000, Date().timeIntervalSince1970))
+        }
         heartbeat(corps, high: high)
     }
 
@@ -560,19 +574,18 @@ final class WorldSwarm {
 
     private func writeRegions(_ lib: CreatureLibrary, high: Bool) {
         let r = renderer!
-        var counts = [[Int]](repeating: [0, 0, 0], count: 4)
-        for t in 0..<4 { for k in 0..<allN[t] { counts[t][Int(lodHint[t][k])] += 1 } }
-        var ptrs = [[UnsafeMutablePointer<CreatureInstance>?]](repeating: [nil, nil, nil], count: 4)
+        for t in 0..<4 { for l in 0..<3 { lodN[t][l] = 0; lodPtr[t][l] = nil } }
+        for t in 0..<4 { for k in 0..<allN[t] { lodN[t][Int(lodHint[t][k])] += 1 } }
         for t in 0..<4 {
-            for l in 0..<3 where counts[t][l] > 0 {
-                if let a = r.alloc(CreatureInstance.self, counts[t][l]) { ptrs[t][l] = a.0; regions[t][l] = Region(offset: a.1, count: 0) }
+            for l in 0..<3 where lodN[t][l] > 0 {
+                if let a = r.alloc(CreatureInstance.self, lodN[t][l]) { lodPtr[t][l] = a.0; regions[t][l] = Region(offset: a.1, count: 0) }
             }
         }
         for t in 0..<4 {
             let L = lib.types[t].lods
             for k in 0..<allN[t] {
                 let l = Int(lodHint[t][k])
-                guard let p = ptrs[t][l] else { continue }
+                guard let p = lodPtr[t][l] else { continue }
                 var inst = scratch[t][k]
                 let lv = WorldSwarm.lodValue[t][l]
                 if lv != 1 { inst.tint.x *= lv; inst.tint.y *= lv; inst.tint.z *= lv }
@@ -621,10 +634,18 @@ final class WorldSwarm {
     /// (its atlas tile exists on every tier), the squad's when `squad`.
     private func buildProxies(_ r: MetalRenderer, high: Bool, squad: Bool) {
         let F = r.frame
-        let sp = [F.spotPos.0, F.spotPos.1, F.spotPos.2, F.spotPos.3], sd = [F.spotDir.0, F.spotDir.1, F.spotDir.2, F.spotDir.3]
-        var cones: [(F3, F3)] = []
-        for k in 0..<(squad ? 4 : 1) where sp[k].w > 0 { cones.append((F3(sp[k].x, sp[k].y, sp[k].z), F3(sd[k].x, sd[k].y, sd[k].z))) }
-        if cones.isEmpty { return }
+        // the lit cones (no heap: a fixed tuple of 4)
+        let zero = (F3.zero, F3.zero)
+        var cones = (zero, zero, zero, zero)
+        var nc = 0
+        for k in 0..<(squad ? 4 : 1) {
+            let p = WorldSwarm.pick(F.spotPos, k), d = WorldSwarm.pick(F.spotDir, k)
+            if p.w <= 0 { continue }
+            let c = (F3(p.x, p.y, p.z), F3(d.x, d.y, d.z))
+            switch nc { case 0: cones.0 = c; case 1: cones.1 = c; case 2: cones.2 = c; default: cones.3 = c }
+            nc += 1
+        }
+        if nc == 0 { return }
         let cap = high ? WorldSwarm.shadowProxyMax.high : WorldSwarm.shadowProxyMax.efficient
         guard let a = r.alloc(CreatureInstance.self, cap) else { return }
         let cosCone = cosf(0.6)
@@ -633,7 +654,8 @@ final class WorldSwarm {
             for k in 0..<liveN[t] {
                 let p = scratch[t][k].pos
                 let c = F3(p.x, p.y + 0.3 * p.w, p.z)
-                for (pos, dir) in cones {
+                for j in 0..<nc {
+                    let (pos, dir) = j == 0 ? cones.0 : (j == 1 ? cones.1 : (j == 2 ? cones.2 : cones.3))
                     let o = c - pos
                     let d2 = (o * o).sum()
                     if d2 < 32 * 32 && (o * dir).sum() > cosCone * d2.squareRoot() {
@@ -646,6 +668,10 @@ final class WorldSwarm {
             }
         }
         proxies = Region(offset: a.1, count: n)
+    }
+
+    @inline(__always) private static func pick(_ v: (F4, F4, F4, F4), _ k: Int) -> F4 {
+        k == 0 ? v.0 : (k == 1 ? v.1 : (k == 2 ? v.2 : v.3))
     }
 
     private func buildParams(time: Float) {
