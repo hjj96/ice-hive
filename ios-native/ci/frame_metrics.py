@@ -36,7 +36,8 @@ Gate (exit 1 with --gate), the plan's common gate for every package:
   gpu-drawn           avg >= 55 in --drawn-gated demos (swarm3x, release-combat); when the host GPU stalls on its own
                       (the same run's unloaded `calm` demo draws < 57/s) at least calm − 2
   host-stall seconds  when a demo misses avg / min fps or the drawn floor, the same numbers are taken again without the
-                      heartbeat seconds the host stalled — a host-stall tick inside (loop side), or a command buffer that
+                      heartbeat seconds the host stalled — a host-stall tick inside (loop side; ± 0.05 s, the heartbeat's
+                      td= is printed to 0.1 s), or a command buffer that
                       took > 100 ms, over 10x the slowest frame's own GPU span (GPU side) — and pass if those
                       hold over >= 4 clean seconds and the demo has no app hitch (noted in the row)
   frame graph         simulator GPU ema <= --gpu-ema-max (1.0 ms); one world-target allocation per launch; a DRS
@@ -227,7 +228,9 @@ for d in demos:
         tsec = float(b.group(1))
         if not (1.2 <= tsec <= secs + 0.5):
             continue
-        loop_stall = any(tsec - 1.0 <= t0 <= tsec for t0 in stall_tds)
+        # (the heartbeat prints td= to 0.1 s, so the second it closes can end up to 0.05 s past the printed value: a
+        # host-stall tick logged at td=15.32 belongs to the heartbeat printed «td=15.3» that counted it)
+        loop_stall = any(tsec - 1.05 <= t0 <= tsec + 0.05 for t0 in stall_tds)
         gm, cm = rx_hb_gpumax.search(line), rx_hb_cbmax.search(line)
         gpu_stall = bool(gm and cm and float(cm.group(1)) > 100 and float(gm.group(1)) * 10 < float(cm.group(1)))
         per_sec.append((float(b.group(2)), int(b.group(3)), loop_stall, gpu_stall))
