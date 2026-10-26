@@ -439,8 +439,11 @@ def strips(A, out, samples):
             for o in bpy.context.scene.objects:
                 if o.type == 'LIGHT' and o.name.startswith('rim'):
                     o.location = g(x - 2.0, 3.0, -2.5)
-            ty = 0.45 if prone else 0.95
-            camera(g(x + 2.0, 1.55 if not prone else 1.9, 3.3), g(x + 0.05, ty, 0.1 if not prone else -0.2), lens=40)
+            if prone:
+                camera(g(x + 2.2, 2.0, 2.9), g(x + 0.05, 0.4, -0.25), lens=40)
+            else:
+                # 3/4 from the weapon side, framing the marine head to boots (recoil and stride read)
+                camera(g(x + 2.55, 1.5, 2.05), g(x + 0.1, 0.98, 0.15), lens=55)
             pth = os.path.join(out, f'_strip_{cls}_{clip}_{k}.png')
             render(pth, TW, TH)
             tiles.append(pth)
