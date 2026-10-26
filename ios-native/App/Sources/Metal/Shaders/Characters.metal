@@ -320,7 +320,7 @@ fragment float4 fs_muzzle_flash(FlashOut in [[stage_in]]) {
             float shimmer = 0.6 + 0.4 * flashNoise(float2(u * 11.0 - seed * 7.0, v * 4.0));
             c = hue * body * fall * shimmer + float3(0.85, 0.97, 1.0) * core * 1.6;
         } else {
-            c = mix(hue, hot, saturate(core + 0.35 * fall * body)) * (body * fall * (0.55 + 0.6 * n) + core * 2.4);
+            c = mix(hue, hot, saturate(core + 0.35 * fall * body)) * (body * fall * (0.6 + 0.7 * n) + core * 3.2);
         }
     } else {
         float2 p = in.uv;
@@ -334,7 +334,7 @@ fragment float4 fs_muzzle_flash(FlashOut in [[stage_in]]) {
             float core = exp(-r * r * 26.0);
             float halo = exp(-r * r * 5.0) * 0.3;
             float3 col = mix(hue, hot, core);
-            c = col * (ray * 1.1 + core * 2.6 + halo) * edge;
+            c = col * (ray * 1.4 + core * 3.4 + halo) * edge;
             if (kind == FLASH_FLAMER) c = hue * (core * 1.4 + halo * 0.8) * edge;
         } else {
             // disc across the bore: a ring of petals (the muzzle brake's blast), dim

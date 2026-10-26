@@ -262,23 +262,23 @@ final class WorldSquad {
             h = max(0, h - 0.3 * dt)
             let a = max(0, 1 - shotAge[k] / 0.075)
             inten = a * a * (0.8 + 0.2 * shotSeed[k])
-            len = 0.5 * (0.85 + 0.35 * shotSeed[k]); wid = 0.13; kind = 0; rays = 4
-            col = F3(2.6, 0.78, 0.32); lcol = F3(1.0, 0.5, 0.28); light = 3.2 * a
+            len = 0.72 * (0.85 + 0.35 * shotSeed[k]); wid = 0.19; kind = 0; rays = 4
+            col = F3(2.8, 0.85, 0.34); lcol = F3(1.0, 0.5, 0.28); light = 4.2 * a
         case .gunner:
             // the rotary's continuous six-ray flicker, a new roll every frame; the barrels heat with the core's heat
-            let on = I.firing && I.spin > 0.35 && I.muzzle > 0.05
+            let on = I.firing && I.spin > 0.35
             if on { roll = frand() * TAU }
-            let fl: Float = on ? 0.6 + 0.4 * frand() : 0
+            let fl: Float = on ? 0.65 + 0.35 * frand() : 0
             inten = fl
-            len = 0.66 * (0.8 + 0.3 * frand()); wid = 0.17; kind = 1; rays = 6
-            col = F3(2.5, 1.65, 0.55); lcol = F3(1.0, 0.75, 0.35); light = 2.8 * fl
+            len = 0.9 * (0.8 + 0.3 * frand()); wid = 0.24; kind = 1; rays = 6
+            col = F3(2.6, 1.7, 0.55); lcol = F3(1.0, 0.75, 0.35); light = 3.6 * fl
             h = coreHeat >= 0 ? h + (coreHeat - h) * min(1, 6 * dt) : (on ? min(1, h + 0.16 * dt) : max(0, h - 0.3 * dt))
         case .pyro:
             // the blue pilot flame always burns; firing: a hot orange cone at the nozzle (the jet itself is the
             // effects' particles)
             if I.firing && !down {
                 inten = 0.75 + 0.25 * frand()
-                len = 0.42 * (0.85 + 0.3 * frand()); wid = 0.15; kind = 2; rays = 0
+                len = 0.6 * (0.85 + 0.3 * frand()); wid = 0.21; kind = 2; rays = 0
                 col = F3(2.6, 1.05, 0.28); lcol = F3(1.0, 0.55, 0.2); light = 3.6 * inten
                 roll = frand() * TAU
             } else {
@@ -291,7 +291,7 @@ final class WorldSquad {
             // the projector's emitter: a pulsing six-pointed ice star while the beam runs
             if I.firing && !down {
                 inten = 0.7 + 0.3 * sinf(Float(flashCount) * 0.7 + Float(k))
-                len = 0.3; wid = 0.13; kind = 3; rays = 6
+                len = 0.42; wid = 0.18; kind = 3; rays = 6
                 col = F3(0.75, 1.65, 2.6); lcol = F3(0.45, 0.8, 1.0); light = 2.0 * inten
                 roll += dt * 2.5
                 shotRoll[k] = roll
