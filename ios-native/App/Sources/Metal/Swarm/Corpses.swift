@@ -102,7 +102,8 @@ final class Corpses {
         let v = 0.8 + rnd() * 0.4
         // pitch along the heading on a ramp (the body lies on the slope)
         let slope = atanf(gz * cosf(hd))
-        let r = CorpseRecord(x: x, y: gy + 0.005, z: z, heading: hd, scale: sc, pitchS: sinf(slope), pitchC: cosf(slope),
+        // drawn at the live bug's size (WorldSwarm.sizeK: the pose handed over from the dying bug lines up)
+        let r = CorpseRecord(x: x, y: gy + 0.005, z: z, heading: hd, scale: sc * WorldSwarm.sizeK[Int(type.rawValue)], pitchS: sinf(slope), pitchC: cosf(slope),
                              type: UInt8(type.rawValue), variant: variant, born: clock, value: v, seed: fmodf(abs(x * 7.13 + z * 3.71), 1),
                              from: .zero, hasFrom: false, linked: false, lod: 255, liftBaseY: gy + 0.005)
         let idx: Int
