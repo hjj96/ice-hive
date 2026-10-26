@@ -154,6 +154,11 @@ final class WorldSwarm {
     private let sheet: (strip: Int?, scale: Float, studio: Bool)?
     /// `-bugsheetT <s>`: the sheet's clips held at this time (a LOD A/B of identical poses).
     private let sheetT: Float?
+    /// Device measurement (`-noSwarmDraw`): the swarm's opaque draws (item 300) and pore glints (item 400) are skipped
+    /// while everything else — the simulation, the instance build, the shadow proxies — stays, so `hb gpu frame=` with
+    /// and without it on the same `-demo stress1400` is the swarm's vertex + fragment cost on a device (budget ≤ 2.7 ms
+    /// High / ≤ 1.65 ms Efficient at 1400 bugs). The `hb swarm` line says `off` in that run.
+    static let noDraw = ProcessInfo.processInfo.arguments.contains("-noSwarmDraw")
 
     init(level: Level) {
         self.level = level
@@ -662,7 +667,7 @@ final class WorldSwarm {
         AppLog.info("hb swarm vis=\(visible) lod=\(lodCounts[0])/\(lodCounts[1])/\(lodCounts[2]) tris=\(swarmTriangles / 1000)k"
                     + " corpses=\(corpsesDrawn)/\(corps?.count ?? 0) glints=\(glintCount) proxies=\(proxies.count)"
                     + String(format: " build=%.2fms tier=", buildMs) + (high ? "high" : "efficient")
-                    + (sheet != nil ? " sheet" : "") + (forcedLOD.map { " forced=LOD\($0)" } ?? ""))
+                    + (sheet != nil ? " sheet" : "") + (forcedLOD.map { " forced=LOD\($0)" } ?? "") + (WorldSwarm.noDraw ? " off" : ""))
     }
 
     // ---------------------------------------------------------------- WP5: where a shot meets the chitin
@@ -701,7 +706,7 @@ final class WorldSwarm {
     // ---------------------------------------------------------------- draws
     /// Opaque item 300: one instanced draw per type × LOD (live bugs and corpses together).
     private func encodeBugs(_ enc: MTLRenderCommandEncoder) {
-        guard let ps = psCreature, let lib = library else { return }
+        guard !WorldSwarm.noDraw, let ps = psCreature, let lib = library else { return }
         let r = renderer!
         r.use(enc, ps)
         var P = params
@@ -728,7 +733,7 @@ final class WorldSwarm {
 
     /// Transparent item 400: every live bug's glinting pores, one draw for all types.
     private func encodeGlints(_ enc: MTLRenderCommandEncoder) {
-        guard glintCount > 0, let ps = psGlint, let lib = library, !glintTable.isEmpty else { return }
+        guard glintCount > 0, !WorldSwarm.noDraw, let ps = psGlint, let lib = library, !glintTable.isEmpty else { return }
         let r = renderer!
         r.use(enc, ps)
         var P = params
