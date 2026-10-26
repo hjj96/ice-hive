@@ -72,7 +72,7 @@ def _sac(lod):
     v1 = np.abs(np.sin(a * 5 + d[:, 2] * 18 + np.sin(d[:, 1] * 22) * 0.7))
     vein = np.clip(1 - v1 / 0.22, 0, 1) if lod == 0 else np.zeros(len(V))
     # LOD1 / LOD2 lose the veins and (some of) the rib cage: their sac is darkened on average so a LOD switch keeps its value
-    shade = (0.0, 0.25, 0.25)[lod]
+    shade = (0.0, 0.25, 0.4)[lod]
     col = col_ramp(len(V), PAL['sac'], PAL['sac_vein'], np.clip(vein * 0.85 + np.clip(-d[:, 2] / SAC_R[2], 0, 1) * 0.4 + shade, 0, 1))
     return Part('sac', V, F, 'sac', PAL['sac'], glow=0.25, rough=0.25, flags=F_SAC | F_GLAND, vcolor=col, sharp_deg=180)
 

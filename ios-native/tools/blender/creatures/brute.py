@@ -109,7 +109,7 @@ def build_parts(lod):
                 P.append(Part(f'horn{k}', *cone(b, b + [0, -0.06, 0.12 - k * 0.02], 0.045 - k * 0.008, 5), 'thorax', C['bone'], rough=0.3))
     else:
         # LOD2: the shield's value (LOD1's dome is the paler edge tone) and the tergites' plate → edge average on top
-        P.append(blob('thorax.core', 'thorax', (0, 0.2, z + 0.06), (0.52, 0.5, 0.32), 6, 2, C['edge'], C['belly'], rough=0.4))
+        P.append(blob('thorax.core', 'thorax', (0, 0.2, z + 0.06), (0.52, 0.5, 0.32), 6, 2, 0x323d52, C['belly'], rough=0.4))
     # ---- head under the shield, crushing mandibles, ember eyes
     hc = (0, 0.62, z - 0.16)
     if lod < 2:
@@ -146,7 +146,7 @@ def build_parts(lod):
         V, F = ellipsoid((0, -0.26, z - 0.18), (0.24, 0.36, 0.1), (10, 6)[lod], (5, 2)[lod])
         P.append(Part('belly.sac', V, F, 'abd.1', C['sac'], glow=0.1, rough=0.3, flags=F_SAC, sharp_deg=180))
     else:
-        P.append(blob('abd', 'abd.1', (0, -0.4, z), (0.36, 0.42, 0.22), 4, 2, 0x2a3446, C['belly'], rough=0.4))
+        P.append(blob('abd', 'abd.1', (0, -0.4, z), (0.36, 0.42, 0.22), 4, 2, 0x252d3e, C['belly'], rough=0.4))
     # ---- pores along the plate seams (asymmetric)
     if lod < 2:
         seat = [p for p in P if p.name.startswith(('shield', 'tergite'))]

@@ -25,9 +25,10 @@ import IceHiveCore
 //  the world says shadows are on). Once a second (diagnostics):
 //  `hb swarm vis=… lod=a/b/c tris=…k corpses=… glints=… proxies=…`.
 //  Look-dev: `-bugsheet [scale]` every type × clip around the camera
-//  focus (studio light; `-bugsheetGame` without), `-bugstrip <type>
-//  [scale]` one type's clips × 8 frames, `-swarmLOD 0|1|2` forces a
-//  LOD (pop A/B), `-noGlints`.
+//  focus (studio light; `-bugsheetGame` without; `-bugsheetT <s>` holds
+//  the clips at s), `-bugstrip <type> [scale]` one type's clips × 8
+//  frames — both at LOD0 —, `-swarmLOD 0|1|2` forces a LOD (pop A/B),
+//  `-noGlints`.
 // ================================================================
 
 /// One creature in a draw (`struct CreatureInstance` in SwarmTypes.h, 80 bytes).
@@ -72,7 +73,7 @@ final class WorldSwarm {
     /// Instances per type the scratch holds (live bugs + corpses + sheet).
     static let scratchCap = MAX_BUGS + 640
     /// Glint sprites per bug at most (the brightest dorsal pores), and per frame.
-    static let glintsPerBug = 12
+    static let glintsPerBug = 6
     static let glintCap = (high: 16000, efficient: 8000)
     /// LOD caps (High: LOD0 32 largest, LOD1 600; Efficient: LOD1 300) and the triangle budget (per bug at 1400).
     static let lod0Cap = 32, lod1Cap = (high: 600, efficient: 300)
@@ -85,10 +86,10 @@ final class WorldSwarm {
     /// height, model m). Crisp's one-hue-per-type rims on dark wet chitin: runner plum-pink, spitter acid chartreuse,
     /// brute ember, boomer amber; the pores pink-white on every type. Class hues never appear on a bug.
     static let looks: [(rim: F4, eye: F4, sac: F4, gland: F4, proxy: F4)] = [
-        (F4(0.62, 0.14, 0.36, 0.16), F4(1.0, 0.16, 0.42, 1.3), F4(0.6, 0.05, 0.16, 0.0), F4(1.0, 0.16, 0.46, 2.0), F4(0.22, 0.12, 0.55, 0.27)),
-        (F4(0.42, 0.62, 0.06, 0.15), F4(0.75, 1.0, 0.18, 1.3), F4(0.42, 0.78, 0.05, 0.3), F4(1.0, 0.16, 0.46, 2.0), F4(0.3, 0.22, 0.5, 0.45)),
-        (F4(0.78, 0.30, 0.07, 0.14), F4(1.0, 0.42, 0.08, 1.5), F4(0.7, 0.1, 0.2, 0.15), F4(1.0, 0.16, 0.46, 2.0), F4(0.42, 0.3, 0.62, 0.4)),
-        (F4(0.85, 0.46, 0.09, 0.14), F4(1.0, 0.6, 0.14, 1.3), F4(0.95, 0.4, 0.07, 0.28), F4(1.0, 0.16, 0.46, 2.0), F4(0.4, 0.36, 0.46, 0.45)),
+        (F4(0.62, 0.14, 0.36, 0.22), F4(1.0, 0.16, 0.42, 1.3), F4(0.6, 0.05, 0.16, 0.0), F4(1.0, 0.16, 0.46, 2.0), F4(0.22, 0.12, 0.55, 0.27)),
+        (F4(0.42, 0.62, 0.06, 0.2), F4(0.75, 1.0, 0.18, 1.3), F4(0.42, 0.78, 0.05, 0.3), F4(1.0, 0.16, 0.46, 2.0), F4(0.3, 0.22, 0.5, 0.45)),
+        (F4(0.78, 0.30, 0.07, 0.18), F4(1.0, 0.42, 0.08, 1.5), F4(0.7, 0.1, 0.2, 0.15), F4(1.0, 0.16, 0.46, 2.0), F4(0.42, 0.3, 0.62, 0.4)),
+        (F4(0.85, 0.46, 0.09, 0.17), F4(1.0, 0.6, 0.14, 1.3), F4(0.95, 0.4, 0.07, 0.28), F4(1.0, 0.16, 0.46, 2.0), F4(0.4, 0.36, 0.46, 0.45)),
     ]
     /// Ichor of each type (WP5's impact sparks / splashes; MetalEffects.ichor).
     static let ichor: [F3] = [F3(0.62, 0.1, 0.22), F3(0.5, 0.58, 0.1), F3(0.58, 0.12, 0.15), F3(0.62, 0.24, 0.08)]
@@ -104,6 +105,8 @@ final class WorldSwarm {
     private var scratch: [UnsafeMutablePointer<CreatureInstance>] = []
     private var pxs: [UnsafeMutablePointer<Float>] = []
     private var lodHint: [UnsafeMutablePointer<UInt8>] = []
+    /// This frame's LOD before the hysteresis pass (assignLODs scratch).
+    private var pxLod: [UnsafeMutablePointer<UInt8>] = []
     private var slots: [UnsafeMutablePointer<Int32>] = []
     private var liveN = [Int](repeating: 0, count: 4), allN = [Int](repeating: 0, count: 4)
     private var hist = [Int32](repeating: 0, count: 160)
@@ -135,6 +138,8 @@ final class WorldSwarm {
     private let forcedLOD: Int?
     private let glintsOff: Bool
     private let sheet: (strip: Int?, scale: Float, studio: Bool)?
+    /// `-bugsheetT <s>`: the sheet's clips held at this time (a LOD A/B of identical poses).
+    private let sheetT: Float?
 
     init(level: Level) {
         self.level = level
@@ -143,6 +148,7 @@ final class WorldSwarm {
             guard let i = a.firstIndex(of: flag), i + 1 < a.count, !a[i + 1].hasPrefix("-") else { return nil }
             return a[i + 1]
         }
+        sheetT = value("-bugsheetT").flatMap { Float($0) }
         forcedLOD = value("-swarmLOD").flatMap { Int($0) }.map { max(0, min(2, $0)) }
         glintsOff = a.contains("-noGlints")
         // `-demo bugsheet` (WP7's demo name; until DemoScript knows it, `-demo calm -bugsheet`)
@@ -165,6 +171,7 @@ final class WorldSwarm {
         for p in scratch { p.deallocate() }
         for p in pxs { p.deallocate() }
         for p in lodHint { p.deallocate() }
+        for p in pxLod { p.deallocate() }
         for p in slots { p.deallocate() }
     }
 
@@ -181,6 +188,7 @@ final class WorldSwarm {
         }
         for _ in 0..<4 {
             scratch.append(.allocate(capacity: WorldSwarm.scratchCap))
+            pxLod.append(.allocate(capacity: WorldSwarm.scratchCap))
             pxs.append(.allocate(capacity: WorldSwarm.scratchCap))
             lodHint.append(.allocate(capacity: WorldSwarm.scratchCap))
             slots.append(.allocate(capacity: WorldSwarm.scratchCap))
@@ -245,7 +253,7 @@ final class WorldSwarm {
         corps?.advance(dt)
 
         if let sh = sheet {
-            buildSheet(lib, A, camera: camera, time: time, sh)
+            buildSheet(lib, A, camera: camera, time: sheetT ?? time, sh)
         } else {
             buildLive(game, A, alpha: alpha, time: time, dt: dt, camera: camera, fx: fx, lens: lens, eye: eye, fwd: fwd, pxScale: pxScale)
             if let C = corps { buildCorpses(C, A, camera: camera, lens: lens, eye: eye, fwd: fwd, pxScale: pxScale) }
@@ -490,21 +498,37 @@ final class WorldSwarm {
             b -= 1
         }
         let th1 = max(WorldSwarm.lod1MinPx, Float(b + 1) * 2)
+        // pass 1: the thresholds (corpses keep the LOD they died with, then LOD2), counted
+        let cap0 = high ? WorldSwarm.lod0Cap : 0
+        var c0 = 0, c1 = 0
         for t in 0..<4 {
             for k in 0..<allN[t] {
                 let px = pxs[t][k]
                 var l: UInt8 = px >= th0 ? 0 : (px >= th1 ? 1 : 2)
                 let prev = lodHint[t][k]
-                if slots[t][k] >= 0 {
-                    // live bug: hysteresis around both thresholds
-                    if prev == 0 && high && px >= th0 * 0.88 { l = 0 }
-                    else if prev == 1 && l == 2 && px >= th1 * 0.88 { l = 1 }
-                    else if prev == 2 && l == 1 && px < th1 * 1.12 { l = 2 }
-                } else if prev <= 2 {
-                    l = (prev == 0 && !high) ? 1 : prev     // a corpse keeps the LOD it died with, then LOD2
+                if slots[t][k] < 0 && prev <= 2 { l = (prev == 0 && !high) ? 1 : prev }
+                if l == 0 { c0 += 1 } else if l == 1 { c1 += 1 }
+                pxLod[t][k] = l
+            }
+        }
+        // pass 2: ±12 % hysteresis on a live bug's last LOD, only inside the caps (LOD0 ≤ 32, LOD1 under the budget)
+        for t in 0..<4 {
+            for k in 0..<allN[t] where slots[t][k] >= 0 {
+                let px = pxs[t][k], prev = lodHint[t][k]
+                let l = pxLod[t][k]
+                if prev == 0 && l != 0 && high && px >= th0 * 0.88 && c0 < cap0 {
+                    pxLod[t][k] = 0; c0 += 1; if l == 1 { c1 -= 1 }
+                } else if prev == 1 && l == 2 && px >= th1 * 0.88 && c1 < cap1 {
+                    pxLod[t][k] = 1; c1 += 1
+                } else if prev == 2 && l == 1 && px < th1 * 1.12 {
+                    pxLod[t][k] = 2; c1 -= 1
                 }
-                if let f = forcedLOD { l = UInt8(f) }
-                lodHint[t][k] = l
+            }
+        }
+        for t in 0..<4 {
+            for k in 0..<allN[t] {
+                // look-dev sheets: the close-up mesh unless -swarmLOD says otherwise
+                lodHint[t][k] = forcedLOD.map { UInt8($0) } ?? (sheet != nil ? 0 : pxLod[t][k])
             }
         }
     }
