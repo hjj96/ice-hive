@@ -41,8 +41,8 @@ STYLE = {
 GAIT = {
     'walk': dict(frames=30, speed=1.5, duty=0.58, front=0.5, lift=0.085, bob=0.02, sway=0.022, roll=3.0, twist=6.0,
                  lean=4.0, low=0.055, heel=26.0),
-    'run':  dict(frames=18, speed=5.3, duty=0.27, front=0.44, lift=0.26, bob=0.036, sway=0.010, roll=4.0, twist=9.0,
-                 lean=10.0, low=0.10, heel=40.0),
+    'run':  dict(frames=18, speed=5.3, duty=0.27, front=0.44, lift=0.26, bob=0.043, sway=0.012, roll=4.5, twist=10.0,
+                 lean=13.0, low=0.10, heel=40.0),
 }
 
 # ---------------------------------------------------------------- grips: where the hands hold each weapon
@@ -445,7 +445,8 @@ def gait(cls, kind, dname, report, drift):
         wp, wq = stance_weapon(cls)
         lag = -0.25 * (bob - 0.0)
         s.weapon_p = wp + np.array([0.0, lag * 0.5, -0.004 * abs(np.sin(2 * np.pi * u))])
-        s.weapon_q = qeuler(x=-1.2 * np.sin(4 * np.pi * (u - 0.1)) * (1.0 if kind == 'run' else 0.5), y=0.6 * np.sin(2 * np.pi * u))
+        s.weapon_q = qeuler(x=-1.2 * np.sin(4 * np.pi * (u - 0.1)) * (1.7 if kind == 'run' else 0.5),
+                            y=0.6 * np.sin(2 * np.pi * u) * (1.6 if kind == 'run' else 1.0))
         # feet
         for side, off in (('L', 0.0), ('R', 0.5)):
             sgn = 1.0 if side == 'L' else -1.0
@@ -670,13 +671,14 @@ def fire(cls, report):
         else:
             w = np.sin(2 * np.pi * u)
             tr = np.sin(2 * np.pi * u * 3) if cls == 'cryo' else np.sin(2 * np.pi * u * 2)
-            amp = 0.003 if cls == 'cryo' else 0.006
-            dq = qeuler(x=(-1.6 if cls == 'pyro' else -0.8) * push)
+            amp = 0.005 if cls == 'cryo' else 0.009
+            dq = qeuler(x=(-2.6 if cls == 'pyro' else -1.4) * push)
             s.chest_q = qmul(dq, st.chest_q)
             carried(cls, s, piv, dq)
-            s.weapon_p = s.weapon_p + np.array([amp * tr, amp * w, -0.024 if cls == 'pyro' else -0.012]) * push
-            s.weapon_q = qmul(qeuler(x=((-1.8 if cls == 'pyro' else -0.6) + (1.0 if cls == 'pyro' else 0.3) * w) * push,
-                                     y=(0.8 if cls == 'pyro' else 0.25) * tr * push), s.weapon_q)
+            s.weapon_p = s.weapon_p + np.array([amp * tr, amp * w, -0.034 if cls == 'pyro' else -0.02]) * push
+            s.weapon_q = qmul(qeuler(x=((-2.6 if cls == 'pyro' else -1.0) + (1.4 if cls == 'pyro' else 0.5) * w) * push,
+                                     y=(1.2 if cls == 'pyro' else 0.4) * tr * push), s.weapon_q)
+            s.pelvis_p = st.pelvis_p + np.array([0, 0, (-0.014 if cls == 'pyro' else -0.006) * push])
         poses.append(build(cls, s, report))
     return Clip('fire', poses, True, additive=True)
 
@@ -686,13 +688,13 @@ def flinch(cls, d, report):
     st = stance(cls)
     a = -1.0 if d == 'f' else 1.0
     hit = st.copy()
-    dq = qeuler(x=(9.0 if d == 'f' else 11.0) * a, z=-4.0 * a)
+    dq = qeuler(x=(13.0 if d == 'f' else 15.0) * a, z=-6.0 * a, y=(4.0 if d == 'f' else -5.0))
     hit.chest_q = qmul(dq, st.chest_q)
-    hit.pelvis_q = qmul(qeuler(x=4.0 * a), st.pelvis_q)
-    hit.pelvis_p = st.pelvis_p + np.array([0.0, -0.025, 0.03 * a])
-    hit.head_q = qeuler(x=4.0 + 18.0 * a, y=-7.0)
+    hit.pelvis_q = qmul(qeuler(x=6.0 * a), st.pelvis_q)
+    hit.pelvis_p = st.pelvis_p + np.array([0.0, -0.045, 0.05 * a])
+    hit.head_q = qeuler(x=4.0 + 26.0 * a, y=-10.0, z=6.0)
     carried(cls, hit, st.pelvis_p + np.array([0, 0.45, 0]), dq)
-    hit.weapon_p = hit.weapon_p + np.array([0.0, 0.02, 0.015 * a])
+    hit.weapon_p = hit.weapon_p + np.array([0.01, 0.035, 0.025 * a])
     keys = [(0, st), (2, hit), (4, hit), (9, st)]
     return keyed(cls, f'flinch_{d}', keys, 10, report=report, additive=True,
                  easing=[ease_out, lambda t: t, ease])
@@ -704,9 +706,9 @@ def prone(cls, phase=0.0, reach=0.0):
     drawn up by the crawl phase."""
     s = Spec()
     sp = np.sin(phase)
-    s.pelvis_p = np.array([0.0, 0.24 + 0.025 * reach, -0.3])
-    s.pelvis_q = qmul(qeuler(y=3.0 * sp), qmul(qeuler(x=88.0), qeuler(z=4.0 * reach)))
-    s.chest_q = qmul(qeuler(y=-3.0 * sp), qmul(qeuler(x=78.0 - 10.0 * reach), qeuler(z=-5.0 * reach)))
+    s.pelvis_p = np.array([0.0, 0.24 + 0.025 * reach, -0.3 - 0.05 * reach])
+    s.pelvis_q = qmul(qeuler(y=5.0 * sp), qmul(qeuler(x=88.0), qeuler(z=5.0 * reach)))
+    s.chest_q = qmul(qeuler(y=-5.0 * sp), qmul(qeuler(x=78.0 - 12.0 * reach), qeuler(z=-8.0 * reach)))
     s.spine_k = (0.4, 0.72)
     s.head_q = qmul(qeuler(y=6.0 * np.sin(phase * 0.5)), qeuler(x=34.0 - 10.0 * reach))
     # gun hand on the deck beside the head, the weapon lying on its side, muzzle forward
@@ -716,7 +718,7 @@ def prone(cls, phase=0.0, reach=0.0):
     s.hand_q['L'] = hand_rot('L', x=(0.2, 0.0, -1.0), y=(0.25, 1.0, 0.0), z=(1.0, -0.15, 0.25))
     s.elbow_pole['L'] = np.array([0.7, 0.3, -0.4])
     s.ik = {'L': 1.0, 'R': 0.0}
-    s.wrist['R'] = np.array([-0.3, 0.075, 0.42 + 0.34 * reach])
+    s.wrist['R'] = np.array([-0.3 - 0.04 * reach, 0.075, 0.42 + 0.42 * reach])
     s.hand_q['R'] = hand_rot('R', x=(1.0, 0.0, 0.0), y=(0.0, 1.0, 0.0), z=(0.1, 0.0, 1.0))
     s.elbow_pole['R'] = np.array([-0.9, 0.4, -0.2])
     # legs: an army crawl — the knee of the pushing leg swings out to the side (it bends in the deck's plane, never

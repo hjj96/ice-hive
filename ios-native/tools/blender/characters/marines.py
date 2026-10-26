@@ -804,11 +804,20 @@ def helmet(b):
 
 # ================================================================ pauldrons
 def dome_patch(cx, s, rx, ry, rz, phi0, phi1, th0, th1, nu=5, nv=3):
-    """Ellipsoid patch over a shoulder (x outward for side s): phi front ↔ back (deg), theta from high to low."""
+    """Ellipsoid patch over a shoulder (x outward for side s): phi front ↔ back (deg), theta from high to low.
+    Below 45° the grid runs on latitudes about the vertical axis (the lower edges of cap, lames and trims line up);
+    toward the top it turns into meridians about the front–back axis, so a cap reaching over the shoulder toward the
+    collar (theta past 90°) has no pole in it (a latitude grid folds over the pole: a pinched «flower» on the cap)."""
     def fn(u, v):
         ph = math.radians(phi0 + (phi1 - phi0) * u)
         th = math.radians(th0 + (th1 - th0) * v)
-        return (cx[0] + s * rx * math.cos(th) * math.cos(ph), cx[1] + ry * math.sin(th), cx[2] + rz * math.cos(th) * math.sin(ph))
+        lat = np.array([math.cos(th) * math.cos(ph), math.sin(th), math.cos(th) * math.sin(ph)])
+        mer = np.array([math.cos(th) * math.cos(ph), math.sin(th) * math.cos(ph), math.sin(ph)])
+        t = min(1.0, max(0.0, (math.degrees(th) - 45.0) / 40.0))
+        w = t * t * (3.0 - 2.0 * t)
+        d = lat * (1.0 - w) + mer * w
+        d = d / np.linalg.norm(d)
+        return (cx[0] + s * rx * d[0], cx[1] + ry * d[1], cx[2] + rz * d[2])
     V, F = grid_cage(nu, nv, fn)
     if s < 0:
         F = [f[::-1] for f in F]
