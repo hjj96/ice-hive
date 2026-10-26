@@ -34,7 +34,8 @@ struct CreatureInstance {
     uint4  fx;      // x = unorm8 ×4: hit flash, burn, frost, dead (0 live → 1 the corpse value band)
                     // y = snorm16 ×2: lean (world x, z tilt in radians — the hit recoil away from the impact)
                     // z = unorm16 seed | unorm16 glow boost << 16 (the attack's gland flare, swell pulse)
-                    // w = 0
+                    // w = unorm8 rim cut (the type's Fresnel rim × (1 − w / 255): the coarse LOD2 shell has more
+                    //     grazing normals than LOD1, WorldSwarm.lodRim)
 };
 
 #define CI_QUEEN 1u
