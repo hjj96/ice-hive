@@ -91,6 +91,16 @@ final class WorldSwarm {
         (F4(0.78, 0.30, 0.07, 0.18), F4(1.0, 0.42, 0.08, 1.5), F4(0.7, 0.1, 0.2, 0.15), F4(1.0, 0.16, 0.46, 2.0), F4(0.42, 0.3, 0.62, 0.4)),
         (F4(0.85, 0.46, 0.09, 0.17), F4(1.0, 0.6, 0.14, 1.3), F4(0.95, 0.4, 0.07, 0.25), F4(1.0, 0.16, 0.46, 2.0), F4(0.4, 0.36, 0.46, 0.45)),
     ]
+    /// Drawn size of each type relative to the core's BUG_SPECS scale (live bugs, corpses, the sheet, proxies, impact
+    /// points — everything that reads the instance scale, so the gait stays synced to the distance walked). The brute
+    /// is authored a size larger than the v1 mesh (1.66 × 1.88 m rest body at model scale 1 against v1's 1.3 × 1.47):
+    /// at BUG_SPECS 2.0 it stood 3.3 m wide over a 0.85 m collision radius and buried the squad it reached in combat;
+    /// × 0.8 brings it back to the v1 footprint the game was tuned with (the Матка, a brute at 4.2, shrinks with it).
+    static let sizeK: [Float] = [1, 1, 0.8, 1]
+    /// Albedo value per type × LOD (the tint of the instances drawn at that LOD): the brute's LOD2 read 6.4–6.7 luma
+    /// brighter than its LOD1 over its own pixels on the held bug sheet (CI 028fd69, gate ≤ 6) — its legs' lit edges
+    /// are wider at 146 triangles; a 10 % darker albedo there keeps the switch under the gate.
+    static let lodValue: [[Float]] = [[1, 1, 1], [1, 1, 1], [1, 1, 0.9], [1, 1, 1]]
     /// Ichor of each type (WP5's impact sparks / splashes; MetalEffects.ichor).
     static let ichor: [F3] = [F3(0.62, 0.1, 0.22), F3(0.5, 0.58, 0.1), F3(0.58, 0.12, 0.15), F3(0.62, 0.24, 0.08)]
 
@@ -289,7 +299,7 @@ final class WorldSwarm {
             }
             let bx = PX[i] + (X[i] - PX[i]) * alpha, bz = PZ[i] + (Z[i] - PZ[i]) * alpha
             let gy = level.groundY(bx, bz) + Y[i]
-            let sc = SC[i]
+            let sc = SC[i] * WorldSwarm.sizeK[t]
             // CPU frustum cull: a point at mid-body height (15 % margin covers the body size)
             if !camera.visible(bx, gy + 0.3 * sc, bz) { continue }
             var s = sc, sy = sc
@@ -418,7 +428,7 @@ final class WorldSwarm {
             liveN[t] = k + 1
             visible += 1
         }
-        let base: [Float] = [0.8, 1.02, 2.0, 1.15]          // BUG_SPECS scales
+        let base: [Float] = (0..<4).map { BUG_SPECS[$0].scale * WorldSwarm.sizeK[$0] }   // the game's drawn scales
         if let st = sh.strip {
             let clips = lib.types[st].clips
             let sc = base[st] * sh.scale
@@ -548,7 +558,10 @@ final class WorldSwarm {
             for k in 0..<allN[t] {
                 let l = Int(lodHint[t][k])
                 guard let p = ptrs[t][l] else { continue }
-                p[regions[t][l].count] = scratch[t][k]
+                var inst = scratch[t][k]
+                let lv = WorldSwarm.lodValue[t][l]
+                if lv != 1 { inst.tint.x *= lv; inst.tint.y *= lv; inst.tint.z *= lv }
+                p[regions[t][l].count] = inst
                 regions[t][l].count += 1
                 if slots[t][k] >= 0 { animator?.setLOD(Int(slots[t][k]), UInt8(l)) }
             }
