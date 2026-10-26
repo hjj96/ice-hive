@@ -23,7 +23,8 @@ Gate (exit 1 with --gate), the plan's common gate for every package:
                       and inside the world encode (`metal: slow world encode N ms (thread cpu M ms)`, logged by
                       MetalRenderer for encodes > 2 ms; without such a line the encode took < 2 ms and the rest of
                       FrameLoop's `world` span is the thread waiting in makeCommandBuffer). Such ticks are listed (`host-stalls`), not counted as hitches
-                      and not held to the worst-tick limit. A tick of 44–50 ms (no hitch line) counts as a host stall
+                      and not held to the worst-tick limit. A tick of 35–50 ms (no hitch line; under 44 ms it only
+                      matters for the second's fps: e.g. sk=32ms with skcpu=1ms, the HUD thread off the CPU) counts as a host stall
                       when the app's own maxima in that heartbeat second (`hb ms … max`, the slowest HUD render's CPU
                       `skcpu=`, the main thread's drawable wait — at most 3 ms by design —, a world encode > 2 ms) add
                       up to < 10 ms
@@ -186,7 +187,9 @@ for d in demos:
             continue
         cb = rx_cb.search(line)
         hitches.append((int(h.group(1)), float(h.group(2)), cb.group(1) if cb else '-'))
-    # long ticks under the hitch threshold (no hitch line): a heartbeat second whose worst tick is 44–50 ms while the
+    # long ticks under the hitch threshold (no hitch line): a heartbeat second whose worst tick is 35–50 ms (one that drops
+    # a frame at 60 Hz; under 44 ms it only matters for the second's fps, the worst-tick limit is 43; menus at 30 Hz from
+    # 44 ms) while the
     # app's own maxima in that second — the `hb ms … max` sections, the slowest HUD render's CPU time (skcpu=), the
     # main thread's drawable wait (≤ 3 ms by design) and any logged world encode (> 2 ms) (`metal: slow world encode`) — add up
     # to < 10 ms was stalled by the host
@@ -200,7 +203,7 @@ for d in demos:
         if not hw:
             continue
         enc_max, enc_in_second = enc_in_second, 0.0
-        if not (43 < int(hw.group(1)) <= 50):
+        if not ((43 if d in menus else 34) < int(hw.group(1)) <= 50):
             continue
         tdm = rx_hb_td.search(line)
         if not tdm or not (0.2 <= float(tdm.group(2)) <= secs):
