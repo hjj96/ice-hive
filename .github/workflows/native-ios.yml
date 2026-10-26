@@ -369,7 +369,7 @@ jobs:
           run_demo() {
             local label=$1 secs=$2 args=$3; shift 3
             # TEST BRANCH ONLY: the look shots + the swarm's frame-gate demos, nothing else (a short run)
-            case " ${LOOK_DEMOS:-combat swarmshot-nohud bugsheet strip-runner} " in
+            case " ${LOOK_DEMOS:-combat swarmshot swarmshot-nohud beacon-nohud ss-lod1 ss-lod2 bugsheet bugsheet-game strip-runner strip-spitter strip-brute strip-boomer swarm swarm3x} " in
               *" $label "*) ;;
               *) return 0;;
             esac
