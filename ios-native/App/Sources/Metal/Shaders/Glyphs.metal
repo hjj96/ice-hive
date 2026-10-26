@@ -68,7 +68,7 @@ fragment float4 fs_glyph(GlyphOut in [[stage_in]]) {
         bool player = in.a.w > 0.5;
         float hp = in.a.x, pips = max(1.0, in.a.y);
         float rel = relAngle(p, in.a.z);
-        float span = radians(150.0);
+        float span = 2.6179939;      // 150°
         float ang = abs(rel);
         float arcw = max(fwidth(rel), 1e-4) * 1.2;
         float onArc = 1.0 - smoothstep(span - arcw, span + arcw, ang);
