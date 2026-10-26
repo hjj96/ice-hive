@@ -3,33 +3,44 @@ import Metal
 import IceHiveCore
 
 // ================================================================
-//  METAL EFFECTS — the FX section of the web game (07-fx.js) for the
-//  Metal renderer (owned by WP5 «Эффекты»): GameEvents → particles,
-//  floor stains (multiply decals), splashes and flash lights
-//  (fxBugDeath, fxExplosion, fxAcid, fxBulletHit, fxDash,
-//  fxNapalmBurst, fxNova, fxTurretDrop, fxHeal), and the per-frame
-//  part of renderFx: muzzle flashes, flames, cryo beam, napalm fields,
-//  vent steam, sight glints + target dots (no long laser sights since
-//  LAND), tracers, telegraphs, beacon beams, and
-//  the light pool (point light 0 follows flames / the player's muzzle,
-//  1–2 are short blasts). Corpses go to Swarm/Corpses.swift (`corpses`,
-//  fed with this file's random sequence), the squad's team rings and
-//  progress rings to Squad/GroundGlyphs.swift. Everything is collected
-//  into plain arrays, uploaded into the frame arena by upload() and
-//  drawn by this file's world items (decals, sprites, particles,
-//  ribbons — FX.metal).
+//  METAL EFFECTS — the effects of the world (owned by WP5 «Эффекты»):
+//  core GameEvents and the per-frame state of the weapons become
+//    • GPU particle emitter records (FX/GPUParticles.swift — the
+//      compute particles: sparks, embers, ice, flames, blasts, smoke,
+//      steam, ichor, gibs, casings, flashes);
+//    • stains (FX/Decals.swift — wet forward decals on High);
+//    • beams (FX/Ribbons.swift — short HDR tracers, sight glints, the
+//      cryo beam, beacon columns);
+//    • light on the deck (additive floor fx: shock rings, ground fire,
+//      acid glow, frost bursts) and MAX-blended telegraphs (thin rims,
+//      soft acid pools, charge lanes) — FX.metal, one draw each;
+//    • short-lived grid lights (WP2 LightingHub.emit): every shot's
+//      muzzle, hits that kill, blasts, acid, frost, heals;
+//    • heat distortion sprites (High; the composite of WP1 reads them).
+//  Shooting (the owner's priority): each round pops a light at the
+//  muzzle, throws a casing (rifle, rotary) and a few muzzle sparks, its
+//  tracer is a short bolt with a white-hot head; a hit at the real hit
+//  point on the bug (WorldSwarm.impactPoint when MetalWorld wires the
+//  swarm in, else the bug's body height from the core) throws
+//  velocity-stretched sparks off the chitin that bounce and cool, a
+//  hit flash and the type's ichor, wet splats on the deck. The flamer
+//  is a flipbook jet with lit smoke, embers, scorch and heat haze; the
+//  cryo beam a crackling white-cyan ribbon throwing ice glints and
+//  frost mist that rimes the deck. Explosions: a white-hot core, a
+//  flipbook fireball, flame licks, a fan of sparks, embers, gibs, dark
+//  smoke, a shock ring on the deck, heat waves, a scorch with cooling
+//  embers, a big light (the exposure dip is MetalWorld's). Hard caps
+//  per tier: particles (ring), live flames, live explosions; every
+//  sprite ≤ 25 % of the screen height (Particles.metal).
+//  Corpses are Swarm/Corpses.swift (fed with this file's random
+//  sequence), the squad's ground glyphs Squad/GroundGlyphs.swift.
+//  Look-dev: `-fxSheet` (every effect staged around the squad, frozen
+//  mid-air), `-fxPeak` (the plan's scripted peak: three chained
+//  boomers + napalm + the cryo beam, every 2.5 s), `-fxHigh` (both on
+//  the High tier). Once per second `hb fx …` (counts, caps, CPU).
 // ================================================================
 
-/// Multiply-blended floor stain (`struct DecalInstance` in FX.metal).
-struct DecalInstance {
-    var model: Mat4
-    /// rgb stain tint, w unused.
-    var color: F4
-    /// xy atlas cell offset (0 / 0.5), zw unused.
-    var uv: F4
-}
-
-/// Flat floor sprite (`struct SpriteInstance` in FX.metal): glows, splashes, telegraphs, team rings, ring indicators.
+/// Flat floor sprite of the web renderer (`fx.glowSprites`, read by LightGrid; GroundGlyphs' empty team rings).
 struct SpriteInstance {
     /// xyz centre, w = mode (0 textured, 1 ring indicator).
     var center: F4
@@ -41,213 +52,212 @@ struct SpriteInstance {
     var color: F4
 }
 
-/// Camera-facing particle (`struct ParticleInstance` in FX.metal).
-struct ParticleInstance {
-    /// xyz position, w = size (m, the web point size).
-    var pos: F4
-    /// rgba colour.
+/// Light on the deck / telegraph (`struct FloorFx` in FX.metal), 64 bytes.
+struct FloorFx {
+    /// xyz on the deck, w = radius (m; lanes: half width).
+    var center: F4
+    /// rgb HDR, w = opacity.
     var color: F4
-    /// x = noise seed, yzw unused.
-    var extra: F4
+    /// x mode (FloorMode), y progress 0…1, z thickness (fraction of the radius), w seed / blink.
+    var params: F4
+    /// xy unit direction in xz (lanes), z half length (lanes), w slope along the direction (dy / m).
+    var axis: F4
 }
 
-/// Ribbon vertex (`struct RibbonVertex` in FX.metal): sight glints, tracers, the cryo beam, beacon beams.
-struct RibbonVertex {
-    /// xyz world position, w = mode (0 dashed line — unused since the laser sights went, 1 flat tracer, 2 cryo beam,
-    /// 3 fade along u: sight glints, beacon beams).
+/// One heat sprite of the distortion pass (`struct HeatInstance` in FX.metal), 32 bytes.
+struct HeatInstance {
+    /// xyz centre, w = radius (m).
     var pos: F4
-    /// rgb colour, w = intensity.
-    var color: F4
-    /// xy uv (u along, v across 0…1), zw unused.
-    var uv: F4
+    /// x strength 0…1, y mode (0 blob, 1 expanding wave, 2 rising column), z progress 0…1, w seed.
+    var params: F4
 }
+
+enum FloorMode: Float { case glow = 0, shock = 1, fire = 2, acid = 3, frost = 4, ring = 10, fill = 11, lane = 12, wave = 13 }
 
 final class MetalEffects {
     let level: Level
-    let pa: MetalParticles
-    let pn: MetalParticles
+    let gpu: GPUParticles
+    let decals: Decals
+    let ribbons = Ribbons()
+    /// The old pools' emit() for callers outside the effects (WorldLevel): additive / alpha.
+    var pa: ParticlePool { gpu.additivePool }
+    var pn: ParticlePool { gpu.alphaPool }
     /// Emission scale (web fxK: low 0.4, med 0.7, high 1).
     private(set) var fxK: Float = 0.7
     private var rng = SeededRNG(seed: 9001)
 
     /// Where bug deaths leave their bodies (Swarm/Corpses.swift; MetalWorld sets it).
     weak var corpses: Corpses?
+    /// The swarm, for hits on the chitin (WorldSwarm.impactPoint); nil until MetalWorld sets it (handoff): the core's
+    /// bug heights stand in.
+    weak var swarm: WorldSwarm?
+    /// The squad, for muzzle / eject sockets and bores (WorldSquad.muzzle / socket / bore); nil until MetalWorld sets it
+    /// (handoff): the core's muzzle point at the weapon's height stands in.
+    weak var squad: WorldSquad?
 
-    // persistent ground stains (ring buffer, web QUALITY.med budget by default)
-    /// (`decalVersion` moves on every change: upload() re-copies them only then)
-    private(set) var decals: [DecalInstance] = [] { didSet { decalVersion &+= 1 } }
-    private(set) var decalVersion = 0
-    private var decalXZ: [Vec2] = []
-    private var decRing = 1000
-    private var decHead = 0
-    private var decY = 0
-    /// Stains lying on the lift deck (ring index, base y) once the extraction starts.
-    private var liftGore: [(Int, Float)]? = nil
-    private var liftRiseLast: Float = 0
+    /// Floor light pools of the web renderer (LightGrid turns bright ones into lights): empty — the effects emit their
+    /// lights into the grid themselves (LightingHub.emit).
+    private(set) var glowSprites: [SpriteInstance] = []
+    private var floorAdd: [FloorFx] = []
+    private var floorMax: [FloorFx] = []
+    private var heat: [HeatInstance] = []
 
-    // per-frame sprite lists
-    var glowSprites: [SpriteInstance] = []
-    var ringSprites: [SpriteInstance] = []
-    var fillSprites: [SpriteInstance] = []
-    var laneSprites: [SpriteInstance] = []
-    var ribbons: [RibbonVertex] = []
-    private struct Splash { var x: Float, z: Float, size: Float, r: Float, g: Float, b: Float, t: Float, life: Float }
-    private var splashes: [Splash] = []
-
-    // light pool
+    // light pool (LightGrid reads it): [0] follows flames / napalm / the player's muzzle, [1], [2] unused
     struct PointLight { var pos: F3; var color: F3; var intensity: Float }
-    /// [0] follows flames / napalm / the player's muzzle, [1], [2] short blasts.
     private(set) var lights = [PointLight](repeating: PointLight(pos: F3(0, -60, 0), color: F3(1, 0.54, 0.23), intensity: 0), count: 3)
-    private var flashT: [Float] = [0, 0, 0]
-    private var flashDur: [Float] = [1, 1, 1]
-    private var flashPeak: [Float] = [0, 0, 0]
+    /// Short grid lights (muzzle pops, kills, blasts …), re-emitted every frame with their fall-off.
+    private struct FlashLight { var pos: F3; var color: F3; var peak: Float; var t: Float; var dur: Float; var range: Float; var priority: Float }
+    private var flashLights: [FlashLight] = []
+    /// Timed floor fx (shock rings, acid glow, ground fire …) and heat sprites.
+    private struct TimedFloor { var fx: FloorFx; var t: Float; var life: Float; var fade: Bool }
+    private var timedFloor: [TimedFloor] = []
+    private struct TimedHeat { var h: HeatInstance; var t: Float; var life: Float }
+    private var timedHeat: [TimedHeat] = []
+    /// Live explosions (cap counter): age.
+    private var blasts: [Float] = []
+    private var blastsPeak = 0
+    /// Flame spawns of the last frames (the GPU's flame count is three frames old).
+    private var flameSpawns = [Int](repeating: 0, count: 4)
+    private var flameSlot = 0
+    private var flameThrottled = 0
+    // per-marine emission accumulators (fractional rates), shot counters
+    private var acc = [[Float]](repeating: [Float](repeating: 0, count: 6), count: 4)
+    private var shots = [Int](repeating: 0, count: 4)
+    private var scorchT = [Float](repeating: 0, count: 4)
+    private var napalmAcc: [Float] = [0, 0, 0, 0, 0, 0, 0, 0]
     private var steamT: Float = 0
+    private var burnAcc: Float = 0
+    /// Effect clock (s): advances with the effects' dt (frozen look-dev shots stop it).
+    private(set) var clock: Float = 0
+    private var frameTime: Float = 0
+    private var lastDt: Float = 0
+    private var liftRiseNow: Float = 0
+    private var extractAcc: [Float] = [0, 0]
+    private let look = FXLookDev()
+
+    private var renderer: MetalRenderer?
+    private var psFloor: MTLRenderPipelineState?
+    private var psTele: MTLRenderPipelineState?
+    private var psHeat: MTLRenderPipelineState?
+    private var rFloor = Region(), rTele = Region(), rHeat = Region()
+    private var cpuAcc: Double = 0
+    private var cpuFrames = 0
+    private var lastLog: Double = 0
+
+    static let pipelines: [PipelineSpec] = GPUParticles.pipelines + Decals.pipelines + Ribbons.pipelines + [
+        .world("floorFx", "vs_floorfx", "fs_floorfx", .add),
+        .world("telegraph", "vs_floorfx", "fs_telegraph", .max),
+        // heat offsets around 0.5, signed through the alpha blend (the ¼-res RG8 target of WP1)
+        PipelineSpec(label: "heat", vertex: "vs_heat", fragment: "fs_heat", blend: .alpha, layout: nil, target: .distortion, required: false),
+    ]
+
+    /// Explosions alive at once per tier (more: the newest are drawn without fireball and licks).
+    static let blastCapHigh = 6, blastCapEfficient = 3
 
     init(level: Level) {
         self.level = level
-        pa = MetalParticles(capacity: 4000, limit: 2600, level: level, seed: 77)
-        pn = MetalParticles(capacity: 2400, limit: 1560, level: level, seed: 78)
-        decals.reserveCapacity(1500)
-        decalXZ.reserveCapacity(1500)
-        glowSprites.reserveCapacity(48)
-        ringSprites.reserveCapacity(80)
-        fillSprites.reserveCapacity(32)
-        laneSprites.reserveCapacity(16)
-        ribbons.reserveCapacity(800 * 6)
-        splashes.reserveCapacity(16)
+        gpu = GPUParticles(level: level)
+        decals = Decals(level: level)
+        floorAdd.reserveCapacity(64)
+        floorMax.reserveCapacity(96)
+        heat.reserveCapacity(32)
+        flashLights.reserveCapacity(32)
+        timedFloor.reserveCapacity(32)
+        timedHeat.reserveCapacity(16)
+        assert(MemoryLayout<FloorFx>.stride == 64, "FloorFx is 64 bytes in FX.metal")
+        assert(MemoryLayout<HeatInstance>.stride == 32, "HeatInstance is 32 bytes in FX.metal")
     }
 
-    /// web fxApplyQuality(): emission scale and the particle / stain budgets of the tier (corpses: Corpses.setQuality).
+    /// web fxApplyQuality(): emission scale and the tier's caps (particles, stains; corpses: Corpses.setQuality).
     func setQuality(fxK k: Float) {
-        fxK = k
-        let tier: (Int, Int, Int) = k < 0.5 ? (1400, 500, 160) : (k < 0.85 ? (2600, 1000, 320) : (4000, 1500, 520))
-        pa.limit = min(pa.capacity, tier.0)
-        pn.limit = min(pn.capacity, Int((Float(tier.0) * 0.6).rounded()))
-        if decRing != tier.1 {
-            decRing = tier.1
-            decHead = 0
-            if decals.count > decRing { decals.removeLast(decals.count - decRing); decalXZ.removeLast(decalXZ.count - decRing) }
-        }
+        fxK = look.forceHigh ? 1 : k
+        if look.forceHigh { renderer?.quality.setChosen(fxK: 1) }
+        applyTier()
     }
+
+    private func applyTier() {
+        let high = (renderer?.frameTier ?? .efficient) == .high
+        gpu.setTier(high: high, fxK: fxK)
+        decals.setTier(high: high, fxK: fxK)
+    }
+
+    private var blastCap: Int { gpu.ringCap >= GPUParticles.capHigh ? MetalEffects.blastCapHigh : MetalEffects.blastCapEfficient }
 
     func reset() {
-        pa.clear(); pn.clear()
-        decals.removeAll(keepingCapacity: true); decalXZ.removeAll(keepingCapacity: true)
-        decHead = 0; decY = 0
-        liftGore = nil
-        liftRiseLast = 0
-        splashes.removeAll(keepingCapacity: true)
-        for k in 0..<3 { lights[k].intensity = 0; flashPeak[k] = 0 }
+        gpu.clear()
+        decals.reset()
+        flashLights.removeAll(keepingCapacity: true)
+        timedFloor.removeAll(keepingCapacity: true)
+        timedHeat.removeAll(keepingCapacity: true)
+        blasts.removeAll(keepingCapacity: true)
+        for k in 0..<3 { lights[k].intensity = 0 }
         for k in 0..<sightLevel.count { sightLevel[k] = 0 }
         turretSight = 0
+        look.restart()
     }
 
-    /// Memory warning: the live particles and splashes go (stains and corpses stay; they are part of the battle).
-    func trim() {
-        pa.clear(); pn.clear()
-        splashes.removeAll(keepingCapacity: true)
-    }
+    /// Memory warning: the live particles go (stains and corpses stay; they are part of the battle).
+    func trim() { gpu.clear() }
 
     @inline(__always) private func rnd() -> Float { rng.next() }
     @inline(__always) private func rr(_ a: Float, _ b: Float) -> Float { a + (b - a) * rng.next() }
     @inline(__always) private func num(_ base: Float) -> Int { Int((base * fxK).rounded(.up)) }
-
-    // ================================================================ ground stains
-    private func walkable2(_ x: Float, _ z: Float) -> Bool {
-        let c = level.cellOf(x, z)
-        return c >= 0 && level.walkValue(c) != 0
+    /// Emission count by a rate (per s) over dt with a fractional carry.
+    @inline(__always) private func rate(_ a: inout Float, _ perSecond: Float, _ dt: Float) -> Int {
+        a += perSecond * fxK * dt
+        let n = Int(a)
+        a -= Float(n)
+        return n
     }
 
-    /// dy/dz of the floor at (x, z) (ramps run along z).
-    private func slopeZ(_ x: Float, _ z: Float) -> Float {
-        (level.groundY(x, z + 0.05) - level.groundY(x, z - 0.05)) / 0.1
-    }
+    private func gy(_ x: Float, _ z: Float) -> Float { level.groundY(x, z) }
 
-    /// web addDecal: cell 0 splat, 1 streak splat, 2 remains, 3 scorch.
-    func addDecal(_ x: Float, _ z: Float, _ size0: Float, _ cell: Int, _ r: Float, _ g: Float, _ b: Float) {
-        let c0 = level.cellOf(x, z)
-        if c0 < 0 || level.walkValue(c0) == 0 { return }
-        var size = size0
-        var k = 0
-        while k < 3 {
-            let h = size * 0.4
-            if walkable2(x - h, z - h) && walkable2(x + h, z - h) && walkable2(x - h, z + h) && walkable2(x + h, z + h) { break }
-            size *= 0.7
-            k += 1
-        }
-        let gz = slopeZ(x, z)
-        let gy = level.groundY(x, z) + (level.isStairCell(c0) ? 0.08 : 0)
-        decY = (decY + 1) % 64
-        let rot = rnd() * TAU
-        let c = cosf(rot) * size, s = sinf(rot) * size
-        let m = Mat4(c0: F4(c, -s * gz, -s, 0), c1: F4(0, 1, 0, 0), c2: F4(s, c * gz, c, 0),
-                     c3: F4(x, gy + 0.018 + Float(decY) * 0.0002, z, 1))
-        let uv: F4 = cell == 0 ? F4(0, 0, 0, 0) : (cell == 1 ? F4(0.5, 0, 0, 0) : (cell == 2 ? F4(0, 0.5, 0, 0) : F4(0.5, 0.5, 0, 0)))
-        let d = DecalInstance(model: m, color: F4(r, g, b, 1), uv: uv)
-        if decals.count < decRing {
-            decals.append(d); decalXZ.append(Vec2(x, z))
-        } else {
-            decals[decHead] = d; decalXZ[decHead] = Vec2(x, z)
-            forgetLiftGore(decHead)
-            decHead = (decHead + 1) % decRing
-        }
-    }
-
-    /// A ring slot riding the lift was reused for a new stain elsewhere: it no longer rides (the web moves it anyway).
-    private func forgetLiftGore(_ i: Int) {
-        if liftGore != nil { liftGore!.removeAll(where: { $0.0 == i }) }
-    }
-
-    /// Stains lying on the lift deck ride up with it (web fxLiftRise; corpses: Corpses.liftRise).
-    func liftRise(_ rise: Float) {
-        if rise == liftRiseLast { return }
-        liftRiseLast = rise
-        if liftGore == nil {
-            var list: [(Int, Float)] = []
-            for (i, p) in decalXZ.enumerated() where level.isLiftCell(level.cellOf(p.x, p.y)) { list.append((i, decals[i].model.c3.y)) }
-            liftGore = list
-        }
-        for (i, y) in liftGore ?? [] where i < decals.count { decals[i].model.c3.y = y + rise }
-    }
-
-    // ================================================================ lights / splashes
-    /// The web phone build pools a single point light (03-render.js N_PL = 1: flames / napalm / the player's muzzle);
-    /// blasts light the deck with a floor splash instead. true = the desktop rig (two extra blast lights).
-    static let blastLights = false
-
-    /// web flashLight(): reuse the weaker of the two blast lights (phones: a floor splash).
-    func flashLight(_ x: Float, _ y: Float, _ z: Float, _ hex: UInt32, _ peak: Float, _ dur: Float) {
-        if !MetalEffects.blastLights {
-            splash(x, z, 5 + peak.squareRoot() * 0.25, Float((hex >> 16) & 255) / 640, Float((hex >> 8) & 255) / 640, Float(hex & 255) / 640, dur)
+    // ================================================================ lights / floor / heat
+    /// A short grid light: `peak` like a three.js PointLight intensity, falling off (1 − t)² over `dur`.
+    func flash(_ p: F3, _ color: F3, peak: Float, dur: Float, range: Float, priority: Float = 10) {
+        if flashLights.count >= 24 {
+            var worst = 0
+            for k in 1..<flashLights.count where flashLights[k].t / flashLights[k].dur > flashLights[worst].t / flashLights[worst].dur { worst = k }
+            flashLights[worst] = FlashLight(pos: p, color: color, peak: peak, t: 0, dur: dur, range: range, priority: priority)
             return
         }
-        let best = lights[1].intensity <= lights[2].intensity ? 1 : 2
-        lights[best].pos = F3(x, y + level.groundY(x, z), z)
-        lights[best].color = linearRGB(hex)
-        flashPeak[best] = peak
-        flashT[best] = 0
-        flashDur[best] = dur
-        lights[best].intensity = peak
+        flashLights.append(FlashLight(pos: p, color: color, peak: peak, t: 0, dur: dur, range: range, priority: priority))
     }
 
-    /// Persistent splash that fades out over `life`.
-    func splash(_ x: Float, _ z: Float, _ size: Float, _ r: Float, _ g: Float, _ b: Float, _ life: Float) {
-        let s = Splash(x: x, z: z, size: size, r: r, g: g, b: b, t: 0, life: life)
-        if splashes.count < 16 { splashes.append(s); return }
-        var worst = 0
-        for k in 1..<splashes.count where splashes[k].t / splashes[k].life > splashes[worst].t / splashes[worst].life { worst = k }
-        splashes[worst] = s
+    private func floorTimed(_ x: Float, _ z: Float, radius: Float, mode: FloorMode, color: F3, life: Float, thickness: Float = 0.08,
+                            fade: Bool = true) {
+        if timedFloor.count >= 40 { timedFloor.removeFirst() }
+        let f = FloorFx(center: F4(x, gy(x, z) + 0.05, z, radius), color: F4(color.x, color.y, color.z, 1),
+                        params: F4(mode.rawValue, 0, thickness, rnd()), axis: .zero)
+        timedFloor.append(TimedFloor(fx: f, t: 0, life: life, fade: fade))
     }
 
-    /// One-frame light pool on the deck.
-    func splashNow(_ x: Float, _ z: Float, _ size: Float, _ r: Float, _ g: Float, _ b: Float) {
-        if glowSprites.count >= 40 { return }
-        let c0 = level.cellOf(x, z)
-        if c0 < 0 || level.walkValue(c0) == 0 { return }
-        let gz = slopeZ(x, z)
-        let gy = level.groundY(x, z) + 0.04 + (level.isStairCell(c0) ? 0.08 : 0)
-        let h = size * 0.5
-        glowSprites.append(SpriteInstance(center: F4(x, gy, z, 0), axisU: F4(h, 0, 0, 0), axisV: F4(0, gz * h, h, 0), color: F4(r, g, b, 1)))
+    private func heatTimed(_ p: F3, radius: Float, strength: Float, mode: Float, life: Float) {
+        if timedHeat.count >= 24 { timedHeat.removeFirst() }
+        timedHeat.append(TimedHeat(h: HeatInstance(pos: F4(p.x, p.y, p.z, radius), params: F4(strength, mode, 0, rnd())), t: 0, life: life))
+    }
+
+    @inline(__always) private func heatNow(_ p: F3, radius: Float, strength: Float, mode: Float = 0) {
+        if heat.count < 32 { heat.append(HeatInstance(pos: F4(p.x, p.y, p.z, radius), params: F4(strength, mode, 0.5, rnd()))) }
+    }
+
+    @inline(__always) private func floorNow(_ x: Float, _ y: Float, _ z: Float, radius: Float, mode: FloorMode, color: F3,
+                                            seed: Float = 0) {
+        if floorAdd.count < 64 {
+            floorAdd.append(FloorFx(center: F4(x, y, z, radius), color: F4(color.x, color.y, color.z, 1), params: F4(mode.rawValue, 0.5, 0.1, seed),
+                                    axis: .zero))
+        }
+    }
+
+    /// The flame budget: how many of `n` new flame particles fit under the tier's cap (the GPU's count is three frames
+    /// old: the spawns since then count too).
+    private func flameBudget(_ n: Int) -> Int {
+        let est = gpu.liveFlames + flameSpawns.reduce(0, +)
+        let room = max(0, gpu.flameCap - est)
+        let k = min(n, room)
+        if k < n { flameThrottled += n - k }
+        flameSpawns[flameSlot] += k
+        return k
     }
 
     // ================================================================ events
@@ -256,7 +266,9 @@ final class MetalEffects {
         case .bugKilled(let type, let pos, let frozen, _, let heading, let scale, let height):
             bugDeath(type, pos.x, pos.y, frozen, heading, scale, height)
         case .bulletHit(let pos, let dir, let killed):
-            bulletHit(pos.x, pos.y, dir.x, dir.y, killed)
+            bulletHit(game, pos.x, pos.y, dir.x, dir.y, killed)
+        case .muzzle(let k):
+            if k >= 0 && k < game.marines.count { muzzleShot(game.marines[k], k) }
         case .explosion(let kind, let pos, let radius):
             explosion(pos.x, pos.y, radius, kind)
         case .acidSplash(let pos):
@@ -274,13 +286,22 @@ final class MetalEffects {
             if m < game.marines.count { heal(game.marines[m]) }
         case .turretShot(let pos, let angle):
             let ax = sinf(angle), az = cosf(angle)
-            pa.emit(pos.x + ax * 0.75, 1.05, pos.y + az * 0.75, ax * 2, 0, az * 2, 0.05, 0.7, 0.3, 0.5, 1, 0.5, 1, 0, 0, 0)
+            let p = F3(pos.x + ax * 0.75, gy(pos.x, pos.y) + 1.05, pos.y + az * 0.75)
+            gpu.burst(.spark, 2, at: p, vel: F3(ax, 0, az) * 8, velJitter: F3(2, 1.2, 2), life: (0.05, 0.12), size: (0.03, 0.02),
+                      color: F4(1.0, 1.2, 0.8, 1), gravity: 2, drag: 4)
+            flash(p, F3(0.5, 1.0, 0.55), peak: 35, dur: 0.06, range: 5, priority: 5)
         case .bugFrozen(let pos):
-            for _ in 0..<num(3) { pa.emit(pos.x, 0.4, pos.y, rr(-1, 1), rr(0.5, 1.5), rr(-1, 1), rr(0.2, 0.4), 0.2, 0.05, 0.45, 0.75, 1, 0.8, 2, 1, 3) }
+            let p = F3(pos.x, gy(pos.x, pos.y) + 0.45, pos.y)
+            gpu.burst(.ice, num(5), at: p, jitter: F3(0.25, 0.15, 0.25), sphere: 1.6, upper: true, life: (0.4, 0.8), size: (0.07, 0.03),
+                      color: F4(0.75, 1.0, 1.4, 1), gravity: 2, drag: 2)
         case .beaconCompleted(let k):
             if k >= 0 && k < game.beacons.count {
                 let b = game.beacons[k]
-                flashLight(b.x, 3, b.z, 0x40ffe0, 600, 1.0)
+                let y = gy(b.x, b.z)
+                flash(F3(b.x, y + 3, b.z), F3(0.25, 1.0, 0.88), peak: 260, dur: 1.0, range: 14, priority: 30)
+                floorTimed(b.x, b.z, radius: 9, mode: .shock, color: F3(0.5, 2.4, 2.0), life: 0.8, thickness: 0.05)
+                gpu.burst(.glow, num(30), at: F3(b.x, y + 0.4, b.z), ring: 1.2, vel: F3(0, 3, 0), velJitter: F3(0.4, 1.5, 0.4),
+                          radial: 1.5, life: (0.8, 1.4), size: (0.22, 0.05), color: F4(0.4, 2.2, 1.8, 1), gravity: -0.5, drag: 0.8)
             }
         case .turretExpired(let pos):
             turretDrop(pos.x, pos.y)
@@ -289,282 +310,472 @@ final class MetalEffects {
         }
     }
 
-    // stain tints (multiplied over the floor) and the ichor droplet colours
-    private static let ichor: [(Float, Float, Float)] = [(0.62, 0.1, 0.22), (0.5, 0.58, 0.1), (0.58, 0.12, 0.15), (0.62, 0.24, 0.08)]
-    private static let ichorP: [(Float, Float, Float)] = [(0.3, 0.05, 0.14), (0.28, 0.32, 0.04), (0.26, 0.06, 0.08), (0.32, 0.12, 0.04)]
+    // ---------------------------------------------------------------- bugs
+    /// Ichor (albedo of the droplets) and the stain tint of each bug type.
+    private static func ichor(_ t: Int) -> F3 { WorldSwarm.ichor[max(0, min(3, t))] }
+    private static let chitin = F4(0.045, 0.04, 0.05, 1)
 
     private func bugDeath(_ type: BugType, _ x: Float, _ z: Float, _ frozen: Bool, _ hd: Float, _ sc: Float, _ y: Float) {
         let ty = type.rawValue
+        let s = sc * WorldSwarm.sizeK[ty]
+        let p = F3(x, gy(x, z) + max(-0.5, y) + 0.3 * s, z)
         if frozen {
-            for _ in 0..<num(8) { pa.emit(x, 0.4, z, rr(-3, 3), rr(1, 4), rr(-3, 3), rr(0.25, 0.5), 0.2, 0.04, 0.35, 0.6, 0.8, 1, 9, 1, 3) }
-            addDecal(x, z, sc * 0.8, 0, 0.72, 0.84, 0.98)
+            // the frozen bug shatters (no body): ice shards and chunks, a puff of frost, rime on the deck
+            gpu.burst(.ice, num(16), at: p, jitter: F3(0.2, 0.15, 0.2) * s, sphere: 6, upper: true, life: (0.5, 1.0), size: (0.1, 0.05),
+                      color: F4(0.8, 1.05, 1.4, 1), gravity: 12, drag: 0.6, bounce: 0.3)
+            gpu.burst(.debris, num(6), at: p, sphere: 4.5, upper: true, life: (0.8, 1.4), size: (0.14 * s, 0.1 * s),
+                      color: F4(0.5, 0.62, 0.75, 1), gravity: 13, drag: 0.3, spin: 8)
+            gpu.burst(.steam, 2, at: p, jitter: F3(0.2, 0.1, 0.2), vel: F3(0, 0.6, 0), life: (0.7, 1.1), size: (0.5 * s, 1.4 * s),
+                      color: F4(0.6, 0.72, 0.85, 0.45), drag: 1.2)
+            decals.add(x, z, size: s * 0.9, cell: .frost, kind: .frost, tint: F3(0.72, 0.84, 0.98), opacity: 0.85)
             return
         }
-        let c = MetalEffects.ichor[ty], cp = MetalEffects.ichorP[ty]
-        pa.emit(x, 0.35 * sc + y, z, 0, 0.6, 0, 0.11, 0.7 * sc, 1.5 * sc, 1.0, 0.45, 0.7, 0.85, 0, 0, 3)
-        for _ in 0..<num(type == .brute ? 9 : 2) {
-            pn.emit(x, 0.4 + y, z, rr(-3.2, 3.2), rr(2, 5.5), rr(-3.2, 3.2), rr(0.5, 0.9), rr(0.08, 0.15) * (type == .brute ? 1.6 : 1), 0.07,
-                    0.13, 0.07, 0.11, 1, 15, 0.4, 0)
+        let ich = MetalEffects.ichor(ty)
+        let big = type == .brute
+        // ichor spray, chitin gibs, the pores' pink-white flecks, a wet puff
+        gpu.burst(.ichor, num(big ? 16 : 7), at: p, jitter: F3(0.15, 0.1, 0.15) * s, vel: F3(0, 1.2, 0), sphere: big ? 5.5 : 4.2,
+                  upper: true, life: (0.5, 0.9), size: (big ? 0.12 : 0.08, big ? 0.09 : 0.06), color: F4(ich.x * 0.55, ich.y * 0.55, ich.z * 0.55, 1),
+                  gravity: 12)
+        gpu.burst(.debris, num(big ? 10 : 3), at: p, sphere: 5, upper: true, life: (0.9, 1.6), size: (0.1 * s, 0.08 * s),
+                  color: MetalEffects.chitin, gravity: 14, drag: 0.25, spin: 9)
+        gpu.burst(.ember, num(big ? 10 : 4), at: p, sphere: 2.6, upper: true, life: (0.45, 0.9), size: (0.045, 0.02),
+                  color: F4(2.4, 0.75, 1.45, 1), gravity: 4, drag: 1.5)
+        gpu.burst(.steam, 1, at: p, vel: F3(0, 0.5, 0), life: (0.45, 0.7), size: (0.45 * s, 1.2 * s),
+                  color: F4(ich.x * 0.35 + 0.08, ich.y * 0.35 + 0.06, ich.z * 0.35 + 0.07, 0.4), drag: 1.5)
+        decals.add(x, z, size: s * rr(1.0, 1.45), cell: rnd() < 0.5 ? .splat : .streak, kind: .ichor, tint: ich, flecks: 1)
+        if type != .boomer {
+            corpses?.add(x, z, hd, sc, type, rnd: { [unowned self] in self.rnd() })
+        } else {
+            decals.add(x, z, size: 2.6, cell: .acid, kind: .acid, tint: F3(0.42, 0.6, 0.06))
         }
-        if type == .brute { splash(x, z, 4, 0.3, 0.06, 0.16, 0.35) }
-        addDecal(x, z, sc * rr(1.0, 1.5), rnd() < 0.5 ? 0 : 1, c.0, c.1, c.2)
-        if type != .boomer { corpses?.add(x, z, hd, sc, type, rnd: rnd) } else { addDecal(x, z, 2.6, 3, 0.1, 0.08, 0.08) }
-        for _ in 0..<num(type == .brute ? 14 : 5) {
-            pn.emit(x, 0.35, z, rr(-2.5, 2.5), rr(1.5, 4), rr(-2.5, 2.5), rr(0.4, 0.8), rr(0.12, 0.22), 0.06, cp.0 * 1.6, cp.1 * 1.6, cp.2 * 1.6, 0.95, 12, 0.5, 0)
+        if big { flash(p, F3(1.0, 0.35, 0.55), peak: 40, dur: 0.15, range: 5, priority: 8) }
+    }
+
+    /// One projectile hit at (x, z) along (dx, dz): sparks off the chitin, a hit flash, the bug's ichor, a wet splat.
+    private func bulletHit(_ game: Game, _ x: Float, _ z: Float, _ dx: Float, _ dz: Float, _ killed: Bool) {
+        if !killed && rnd() > 0.5 * fxK + 0.4 { return }
+        var p = F3(x, gy(x, z) + 0.45, z)
+        var n = F3(-dx, 0.35, -dz)
+        var ich = MetalEffects.ichor(0)
+        if let h = swarm?.impactPoint(x: x, z: z, dx: dx, dz: dz) {
+            p = h.pos; n = h.normal; ich = h.ichor
+        } else {
+            // the bug the shot hit (core heights and scales): the hit point on its body, facing the shooter
+            let B = game.bugs
+            let hit = game.raycastBugs(origin: Vec2(x - dx * 0.9, z - dz * 0.9), dir: Vec2(dx, dz), maxDistance: 1.8)
+            if hit.bug >= 0 && hit.bug < B.count {
+                let t = Int(B.types[hit.bug])
+                let s = B.scales[hit.bug] * WorldSwarm.sizeK[max(0, min(3, t))]
+                p.y = gy(x, z) + max(-0.5, B.heights[hit.bug]) + (t == 2 ? 0.55 : 0.32) * s
+                ich = MetalEffects.ichor(t)
+            }
         }
-        if type != .spitter {
-            for _ in 0..<num(2) { pa.emit(x, 0.4, z, rr(-2, 2), rr(1, 3), rr(-2, 2), 0.35, 0.18, 0.05, 1.0, 0.25, 0.5, 1, 8, 0.5, 3) }
+        let l = max(1e-4, (n * n).sum().squareRoot())
+        n /= l
+        let d = F3(dx, 0, dz)
+        // hot sparks off the chitin (bounce on the deck, cool white → orange), a four-ray hit flash
+        gpu.burst(.spark, num(killed ? 9 : 5), at: p, vel: n * 4.5 + d * 1.5, velJitter: F3(2.4, 2.0, 2.4), sphere: 2.5,
+                  life: (0.18, 0.45), size: (0.045, 0.03), color: F4(1.25, 1.05, 0.85, 1), gravity: 14, drag: 1.2)
+        gpu.burst(.flash, 1, at: p + n * 0.08, life: (0.06, 0.08), size: (killed ? 0.8 : 0.55, killed ? 0.95 : 0.7),
+                  color: F4(5.0, 3.6, 2.2, 1), sizeJitter: 0.2)
+        // the bug's ichor: droplets along the shot that stick to the deck
+        gpu.burst(.ichor, num(killed ? 6 : 3), at: p, vel: d * 2.4 + F3(0, 1.4, 0), velJitter: F3(1.6, 1.2, 1.6), life: (0.5, 0.9),
+                  size: (0.07, 0.05), color: F4(ich.x * 0.55, ich.y * 0.55, ich.z * 0.55, 1), gravity: 12)
+        if killed || rnd() < 0.18 {
+            decals.add(x + dx * 0.5, z + dz * 0.5, size: rr(0.45, 0.8), cell: .small, kind: .ichor, tint: ich, opacity: 0.9, flecks: 0.6,
+                       roll: atan2f(dx, dz))
+        }
+        if killed { flash(p, F3(1.0, 0.7, 0.45), peak: 22, dur: 0.07, range: 4, priority: 4) }
+    }
+
+    @inline(__always) func burningBug(_ x: Float, _ z: Float, _ sc: Float, dt: Float) {
+        // one bug on fire (WorldSwarm): a lick of flame and an ember now and then
+        if rnd() < 7 * dt * fxK {
+            let p = F3(x + rr(-0.2, 0.2), gy(x, z) + 0.3 * sc, z + rr(-0.2, 0.2))
+            if flameBudget(1) > 0 {
+                gpu.burst(.fire, 1, at: p, vel: F3(0, 1.4, 0), velJitter: F3(0.3, 0.3, 0.3), life: (0.3, 0.45), size: (0.25 * sc, 0.6 * sc),
+                          color: F4(1, 0.9, 0.8, 0.8), gravity: -1, drag: 1, spin: 2)
+            }
+            gpu.burst(.ember, 1, at: p, vel: F3(0, 1.6, 0), velJitter: F3(0.8, 0.6, 0.8), life: (0.6, 1.0), size: (0.04, 0.02),
+                      color: F4(2.2, 0.7, 0.15, 1), gravity: 1, drag: 1)
         }
     }
 
+    // ---------------------------------------------------------------- weapons
+    /// Marine pose the effects attach to (interpolated feet).
+    struct MarinePose { var x: Float, y: Float, z: Float }
+    private var poses: [MarinePose] = []
+
+    /// The muzzle of marine k (WorldSquad's socket when wired, else the core's muzzle point at the weapon's height).
+    private func muzzle(_ m: Marine, _ k: Int) -> F3 {
+        if let s = squad?.muzzle(k) { return s }
+        let p = k < poses.count ? poses[k] : MarinePose(x: m.x, y: gy(m.x, m.z), z: m.z)
+        return F3(p.x + m.ax * 0.95 + m.az * 0.22, p.y + 1.2, p.z + m.az * 0.95 - m.ax * 0.22)
+    }
+
+    /// One round fired (rifle / rotary): the muzzle pops a light, throws sparks and a casing; every third a wisp of smoke.
+    private func muzzleShot(_ m: Marine, _ k: Int) {
+        guard k < shots.count, !m.downed else { return }
+        shots[k] &+= 1
+        let o = muzzle(m, k)
+        let d = F3(m.ax, 0, m.az)
+        let rotary = m.cls == .gunner
+        // the pop of light on the shooter and the deck (on top of the squad's continuous muzzle lights of LightGrid)
+        let c = rotary ? F3(1.0, 0.78, 0.42) : F3(1.0, 0.5, 0.3)
+        flash(o + d * 0.35, c, peak: m.isPlayer ? 60 : 38, dur: rotary ? 0.05 : 0.07, range: 7, priority: m.isPlayer ? 9 : 6)
+        gpu.burst(.spark, rotary ? 1 : 2, at: o + d * 0.15, vel: d * 9, velJitter: F3(2.6, 1.6, 2.6), life: (0.05, 0.13), size: (0.03, 0.02),
+                  color: F4(1.3, 1.0, 0.7, 1), gravity: 2, drag: 4)
+        // spent casings to the right of the weapon (rotary: every other round)
+        if !rotary || shots[k] % 2 == 0 {
+            var e = F3(o.x - m.ax * 0.55 + m.az * 0.12, o.y - 0.06, o.z - m.az * 0.55 - m.ax * 0.12)
+            if let s = squad?.socket(k, "eject") { e = s }
+            let side = F3(m.az, 0, -m.ax)
+            gpu.burst(.casing, 1, at: e, vel: side * rr(1.8, 2.8) + F3(0, 2.6, 0) - d * 0.4, velJitter: F3(0.5, 0.6, 0.5),
+                      life: (1.0, 1.5), size: (0.055, 0.055), color: F4(0.62, 0.42, 0.13, 1), gravity: 13, drag: 0.4, sizeJitter: 0.1, spin: 14)
+        }
+        if shots[k] % 3 == 0 {
+            gpu.burst(.smoke, 1, at: o + d * 0.3, vel: d * 0.8 + F3(0, 0.6, 0), velJitter: F3(0.2, 0.2, 0.2), life: (0.5, 0.8),
+                      size: (0.25, 0.75), color: F4(0.45, 0.45, 0.47, 0.32), drag: 2, spin: 1)
+        }
+    }
+
+    /// The flamer's jet from `o` along (ax, az) this frame: flipbook flames, a hot core at the nozzle, lit smoke off the
+    /// tips, embers, scorch on the deck, heat haze, the ground glow.
+    private func flameJet(_ o: F3, ax: Float, az: Float, vel: F3, dt: Float, k: Int) {
+        let d = F3(ax, 0, az)
+        let n = flameBudget(rate(&acc[k][0], 130, dt))
+        if n > 0 {
+            gpu.burst(.fire, n, at: o + d * 0.25, jitter: F3(0.05, 0.05, 0.05), vel: d * 13.5 + vel * 0.5 + F3(0, 0.3, 0),
+                      velJitter: F3(2.1, 0.8, 2.1), life: (0.42, 0.58), size: (0.22, 1.75), color: F4(1, 0.95, 0.9, 0.78),
+                      gravity: -1.2, drag: 1.6, sizeJitter: 0.3, spin: 2)
+        }
+        gpu.burst(.glow, 1, at: o + d * 0.35, life: (0.05, 0.07), size: (0.45, 0.7), color: F4(2.6, 1.4, 0.55, 1))
+        let ns = rate(&acc[k][1], 14, dt)
+        if ns > 0 {
+            gpu.burst(.smoke, ns, at: o + d * rr(4.5, 6.5) + F3(0, 0.3, 0), jitter: F3(0.4, 0.2, 0.4), vel: d * 2 + F3(0, 1.4, 0),
+                      life: (1.2, 1.8), size: (0.8, 2.3), color: F4(0.06, 0.055, 0.05, 0.7), gravity: -0.6, drag: 0.8, spin: 0.5)
+        }
+        let ne = rate(&acc[k][2], 26, dt)
+        if ne > 0 {
+            gpu.burst(.ember, ne, at: o + d * rr(1, 6), vel: d * 5 + F3(0, 1.5, 0), velJitter: F3(2, 1.5, 2), life: (0.6, 1.2),
+                      size: (0.05, 0.025), color: F4(2.1, 0.7, 0.15, 1), gravity: 2, drag: 1.2)
+        }
+        scorchT[k] -= dt
+        if scorchT[k] <= 0 {
+            scorchT[k] = 0.3
+            let t = rr(4.5, 6.8)
+            decals.add(o.x + ax * t, o.z + az * t, size: rr(1.3, 2.0), cell: .scorch, kind: .scorch, tint: F3(0.25, 0.22, 0.2), opacity: 0.45,
+                       flecks: 0)
+        }
+        for t: Float in [2.2, 4.2, 6.2] { heatNow(o + d * t + F3(0, 0.2, 0), radius: 1.0 + t * 0.15, strength: 0.7, mode: 2) }
+        let f = 0.2 + 0.06 * rnd()
+        floorNow(o.x + ax * 3.6, gy(o.x + ax * 3.6, o.z + az * 3.6) + 0.05, o.z + az * 3.6, radius: 3.4, mode: .fire,
+                 color: F3(1.4, 0.55, 0.12) * f, seed: Float(k))
+    }
+
+    /// The cryo beam from `o` over `len`: the ribbon, ice glints along it, frost mist and rime where it ends.
+    private func cryoStream(_ o: F3, ax: Float, az: Float, len: Float, dt: Float, k: Int) {
+        let d = F3(ax, 0, az)
+        ribbons.cryoBeam(from: o, ax: ax, az: az, len: len, time: frameTime, seed: Float(k) * 1.7)
+        let ni = rate(&acc[k][3], 55, dt)
+        if ni > 0 {
+            let t = rr(0.5, len)
+            gpu.burst(.ice, ni, at: o + d * t - F3(0, t * t / max(len, 1) * 0.55, 0), jitter: F3(0.15, 0.1, 0.15), velJitter: F3(1, 0.8, 1),
+                      life: (0.3, 0.6), size: (0.06, 0.03), color: F4(0.7, 1.0, 1.45, 1), gravity: 3, drag: 2)
+        }
+        let end = F3(o.x + ax * len, gy(o.x + ax * len, o.z + az * len) + 0.3, o.z + az * len)
+        let nm = rate(&acc[k][4], 12, dt)
+        if nm > 0 {
+            gpu.burst(.steam, nm, at: end, jitter: F3(0.4, 0.1, 0.4), vel: F3(0, 0.5, 0), velJitter: F3(0.5, 0.3, 0.5), life: (0.8, 1.3),
+                      size: (0.6, 1.7), color: F4(0.6, 0.75, 0.9, 0.35), drag: 1, spin: 0.6)
+        }
+        scorchT[k] -= dt
+        if scorchT[k] <= 0 {
+            scorchT[k] = 0.35
+            decals.add(end.x, end.z, size: rr(1.0, 1.6), cell: .frost, kind: .frost, tint: F3(0.8, 0.9, 1.0), opacity: 0.7)
+        }
+    }
+
+    // ---------------------------------------------------------------- blasts
     private func explosion(_ x: Float, _ z: Float, _ r: Float, _ kind: ExplosionKind) {
+        let g = gy(x, z)
+        let p = F3(x, g + 0.6, z)
         switch kind {
         case .pulse:
-            // (its two shock rings come from the core's telegraph pool)
-            for _ in 0..<num(60) {
-                let a = rnd() * TAU
-                pa.emit(x + cosf(a) * r * 0.95, 0.3, z + sinf(a) * r * 0.95, cosf(a) * 2, rr(1, 4), sinf(a) * 2, rr(0.2, 0.45), 0.25, 0.05, 0.4, 1, 0.9, 1, 4, 1, 3)
-            }
-            flashLight(x, 3, z, 0x40ffe0, 380, 0.4)
-            splash(x, z, r * 2.4, 0.06, 0.32, 0.28, 0.45)
+            // the lift pulse: a teal shock ring, a ring of motes
+            floorTimed(x, z, radius: r * 1.05, mode: .shock, color: F3(0.4, 2.6, 2.2), life: 0.5, thickness: 0.05)
+            gpu.burst(.glow, num(60), at: F3(x, g + 0.3, z), ring: r * 0.95, vel: F3(0, 2.5, 0), velJitter: F3(0.5, 1.5, 0.5),
+                      radial: 2, life: (0.25, 0.5), size: (0.3, 0.06), color: F4(0.4, 2.0, 1.8, 1), gravity: 4, drag: 1)
+            flash(F3(x, g + 3, z), F3(0.25, 1.0, 0.88), peak: 260, dur: 0.4, range: r * 2.2, priority: 30)
             return
         case .frost:
-            for _ in 0..<num(9) {
-                let a = rnd() * TAU, s = rr(2, 6)
-                pa.emit(x, 0.4, z, cosf(a) * s, rr(1, 3), sinf(a) * s, rr(0.3, 0.6), 0.26, 0.05, 0.45, 0.75, 1.0, 0.9, 6, 1.5, 3)
-            }
-            for _ in 0..<num(3) { pn.emit(x, 0.4, z, rr(-3, 3), rr(2, 4.5), rr(-3, 3), rr(0.5, 0.8), rr(0.1, 0.16), 0.08, 0.55, 0.75, 0.9, 1, 15, 0.4, 0) }
-            for _ in 0..<3 { pn.emit(x, 0.4, z, rr(-3, 3), rr(2, 4), rr(-3, 3), rr(0.4, 0.7), 0.12, 0.08, 0.75, 0.9, 1.0, 0.95, 15, 0.4, 0) }
+            gpu.burst(.ice, num(24), at: p, sphere: 7, upper: true, life: (0.4, 0.9), size: (0.1, 0.04), color: F4(0.8, 1.05, 1.45, 1),
+                      gravity: 10, drag: 0.8)
+            gpu.burst(.steam, num(4), at: p, jitter: F3(0.4, 0.2, 0.4), radial: 1.5, life: (0.8, 1.3), size: (0.7, 2.0),
+                      color: F4(0.6, 0.72, 0.85, 0.4), drag: 1.2)
+            floorTimed(x, z, radius: r * 0.9, mode: .frost, color: F3(0.5, 1.3, 2.2), life: 0.45, thickness: 0.1)
+            decals.add(x, z, size: r * 0.8, cell: .frost, kind: .frost, tint: F3(0.75, 0.86, 0.98), opacity: 0.8)
             return
         default:
             break
         }
         let big = kind.isBig
-        for _ in 0..<num(big ? 26 : 8) {
-            let a = rnd() * TAU, s = rr(0.5, r * 1.3)
-            pa.emit(x + cosf(a) * 0.3, rr(0.3, 1), z + sinf(a) * 0.3, cosf(a) * s, rr(0.5, 3), sinf(a) * s, rr(0.35, 0.7), rr(0.6, 1.1), rr(1.3, 2.2), 1, 0.55, 0.2, 0.45, -1, 2.2, 1)
+        let boomer = kind == .boomer
+        blasts.append(0)
+        let full = blasts.count <= blastCap
+        blastsPeak = max(blastsPeak, blasts.count)
+        // light and the white-hot core
+        flash(p + F3(0, 1.2, 0), boomer ? F3(1.0, 0.75, 0.3) : F3(1.0, 0.6, 0.3), peak: big ? 520 : 170, dur: big ? 0.55 : 0.3,
+              range: r * 3.2, priority: 30)
+        gpu.burst(.flash, 1, at: p + F3(0, 0.3, 0), life: (0.1, 0.12), size: (big ? 4.4 : 2.2, big ? 5.2 : 2.6), color: F4(8, 6, 4, 1), sizeJitter: 0)
+        gpu.burst(.glow, 1, at: p, life: (0.16, 0.2), size: (r * 1.1, r * 1.6), color: F4(5, 2.8, 1.2, 1), sizeJitter: 0)
+        if full {
+            // the fireball and the licks of flame flung out of it
+            let fb = flameBudget(big ? 7 : 3)
+            if fb > 0 {
+                gpu.burst(.blast, fb, at: p, jitter: F3(0.4, 0.25, 0.4), vel: F3(0, 1.4, 0), velJitter: F3(0.6, 0.5, 0.6),
+                          radial: 1.3 * r.squareRoot(), life: (0.7, 1.0), size: (r * 0.55, r * 0.95),
+                          color: boomer ? F4(1.0, 1.08, 0.62, 1) : F4(1, 1, 1, 1), gravity: -1, drag: 2.2, spin: 0.6)
+            }
+            let nl = flameBudget(num(big ? 12 : 5))
+            if nl > 0 {
+                gpu.burst(.fire, nl, at: p, vel: F3(0, 2, 0), velJitter: F3(1, 1.5, 1), radial: r * 2.2, radialJitter: 0.5, life: (0.35, 0.55),
+                          size: (0.5, 1.3), color: F4(1, 1, 1, 0.9), gravity: -2, drag: 3.2, spin: 2)
+            }
         }
-        for _ in 0..<num(big ? 22 : 8) {
-            let a = rnd() * TAU, s = rr(6, 16)
-            pa.emit(x, 0.5, z, cosf(a) * s, rr(2, 7), sinf(a) * s, rr(0.3, 0.7), 0.12, 0.04, 1.0, 0.75, 0.35, 1, 14, 0.6, 3)
+        // sparks fanning out, embers drifting, gibs, then dark smoke
+        gpu.burst(.spark, num(big ? (full ? 70 : 35) : 24), at: p + F3(0, 0.3, 0), sphere: big ? 17 : 11, upper: true, life: (0.45, 1.1),
+                  size: (0.05, 0.035), color: F4(1.3, 1.1, 0.9, 1), gravity: 13, drag: 0.7)
+        gpu.burst(.ember, num(big ? 26 : 8), at: p, delay: 0.1, sphere: 5, upper: true, life: (1.4, 2.6), size: (0.06, 0.03),
+                  color: F4(2.2, 0.75, 0.16, 1), gravity: 1.2, drag: 1.4)
+        gpu.burst(.debris, num(big ? 14 : 4), at: p, sphere: 9, upper: true, life: (1.2, 2.0), size: (0.12, 0.1),
+                  color: boomer ? F4(0.2, 0.14, 0.04, 1) : F4(0.05, 0.045, 0.05, 1), gravity: 14, drag: 0.3, spin: 8)
+        gpu.burst(.smoke, num(big ? 9 : 3), at: p + F3(0, 0.6, 0), jitter: F3(r * 0.4, 0.3, r * 0.4), delay: 0.18, vel: F3(0, 1.3, 0),
+                  radial: 0.8, life: (2.0, 3.2), size: (r * 0.4, r * 1.15), color: F4(0.035, 0.032, 0.03, 0.9), gravity: -0.5, drag: 0.9,
+                  spin: 0.4)
+        // the deck: a shock ring, heat waves, a scorch with cooling embers
+        floorTimed(x, z, radius: r * 1.7, mode: .shock, color: boomer ? F3(2.4, 2.6, 0.9) : F3(3.2, 2.0, 1.0), life: big ? 0.38 : 0.26,
+                   thickness: 0.07)
+        heatTimed(p, radius: r * 2.2, strength: 1, mode: 1, life: 0.45)
+        heatTimed(p + F3(0, 0.6, 0), radius: r * 0.9, strength: 0.6, mode: 0, life: 1.2)
+        decals.add(x, z, size: r * (big ? 1.15 : 0.85), cell: .scorch, kind: .scorch, tint: F3(0.08, 0.07, 0.07), flecks: 1)
+        if boomer {
+            gpu.burst(.ichor, num(18), at: p, sphere: 7, upper: true, life: (0.6, 1.0), size: (0.09, 0.06), color: F4(0.25, 0.32, 0.03, 1),
+                      gravity: 12)
+            decals.add(x, z, size: r * 0.9, cell: .acid, kind: .acid, tint: F3(0.42, 0.6, 0.06))
+            floorTimed(x, z, radius: r * 0.8, mode: .acid, color: F3(0.35, 1.2, 0.15) * 0.5, life: 2.5, thickness: 0.1)
         }
-        for _ in 0..<num(big ? 18 : 6) {
-            let a = rnd() * TAU, s = rr(0.5, r)
-            pn.emit(x + cosf(a) * 0.5, rr(0.4, 1.2), z + sinf(a) * 0.5, cosf(a) * s, rr(1, 3), sinf(a) * s, rr(0.5, 0.9), rr(1.0, 1.6), rr(2.2, 3.4), 1.0, 0.42, 0.12, 0.85, -1.5, 2.0, 1)
-        }
-        for _ in 0..<num(big ? 16 : 4) {
-            pn.emit(x + rr(-1, 1), rr(0.5, 1.5), z + rr(-1, 1), rr(-1.2, 1.2), rr(1, 2.5), rr(-1.2, 1.2), rr(1.6, 2.6), 1.6, 4.2, 0.06, 0.055, 0.06, 0.75, -0.3, 0.8, 2)
-        }
-        addDecal(x, z, r * (big ? 1.1 : 0.8), 3, 0.08, 0.07, 0.07)
-        flashLight(x, 1.6, z, kind == .boomer ? 0xff5a20 : 0xff7a30, big ? 220 : 90, big ? 0.5 : 0.25)
-        splash(x, z, r * (big ? 2.4 : 2.0), 0.4, 0.14, 0.03, big ? 0.6 : 0.3)
     }
 
     private func acid(_ x: Float, _ z: Float) {
-        for _ in 0..<num(9) { pa.emit(x, 0.2, z, rr(-2.5, 2.5), rr(1, 3.5), rr(-2.5, 2.5), rr(0.3, 0.6), 0.2, 0.05, 0.7, 1.0, 0.15, 1, 8, 1, 3) }
-        for _ in 0..<num(4) { pn.emit(x + rr(-0.6, 0.6), 0.2, z + rr(-0.6, 0.6), 0, rr(0.4, 1), 0, rr(0.8, 1.4), 0.5, 1.4, 0.4, 0.55, 0.15, 0.35, -0.2, 1, 2) }
-        addDecal(x, z, rr(1.6, 2.1), 0, 0.42, 0.6, 0.06)
-    }
-
-    private func bulletHit(_ x: Float, _ z: Float, _ dx: Float, _ dz: Float, _ killed: Bool) {
-        if rnd() > 0.6 * fxK + 0.2 { return }
-        pa.emit(x, 0.45, z, -dx * rr(2, 5) + rr(-2, 2), rr(1, 3), -dz * rr(2, 5) + rr(-2, 2), 0.18, 0.14, 0.04, 1.0, 0.75, 0.4, 1, 10, 1, 3)
-        if killed || rnd() < 0.4 {
-            pn.emit(x, 0.4, z, rr(-1.5, 1.5) + dx * 2, rr(1, 2.5), rr(-1.5, 1.5) + dz * 2, 0.4, 0.13, 0.05, 0.45, 0.08, 0.2, 0.9, 10, 0.5, 0)
-        }
+        let p = F3(x, gy(x, z) + 0.15, z)
+        gpu.burst(.ichor, num(12), at: p, sphere: 4, upper: true, life: (0.4, 0.8), size: (0.07, 0.05), color: F4(0.28, 0.4, 0.04, 1), gravity: 12)
+        gpu.burst(.glow, num(5), at: p, sphere: 2, upper: true, life: (0.3, 0.6), size: (0.15, 0.04), color: F4(0.4, 1.6, 0.2, 1), gravity: 3)
+        gpu.burst(.steam, 2, at: p, jitter: F3(0.4, 0.1, 0.4), vel: F3(0, 0.8, 0), life: (1.0, 1.6), size: (0.6, 1.6),
+                  color: F4(0.3, 0.45, 0.15, 0.4), drag: 1, spin: 0.5)
+        decals.add(x, z, size: rr(1.6, 2.1), cell: .acid, kind: .acid, tint: F3(0.42, 0.6, 0.06))
+        floorTimed(x, z, radius: 1.3, mode: .acid, color: F3(0.3, 1.0, 0.12) * 0.6, life: 2.5, thickness: 0.1)
+        flash(F3(x, p.y + 0.6, z), F3(0.45, 1.0, 0.2), peak: 30, dur: 0.25, range: 4, priority: 6)
     }
 
     private func dash(_ m: Marine) {
-        for _ in 0..<num(12) { pa.emit(m.x + rr(-0.3, 0.3), rr(0.3, 1.5), m.z + rr(-0.3, 0.3), -m.dashX * rr(1, 4), rr(0, 1), -m.dashZ * rr(1, 4), rr(0.2, 0.4), 0.35, 0.05, 0.3, 0.9, 0.85, 0.6, 0, 3, 0) }
-        for _ in 0..<num(5) { pn.emit(m.x, 0.15, m.z, rr(-1.5, 1.5), rr(0.3, 1), rr(-1.5, 1.5), rr(0.5, 0.9), 0.4, 1.3, 0.75, 0.8, 0.88, 0.4, -0.2, 2, 2) }
+        let c = linearRGB(m.spec.laser) * 1.6
+        let p = F3(m.x, gy(m.x, m.z) + 0.9, m.z)
+        gpu.burst(.glow, num(10), at: p, jitter: F3(0.25, 0.45, 0.25), vel: F3(-m.dashX, 0, -m.dashZ) * 3, velJitter: F3(0.6, 0.4, 0.6),
+                  life: (0.2, 0.4), size: (0.35, 0.05), color: F4(c.x, c.y, c.z, 1), drag: 3)
+        gpu.burst(.steam, num(4), at: F3(m.x, p.y - 0.8, m.z), radial: 1.5, life: (0.5, 0.9), size: (0.4, 1.3),
+                  color: F4(0.35, 0.37, 0.4, 0.4), drag: 2)
     }
 
     private func napalmBurst(_ x: Float, _ z: Float, _ r: Float) {
-        for _ in 0..<num(70) {
-            let a = rnd() * TAU, s = rr(r * 0.6, r * 1.6)
-            pa.emit(x, 0.5, z, cosf(a) * s, rr(0.5, 2), sinf(a) * s, rr(0.4, 0.8), 0.6, 2.0, 1, 0.6, 0.22, 0.55, -1, 1.6, 1)
+        let p = F3(x, gy(x, z) + 0.4, z)
+        let n = flameBudget(num(40))
+        if n > 0 {
+            gpu.burst(.fire, n, at: p, ring: r * 0.5, vel: F3(0, 0.6, 0), radial: r * 1.4, radialJitter: 0.4, life: (0.4, 0.8), size: (0.6, 2.0),
+                      color: F4(1, 0.95, 0.9, 0.85), gravity: -1.5, drag: 2.4, spin: 2)
         }
-        flashLight(x, 1.5, z, 0xff6a20, 200, 0.6)
-        splash(x, z, r * 2.4, 0.38, 0.14, 0.03, 0.7)
-        addDecal(x, z, r * 1.8, 3, 0.12, 0.08, 0.06)
+        flash(p + F3(0, 1.1, 0), F3(1.0, 0.45, 0.15), peak: 220, dur: 0.6, range: r * 2.6, priority: 25)
+        floorTimed(x, z, radius: r * 1.4, mode: .shock, color: F3(2.6, 1.0, 0.25), life: 0.4, thickness: 0.07)
+        heatTimed(p, radius: r * 1.6, strength: 0.9, mode: 1, life: 0.5)
+        decals.add(x, z, size: r * 1.8, cell: .scorch, kind: .scorch, tint: F3(0.12, 0.08, 0.06), flecks: 1)
+    }
+
+    /// A burning napalm field this frame: a ring of flames on its edge, smoke, embers, the ground glow, haze.
+    private func napalmField(_ x: Float, _ z: Float, _ r: Float, dt: Float, k: Int) {
+        let g = gy(x, z)
+        let kk = k % napalmAcc.count
+        napalmAcc[kk] += 120 * fxK * dt * (r / 5)
+        let n0 = Int(napalmAcc[kk])
+        napalmAcc[kk] -= Float(n0)
+        let n = flameBudget(n0)
+        if n > 0 {
+            gpu.burst(.fire, n, at: F3(x, g + 0.15, z), jitter: F3(0.3, 0, 0.3), ring: r * 0.9, vel: F3(0, 1.3, 0), velJitter: F3(0.3, 0.4, 0.3),
+                      life: (0.45, 0.75), size: (0.45, 1.35), color: F4(1, 0.95, 0.9, 0.8), gravity: -1.2, drag: 1, spin: 2)
+        }
+        if rnd() < 7 * fxK * dt {
+            gpu.burst(.smoke, 1, at: F3(x, g + 1.2, z), jitter: F3(r * 0.6, 0.3, r * 0.6), vel: F3(0, 1.4, 0), life: (1.6, 2.4), size: (1.2, 3.2),
+                      color: F4(0.05, 0.045, 0.04, 0.6), gravity: -0.4, drag: 0.6, spin: 0.3)
+        }
+        if rnd() < 16 * fxK * dt {
+            gpu.burst(.ember, 1, at: F3(x, g + 0.3, z), jitter: F3(r * 0.8, 0.1, r * 0.8), vel: F3(0, 2.2, 0), velJitter: F3(0.8, 0.8, 0.8),
+                      life: (0.8, 1.6), size: (0.05, 0.02), color: F4(2.2, 0.7, 0.15, 1), gravity: 0.6, drag: 1)
+        }
+        floorNow(x, g + 0.05, z, radius: r * 1.2, mode: .fire, color: F3(1.2, 0.42, 0.08) * (0.18 + 0.05 * rnd()), seed: Float(k))
+        heatNow(F3(x, g + 0.8, z), radius: r * 0.9, strength: 0.55, mode: 2)
     }
 
     private func nova(_ x: Float, _ z: Float, _ r: Float) {
-        for _ in 0..<num(70) {
-            let a = rnd() * TAU, s = rr(r * 0.8, r * 2.2)
-            pa.emit(x, rr(0.2, 1), z, cosf(a) * s, rr(0.2, 2), sinf(a) * s, rr(0.4, 0.8), rr(0.2, 0.45), 0.05, 0.3, 0.55, 0.8, 1, 1, 2.5, 3)
-        }
-        flashLight(x, 2, z, 0x6ad8ff, 120, 0.45)
-        splash(x, z, r * 2.4, 0.05, 0.13, 0.22, 0.5)
+        let g = gy(x, z)
+        floorTimed(x, z, radius: r * 1.1, mode: .frost, color: F3(0.6, 1.4, 2.4), life: 0.55, thickness: 0.09)
+        gpu.burst(.ice, num(60), at: F3(x, g + 0.5, z), ring: r * 0.25, vel: F3(0, 1, 0), velJitter: F3(0.5, 1, 0.5), radial: r * 2.2,
+                  life: (0.4, 0.8), size: (0.08, 0.04), color: F4(0.7, 1.0, 1.45, 1), gravity: 4, drag: 1.2)
+        gpu.burst(.steam, num(12), at: F3(x, g + 0.3, z), ring: r * 0.7, radial: 2, life: (0.9, 1.5), size: (0.8, 2.2),
+                  color: F4(0.6, 0.75, 0.9, 0.35), drag: 1.2, spin: 0.5)
+        decals.add(x, z, size: r * 1.5, cell: .frost, kind: .frost, tint: F3(0.75, 0.86, 0.98), opacity: 0.8)
+        flash(F3(x, g + 2, z), F3(0.45, 0.8, 1.0), peak: 150, dur: 0.45, range: r * 2.4, priority: 20)
     }
 
     private func turretDrop(_ x: Float, _ z: Float) {
-        for _ in 0..<num(16) { pa.emit(x, 0.5, z, rr(-4, 4), rr(2, 6), rr(-4, 4), rr(0.2, 0.5), 0.12, 0.03, 0.6, 1, 0.6, 1, 14, 0.5, 3) }
-        for _ in 0..<num(6) { pn.emit(x, 0.2, z, rr(-1, 1), rr(0.3, 1), rr(-1, 1), 1, 0.5, 1.6, 0.7, 0.75, 0.82, 0.4, -0.1, 1.5, 2) }
+        let p = F3(x, gy(x, z) + 0.5, z)
+        gpu.burst(.spark, num(16), at: p, sphere: 6, upper: true, life: (0.2, 0.5), size: (0.04, 0.03), color: F4(1.1, 1.2, 0.9, 1), gravity: 14,
+                  drag: 0.5)
+        gpu.burst(.steam, num(6), at: F3(x, p.y - 0.3, z), radial: 1.2, life: (0.8, 1.4), size: (0.5, 1.6), color: F4(0.4, 0.42, 0.45, 0.4),
+                  drag: 1.5)
     }
 
     private func heal(_ m: Marine) {
-        for _ in 0..<18 { pa.emit(m.x + rr(-0.5, 0.5), rr(0.2, 1.4), m.z + rr(-0.5, 0.5), 0, rr(1, 2.5), 0, rr(0.5, 0.9), 0.25, 0.05, 0.3, 1, 0.5, 1, -0.5, 1, 0) }
-    }
-
-    /// One bug on fire (writeBugInstances): a few embers per second.
-    @inline(__always) func burningBug(_ x: Float, _ z: Float, _ sc: Float, dt: Float) {
-        if rnd() < 9 * dt * fxK {
-            pa.emit(x + rr(-0.2, 0.2), 0.35 * sc, z + rr(-0.2, 0.2), 0, rr(1, 2.2), 0, rr(0.25, 0.45), 0.35 * sc, 0.7 * sc, 1, 0.6, 0.25, 0.55, -0.5, 1, 1)
-        }
+        let p = F3(m.x, gy(m.x, m.z) + 0.6, m.z)
+        gpu.burst(.glow, 18, at: p, jitter: F3(0.5, 0.6, 0.5), vel: F3(0, 1.6, 0), velJitter: F3(0.2, 0.6, 0.2), life: (0.6, 1.0),
+                  size: (0.2, 0.05), color: F4(0.4, 1.9, 0.9, 1), gravity: -0.3)
+        floorTimed(m.x, m.z, radius: 1.4, mode: .glow, color: F3(0.2, 0.9, 0.45), life: 0.6)
+        flash(p + F3(0, 0.8, 0), F3(0.4, 1.0, 0.6), peak: 25, dur: 0.5, range: 4, priority: 5)
     }
 
     // ================================================================ per frame (renderFx)
-    /// Marine pose the effects attach to (interpolated feet, aim).
-    struct MarinePose { var x: Float, y: Float, z: Float }
-
     func beginFrame() {
-        glowSprites.removeAll(keepingCapacity: true)
-        ringSprites.removeAll(keepingCapacity: true)
-        fillSprites.removeAll(keepingCapacity: true)
-        laneSprites.removeAll(keepingCapacity: true)
-        ribbons.removeAll(keepingCapacity: true)
+        floorAdd.removeAll(keepingCapacity: true)
+        floorMax.removeAll(keepingCapacity: true)
+        heat.removeAll(keepingCapacity: true)
+        ribbons.begin()
     }
 
-    @inline(__always) private func muzzle(_ m: Marine, _ p: MarinePose) -> (Float, Float) {
-        (p.x + m.ax * 0.95 + m.az * 0.22, p.z + m.az * 0.95 - m.ax * 0.22)
-    }
-
-    func update(game: Game, dt: Float, time: Float, poses: [MarinePose], focus: F3, liftRise rise: Float) {
-        // emitters tied to ongoing actions
-        for (k, m) in game.marines.enumerated() where !m.downed && k < poses.count {
-            let p = poses[k]
-            let (ox, oz) = muzzle(m, p)
-            if m.muzzle > 0 && (m.cls == .assault || m.cls == .gunner) {
-                let c: (Float, Float, Float) = m.cls == .assault ? (1, 0.35, 0.25) : (1, 0.85, 0.4)
-                if dt > 0 {
-                    pa.emit(ox, 1.2, oz, m.ax * 2, 0, m.az * 2, 0.05, 0.9, 0.4, c.0, c.1, c.2, 1, 0, 0, 0)
-                    // spent casings / heat-sink pellets kicked out to the right
-                    if m.muzzle > 0.85 && rnd() < (m.isPlayer ? 0.7 : 0.3) * fxK {
-                        pn.emit(p.x + m.az * 0.3, 1.1, p.z - m.ax * 0.3, m.az * rr(1.5, 2.6), rr(1.5, 3), -m.ax * rr(1.5, 2.6), rr(0.45, 0.7), 0.06, 0.05, 0.95, 0.68, 0.28, 1, 14, 0.3, 0)
-                    }
-                }
-                // the muzzle flash lights the deck around the shooter
-                let f = (0.55 + 0.45 * rnd()) * min(1, m.muzzle) * (m.isPlayer ? 0.34 : 0.22)
-                splashNow(ox + m.ax * 0.6, oz + m.az * 0.6, 3.6, c.0 * f, c.1 * f, c.2 * f)
-            }
-            if m.firing && m.cls == .pyro {
-                let f = 0.2 + 0.07 * rnd()
-                splashNow(ox + m.ax * 3, oz + m.az * 3, 6.5, f, f * 0.45, f * 0.12)
-                if dt > 0 {
-                    let n = max(1, Int((150 * fxK * dt + rnd() * 0.5).rounded()))
-                    for _ in 0..<n {
-                        let sp = rr(11, 15), sx = rr(-1, 1) * 2.6, sy = rr(-0.2, 1.2)
-                        pa.emit(ox, 1.15, oz, m.ax * sp - m.az * sx + m.vx * 0.5, sy, m.az * sp + m.ax * sx + m.vz * 0.5, rr(0.42, 0.58), 0.3, rr(1.4, 2.1), 1, 0.78, 0.4, 0.5, -1.5, 1.25, 1)
-                    }
-                    if rnd() < 30 * fxK * dt { pn.emit(ox + m.ax * 6, 1.4, oz + m.az * 6, m.ax * 2, 1.4, m.az * 2, 1.4, 1, 3, 0.09, 0.08, 0.08, 0.4, -0.4, 0.6, 2) }
-                }
+    func update(game: Game, dt dt0: Float, time: Float, poses ps: [MarinePose], focus: F3, liftRise rise: Float) {
+        let c0 = FrameTimer.now()
+        poses = ps
+        frameTime = time
+        liftRiseNow = rise
+        decals.clock = time
+        if look.forceHigh, let r = renderer, r.quality.chosen != .high { r.quality.setChosen(fxK: 1) }
+        applyTier()
+        let dt = look.dt(dt0)
+        lastDt = dt
+        clock += dt
+        flameSlot = (flameSlot + 1) % flameSpawns.count
+        flameSpawns[flameSlot] = 0
+        for k in blasts.indices { blasts[k] += dt }
+        blasts.removeAll(where: { $0 > 1.1 })
+        look.step(self, game: game, focus: focus, time: time)
+        // the weapons' continuous effects
+        for (k, m) in game.marines.enumerated() where !m.downed && k < 4 {
+            if m.firing && m.cls == .pyro && dt > 0 {
+                flameJet(muzzle(m, k), ax: m.ax, az: m.az, vel: F3(m.vx, 0, m.vz), dt: dt, k: k)
             }
             if m.firing && m.cls == .cryo {
-                let f = 0.1 + 0.03 * rnd()
-                splashNow(ox + m.ax * m.beamLen * 0.45, oz + m.az * m.beamLen * 0.45, 5.5, f * 0.45, f * 0.8, f)
-                if dt > 0 && rnd() < 40 * fxK * dt {
-                    let t = rnd() * m.beamLen
-                    pa.emit(ox + m.ax * t, 0.8, oz + m.az * t, rr(-1, 1), rr(-0.5, 1), rr(-1, 1), rr(0.3, 0.6), 0.25, 0.05, 0.6, 0.9, 1, 1, 1, 1, 3)
-                }
+                cryoStream(muzzle(m, k), ax: m.ax, az: m.az, len: m.beamLen, dt: dt, k: k)
             }
         }
-        for np in game.napalms where np.active {
-            let f = 0.16 + 0.05 * rnd()
-            splashNow(np.x, np.z, np.r * 2.6, f, f * 0.42, f * 0.1)
-            if dt > 0 {
-                let cnt = Int((240 * fxK * dt * (np.r / 5) + rnd()).rounded())
-                for _ in 0..<cnt {
-                    let a = rnd() * TAU, rad = np.r + rr(-0.4, 0.4)
-                    pa.emit(np.x + cosf(a) * rad, 0.15, np.z + sinf(a) * rad, rr(-0.3, 0.3), rr(1.5, 3), rr(-0.3, 0.3), rr(0.3, 0.5), 0.25, 0.9, 1, 0.6, 0.2, 0.6, -1, 1, 1)
-                }
-            }
+        if dt > 0 {
+            for (k, np) in game.napalms.enumerated() where np.active { napalmField(np.x, np.z, np.r, dt: dt, k: k) }
         }
         if game.stage == .extract && dt > 0 {
             // the platform tears loose: steam pours off the rim, sparks rain into the shaft
             let L = level.lift, ry = L.y + rise
-            let ns = Int((140 * fxK * dt + rnd()).rounded()), nk = Int((90 * fxK * dt + rnd()).rounded())
-            for _ in 0..<ns {
-                let a = rnd() * TAU
-                pn.emit(L.x + cosf(a) * L.r, ry + 0.2, L.z + sinf(a) * L.r, cosf(a) * 0.6, rr(-2, -0.5), sinf(a) * 0.6, 1.2, 0.6, 2.4, 0.8, 0.85, 0.9, 0.35, 0, 0.6, 2, absolute: true)
-            }
-            for _ in 0..<nk {
-                let a = rnd() * TAU
-                pa.emit(L.x + cosf(a) * (L.r + 0.6), ry - 0.3, L.z + sinf(a) * (L.r + 0.6), cosf(a) * rr(0.5, 2), rr(-1, 1.5), sinf(a) * rr(0.5, 2), rr(0.4, 0.8), 0.14, 0.04, 1.0, 0.7, 0.3, 1, 12, 0.3, 3, absolute: true)
-            }
+            let ns = rate(&extractAcc[0], 140, dt), nk = rate(&extractAcc[1], 90, dt)
+            gpu.burst(.steam, ns, at: F3(L.x, ry + 0.2, L.z), ring: L.r, vel: F3(0, -1.2, 0), velJitter: F3(0.3, 0.7, 0.3), radial: 0.6,
+                      life: (1.0, 1.4), size: (0.6, 2.4), color: F4(0.7, 0.75, 0.8, 0.35), noFloor: true)
+            gpu.burst(.spark, nk, at: F3(L.x, ry - 0.3, L.z), ring: L.r + 0.6, vel: F3(0, 0.2, 0), velJitter: F3(0.3, 1.2, 0.3),
+                      radial: 1.2, life: (0.4, 0.8), size: (0.045, 0.03), color: F4(1.2, 1.0, 0.8, 1), gravity: 12, drag: 0.3, noFloor: true)
         }
         steamT -= dt
         if steamT <= 0 && dt > 0 {
             steamT = 0.12
             for v in level.layout.vents where abs(v.x - focus.x) < 30 && abs(v.y - focus.z) < 30 && rnd() < 0.6 {
-                pn.emit(v.x + rr(-0.4, 0.4), 0.2, v.y + rr(-0.4, 0.4), rr(-0.3, 0.3) + 0.4, rr(1.2, 2), rr(-0.3, 0.3), rr(2, 3), 0.6, 3.2, 0.8, 0.85, 0.92, 0.22, -0.15, 0.3, 2)
+                gpu.burst(.steam, 1, at: F3(v.x, gy(v.x, v.y) + 0.2, v.y), jitter: F3(0.4, 0, 0.4), vel: F3(0.4, 1.6, 0),
+                          velJitter: F3(0.3, 0.4, 0.3), life: (2, 3), size: (0.6, 3.2), color: F4(0.55, 0.6, 0.65, 0.22), gravity: -0.15,
+                          drag: 0.3, spin: 0.3)
             }
         }
-        // persistent splashes
-        var k = 0
-        while k < splashes.count {
-            splashes[k].t += dt
-            let e = splashes[k]
-            if e.t >= e.life { splashes.remove(at: k); continue }
-            let f = (1 - e.t / e.life) * (1 - e.t / e.life)
-            splashNow(e.x, e.z, e.size * (0.8 + 0.2 * e.t / e.life), e.r * f, e.g * f, e.b * f)
-            k += 1
+        // timed floor fx and heat
+        var i = 0
+        while i < timedFloor.count {
+            timedFloor[i].t += dt
+            let e = timedFloor[i]
+            if e.t >= e.life { timedFloor.remove(at: i); continue }
+            var f = e.fx
+            let u = e.t / e.life
+            f.params.y = u
+            if e.fade && f.params.x != FloorMode.shock.rawValue && f.params.x != FloorMode.frost.rawValue { f.color.w = (1 - u) * (1 - u) }
+            floorAdd.append(f)
+            i += 1
         }
-        liftRise(rise)
+        i = 0
+        while i < timedHeat.count {
+            timedHeat[i].t += dt
+            let e = timedHeat[i]
+            if e.t >= e.life { timedHeat.remove(at: i); continue }
+            var h = e.h
+            h.params.z = e.t / e.life
+            if h.params.y < 0.5 { h.params.x *= 1 - h.params.z }
+            heat.append(h)
+            i += 1
+        }
+        decals.liftRise(rise)
         telegraphs(game: game, time: time)
-        tracers(game: game)
-        sights(game: game, dt: dt, poses: poses)
-        beam(game: game, time: time, poses: poses)
-        beaconBeams(game: game, time: time, focus: focus)
-        pointLights(game: game, dt: dt, time: time, poses: poses)
+        ribbons.tracers(game: game, level: level)
+        sights(game: game, dt: dt, poses: ps)
+        beaconBeams(game: game, time: time)
+        pointLights(game: game, dt: dt, time: time, poses: ps)
+        emitLights(dt: dt)
+        cpuAcc += (FrameTimer.now() - c0) * 1000
     }
 
-    // ---------------------------------------------------------------- telegraphs / rings
+    // ---------------------------------------------------------------- telegraphs
     private func telegraphs(game: Game, time: Float) {
-        let blink = 0.55 + 0.45 * sinf(time * 18)
+        let blink = 0.6 + 0.4 * sinf(time * 18)
         for e in game.telegraphs where e.active {
+            if floorMax.count >= 96 { break }
             let u = e.progress
+            let col = F3(e.r, e.g, e.b) * 1.7
             switch e.shape {
             case .lane:
-                if laneSprites.count >= 16 { continue }
                 let wind = max(0.001, e.wind)
-                var inten: Float = e.t < e.wind ? blink * min(1, e.t / wind * 4 + 0.3) * (0.8 + 0.5 * e.t / wind)
-                    : 1.3 * (1 - (e.t - e.wind) / max(0.001, e.life - e.wind))
+                var inten: Float = e.t < e.wind ? blink * min(1, e.t / wind * 4 + 0.3) * (0.8 + 0.4 * e.t / wind)
+                    : 1.25 * (1 - (e.t - e.wind) / max(0.001, e.life - e.wind))
                 inten = max(0, inten)
                 let cx = e.x + e.dx * e.len / 2, cz = e.z + e.dz * e.len / 2
-                let y0 = level.groundY(e.x, e.z), y1 = level.groundY(e.x + e.dx * e.len, e.z + e.dz * e.len)
-                let hw = e.w / 2, hl = e.len / 2
-                laneSprites.append(SpriteInstance(center: F4(cx, (y0 + y1) * 0.5 + 0.06, cz, 0), axisU: F4(-e.dz * hw, 0, e.dx * hw, 0),
-                                                  axisV: F4(e.dx * hl, (y1 - y0) * 0.5, e.dz * hl, 0), color: F4(e.r * inten, e.g * inten, e.b * inten, 1)))
+                let y0 = gy(e.x, e.z), y1 = gy(e.x + e.dx * e.len, e.z + e.dz * e.len)
+                floorMax.append(FloorFx(center: F4(cx, (y0 + y1) * 0.5 + 0.06, cz, e.w / 2), color: F4(col.x, col.y, col.z, inten),
+                                        params: F4(FloorMode.lane.rawValue, u, 0, 1), axis: F4(e.dx, e.dz, e.len / 2, (y1 - y0) / max(0.01, e.len))))
             case .fill:
-                if fillSprites.count >= 32 { continue }
-                let rad = e.r0 * (0.12 + 0.88 * u)
-                let inten = (0.3 + 0.7 * u) * (u > 0.75 ? blink * 1.3 : 1)
-                let y = level.groundY(e.x, e.z) + 0.055
-                fillSprites.append(SpriteInstance(center: F4(e.x, y, e.z, 0), axisU: F4(rad, 0, 0, 0), axisV: F4(0, 0, -rad, 0),
-                                                  color: F4(e.r * inten, e.g * inten, e.b * inten, 1)))
+                let y = gy(e.x, e.z) + 0.055
+                floorMax.append(FloorFx(center: F4(e.x, y, e.z, e.r0), color: F4(col.x, col.y, col.z, 1),
+                                        params: F4(FloorMode.fill.rawValue, u, 0, u > 0.75 ? blink : 1), axis: .zero))
             case .ring:
-                if ringSprites.count >= 64 { continue }
-                let inten = max(0, e.pulse ? blink * min(1, u * 4 + 0.3) : 1 - u)
-                let rad = e.r0 + (e.r1 - e.r0) * smooth01f(u)
-                let y = level.groundY(e.x, e.z) + 0.05
-                ringSprites.append(SpriteInstance(center: F4(e.x, y, e.z, 0), axisU: F4(rad, 0, 0, 0), axisV: F4(0, 0, -rad, 0),
-                                                  color: F4(e.r * inten, e.g * inten, e.b * inten, 1)))
+                let y = gy(e.x, e.z) + 0.05
+                if e.pulse {
+                    let inten = max(0, blink * min(1, u * 4 + 0.3))
+                    floorMax.append(FloorFx(center: F4(e.x, y, e.z, e.radius), color: F4(col.x, col.y, col.z, 1),
+                                            params: F4(FloorMode.ring.rawValue, u, 0, inten), axis: .zero))
+                } else {
+                    let rad = e.r0 + (e.r1 - e.r0) * smooth01f(u)
+                    floorMax.append(FloorFx(center: F4(e.x, y, e.z, rad), color: F4(col.x, col.y, col.z, max(0, 1 - u)),
+                                            params: F4(FloorMode.wave.rawValue, u, 0, 1), axis: .zero))
+                }
             }
         }
     }
 
-    // ---------------------------------------------------------------- ribbons
-    private func quad(_ a: F3, _ b: F3, _ c: F3, _ d: F3, _ ca: F4, _ cb: F4, _ cc: F4, _ cd: F4,
-                      _ ua: F4, _ ub: F4, _ uc: F4, _ ud: F4, mode: Float) {
-        let va = RibbonVertex(pos: F4(a.x, a.y, a.z, mode), color: ca, uv: ua)
-        let vb = RibbonVertex(pos: F4(b.x, b.y, b.z, mode), color: cb, uv: ub)
-        let vc = RibbonVertex(pos: F4(c.x, c.y, c.z, mode), color: cc, uv: uc)
-        let vd = RibbonVertex(pos: F4(d.x, d.y, d.z, mode), color: cd, uv: ud)
-        ribbons.append(va); ribbons.append(vb); ribbons.append(vc)
-        ribbons.append(va); ribbons.append(vc); ribbons.append(vd)
-    }
-
+    // ---------------------------------------------------------------- sights (LAND: no laser lines)
     /// Sight level 0…1 of each marine (fades in while it fires, out after) and of the turret.
     private var sightLevel = [Float](repeating: 0, count: 4)
     private var turretSight: Float = 0
@@ -572,132 +783,74 @@ final class MetalEffects {
     static let sightGlintLength: Float = 1.2
     private static var sightLogged = false
 
-    /// Sights (owner feedback: the constant long coloured laser lines got in the way, LAND): while a marine fires, a short
-    /// class-coloured glint fades off its muzzle (≤ 1.2 m, brightest at the barrel, gone at the tip) and a small dot of
-    /// the same hue sits on the bug it aims at; nothing while it does not fire. The turret gets the same in green.
+    /// While a marine fires, a short class-coloured glint fades off its muzzle (≤ 1.2 m) and a small dot of the same hue
+    /// sits on the bug it aims at; nothing while it does not fire. The turret gets the same in green.
     private func sights(game: Game, dt: Float, poses: [MarinePose]) {
         let B = game.bugs
         let L = MetalEffects.sightGlintLength
+        let rdt = dt
         for (k, m) in game.marines.enumerated() where k < poses.count && k < sightLevel.count {
             let want: Float = m.firing && !m.downed ? 1 : 0
-            let rate: Float = want > sightLevel[k] ? 14 : 5
-            sightLevel[k] += (want - sightLevel[k]) * min(1, rate * dt)
+            let rt: Float = want > sightLevel[k] ? 14 : 5
+            sightLevel[k] += (want - sightLevel[k]) * min(1, rt * rdt)
             if m.downed { sightLevel[k] = 0 }
             let lv = sightLevel[k]
             if lv < 0.02 { continue }
-            let p = poses[k]
-            let (ox, oz) = muzzle(m, p)
-            let oy = p.y + 1.22
+            let o = muzzle(m, k)
             let col = linearRGB(m.spec.laser)
-            let ex = ox + m.ax * L, ez = oz + m.az * L
+            let e = F3(o.x + m.ax * L, o.y - 0.06, o.z + m.az * L)
             if !MetalEffects.sightLogged && lv > 0.9 {
                 MetalEffects.sightLogged = true
                 AppLog.info(String(format: "sights: glint %.1f m (no laser line), first on marine %d (%@)", L, k, m.cls.id))
             }
-            // glint: a soft halo and a thin hot core, both fading to nothing at the tip (ribbon mode 3: k² along it)
-            glint(ox, oy, oz, ex, oy - 0.06, ez, 0.12, col, 0.9 * lv)
-            glint(ox, oy, oz, ex, oy - 0.06, ez, 0.03, col, 1.9 * lv)
-            // target dot on the aimed bug (the player's a little larger and brighter)
+            ribbons.glint(o, e, width: 0.12, color: col, intensity: 0.9 * lv)
+            ribbons.glint(o, e, width: 0.03, color: col, intensity: 1.9 * lv)
             if lv > 0.35 {
-                let hit = game.raycastBugs(origin: Vec2(ox, oz), dir: Vec2(m.ax, m.az), maxDistance: 24)
+                let hit = game.raycastBugs(origin: Vec2(o.x, o.z), dir: Vec2(m.ax, m.az), maxDistance: 24)
                 if hit.bug >= 0 && hit.bug < B.count {
-                    let hx = ox + m.ax * hit.distance, hz = oz + m.az * hit.distance
-                    let hy = level.groundY(hx, hz) + max(-0.5, B.heights[hit.bug]) + 0.5
+                    let hx = o.x + m.ax * hit.distance, hz = o.z + m.az * hit.distance
+                    let hy = gy(hx, hz) + max(-0.5, B.heights[hit.bug]) + 0.5
                     let c = col * (m.isPlayer ? 2.2 : 1.3) * lv
-                    pa.emit(hx, hy, hz, 0, 0, 0, 0.04, m.isPlayer ? 0.5 : 0.34, 0.5, c.x, c.y, c.z, 1, 0, 0, 0, absolute: true)
+                    gpu.burst(.dot, 1, at: F3(hx, hy, hz), life: (0.04, 0.04), size: (m.isPlayer ? 1.25 : 0.9, m.isPlayer ? 1.25 : 0.9),
+                              color: F4(c.x, c.y, c.z, 1), sizeJitter: 0)
                 }
             }
         }
         let T = game.turret
         let tWant: Float = T.active ? 1 : 0
-        turretSight += (tWant - turretSight) * min(1, (tWant > turretSight ? 14 : 5) * dt)
+        turretSight += (tWant - turretSight) * min(1, (tWant > turretSight ? 14 : 5) * rdt)
         if T.active && turretSight > 0.02 {
             let ax = sinf(T.angle), az = cosf(T.angle)
             let ox = T.x + ax * 0.75, oz = T.z + az * 0.75
-            let ty = level.groundY(T.x, T.z) + 1.05
-            let dist = game.turretLaserLength
-            let hit = game.raycastBugs(origin: Vec2(ox, oz), dir: Vec2(ax, az), maxDistance: dist + 0.01)
+            let ty = gy(T.x, T.z) + 1.05
+            let hit = game.raycastBugs(origin: Vec2(ox, oz), dir: Vec2(ax, az), maxDistance: game.turretLaserLength + 0.01)
             let on: Float = hit.bug >= 0 ? 1 : 0.4
-            let g = F3(0.4, 2.2, 0.6)
-            glint(ox, ty, oz, ox + ax * L, ty - 0.08, oz + az * L, 0.016, g, 1.1 * on * turretSight)
+            ribbons.glint(F3(ox, ty, oz), F3(ox + ax * L, ty - 0.08, oz + az * L), width: 0.016, color: F3(0.4, 2.2, 0.6),
+                          intensity: 1.1 * on * turretSight)
             if hit.bug >= 0 && hit.bug < B.count {
                 let hx = ox + ax * hit.distance, hz = oz + az * hit.distance
-                let hy = level.groundY(hx, hz) + max(-0.5, B.heights[hit.bug]) + 0.5
-                pa.emit(hx, hy, hz, 0, 0, 0, 0.04, 0.3, 0.5, 0.25, 1.4, 0.4, 1, 0, 0, 0, absolute: true)
+                let hy = gy(hx, hz) + max(-0.5, B.heights[hit.bug]) + 0.5
+                gpu.burst(.dot, 1, at: F3(hx, hy, hz), life: (0.04, 0.04), size: (0.8, 0.8), color: F4(0.25, 1.4, 0.4, 1), sizeJitter: 0)
             }
         }
     }
 
-    /// Short glint ribbon from (x0, y0, z0) to (x1, y1, z1), half width `w`: brightest at the start, k² to nothing at the
-    /// end (fs_ribbon mode 3 with uv.x 0 → 1 along it).
-    private func glint(_ x0: Float, _ y0: Float, _ z0: Float, _ x1: Float, _ y1: Float, _ z1: Float, _ w: Float, _ col: F3, _ inten: Float) {
-        let dx = x1 - x0, dz = z1 - z0
-        let l = max(1e-4, (dx * dx + dz * dz).squareRoot())
-        let px = -dz / l * w, pz = dx / l * w
-        let c = F4(col.x, col.y, col.z, inten)
-        quad(F3(x0 + px, y0, z0 + pz), F3(x0 - px, y0, z0 - pz), F3(x1 - px, y1, z1 - pz), F3(x1 + px, y1, z1 + pz),
-             c, c, c, c, F4(0, 0, 0, 0), F4(0, 1, 0, 0), F4(1, 1, 0, 0), F4(1, 0, 0, 0), mode: 3)
-    }
-
-    private static let tracerColors: [F3] = [F3(2.6, 0.35, 0.25), F3(2.4, 1.9, 0.7), F3(0.7, 2.4, 0.8)]
-
-    private func tracers(game: Game) {
-        let P = game.projectiles
-        let zero = F4(0, 0, 0, 1)
-        for k in 0..<P.count {
-            let p = P.position(k), d = P.direction(k)
-            let ci = max(0, min(2, P.colorIndex(k)))
-            let len = min(2.4, P.speed(k) * 0.028), w: Float = ci == 0 ? 0.075 : 0.05
-            let tx = p.x - d.x * len, tz = p.y - d.y * len, px = -d.y * w, pz = d.x * w
-            let y = 1.2 + level.groundY(p.x, p.y)
-            let c = MetalEffects.tracerColors[ci]
-            let cf = F4(c.x, c.y, c.z, 1)
-            quad(F3(p.x + px, y, p.y + pz), F3(p.x - px, y, p.y - pz), F3(tx - px, y, tz - pz), F3(tx + px, y, tz + pz),
-                 cf, cf, zero, zero, .zero, .zero, .zero, .zero, mode: 1)
-        }
-    }
-
-    /// Cryo beam: a plane stretched along the aim, widening away from the muzzle (web updateBeam).
-    private func beam(game: Game, time: Float, poses: [MarinePose]) {
-        for (k, m) in game.marines.enumerated() where m.cls == .cryo && m.firing && !m.downed && k < poses.count {
-            let p = poses[k]
-            let (ox, oz) = muzzle(m, p)
-            let len = m.beamLen
-            let inten = 0.85 + 0.15 * sinf(time * 40)
-            let col = F4(1, 1, 1, inten)
-            func vtx(_ u: Float, _ v: Float) -> F3 {
-                let along = u * len, w = (0.35 + u * 0.95) * v
-                return F3(ox + m.ax * along + m.az * w, p.y + 1.2 - u * 0.7, oz + m.az * along - m.ax * w)
-            }
-            for s in 0..<8 {
-                let u0 = Float(s) / 8, u1 = Float(s + 1) / 8
-                quad(vtx(u0, 1), vtx(u0, -1), vtx(u1, -1), vtx(u1, 1), col, col, col, col,
-                     F4(u0, 0, 0, 0), F4(u0, 1, 0, 0), F4(u1, 1, 0, 0), F4(u1, 0, 0, 0), mode: 2)
-            }
-            break
-        }
-    }
-
-    /// Beacon beams: a camera-facing 60 m column fading upward (web CylinderGeometry beam).
+    // ---------------------------------------------------------------- beacon beams
     private var camRightXZ = F3(1, 0, 0)
     func setCameraRight(_ r: F3) {
         let l = max(1e-4, (r.x * r.x + r.z * r.z).squareRoot())
         camRightXZ = F3(r.x / l, 0, r.z / l)
     }
 
-    private func beaconBeams(game: Game, time: Float, focus: F3) {
+    private func beaconBeams(game: Game, time: Float) {
         for b in game.beacons where b.state > 0 {
             let col: F3 = b.state == 2 ? F3(0.25, 1.0, 0.85) : F3(1.0, 0.7, 0.15)
             let i: Float = b.state == 2 ? 0.6 : 0.25 + 0.2 * sinf(time * 10)
-            let gy = level.groundY(b.x, b.z)
-            let r = camRightXZ * 0.35
-            let base = F3(b.x, gy, b.z), top = F3(b.x, gy + 60, b.z)
-            let c = F4(col.x * 2, col.y * 2, col.z * 2, i)
-            quad(base - r, base + r, top + r, top - r, c, c, c, c, F4(0, 0, 0, 0), F4(0, 1, 0, 0), F4(1, 1, 0, 0), F4(1, 0, 0, 0), mode: 3)
+            ribbons.column(base: F3(b.x, gy(b.x, b.z), b.z), height: 60, width: 0.35, color: col * 2, intensity: i)
         }
     }
 
-    // ---------------------------------------------------------------- point lights
+    // ---------------------------------------------------------------- lights
     private func pointLights(game: Game, dt: Float, time: Float, poses: [MarinePose]) {
         var l0 = lights[0]
         var pyro: Marine? = nil, pyroK = 0
@@ -709,14 +862,16 @@ final class MetalEffects {
             l0.color = linearRGB(0xff7a28)
             l0.intensity = 110 * (0.8 + 0.2 * sinf(time * 37))
         } else if let n = nap {
-            l0.pos = F3(n.x, level.groundY(n.x, n.z) + 1.5, n.z)
+            l0.pos = F3(n.x, gy(n.x, n.z) + 1.5, n.z)
             l0.color = linearRGB(0xff6a20)
             l0.intensity = 140 * (0.8 + 0.2 * sinf(time * 29))
-        } else if let P = game.marines.first, !P.downed, P.muzzle > 0, P.cls == .assault || P.cls == .gunner, let p = poses.first {
-            let (ox, oz) = muzzle(P, p)
-            l0.pos = F3(ox + P.ax * 0.4, p.y + 1.3, oz + P.az * 0.4)
+        } else if let P = game.marines.first, !P.downed, P.muzzle > 0, P.cls == .assault || P.cls == .gunner, !poses.isEmpty {
+            // the player's muzzle: a hard pop on each round (the core's muzzle value falls 1 → 0 in 0.1 s)
+            let o = muzzle(P, 0)
+            l0.pos = F3(o.x + P.ax * 0.4, o.y + 0.1, o.z + P.az * 0.4)
             l0.color = linearRGB(P.cls == .assault ? 0xff6040 : 0xffc060)
-            l0.intensity = 75 * (0.55 + 0.45 * rnd()) * min(1, P.muzzle + 0.3)
+            let pop = P.muzzle * P.muzzle
+            l0.intensity = 80 * pop * (0.85 + 0.15 * rnd())
         } else if let P = game.marines.first, !P.downed, P.firing, P.cls == .cryo, let p = poses.first {
             l0.pos = F3(p.x + P.ax * P.beamLen * 0.5, p.y + 1.2, p.z + P.az * P.beamLen * 0.5)
             l0.color = linearRGB(0x60c8ff)
@@ -725,108 +880,265 @@ final class MetalEffects {
             l0.intensity = max(0, l0.intensity - dt * 600)
         }
         lights[0] = l0
-        for k in 1..<3 {
-            flashT[k] += dt
-            let u = flashT[k] / max(0.001, flashDur[k])
-            lights[k].intensity = u < 1 ? flashPeak[k] * (1 - u) * (1 - u) : 0
+    }
+
+    /// The short flash lights into WP2's light grid for this frame.
+    private func emitLights(dt: Float) {
+        let hub = LightingHub.current
+        var i = 0
+        while i < flashLights.count {
+            flashLights[i].t += dt
+            let f = flashLights[i]
+            if f.t >= f.dur { flashLights.remove(at: i); continue }
+            let u = f.t / f.dur
+            hub?.emit(f.pos, color: f.color, intensity: f.peak * (1 - u) * (1 - u), range: f.range, priority: f.priority)
+            i += 1
         }
     }
 
     // ================================================================ drawing (FX.metal)
-    static let pipelines: [PipelineSpec] = [
-        .world("decal", "vs_decal", "fs_decal", .multiply), .world("sprite", "vs_sprite", "fs_sprite", .add),
-        .world("particleAdd", "vs_particle", "fs_particle_add", .add), .world("particleAlpha", "vs_particle", "fs_particle_alpha", .alpha),
-        .world("ribbon", "vs_ribbon", "fs_ribbon", .add),
-    ]
-    private var renderer: MetalRenderer!
-    private var psDecal: MTLRenderPipelineState?, psSprite: MTLRenderPipelineState?, psParticleAdd: MTLRenderPipelineState?
-    private var psParticleAlpha: MTLRenderPipelineState?, psRibbon: MTLRenderPipelineState?
-    private var texGlow: MTLTexture!, texRing: MTLTexture!, texFill: MTLTexture!, texLane: MTLTexture!, texDecals: MTLTexture!
-    private var texDash: MTLTexture!, texStreak: MTLTexture!
-    private let decalPool = EventPool<DecalInstance>("stains", capacity: 1500)
-    // this frame's arena regions
-    private var rDecals = Region(), rGlow = Region(), rRings = Region(), rFill = Region(), rLanes = Region()
-    private var rRibbons = Region(), rPA = Region(), rPN = Region()
+    /// Live particles (heartbeat `parts`): the GPU's count of three frames ago.
+    var particleCount: Int { gpu.liveCount }
 
-    /// Live particles drawn this frame (heartbeat `parts`).
-    var particleCount: Int { rPA.count + rPN.count }
-
-    /// Resolve pipelines and textures, register the world items (MetalWorld, once).
+    /// Resolve pipelines, register the draw items (MetalWorld, once).
     func attach(_ r: MetalRenderer) {
         renderer = r
-        psDecal = r.pipeline("decal"); psSprite = r.pipeline("sprite"); psParticleAdd = r.pipeline("particleAdd")
-        psParticleAlpha = r.pipeline("particleAlpha"); psRibbon = r.pipeline("ribbon")
-        let st = r.store
-        texGlow = st.texture("glow"); texRing = st.texture("ring"); texFill = st.texture("fill"); texLane = st.texture("lane")
-        texDecals = st.texture("decals"); texDash = st.texture("dash"); texStreak = st.texture("streak")
-        r.register(.transparent, order: 200, "decals") { [unowned self] enc in self.encodeDecals(enc) }
-        r.register(.transparent, order: 300, "glow sprites") { [unowned self] enc in self.sprites(enc, self.rGlow, self.texGlow) }
-        r.register(.transparent, order: 320, "ring sprites") { [unowned self] enc in self.sprites(enc, self.rRings, self.texRing) }
-        r.register(.transparent, order: 330, "fill sprites") { [unowned self] enc in self.sprites(enc, self.rFill, self.texFill) }
-        r.register(.transparent, order: 340, "lane sprites") { [unowned self] enc in self.sprites(enc, self.rLanes, self.texLane) }
-        r.register(.transparent, order: 500, "particles alpha") { [unowned self] enc in self.particles(enc, self.psParticleAlpha, self.rPN) }
-        r.register(.transparent, order: 510, "particles add") { [unowned self] enc in self.particles(enc, self.psParticleAdd, self.rPA) }
-        r.register(.transparent, order: 600, "ribbons") { [unowned self] enc in self.encodeRibbons(enc) }
+        gpu.attach(r)
+        decals.attach(r)
+        ribbons.attach(r)
+        psFloor = r.pipeline("floorFx")
+        psTele = r.pipeline("telegraph")
+        psHeat = r.pipeline("heat")
+        r.register(.transparent, order: 120, "floor fx") { [unowned self] enc in self.encodeFloor(enc, self.rFloor, self.psFloor) }
+        r.register(.transparent, order: 330, "telegraphs") { [unowned self] enc in self.encodeFloor(enc, self.rTele, self.psTele) }
+        r.register(.distortion, order: 100, "heat") { [unowned self] enc in self.encodeHeat(enc) }
+        look.attach(self, r)
+        applyTier()
     }
 
-    /// Upload this frame's stains, sprites (`teamRings`, Squad/GroundGlyphs, share the ring draw), ribbons, and the
-    /// particles (simulated straight into the arena).
+    /// Upload this frame's stains, floor fx, telegraphs, heat, beams and the particle records. `teamRings`: GroundGlyphs'
+    /// (empty since WP4: the HP arcs replace them).
     func upload(_ r: MetalRenderer, teamRings: [SpriteInstance], dt: Float) {
-        rDecals = decalPool.region(decals, version: decalVersion, renderer: r)
-        rGlow = r.upload(glowSprites)
-        rRings = r.upload(ringSprites, teamRings)
-        rFill = r.upload(fillSprites)
-        rLanes = r.upload(laneSprites)
-        rRibbons = r.upload(ribbons)
-        rPA = Region(); rPN = Region()
-        if let a = r.alloc(ParticleInstance.self, max(1, pa.count)) {
-            rPA = Region(offset: a.1, count: pa.update(dt: dt, out: a.0, max: max(1, pa.count)))
-        } else {
-            _ = pa.update(dt: dt, out: nil, max: 0)
-        }
-        if let a = r.alloc(ParticleInstance.self, max(1, pn.count)) {
-            rPN = Region(offset: a.1, count: pn.update(dt: dt, out: a.0, max: max(1, pn.count)))
-        } else {
-            _ = pn.update(dt: dt, out: nil, max: 0)
-        }
+        let c0 = FrameTimer.now()
+        decals.upload(r)
+        rFloor = r.upload(floorAdd)
+        rTele = r.upload(floorMax)
+        rHeat = r.upload(heat)
+        ribbons.upload(r)
+        gpu.upload(r, dt: lastDt, time: frameTime, rise: liftRiseNow)
+        cpuAcc += (FrameTimer.now() - c0) * 1000
+        cpuFrames += 1
+        heartbeat()
     }
 
-    private func encodeDecals(_ enc: MTLRenderCommandEncoder) {
-        guard let ps = psDecal, rDecals.count > 0 else { return }
-        let r = renderer!
-        r.use(enc, ps)
-        enc.setDepthBias(-4, slopeScale: -2, clamp: 0)
-        enc.setVertexBuffer(rDecals.buffer ?? r.arena, offset: rDecals.offset, index: BufferIndex.instances)
-        r.bindMain(enc, texDecals)
-        r.drawQuads(enc, rDecals.count)
-        enc.setDepthBias(0, slopeScale: 0, clamp: 0)
-    }
-
-    private func sprites(_ enc: MTLRenderCommandEncoder, _ reg: Region, _ tex: MTLTexture) {
-        guard let ps = psSprite, reg.count > 0 else { return }
-        let r = renderer!
-        r.use(enc, ps)
-        enc.setVertexBuffer(r.arena, offset: reg.offset, index: BufferIndex.instances)
-        r.bindMain(enc, tex)
-        r.drawQuads(enc, reg.count)
-    }
-
-    private func particles(_ enc: MTLRenderCommandEncoder, _ ps: MTLRenderPipelineState?, _ reg: Region) {
-        guard let ps = ps, reg.count > 0 else { return }
-        let r = renderer!
+    private func encodeFloor(_ enc: MTLRenderCommandEncoder, _ reg: Region, _ ps: MTLRenderPipelineState?) {
+        guard let r = renderer, let ps = ps, reg.count > 0 else { return }
         r.use(enc, ps)
         enc.setVertexBuffer(r.arena, offset: reg.offset, index: BufferIndex.instances)
         r.drawQuads(enc, reg.count)
     }
 
-    private func encodeRibbons(_ enc: MTLRenderCommandEncoder) {
-        guard let ps = psRibbon, rRibbons.count > 0 else { return }
-        let r = renderer!
+    /// Distortion stage (High): the heat sprites into the ¼-res offsets.
+    private func encodeHeat(_ enc: MTLRenderCommandEncoder) {
+        guard let r = renderer, let ps = psHeat, rHeat.count > 0 else { return }
         r.use(enc, ps)
-        enc.setVertexBuffer(r.arena, offset: rRibbons.offset, index: BufferIndex.instances)
-        r.bindMain(enc, texDash)
-        enc.setFragmentTexture(texStreak, index: 1)
-        enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: rRibbons.count)
-        r.count(triangles: rRibbons.count / 3)
+        enc.setVertexBuffer(r.arena, offset: rHeat.offset, index: BufferIndex.instances)
+        if let n = r.store.noise { enc.setFragmentTexture(n, index: TextureIndex.noise) }
+        r.drawQuads(enc, rHeat.count)
     }
+
+    /// Once per second (diagnostics): `hb fx parts=live/ring peak=… fire=…/cap expl=…/cap spawn=…/s rec=…/s decals=…/ring
+    /// beams=… tracer=…m lights=… cpu=…ms sim=on|off tier=…`.
+    private func heartbeat() {
+        guard AppLog.diagnostics else { return }
+        let now = FrameTimer.now()
+        if now - lastLog < 1 { return }
+        lastLog = now
+        let (sp, rec) = gpu.takeRates()
+        let (peak, fpeak) = gpu.takeMaxima()
+        let (tl, tn) = ribbons.takeTracerStats()
+        let cpu = cpuFrames > 0 ? cpuAcc / Double(cpuFrames) : 0
+        cpuAcc = 0; cpuFrames = 0
+        AppLog.info("hb fx parts=\(gpu.liveCount)/\(gpu.ringCap) peak=\(peak) fire=\(gpu.liveFlames)/\(gpu.flameCap) peak=\(fpeak)"
+                    + " expl=\(blasts.count)/\(blastCap) peak=\(blastsPeak) throttled=\(flameThrottled) spawn=\(sp)/s rec=\(rec)/s"
+                    + " decals=\(decals.items.count)/\(decals.ring) beams=\(ribbons.beams.count) tracers=\(tn) tracer=" + String(format: "%.1fm", tl)
+                    + " lights=\(flashLights.count) floor=\(floorAdd.count)+\(floorMax.count) heat=\(heat.count)"
+                    + String(format: " cpu=%.3fms", cpu) + " sim=" + (gpu.simOff ? "off" : "on")
+                    + " tier=" + ((renderer?.frameTier ?? .efficient) == .high ? "high" : "efficient") + (look.mode.isEmpty ? "" : " look=" + look.mode))
+        blastsPeak = blasts.count
+        flameThrottled = 0
+    }
+
+    // ================================================================ look-dev hooks (FXLookDev)
+    fileprivate func lookExplosion(_ x: Float, _ z: Float, _ r: Float, _ kind: ExplosionKind) { explosion(x, z, r, kind) }
+    fileprivate func lookAcid(_ x: Float, _ z: Float) { acid(x, z) }
+    fileprivate func lookDeath(_ t: BugType, _ x: Float, _ z: Float, frozen: Bool) { bugDeath(t, x, z, frozen, rnd() * TAU, t.spec.scale, 0) }
+    fileprivate func lookHit(_ game: Game, _ x: Float, _ z: Float, _ dx: Float, _ dz: Float) { bulletHit(game, x, z, dx, dz, rnd() < 0.3) }
+    fileprivate func lookNapalm(_ x: Float, _ z: Float, _ r: Float, burst: Bool, dt: Float) {
+        if burst { napalmBurst(x, z, r) } else { napalmField(x, z, r, dt: dt, k: 7) }
+    }
+    fileprivate func lookFlame(_ o: F3, _ ax: Float, _ az: Float, dt: Float) { flameJet(o, ax: ax, az: az, vel: .zero, dt: dt, k: 3) }
+    fileprivate func lookCryo(_ o: F3, _ ax: Float, _ az: Float, len: Float, dt: Float) { cryoStream(o, ax: ax, az: az, len: len, dt: dt, k: 2) }
+    fileprivate func lookNova(_ x: Float, _ z: Float, _ r: Float) { nova(x, z, r) }
+    fileprivate func lookShot(_ o: F3, _ ax: Float, _ az: Float, rotary: Bool, k: Int) {
+        // a round without a core marine (look-dev): casing, sparks, light, a tracer from the muzzle
+        let d = F3(ax, 0, az)
+        flash(o + d * 0.35, rotary ? F3(1.0, 0.78, 0.42) : F3(1.0, 0.5, 0.3), peak: 50, dur: 0.07, range: 7, priority: 8)
+        gpu.burst(.spark, 2, at: o + d * 0.15, vel: d * 9, velJitter: F3(2.6, 1.6, 2.6), life: (0.05, 0.13), size: (0.03, 0.02),
+                  color: F4(1.3, 1.0, 0.7, 1), gravity: 2, drag: 4)
+        let side = F3(az, 0, -ax)
+        gpu.burst(.casing, 1, at: o - d * 0.55 + side * 0.12, vel: side * rr(1.8, 2.8) + F3(0, 2.6, 0), velJitter: F3(0.5, 0.6, 0.5),
+                  life: (1.0, 1.5), size: (0.055, 0.055), color: F4(0.62, 0.42, 0.13, 1), gravity: 13, drag: 0.4, sizeJitter: 0.1, spin: 14)
+    }
+    fileprivate var lookDecals: Decals { decals }
+}
+
+// ================================================================
+//  FX LOOK-DEV — `-fxSheet`: every effect staged around the camera's
+//  focus (rows across the screen: frag and boomer blasts, the napalm
+//  ring, the flamer jet and the cryo beam; hits, kills, a frozen
+//  shatter, acid, a frost nova; a row of every stain kind), frozen
+//  `-fxSheetT` s (default 0.35) after the last one fired, so a
+//  screenshot catches them mid-air. `-fxPeak`: the plan's scripted
+//  peak (three chained boomers 0.25 s apart + a napalm burst and field
+//  + the cryo beam), repeated every 2.5 s — device GPU timing of the
+//  worst case (`hb gpu`). `-fxHigh`: the High tier for both.
+// ================================================================
+final class FXLookDev {
+    let sheet: Bool
+    let peak: Bool
+    let forceHigh: Bool
+    let freezeAfter: Float
+    var mode: String { sheet ? "sheet" : (peak ? "peak" : "") }
+    private var start: Double = 0
+    private var staged = false
+    private var frozen = false
+    private var lastPeak: Float = -100
+    private var peakStep = -1
+    private var focus = F3(0, 0, 0)
+
+    init() {
+        let u = LaunchOptions.current.unknown
+        sheet = u.contains("-fxSheet")
+        peak = u.contains("-fxPeak")
+        forceHigh = u.contains("-fxHigh")
+        freezeAfter = u.firstIndex(of: "-fxSheetT").flatMap { $0 + 1 < u.count ? Float(u[$0 + 1]) : nil } ?? 0.35
+    }
+
+    func attach(_ fx: MetalEffects, _ r: MetalRenderer) {
+        if sheet || peak { AppLog.info("fx: look-dev " + mode + (forceHigh ? " (High)" : "")) }
+        if forceHigh { r.quality.setChosen(fxK: 1) }
+    }
+
+    /// The effects' dt: frozen once the sheet has been staged.
+    func dt(_ d: Float) -> Float { frozen ? 0 : d }
+
+    /// The world was reset (the loading cover lifts, a new mission): stage again from the start.
+    func restart() {
+        start = 0
+        staged = false
+        frozen = false
+        lastPeak = -100
+        peakStep = -1
+    }
+
+    func step(_ fx: MetalEffects, game: Game, focus f: F3, time: Float) {
+        guard sheet || peak else { return }
+        if start == 0 { start = FrameTimer.now(); focus = f }
+        let t = Float(FrameTimer.now() - start)
+        if sheet { stepSheet(fx, game: game, t: t) } else { stepPeak(fx, game: game, t: t) }
+    }
+
+    /// World point `a` m to the screen's right and `b` m up the screen (into the view) from the focus.
+    private func at(_ a: Float, _ b: Float) -> (Float, Float) {
+        // camera yaw 45°: screen right = (1, 0, −1)/√2, into the screen = (−1, 0, −1)/√2
+        let k: Float = 0.70710678
+        return (focus.x + a * k - b * k, focus.z - a * k - b * k)
+    }
+
+    private func stepSheet(_ fx: MetalEffects, game: Game, t: Float) {
+        let t0: Float = 1.5
+        if frozen { return }
+        // continuous ones (flamer, cryo, napalm field) run from t0 − 0.6 until the freeze
+        if t > t0 - 0.6 {
+            let dt: Float = 1.0 / 60
+            let (fx1, fz1) = at(4.0, 2.6)
+            fx.lookFlame(F3(fx1, game.level.groundY(fx1, fz1) + 1.2, fz1), 0.70710678, -0.70710678, dt: dt)
+            let (cx, cz) = at(4.0, -1.0)
+            fx.lookCryo(F3(cx, game.level.groundY(cx, cz) + 1.2, cz), 0.70710678, -0.70710678, len: 7.5, dt: dt)
+            let (nx, nz) = at(-6.5, -3.2)
+            fx.lookNapalm(nx, nz, 2.4, burst: false, dt: dt)
+        }
+        guard !staged, t >= t0 else {
+            if staged && t >= t0 + freezeAfter { frozen = true; AppLog.info("fx: look-dev sheet frozen") }
+            return
+        }
+        staged = true
+        let (ax, az) = at(-5.5, 3.2)
+        fx.lookExplosion(ax, az, 4, .frag)
+        let (bx, bz) = at(0.5, 4.2)
+        fx.lookExplosion(bx, bz, 3.2, .boomer)
+        let (nx, nz) = at(-6.5, -3.2)
+        fx.lookNapalm(nx, nz, 2.4, burst: true, dt: 0)
+        // hits and kills along a row in front of the squad
+        for (i, a) in [Float(-3.5), -2.2, -1.0].enumerated() {
+            let (hx, hz) = at(a, -4.6)
+            for _ in 0..<3 { fx.lookHit(game, hx, hz, 0.70710678, 0.70710678 * (i % 2 == 0 ? 1 : -1)) }
+        }
+        let (rx, rz) = at(0.8, -4.8)
+        fx.lookDeath(.runner, rx, rz, frozen: false)
+        let (sx, sz) = at(2.4, -5.0)
+        fx.lookDeath(.brute, sx, sz, frozen: false)
+        let (ix, iz) = at(-1.8, -6.6)
+        fx.lookDeath(.spitter, ix, iz, frozen: true)
+        let (qx, qz) = at(7.2, -4.4)
+        fx.lookAcid(qx, qz)
+        let (vx, vz) = at(8.2, 2.0)
+        fx.lookNova(vx, vz, 2.6)
+        // shots: muzzles in a row, casings in the air
+        for i in 0..<4 {
+            let (mx, mz) = at(-3.0 + Float(i) * 0.9, 1.4)
+            fx.lookShot(F3(mx, game.level.groundY(mx, mz) + 1.2, mz), 0.70710678, -0.70710678, rotary: i % 2 == 1, k: i)
+        }
+        // a row of stains of every kind
+        let D = fx.lookDecals
+        let row: [(Decals.Cell, Decals.Kind, F3)] = [(.splat, .ichor, MetalEffectsLook.ichor(0)), (.streak, .ichor, MetalEffectsLook.ichor(1)),
+                                                      (.gore, .gore, MetalEffectsLook.ichor(2)), (.acid, .acid, F3(0.42, 0.6, 0.06)),
+                                                      (.scorch, .scorch, F3(0.08, 0.07, 0.07)), (.frost, .frost, F3(0.75, 0.86, 0.98))]
+        for (i, d) in row.enumerated() {
+            let (dx, dz) = at(-6.0 + Float(i) * 2.4, -8.2)
+            D.add(dx, dz, size: 1.9, cell: d.0, kind: d.1, tint: d.2, flecks: d.1 == .scorch || d.1 == .ichor ? 1 : 0)
+        }
+        AppLog.info("fx: look-dev sheet staged")
+    }
+
+    private func stepPeak(_ fx: MetalEffects, game: Game, t: Float) {
+        let period: Float = 2.5
+        let cycle = Int(t / period)
+        let ph = t - Float(cycle) * period
+        if cycle != peakStep { peakStep = cycle; lastPeak = -1 }
+        let dt: Float = 1.0 / 60
+        // three chained boomers 0.25 s apart, a napalm burst with its field, the cryo beam over the whole cycle
+        for k in 0..<3 {
+            let tk = Float(k) * 0.25
+            if lastPeak < tk && ph >= tk {
+                let (x, z) = at(-3.5 + Float(k) * 3.0, 3.0)
+                fx.lookExplosion(x, z, 3.2, .boomer)
+            }
+        }
+        if lastPeak < 0.1 && ph >= 0.1 {
+            let (x, z) = at(-2, -3)
+            fx.lookNapalm(x, z, 4, burst: true, dt: 0)
+        }
+        lastPeak = ph
+        let (x, z) = at(-2, -3)
+        fx.lookNapalm(x, z, 4, burst: false, dt: dt)
+        let (cx, cz) = at(3.5, -1.0)
+        fx.lookCryo(F3(cx, game.level.groundY(cx, cz) + 1.2, cz), -0.70710678, 0.70710678, len: 10, dt: dt)
+    }
+}
+
+/// Ichor tints for the look-dev stain row.
+private enum MetalEffectsLook {
+    static func ichor(_ t: Int) -> F3 { WorldSwarm.ichor[max(0, min(3, t))] }
 }
