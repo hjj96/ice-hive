@@ -240,6 +240,9 @@ def plate(name, bone, nu, nv, pal, rough=0.34, **kw):
     u, v = np.concatenate([u, u]), np.concatenate([v, v])
     inner = np.concatenate([np.zeros(n), np.ones(n)])
     edge = np.clip(np.maximum((np.abs(u) - 0.55) / 0.45, (v - 0.55) / 0.45), 0, 1) ** 1.5
+    # a coarse plate (LOD1 / LOD2: 3 × 1 segments) has every vertex on its rim: the pale rim would cover the whole
+    # plate (a grey box at game size) — scale it to keep the fine plate's average value
+    edge = edge * min(1.0, (nu - 1) / 10.0)
     keel = np.clip(1 - np.abs(u) * 4, 0, 1) * (1 - inner)
     col = col_ramp(len(V), pal['plate'], pal['edge'], edge * (1 - inner) * 0.85)
     col = col * (1 - keel[:, None] * 0.35) + hex2rgb(pal['keel']) * keel[:, None] * 0.35

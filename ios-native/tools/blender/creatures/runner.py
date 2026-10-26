@@ -168,8 +168,8 @@ def build_parts(lod):
                        theta_deg=110, thick=0.014, bulge=0.05, ridge=0.0, flare=0.0))
     else:
         # LOD2: two blobs coloured like the plates on top (the plates' paler rims averaged in), belly below
-        P.append(blob('abd.core1', 'abd.1', (0, -0.22, 0.29), (0.215, 0.24, 0.15), 4, 2, 0x3b2843, C['belly'], rough=0.4))
-        P.append(blob('abd.core2', 'abd.2', (0, -0.57, 0.27), (0.17, 0.3, 0.12), 4, 2, 0x36253f, C['belly'], rough=0.4))
+        P.append(blob('abd.core1', 'abd.1', (0, -0.22, 0.29), (0.215, 0.24, 0.15), 4, 2, 0x291c2f, C['belly'], rough=0.4))
+        P.append(blob('abd.core2', 'abd.2', (0, -0.57, 0.27), (0.17, 0.3, 0.12), 4, 2, 0x251a2c, C['belly'], rough=0.4))
     # ---- glands: dorsal pores + lateral rows; seated on THIS LOD's carapace (LOD0 for the sockets)
     if lod < 2:
         plates = [p for p in P if p.name.startswith(('tergite', 'pronotum'))]
