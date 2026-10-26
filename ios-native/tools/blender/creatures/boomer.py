@@ -11,7 +11,7 @@ import math
 
 import numpy as np
 
-from geo import Part, cone, ellipsoid, smoothstep, tube
+from geo import Part, cone, ellipsoid, hex2rgb, smoothstep, tube
 from insect import (D2R, F_GLAND, F_SAC, FPS, SIDES, SN, TWO, Leg, State, blob, bone_frame, col_ramp, eye, feet_gait,
                     feet_planted, gland, leg_parts, plate, rx, ry, rz, sc3, skeleton_legs, surface_z, tr)
 
@@ -64,7 +64,7 @@ EXTRA_SOCKETS = [('mouth', 'head', (0, 0.54, BODY_Z - 0.1), 0), ('core', 'sac', 
 
 
 def _sac(lod):
-    nu, nv = ((20, 12), (8, 5), (8, 2))[lod]
+    nu, nv = ((20, 12), (8, 5), (8, 3))[lod]
     V, F = ellipsoid(SAC_C, SAC_R, nu, nv, rx=0.12)
     d = (V - SAC_C) / SAC_R
     a = np.arctan2(d[:, 0], d[:, 1])
@@ -75,7 +75,13 @@ def _sac(lod):
     else:
         vein = np.zeros(len(V))
     belly = np.clip(-d[:, 2] * 0.9 + 0.1, 0, 1)
-    col = col_ramp(len(V), PAL['sac'], PAL['sac_vein'], np.clip(vein * 0.85 + belly * 0.55, 0, 1))
+    # LOD1 / LOD2 carry no rib bands: the sac's average is darkened instead, so the LOD switch keeps its value;
+    # LOD2 has no keel plates either: the keel is painted along the spine (top pole + the ring's spine vertices)
+    shade = (0.0, 0.4, 0.4)[lod]
+    col = col_ramp(len(V), PAL['sac'], PAL['sac_vein'], np.clip(vein * 0.85 + belly * 0.55 + shade, 0, 1))
+    if lod == 2:
+        keel = np.clip(d[:, 2] * 1.2 - np.abs(d[:, 0]) * 1.5, 0, 1)[:, None]
+        col = col * (1 - keel * 0.9) + hex2rgb(PAL['keel']) * keel * 0.9
     return Part('sac', V, F, 'sac', PAL['sac'], glow=0.3, rough=0.22, flags=F_SAC | F_GLAND, vcolor=col, sharp_deg=180)
 
 
@@ -119,11 +125,12 @@ def build_parts(lod):
                 P.append(Part(f'kspike{k}', *cone(b, b + [0, -0.03, 0.06], 0.012, 4), 'sac', C['edge'], rough=0.3))
         P.extend(keel)
         if hi:
-            for s in SIDES:
-                for k in range(3):
-                    yy = SAC_C[1] + (k - 1) * 0.26
-                    P.append(blob(f'rib.{SN[s]}{k}', 'sac', (s * SAC_R[0] * 0.9, yy, SAC_C[2] - SAC_R[2] * 0.3), (0.07, 0.13, 0.1), 6, 3,
-                                  C['edge'], C['plate'], rough=0.35))
+            # flank ribs: two dark bands hooping the sac's lower half (the sac glows between them)
+            for k in range(2):
+                yy = SAC_C[1] + (0.16 if k == 0 else -0.14)
+                P.append(plate(f'rib{k}', 'sac', 12, 1, dict(C, plate=C['plate'], edge=C['edge']), y0=yy + 0.035, length=0.07,
+                               a=(SAC_R[0] * 1.03, SAC_R[0] * 1.03), b=(SAC_R[2] * 1.03, SAC_R[2] * 1.03), zc=SAC_C[2],
+                               theta_deg=230, thick=0.012, bulge=0.0, ridge=0.0, flare=0.0))
     # ---- pores: on the keel plates and across the top of the sac
     if lod < 2:
         seat = keel + [p for p in P if p.name == 'sac']

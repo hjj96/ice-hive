@@ -9,7 +9,7 @@ normal + glow table — exactly what Swarm.metal vs_creature computes), then ren
                                                                    MetalCamera) at an iPhone 17 Pro's 3× landscape
                                                                    pixels (1206 px tall): a mixed pack under a flashlight,
                                                                    LOD0 / LOD1 / LOD2, and the LOD1 → LOD2 pop: mean luma
-                                                                   difference inside each bug's screen rect (gate ≤ 6)
+                                                                   difference over each bug's own pixels (gate ≤ 6)
 Writes PNGs + <job>.json (sizes, pop numbers) into OUT_DIR; compose.py-style contact sheets as <job>_sheet.png.
 """
 import json
@@ -137,14 +137,51 @@ def mesh_from(D, lod, row, name, mat, xform=None, dead=0.0):
         alb = np.where(pore[:, None], alb, (alb * (1 - 0.7 * dead) + lum[:, None] * np.array([0.8, 0.72, 0.7]) * 0.7 * dead) * (1 - 0.38 * dead))
     me.attributes.new('albedo', 'FLOAT_COLOR', 'POINT').data.foreach_set('color', np.c_[alb, np.ones(n)].ravel())
     me.attributes.new('ao', 'FLOAT', 'POINT').data.foreach_set('value', V['albedo_ao'][:, 3] / 255.0)
-    me.attributes.new('glow', 'FLOAT', 'POINT').data.foreach_set('value', V['material'][:, 0] / 255.0 * G * (1 - 0.85 * dead) * ((fl & 16) == 0))
+    me.attributes.new('glow', 'FLOAT', 'POINT').data.foreach_set('value', V['material'][:, 0] / 255.0 * G * (1 - dead) * ((fl & 16) == 0))
     me.attributes.new('rough', 'FLOAT', 'POINT').data.foreach_set('value', V['material'][:, 1] / 255.0)
     me.attributes.new('coat', 'FLOAT', 'POINT').data.foreach_set('value', ((fl & 4) > 0) * 0.7 + 0.2)
-    me.attributes.new('sac', 'FLOAT', 'POINT').data.foreach_set('value', ((fl & 16) > 0) * (0.35 + V['material'][:, 0] / 255.0 * G) * (1 - 0.9 * dead))
+    veil = np.clip(srgb2lin(V['albedo_ao'][:, :3] / 255.0).max(1) * 4.0, 0, 1)      # fs_chitin: painted veins block the glow
+    me.attributes.new('sac', 'FLOAT', 'POINT').data.foreach_set('value', ((fl & 16) > 0) * (0.35 + V['material'][:, 0] / 255.0 * G) * veil * (1 - 0.9 * dead))
     me.materials.append(mat)
     ob = bpy.data.objects.new(name, me)
     bpy.context.scene.collection.objects.link(ob)
     return ob
+
+
+def glints_from(D, row, name, mat, xform, scale, min_r):
+    """the game's pore glints (vs_swarm_glint): one dot per glint socket of a live bug, at the socket's LOD0 vertex,
+    whatever LOD the body draws — so a LOD switch keeps them; radius the socket's, at least min_r (the 1.7 px floor)"""
+    L0 = D['lods'][0]
+    P = ihv.rigid_row(D, L0, row)[0]
+    pts, rs = [], []
+    for so in D['sockets']:
+        if so['flags'] & 1:
+            pts.append(P[so['vid'][0]]); rs.append(max(((so['flags'] >> 8) & 255) / 1000.0 * scale, min_r))
+    if not pts:
+        return None
+    pts = np.array(pts)
+    if xform is not None:
+        pts, _ = xform(pts, np.zeros_like(pts))
+    oc = np.array([[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]], float)
+    of = [(0, 2, 4), (2, 1, 4), (1, 3, 4), (3, 0, 4), (2, 0, 5), (1, 2, 5), (3, 1, 5), (0, 3, 5)]
+    Vs, Fs = [], []
+    for k, (p, r) in enumerate(zip(pts, rs)):
+        Vs.extend((g2b(p + oc * r)).tolist()); Fs.extend([(a + 6 * k, b + 6 * k, c + 6 * k) for a, b, c in of])
+    me = bpy.data.meshes.new(name)
+    me.from_pydata(Vs, [], Fs)
+    me.materials.append(mat)
+    ob = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(ob)
+    return ob
+
+
+def glint_material():
+    m = bpy.data.materials.new('glint')
+    m.use_nodes = True
+    N, L = m.node_tree.nodes, m.node_tree.links
+    e = N.new('ShaderNodeEmission'); e.inputs['Color'].default_value = (1.0, 0.16, 0.46, 1); e.inputs['Strength'].default_value = 8.0
+    L.new(e.outputs[0], N['Material Output'].inputs['Surface'])
+    return m
 
 
 def camera(loc, target, lens=None, fov_v=None):
@@ -345,18 +382,17 @@ def job_game(out):
         pack.append((x, z, t, hd, pick, rng.random()))
     tg = np.array([0.0, 0.0, 0.0])
     cam_g = tg + np.array([math.sin(yaw) * math.cos(pitch), math.sin(pitch), math.cos(yaw) * math.cos(pitch)]) * dist
-    # screen projection of world points (pop rects)
+    # screen projection of world points (pop masks)
     fwd = (tg - cam_g) / np.linalg.norm(tg - cam_g)
     right = np.cross(fwd, [0, 1, 0]); right /= np.linalg.norm(right)
     up = np.cross(right, fwd)
     f_px = H / 2 / math.tan(math.radians(20))
 
-    def proj(p):
-        d = p - cam_g
-        z = d @ fwd
-        return W / 2 + (d @ right) / z * f_px, H / 2 - (d @ up) / z * f_px
     res = {}
     for li in (0, 1, 2):
+        if os.environ.get('REUSE') and os.path.exists(os.path.join(out, f'game_lod{li}.png')):
+            res[li] = os.path.join(out, f'game_lod{li}.png')     # re-measure the pop without rendering again
+            continue
         sc = reset((W, H), 40)
         sc.render.use_border = True; sc.render.use_crop_to_border = True
         sc.render.border_min_x = 0.5 - win[0] / 2 / W; sc.render.border_max_x = 0.5 + win[0] / 2 / W
@@ -369,6 +405,7 @@ def job_game(out):
         mpos = np.array([3.6, 1.25, 3.6])
         light('SPOT', tuple(g2b(mpos)), tuple(g2b(np.array([-0.6, 0.0, -0.6]))), 1400, (1.0, 0.89, 0.73), size=0.05, spot=1.0, blend=0.5)
         mats = {t: material(f'chitin_{t}', t, emit=6.0) for t in TYPES}
+        gm = glint_material()
         for i, (x, z, t, hd, pick, r) in enumerate(pack):
             D = Ds[t]
             s = SCALE[t]
@@ -380,36 +417,86 @@ def job_game(out):
             dead = pick.startswith('death')
             f = cl['frames'] - 1 if dead else int(r * 997) % cl['frames']
             mesh_from(D, D['lods'][min(li, len(D['lods']) - 1)], cl['first'] + f, f'bug{i}', mats[t], xform=xf, dead=1.0 if dead else 0.0)
+            if not dead:
+                glints_from(D, cl['first'] + f, f'glint{i}', gm, xf, s, 0.85 * dist / f_px)
         p = os.path.join(out, f'game_lod{li}.png')
         render(p)
         res[li] = p
         log('game', f'LOD{li}')
-    # LOD1 → LOD2 pop: mean |Δ luma| inside each bug's screen rect (sRGB 0..255)
+    # LOD1 → LOD2 pop: per bug, the pixels it covers in each LOD (an id buffer rasterised from the same rows,
+    # nearest triangle wins, so a neighbour overlapping its rect does not count), luma per pixel (sRGB 0..255)
     from PIL import Image
     imgs = {li: np.asarray(Image.open(res[li]).convert('RGB')).astype(np.float64) for li in res}
     lum = {li: imgs[li] @ np.array([0.2126, 0.7152, 0.0722]) for li in imgs}
+    hh, ww = lum[1].shape
     ox, oy = W / 2 - win[0] / 2, H / 2 - win[1] / 2
+
+    def ids(li):
+        tris = []
+        for i, (x, z, t, hd, pick, r) in enumerate(pack):
+            D = Ds[t]
+            lod = D['lods'][min(li, len(D['lods']) - 1)]
+            cl = next(c for c in D['clips'] if c['name'] == pick)
+            f = cl['frames'] - 1 if pick.startswith('death') else int(r * 997) % cl['frames']
+            P = ihv.rigid_row(D, lod, cl['first'] + f)[0][:lod['draw_vertex_count']]
+            c_, sn = math.cos(hd), math.sin(hd)
+            R = np.array([[c_, 0, sn], [0, 1, 0], [-sn, 0, c_]])
+            P = (P * SCALE[t]) @ R.T + np.array([x, 0, z])
+            d = P - cam_g
+            zc = d @ fwd
+            sx, sy = W / 2 + (d @ right) / zc * f_px - ox, H / 2 - (d @ up) / zc * f_px - oy
+            for tri in lod['indices'].reshape(-1, 3):
+                tris.append((i, sx[tri], sy[tri], zc[tri]))
+        # z-buffered rasterisation (pixel centres, barycentric depth): the nearest surface owns the pixel
+        idb = np.zeros((hh, ww), np.int32)
+        zb = np.full((hh, ww), np.inf)
+        for i, X, Y, Z in tris:
+            xa, xb = max(int(np.floor(X.min())), 0), min(int(np.ceil(X.max())), ww - 1)
+            ya, yb = max(int(np.floor(Y.min())), 0), min(int(np.ceil(Y.max())), hh - 1)
+            if xa > xb or ya > yb:
+                continue
+            den = (Y[1] - Y[2]) * (X[0] - X[2]) + (X[2] - X[1]) * (Y[0] - Y[2])
+            if abs(den) < 1e-9:
+                continue
+            gx, gy = np.meshgrid(np.arange(xa, xb + 1) + 0.5, np.arange(ya, yb + 1) + 0.5)
+            w0 = ((Y[1] - Y[2]) * (gx - X[2]) + (X[2] - X[1]) * (gy - Y[2])) / den
+            w1 = ((Y[2] - Y[0]) * (gx - X[2]) + (X[0] - X[2]) * (gy - Y[2])) / den
+            w2 = 1 - w0 - w1
+            ins = (w0 >= 0) & (w1 >= 0) & (w2 >= 0)
+            if not ins.any():
+                continue
+            zz = w0 * Z[0] + w1 * Z[1] + w2 * Z[2]
+            sub = zb[ya:yb + 1, xa:xb + 1]
+            win_ = ins & (zz < sub)
+            sub[win_] = zz[win_]
+            idb[ya:yb + 1, xa:xb + 1][win_] = i + 1
+        return idb
+    id1, id2 = ids(1), ids(2)
+    np.savez_compressed(os.path.join(out, 'game_ids.npz'), id1=id1, id2=id2)
+    pal = (np.random.default_rng(1).random((len(pack) + 1, 3)) * 200 + 55).astype(np.uint8); pal[0] = 0
+    Image.fromarray((imgs[1] * 0.5 + pal[id1] * 0.5).astype(np.uint8)).save(os.path.join(out, 'game_ids.png'))
     pops = []
-    for x, z, t, hd, pick, r in pack:
-        D = Ds[t]
-        lo, hi = np.array(D['bounds'][0]), np.array(D['bounds'][1])
-        s = SCALE[t]
-        corners = np.array([[a, b, c] for a in (lo[0], hi[0]) for b in (0.0, hi[1]) for c in (lo[2], hi[2])]) * s
-        c_, sn = math.cos(hd), math.sin(hd)
-        R = np.array([[c_, 0, sn], [0, 1, 0], [-sn, 0, c_]])
-        pts = [proj(p @ R.T + np.array([x, 0, z])) for p in corners]
-        xs, ys = [p[0] - ox for p in pts], [p[1] - oy for p in pts]
-        x0, x1 = int(max(0, min(xs))), int(min(win[0], max(xs)))
-        y0, y1 = int(max(0, min(ys))), int(min(win[1], max(ys)))
-        if x1 - x0 < 4 or y1 - y0 < 4:
+    for i, (x, z, t, hd, pick, r) in enumerate(pack):
+        # each LOD over its OWN pixels (a neighbour's LOD change does not leak in): the bug's luma mass per pixel,
+        # so a silhouette that grows or shrinks counts too
+        m1, m2 = id1 == i + 1, id2 == i + 1
+        n = max(m1.sum(), m2.sum())
+        if n < 16:
             continue
-        d = float(np.abs(lum[1][y0:y1, x0:x1] - lum[2][y0:y1, x0:x1]).mean())
-        mean = float(lum[1][y0:y1, x0:x1].mean() - lum[2][y0:y1, x0:x1].mean())
-        pops.append(dict(type=t, clip=pick, rect=[x0, y0, x1, y1], abs_diff=d, mean_diff=mean, px=int(max(x1 - x0, y1 - y0))))
-    rep = dict(pop_mean_abs=float(np.mean([p['abs_diff'] for p in pops])), pop_max_mean_diff=float(max(abs(p['mean_diff']) for p in pops)),
-               pop_worst_abs=float(max(p['abs_diff'] for p in pops)), bugs=pops)
+        m = m1 | m2
+        ys, xs = np.nonzero(m)
+        mean = float((lum[1][m1].sum() - lum[2][m2].sum()) / n)
+        pops.append(dict(type=t, clip=pick, rect=[int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1],
+                         abs_diff=float(np.abs(lum[1][m] - lum[2][m]).mean()), mean_diff=mean, px=int(max(np.ptp(xs), np.ptp(ys)) + 1),
+                         cover=int(n)))
+    # the gate counts bugs showing at least 150 px (a 12 px patch): a leg tip peeking from under a brute is noise
+    gp = [p for p in pops if p['cover'] >= 150]
+    rep = dict(pop_mean_abs=float(np.mean([p['abs_diff'] for p in gp])), pop_max_mean_diff=float(max(abs(p['mean_diff']) for p in gp)),
+               pop_p90_mean_diff=float(np.percentile([abs(p['mean_diff']) for p in gp], 90)),
+               pop_worst_abs=float(max(p['abs_diff'] for p in gp)), counted=len(gp), bugs=pops)
     json.dump(rep, open(os.path.join(out, 'game.json'), 'w'), indent=1)
-    log(f"LOD1→LOD2 pop: mean luma difference per bug rect max {rep['pop_max_mean_diff']:.2f} (gate ≤ 6), "
+    log(f"LOD1→LOD2 pop over {rep['counted']} bugs: mean luma difference per bug max {rep['pop_max_mean_diff']:.2f} "
+        f"p90 {rep['pop_p90_mean_diff']:.2f} (gate ≤ 6), "
         f"mean |Δ| {rep['pop_mean_abs']:.2f}, worst |Δ| {rep['pop_worst_abs']:.2f}")
     grid([(res[0], 'LOD0'), (res[1], 'LOD1'), (res[2], 'LOD2')], os.path.join(out, 'game_sheet.png'), 3,
          'game camera (pitch 57°, yaw 45°, fov 40°) at 3× iPhone landscape pixels — LOD0 / LOD1 / LOD2')
