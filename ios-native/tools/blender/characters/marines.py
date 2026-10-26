@@ -224,13 +224,13 @@ def legs(b):
         b.add('thigh_suit', 'thigh_' + side, DARK, xform(und, F), sharp=70.0)
         # thigh armour wraps the front and the outside
         a0, a1 = (-55.0, 125.0) if s > 0 else (-125.0, 55.0)
-        tp = wrap(0.1, 0.112, a0, a1, 0.33, 0.026, nu=4, nv=2, bulge=0.012, y0=0.05)
+        tp = wrap(0.09, 0.118, a0, a1, 0.34, 0.024, nu=4, nv=2, bulge=0.016, y0=0.05)
         tp = b.sd(tp, 1, 3, 50.0, 0.85, seams=(lambda p, n, a: a > 0.004, 0.008, 0.003))
         b.add('thigh_plate', 'thigh_' + side, ARMOUR, xform(tp, F), sharp=55.0, keep=True)
         # knee pad (class paint): a domed, pointed cap
-        kp = box_cage(0.125, 0.15, 0.06, 1, 2, 1)
-        kp = deform(kp, lambda p: np.array([p[0] * (1 - 0.25 * max(0, -p[1]) / 0.075), p[1],
-                                            p[2] + 0.035 * (1 - (2 * p[0] / 0.125) ** 2) * (1 - (p[1] / 0.075) ** 2)]))
+        kp = box_cage(0.112, 0.13, 0.05, 1, 2, 1)
+        kp = deform(kp, lambda p: np.array([p[0] * (1 - 0.3 * max(0, -p[1]) / 0.065), p[1],
+                                            p[2] + 0.034 * (1 - (2 * p[0] / 0.112) ** 2) * (1 - (p[1] / 0.065) ** 2)]))
         kp = b.sd(kp, 1, 3, 55.0, 0.7)
         b.add('knee', 'shin_' + side, PAINT, xform(kp, T(knee[0], knee[1] - 0.005, knee[2] + 0.085)), sharp=55.0)
         # shin guard: front keel, flared at the ankle
@@ -244,17 +244,13 @@ def legs(b):
         b.add('shin_glow', 'shin_' + side, GLOW, st)
         b.decal(b.sticker(['shin'], ank + np.array([-s * 0.02, 0.33, 0.3]), (1, 0, 0), (0, 1, 0), (0, 0, -1), 0.05, 0.06), 'shin_' + side, 1.0)
         # boot (foot bone): a sculpted shell, sole; toe cap on the toe bone
-        bt = box_cage(0.135, 0.14, 0.25, 1, 2, 3)
-
-        def bootf(p):
-            x, y, z = p
-            u = (z + 0.125) / 0.25            # 0 heel → 1 front
-            top = 0.07 - 0.1 * max(0.0, u - 0.45)
-            yy = y if y < 0 else y * (top / 0.07)
-            return np.array([x * (1.0 - 0.12 * max(0.0, u - 0.6)), yy, z])
-        bt = deform(bt, bootf)
-        bt = b.sd(bt, 1, 3, 55.0, 0.75)
-        b.add('boot', 'foot_' + side, ARMOUR, xform(bt, T(ank[0], ank[1] - 0.025, ank[2] + 0.0)), sharp=55.0)
+        secs = []
+        for z, w, top in ((-0.125, 0.056, 0.035), (-0.06, 0.066, 0.052), (0.055, 0.068, -0.005), (0.125, 0.064, -0.04)):
+            yb, yt = 0.024 - ank[1], top
+            pts = superellipse(w, 0.5 * (yt - yb), 8, 3.0)
+            secs.append(np.array([(px, 0.5 * (yb + yt) + pz, z) for px, pz in pts]))
+        bt = b.sd(loft_cage(secs), 1, 3, 55.0, 0.75)
+        b.add('boot', 'foot_' + side, ARMOUR, xform(bt, T(ank[0], ank[1], ank[2])), sharp=55.0)
         cuff = lathe([(0.072, 0.06), (0.08, 0.085), (0.078, 0.12), (0.07, 0.135)], 10)
         b.add('cuff', 'foot_' + side, METAL, xform(cuff, T(ank[0], ank[1], ank[2] - 0.01)), sharp=70.0)
         so = box_cage(0.145, 0.028, 0.26, 1, 1, 2)
@@ -339,9 +335,9 @@ def arms(b):
 def helmet(b):
     c = b.cls
     if c == 'assault':
-        rings = [se_ring(0.098, 0.108, 1.665, e=3.2, cz=0.022), se_ring(0.122, 0.138, 1.705, e=3.2, cz=0.03, front=0.03),
-                 se_ring(0.136, 0.152, 1.762, e=3.2, cz=0.022, front=0.022), se_ring(0.14, 0.154, 1.822, e=3.2, cz=0.012),
-                 se_ring(0.126, 0.142, 1.882, e=3.2, cz=0.004), se_ring(0.085, 0.1, 1.925, e=3.2, cz=-0.004)]
+        rings = [se_ring(0.086, 0.11, 1.665, e=3.0, cz=0.03, front=0.04), se_ring(0.114, 0.138, 1.705, e=3.0, cz=0.03, front=0.042),
+                 se_ring(0.134, 0.15, 1.762, e=3.0, cz=0.02, front=0.016), se_ring(0.14, 0.154, 1.815, e=3.0, cz=0.012, front=0.03),
+                 se_ring(0.124, 0.142, 1.876, e=3.0, cz=0.0), se_ring(0.08, 0.098, 1.922, e=3.0, cz=-0.006)]
         hm = b.sd(loft_cage(rings, cap0=False, cap1=True), 1, 3, 30.0, 0.6, boundary=0.5)
         b.add('helmet', 'head', ARMOUR, hm, sharp=60.0, keep=True)
         # T-visor in a dark recess
@@ -510,7 +506,7 @@ def backpack(b):
         b.add('antenna_tip', 'antenna', GLOW, xform(cyl(0.012, 0.02, 8), T(a[0], a[1] + 0.42, a[2])))
     elif c == 'pyro':
         for s in (1.0, -1.0):
-            tk = lathe([(0.0, 1.2), (0.05, 1.204), (0.072, 1.23), (0.079, 1.27), (0.079, 1.58), (0.072, 1.62), (0.046, 1.646), (0.0, 1.652)], 10)
+            tk = lathe([(0.0, 1.2), (0.05, 1.204), (0.072, 1.23), (0.079, 1.27), (0.079, 1.58), (0.072, 1.62), (0.046, 1.646), (0.0, 1.652)], 9)
             b.add('tank', bone, PAINT, xform(tk, T(s * 0.096, 0, -0.285)), sharp=70.0, keep=(s > 0))
             for y in (1.3, 1.52):
                 band = lathe([(0.08, y), (0.086, y + 0.006), (0.086, y + 0.029), (0.08, y + 0.035)], 8)
@@ -596,7 +592,7 @@ def weapon(b):
         body = lathe([(0.0, -0.13), (0.045, -0.13), (0.056, -0.1), (0.056, 0.42), (0.046, 0.45), (0.0, 0.45)], 12)
         add('body', METAL, xform(body, mm(T(0, 0.075, 0), R('X', 90))), sharp=70.0)
         for z in (0.47, 0.52, 0.57):
-            fin = lathe([(0.04, 0.0), (0.07, 0.004), (0.07, 0.016), (0.04, 0.02)], 10)
+            fin = lathe([(0.04, 0.0), (0.07, 0.004), (0.07, 0.016), (0.04, 0.02)], 8)
             add('fin', METAL, xform(fin, mm(T(0, 0.075, z), R('X', 90))), sharp=70.0)
         nz = lathe([(0.032, 0.0), (0.036, 0.08), (0.05, 0.16), (0.058, 0.2), (0.05, 0.205), (0.042, 0.18), (0.03, 0.1), (0.026, 0.0)], 16, cap0=False, cap1=False)
         add('nozzle', METAL, xform(nz, mm(T(0, 0.075, 0.55), R('X', 90))), sharp=70.0)
@@ -640,7 +636,7 @@ def weapon(b):
             bx, by = aux[0] + 0.036 * math.cos(a), aux[1] + 0.036 * math.sin(a)
             b.add('barrel', 'weapon_aux', METAL, xform(cyl(0.012, 0.55, 8), mm(G, T(bx, by, 0.31), R('X', 90))), sharp=70.0)
         for z in (0.33, 0.55, 0.8):
-            cl = lathe([(0.0, 0.0), (0.056, 0.0), (0.059, 0.012), (0.056, 0.024), (0.0, 0.024)], 12)
+            cl = lathe([(0.0, 0.0), (0.056, 0.0), (0.059, 0.012), (0.056, 0.024), (0.0, 0.024)], 10)
             b.add('clamp', 'weapon_aux', METAL, xform(cl, mm(G, T(aux[0], aux[1], z), R('X', 90))), sharp=70.0)
         b.add('spindle', 'weapon_aux', DARK, xform(cyl(0.02, 0.52, 8), mm(G, T(aux[0], aux[1], 0.31), R('X', 90))), sharp=70.0)
         mz = lathe([(0.045, 0.0), (0.06, 0.0), (0.062, 0.015), (0.06, 0.03), (0.045, 0.03)], 14, cap0=False, cap1=False)
