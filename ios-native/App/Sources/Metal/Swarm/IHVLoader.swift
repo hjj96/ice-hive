@@ -191,12 +191,19 @@ final class IHVCreature {
             sockets.append(IHVSocket(name: str(o, 16), bone: u32(o + 28), flags: UInt32(u32(o + 32)),
                                      rest: F3(ihvHalf(h[0]), ihvHalf(h[1]), ihvHalf(h[2]))))
         }
-        // the bone texture: a linear view of the buffer (no copy); a private copy when the device will not make one
+        // the bone texture: a linear view of the buffer (no copy) on a device; a copy where it cannot be one — the
+        // simulator makes linear textures only over private buffers (it asserts on a shared one)
         let td = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba16Float, width: btexW, height: frames, mipmapped: false)
         td.usage = [.shaderRead]
         td.storageMode = .shared
         var tex: MTLTexture? = nil
-        if btexOff % device.minimumLinearTextureAlignment(for: .rgba16Float) == 0 {
+        #if targetEnvironment(simulator)
+        let linear = false
+        #else
+        let align = device.minimumLinearTextureAlignment(for: .rgba16Float)
+        let linear = btexOff % align == 0 && btexRow % align == 0
+        #endif
+        if linear {
             tex = buffer.makeTexture(descriptor: td, offset: btexOff, bytesPerRow: btexRow)
         }
         if tex == nil, let t = device.makeTexture(descriptor: td) {
