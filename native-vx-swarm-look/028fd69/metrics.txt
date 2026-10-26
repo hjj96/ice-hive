@@ -1,0 +1,65 @@
+firstlaunch     no log
+combat          load 2.41 s | loop avg 59.9 min 59.0 worst 37 ms hitches 0 host-stalls 1 (37 ms) | gpu drawn avg 57.7 min 56.0 gap 70 ms stall-s 15 cbmax 62 ms | gpu ema 0.18 ms allocs 1 tier efficient scale 1.60 | ok
+beacon          no log
+swarmshot       load 2.45 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 56.8 min 56.0 gap 79 ms stall-s 4 cbmax 74 ms | gpu ema 0.20 ms allocs 1 tier high scale 2.00 | ok
+swarmshot-dots  no log
+swarm           load 2.53 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 54.4 min 41.0 gap 85 ms stall-s 6 cbmax 111 ms | gpu ema 0.19 ms allocs 1 tier efficient scale 1.60 | ok
+swarm3x         load 2.67 s | loop avg 59.9 min 59.0 worst 37 ms hitches 0 | gpu drawn avg 54.6 min 43.0 gap 68 ms stall-s 8 cbmax 73 ms | gpu ema 0.19 ms allocs 1 tier efficient scale 3.00 | FAIL: gpu drawn avg 54.6 < 55.0
+calm            no log
+title           no log
+title-fresh     no log
+title-return    no log
+title-nm        no log
+title-left      no log
+probe           no log
+hold            no log
+extract         no log
+holdhint        no log
+queen           no log
+queenlock       no log
+coach           no log
+coach3          no log
+pressure        no log
+pressure-amber  no log
+levelup         no log
+pause           no log
+pause-nm        no log
+end             no log
+report-first    no log
+report-win      no log
+report-loss     no log
+report-chip     no log
+release-combat  no log
+
+GPU side (gated only in release-combat, swarm3x, floor 55.0): drawn avg < 55/s in swarm 54.4, swarm3x 54.6
+
+GATE: would fail
+  firstlaunch: no log
+  beacon: no log
+  swarmshot-dots: no log
+  swarm3x: gpu drawn avg 54.6 < 55.0
+  calm: no log
+  title: no log
+  title-fresh: no log
+  title-return: no log
+  title-nm: no log
+  title-left: no log
+  probe: no log
+  hold: no log
+  extract: no log
+  holdhint: no log
+  queen: no log
+  queenlock: no log
+  coach: no log
+  coach3: no log
+  pressure: no log
+  pressure-amber: no log
+  levelup: no log
+  pause: no log
+  pause-nm: no log
+  end: no log
+  report-first: no log
+  report-win: no log
+  report-loss: no log
+  report-chip: no log
+  release-combat: no log
