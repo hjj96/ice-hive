@@ -82,7 +82,7 @@ struct SkinVertex {
     uchar4 weights;   // sum 255
 };
 
-// Swift: WorldSquad.swift MarineDraw (96 bytes)
+// Swift: WorldSquad.swift MarineDraw (112 bytes)
 struct MarineDraw {
     float4 hue;       // rgb class hue (linear), w = visor glow multiplier (the clip's ctrl curve × flicker)
     float4 trim;      // rgb class paint (linear), w = texture layer (class index)
@@ -90,6 +90,7 @@ struct MarineDraw {
     float4 params;    // x = class rim strength, y = emissive gain, z = lamp gain, w = 1 on the High tier
     float4 muzzle;    // xyz the weapon's muzzle (world), w = its flash as a light on the marine (0 = none)
     float4 fx;        // rgb the flash light's colour (linear), w = barrel / nozzle heat 0…1
+    float4 key;       // rgb the squad's readability key light (linear colour × intensity), w = AO cavity on the albedo
 };
 
 #define MARINE_PALETTE 2
@@ -171,13 +172,20 @@ fragment float4 fs_marine(MarineOut in [[stage_in]],
     float3 N = normalize(T * tn.x + B * tn.y + N0 * tn.z);
     float3 V = normalize(F.camPos.xyz - in.world);
     float ao = float(om.r), rough = float(om.g), metal = float(om.b), paint = float(om.a);
-    // paint mask: 0.5 = light marking, 1 = the class hue; worn chamfers of painted armour show steel
+    // paint mask (tools/blender/characters/marines.py MARK_*): 0.5 = a dark stencil / hazard stripe, 1 = the class hue
+    // (the blurred edge between the hue and bare armour passes the dark band: a thin pinline); worn chamfers of
+    // painted armour show steel
     float3 albedo = in.albedo;
-    albedo = mix(albedo, float3(0.48, 0.48, 0.46), smoothstep(0.3, 0.45, paint) * (1.0 - smoothstep(0.62, 0.8, paint)));
-    albedo = mix(albedo, D.trim.rgb, smoothstep(0.62, 0.8, paint));
+    float clsPaint = smoothstep(0.7, 0.88, paint);
+    float darkPaint = smoothstep(0.25, 0.42, paint) * (1.0 - clsPaint);
+    albedo = mix(albedo, D.trim.rgb, clsPaint);
+    albedo = mix(albedo, float3(0.016, 0.017, 0.019), darkPaint * 0.94);
     bool painted = (in.flags & 4u) != 0u;
     float wear = painted ? smoothstep(0.3, 0.8, metal) : 0.0;
     albedo = mix(albedo, float3(0.42, 0.43, 0.45), wear);
+    // cavity: the baked AO also darkens the albedo a little (grime in the seams: panel lines, bolts and vents read in
+    // direct light too)
+    albedo *= mix(1.0, ao, D.key.w);
     // the downed: dimmed, a little desaturated
     float dim = D.flash.w;
     albedo = mix(albedo, float3(dot(albedo, float3(0.3, 0.5, 0.2))), dim * 0.4) * (1.0 - 0.3 * dim);
@@ -185,6 +193,15 @@ fragment float4 fs_marine(MarineOut in [[stage_in]],
     s.P = in.world; s.N = N; s.V = V; s.albedo = albedo; s.rough = rough; s.metal = metal;
     s.coat = painted ? 0.35 : 0.0; s.coatRough = 0.18; s.ao = ao; s.shadow = 1.0;
     float3 c = shadeLit(LIGHTING_ARGS, s, D.params.w > 0.5);
+    // the squad's readability key: a soft light from above-left of the view (no shadow, follows the camera) so the
+    // plates, panel lines and the class paint keep their shape outside the beams and in the close-ups
+    if (D.key.x + D.key.y + D.key.z > 0.0) {
+        float3 Lk = normalize(-F.camRight.xyz * 0.55 + float3(0.0, 0.85, 0.0) + V * 0.35);
+        float nlk = saturate(dot(N, Lk));
+        float3 f0 = mix(float3(0.04), albedo, metal);
+        float rk = max(rough, 0.1);
+        c += D.key.rgb * nlk * (albedo * (1.0 - metal) * ao + PI_F * brdfGGX(Lk, V, N, f0, rk * rk));
+    }
     // the class hue as a rim and a faint suit fill (the squad reads against the dark deck and the swarm even
     // outside the beams: the armour never sinks into the fog colour)
     float fr = pow(1.0 - saturate(dot(N0, V)), 3.0);
@@ -229,25 +246,29 @@ vertex ShadowOut vs_marine_shadow(uint vid [[vertex_id]],
 }
 
 // ================================================================ weapon flashes (additive)
-// Swift: WorldSquad.swift FlashInstance (64 bytes)
+// Swift: WorldSquad.swift FlashInstance (80 bytes)
 struct FlashInstance {
     float4 pos;       // xyz the muzzle (world), w = flame length (m)
     float4 dir;       // xyz the bore direction (unit, world), w = half width (m)
     float4 color;     // rgb linear HDR flash colour (the core runs white-hot over it), w = kind
     float4 params;    // x = roll about the bore (rad), y = intensity 0…1, z = seed, w = rays of the star
+    float4 extra;     // x = the shot's age (s), y = muzzle-brake side jets 0…1, z = sparks 0…1, w = shock ring 0…1
 };
 
 #define FLASH_RIFLE 0.0
 #define FLASH_ROTARY 1.0
 #define FLASH_FLAMER 2.0
 #define FLASH_CRYO 3.0
+#define FLASH_PARTS 8u
 
 struct FlashOut {
     float4 position [[position]];
-    float2 uv;            // flame planes: u along the bore 0…1, v across −1…1; star / disc: −1…1
+    float2 uv;            // flame planes / jets / sparks: u along 0…1, v across −1…1; star / disc: −1…1
     float4 color;
     float4 params;
-    uint   part [[flat]]; // 0, 1 flame planes, 2 camera-facing star, 3 disc across the bore
+    float4 extra;
+    uint   part [[flat]]; // 0–2 flame planes (rolled 60° apart), 3 camera-facing star + shock ring, 4 disc across the
+                          // bore, 5–6 the muzzle brake's side jets, 7 sparks (an axis billboard along the bore)
 };
 
 vertex FlashOut vs_muzzle_flash(uint vid [[vertex_id]], uint iid [[instance_id]],
@@ -261,28 +282,50 @@ vertex FlashOut vs_muzzle_flash(uint vid [[vertex_id]], uint iid [[instance_id]]
     float3 a = normalize(cross(d, up));
     float3 b = cross(a, d);
     float r = f.params.x;
-    float3 e0 = a * cos(r) + b * sin(r);
-    float3 e1 = -a * sin(r) + b * cos(r);
     float L = f.pos.w, W = f.dir.w;
     float3 w;
     float2 uv;
-    if (part < 2u) {
+    if (part < 3u) {
+        float rr = r + float(part) * 1.0472;
+        float3 e = a * cos(rr) + b * sin(rr);
         float u = c.x * 0.5 + 0.5;
-        float3 e = part == 0u ? e0 : e1;
-        w = f.pos.xyz + d * (mix(-0.06, 1.0, u) * L) + e * (c.y * W);
+        w = f.pos.xyz + d * (mix(-0.05, 1.0, u) * L) + e * (c.y * W);
         uv = float2(u, c.y);
-    } else if (part == 2u) {
-        w = f.pos.xyz + d * (0.04 * L) + (F.camRight.xyz * c.x + F.camUp.xyz * c.y) * (W * 1.9);
+    } else if (part == 3u) {
+        float sz = W * (1.9 + 2.2 * f.extra.w * saturate(f.extra.x / 0.09));
+        w = f.pos.xyz + d * (0.04 * L) + (F.camRight.xyz * c.x + F.camUp.xyz * c.y) * sz;
         uv = c;
-    } else {
+    } else if (part == 4u) {
+        float3 e0 = a * cos(r) + b * sin(r), e1 = -a * sin(r) + b * cos(r);
         w = f.pos.xyz + d * 0.015 + (e0 * c.x + e1 * c.y) * (W * 1.35);
         uv = c;
+    } else if (part < 7u) {
+        // side jets out of the brake's ports: perpendicular to the bore, in the plane that faces the camera most
+        float3 toCam = normalize(F.camPos.xyz - f.pos.xyz);
+        float3 side = normalize(cross(d, toCam));
+        float sg = part == 5u ? 1.0 : -1.0;
+        float u = c.x * 0.5 + 0.5;
+        float jl = L * 0.42 * f.extra.y, jw = W * 0.42;
+        w = f.pos.xyz - d * (0.02 * L) + side * (sg * mix(0.02, 1.0, u) * jl) + d * (u * jl * 0.35) + d * (c.y * jw);
+        uv = float2(u, c.y);
+    } else {
+        // sparks: an axis billboard along the bore, turned to the camera
+        float3 toCam = normalize(F.camPos.xyz - f.pos.xyz);
+        float3 side = normalize(cross(d, toCam));
+        float u = c.x * 0.5 + 0.5;
+        float sl = L * 2.2 * f.extra.z;
+        w = f.pos.xyz + d * (u * sl) + side * (c.y * sl * 0.45);
+        uv = float2(u, c.y);
     }
     FlashOut o;
     o.position = F.viewProj * float4(w, 1.0);
+    // parts this weapon does not use collapse to nothing (no fragments)
+    if ((part == 5u || part == 6u) && f.extra.y <= 0.0) o.position = float4(0.0, 0.0, -2.0, 1.0);
+    if (part == 7u && f.extra.z <= 0.0) o.position = float4(0.0, 0.0, -2.0, 1.0);
     o.uv = uv;
     o.color = f.color;
     o.params = f.params;
+    o.extra = f.extra;
     o.part = part;
     return o;
 }
@@ -297,45 +340,60 @@ static inline float flashNoise(float2 p) {
     return mix(mix(flashHash(i), flashHash(i + float2(1, 0)), u.x), mix(flashHash(i + float2(0, 1)), flashHash(i + float2(1, 1)), u.x), u.y);
 }
 
+/// A torn flame tongue along u (0 at the muzzle, 1 at the tip), v across: widest a third of the way out.
+static inline float flameBody(float2 uv, float seed, float n) {
+    float u = saturate(uv.x), v = uv.y;
+    float width = 1.55 * pow(u + 0.02, 0.38) * pow(1.0 - u, 0.85);
+    return 1.0 - smoothstep(width * 0.42, width, abs(v) * (0.8 + 0.55 * n));
+}
+
 fragment float4 fs_muzzle_flash(FlashOut in [[stage_in]]) {
     float kind = in.color.w;
     float inten = in.params.y;
     float seed = in.params.z;
     float3 hue = in.color.rgb;
-    float3 hot = float3(1.0, 0.93, 0.82);
+    float3 hot = float3(1.0, 0.94, 0.84);
     float3 c = float3(0.0);
-    if (in.part < 2u) {
-        // flame tongue along the bore: widest a third of the way out, torn into streaks, white-hot at the muzzle
+    float age = in.extra.x;
+    if (in.part < 3u) {
         float u = saturate(in.uv.x), v = in.uv.y;
-        float width = 1.55 * pow(u + 0.02, 0.38) * pow(1.0 - u, 0.85);
-        float n = flashNoise(float2(u * 7.0 + seed * 13.0, v * 2.5 + seed * 5.0));
-        float body = 1.0 - smoothstep(width * 0.45, width, abs(v) * (0.8 + 0.5 * n));
-        float core = exp(-u * 8.0) * exp(-v * v * 10.0);
-        float fall = pow(1.0 - u, 1.3);
+        float n = flashNoise(float2(u * 7.0 + seed * 13.0 + float(in.part) * 3.1, v * 2.5 + seed * 5.0));
+        float body = flameBody(in.uv, seed, n);
+        float core = exp(-u * 7.0) * exp(-v * v * 9.0);
+        float fall = pow(1.0 - u, 1.25);
         if (kind == FLASH_FLAMER) {
-            // a hot cone: blue at the root, orange-yellow out
-            float3 col = mix(float3(0.35, 0.55, 1.6), hue, smoothstep(0.0, 0.35, u));
-            c = col * body * fall * (0.6 + 0.6 * n) + hot * core * 1.5;
+            float3 col = mix(float3(0.35, 0.55, 1.6), hue, smoothstep(0.0, 0.3, u));
+            c = col * body * fall * (0.6 + 0.6 * n) + hot * core * 1.6;
         } else if (kind == FLASH_CRYO) {
             float shimmer = 0.6 + 0.4 * flashNoise(float2(u * 11.0 - seed * 7.0, v * 4.0));
-            c = hue * body * fall * shimmer + float3(0.85, 0.97, 1.0) * core * 1.6;
+            c = hue * body * fall * shimmer + float3(0.85, 0.97, 1.0) * core * 1.7;
         } else {
-            c = mix(hue, hot, saturate(core + 0.35 * fall * body)) * (body * fall * (0.6 + 0.7 * n) + core * 3.2);
+            // the outer flame orange-red, the inner cone yellow-white, a white-hot root
+            float inner = 1.0 - smoothstep(0.0, 0.55, abs(v) / max(0.05, 1.0 - u));
+            float3 col = mix(hue, mix(hue, hot, 0.65), inner * fall);
+            c = col * body * fall * (0.65 + 0.75 * n) * 1.15 + hot * core * 3.6;
         }
-    } else {
+        c *= in.part == 0u ? 1.0 : 0.8;
+    } else if (in.part == 3u || in.part == 4u) {
         float2 p = in.uv;
         float r = length(p);
         float a = atan2(p.y, p.x) + in.params.x;
         float rays = max(2.0, in.params.w);
         float edge = 1.0 - smoothstep(0.8, 1.0, r);
-        if (in.part == 2u) {
-            // camera-facing star: thin rays + a white-hot core + a soft halo
-            float ray = pow(abs(cos(a * rays * 0.5)), kind == FLASH_CRYO ? 60.0 : 22.0) * exp(-r * (kind == FLASH_ROTARY ? 2.6 : 3.4));
+        if (in.part == 3u) {
+            // camera-facing star: thin rays, a white-hot core, a soft halo and, on the first frames of a shot, the
+            // pressure ring racing out
+            float ray = pow(abs(cos(a * rays * 0.5)), kind == FLASH_CRYO ? 60.0 : 22.0) * exp(-r * (kind == FLASH_ROTARY ? 2.4 : 3.2));
             float core = exp(-r * r * 26.0);
-            float halo = exp(-r * r * 5.0) * 0.3;
+            float halo = exp(-r * r * 5.0) * 0.35;
             float3 col = mix(hue, hot, core);
-            c = col * (ray * 1.4 + core * 3.4 + halo) * edge;
+            c = col * (ray * 1.5 + core * 3.8 + halo) * edge;
             if (kind == FLASH_FLAMER) c = hue * (core * 1.4 + halo * 0.8) * edge;
+            float ring = in.extra.w * (1.0 - saturate(age / 0.09));
+            if (ring > 0.0) {
+                float rr = 0.3 + 0.62 * saturate(age / 0.09);
+                c += mix(hue, hot, 0.4) * exp(-pow((r - rr) * 14.0, 2.0)) * ring * 0.9;
+            }
         } else {
             // disc across the bore: a ring of petals (the muzzle brake's blast), dim
             float petals = 0.5 + 0.5 * cos(a * (rays + 1.0) + seed * 6.0);
@@ -343,6 +401,29 @@ fragment float4 fs_muzzle_flash(FlashOut in [[stage_in]]) {
             c = hue * ring * (0.35 + 0.65 * petals) * 0.9 * edge;
             if (kind == FLASH_FLAMER) c = float3(0.0);
         }
+    } else if (in.part < 7u) {
+        // the brake's side jets: short torn tongues, white at the port
+        float u = saturate(in.uv.x), v = in.uv.y;
+        float n = flashNoise(float2(u * 6.0 + seed * 9.0 + float(in.part) * 5.0, v * 2.0 - seed * 3.0));
+        float body = flameBody(in.uv, seed, n);
+        float core = exp(-u * 6.0) * exp(-v * v * 6.0);
+        c = (mix(hue, hot, 0.3) * body * pow(1.0 - u, 1.4) * (0.6 + 0.6 * n) + hot * core * 1.8) * 0.9;
+    } else {
+        // sparks: a fan of thin hot streaks thrown forward, each its own length and angle (per shot)
+        float2 p = float2(in.uv.x, in.uv.y * 0.45);
+        float sum = 0.0;
+        for (int k = 0; k < 7; k++) {
+            float h1 = flashHash(float2(seed * 31.0 + float(k), 1.7));
+            float h2 = flashHash(float2(seed * 17.0 + float(k), 4.1));
+            float ang = (h1 - 0.5) * 0.5;
+            float2 dir = float2(cos(ang), sin(ang));
+            float t0 = 0.15 + 0.5 * h2 * saturate(age / 0.12), t1 = t0 + 0.12 + 0.2 * h1;
+            float t = dot(p, dir);
+            float dl = abs(p.x * dir.y - p.y * dir.x);
+            float on = smoothstep(t0, t0 + 0.03, t) * (1.0 - smoothstep(t1 - 0.03, t1, t));
+            sum += on * exp(-dl * dl * 9000.0) * (1.0 - 0.6 * (t - t0) / max(1e-3, t1 - t0));
+        }
+        c = mix(hue, hot, 0.6) * sum * 2.4 * (1.0 - saturate(age / 0.16));
     }
     return float4(c * inten, 1.0);
 }

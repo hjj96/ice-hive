@@ -29,7 +29,7 @@ import IceHiveCore
 //  planted-foot slide over one contact (stride), hand-to-grip error, states.
 // ================================================================
 
-/// Per-draw constants of a marine (`struct MarineDraw` in Characters.metal), 96 bytes.
+/// Per-draw constants of a marine (`struct MarineDraw` in Characters.metal), 112 bytes.
 struct MarineDraw {
     /// rgb class hue (linear), w = visor glow multiplier.
     var hue: F4
@@ -43,9 +43,11 @@ struct MarineDraw {
     var muzzle: F4 = .zero
     /// rgb the flash light's colour (linear), w = barrel / nozzle heat 0…1.
     var fx: F4 = .zero
+    /// rgb the squad's readability key light (linear colour × intensity), w = AO cavity strength on the albedo.
+    var key: F4 = .zero
 }
 
-/// One weapon flash (`struct FlashInstance` in Characters.metal), 64 bytes.
+/// One weapon flash (`struct FlashInstance` in Characters.metal), 80 bytes.
 struct FlashInstance {
     /// xyz the muzzle (world), w = flame length (m).
     var pos: F4
@@ -55,6 +57,8 @@ struct FlashInstance {
     var color: F4
     /// x = roll about the bore (rad), y = intensity 0…1, z = seed, w = rays of the star.
     var params: F4
+    /// x = the shot's age (s), y = muzzle-brake side jets 0…1, z = sparks 0…1, w = shock ring 0…1.
+    var extra: F4 = .zero
 }
 
 final class WorldSquad {
@@ -75,6 +79,10 @@ final class WorldSquad {
 
     /// Class paint (sRGB) — the same values the Blender build paints with (tools/blender/characters/marines.py TRIM).
     static let trim: [UInt32] = [0xb8322a, 0xd8901c, 0x3592c8, 0x47a538]
+    /// The squad's readability key light (fs_marine: a soft light from above-left of the view, linear colour ×
+    /// intensity) and how much the baked AO darkens the albedo (grime in the seams).
+    static let keyLight = F3(1.0, 0.92, 0.82) * 0.3
+    static let cavity: Float = 0.45
 
     let level: Level
     /// Interpolated feet of each marine this frame (effects, rings, lights and the HUD attach here).
@@ -225,6 +233,7 @@ final class WorldSquad {
                                   trim: F4(tr.x, tr.y, tr.z, Float(m.cls.rawValue)),
                                   flash: F4(0.55 * hurt + inv * 0.4, 0.04 * hurt + inv * 0.9, 0.03 * hurt + inv, m.downed && !I.dead ? 0.6 : (I.dead ? 1 : 0)),
                                   params: F4(m.isPlayer ? 0.16 : 0.12, 5.5, 3.5, high ? 1 : 0))
+            draws[k].key = F4(WorldSquad.keyLight.x, WorldSquad.keyLight.y, WorldSquad.keyLight.z, WorldSquad.cavity)
             weaponFx(k, m, I, rig, dt: dt, coreHeat: lookDev.on ? -1 : m.heat)
             drawn.append(k)
         }
@@ -255,23 +264,30 @@ final class WorldSquad {
         var inten: Float = 0, len: Float = 0, wid: Float = 0, kind: Float = 0, rays: Float = 4
         var col = F3(0, 0, 0), light: Float = 0, lcol = F3(0, 0, 0)
         var roll = shotRoll[k]
+        var age = shotAge[k], jets: Float = 0, sparks: Float = 0, ring: Float = 0
         switch m.cls {
         case .assault:
             // a short hard kick per round: bright for ~3 frames, a red-orange X star off the muzzle brake
             if newShot { h = min(0.8, h + 0.035) }
             h = max(0, h - 0.3 * dt)
-            let a = max(0, 1 - shotAge[k] / 0.075)
+            // the brake throws two side jets, a fan of sparks and a pressure ring on the first frames of each round
+            let a = max(0, 1 - shotAge[k] / 0.085)
             inten = a * a * (0.8 + 0.2 * shotSeed[k])
-            len = 0.72 * (0.85 + 0.35 * shotSeed[k]); wid = 0.19; kind = 0; rays = 4
-            col = F3(2.8, 0.85, 0.34); lcol = F3(1.0, 0.5, 0.28); light = 4.2 * a
+            len = 0.86 * (0.85 + 0.35 * shotSeed[k]); wid = 0.21; kind = 0; rays = 4
+            col = F3(3.1, 0.95, 0.36); lcol = F3(1.0, 0.5, 0.28); light = 5.0 * a
+            jets = 1; sparks = 0.9; ring = 1
         case .gunner:
             // the rotary's continuous six-ray flicker, a new roll every frame; the barrels heat with the core's heat
             let on = I.firing && I.spin > 0.35
             if on { roll = frand() * TAU }
             let fl: Float = on ? 0.65 + 0.35 * frand() : 0
             inten = fl
-            len = 0.9 * (0.8 + 0.3 * frand()); wid = 0.24; kind = 1; rays = 6
-            col = F3(2.6, 1.7, 0.55); lcol = F3(1.0, 0.75, 0.35); light = 3.6 * fl
+            len = 1.0 * (0.8 + 0.3 * frand()); wid = 0.26; kind = 1; rays = 6
+            col = F3(2.8, 1.8, 0.58); lcol = F3(1.0, 0.75, 0.35); light = 4.4 * fl
+            // a new spray of sparks every fourth frame (the age runs over four frames)
+            if on && flashCount % 4 == k % 4 { shotSeed[k] = frand() }
+            age = Float((flashCount + k) % 4) * 0.03
+            sparks = on ? 0.75 : 0
             h = coreHeat >= 0 ? h + (coreHeat - h) * min(1, 6 * dt) : (on ? min(1, h + 0.16 * dt) : max(0, h - 0.3 * dt))
         case .pyro:
             // the blue pilot flame always burns; firing: a hot orange cone at the nozzle (the jet itself is the
@@ -291,8 +307,12 @@ final class WorldSquad {
             // the projector's emitter: a pulsing six-pointed ice star while the beam runs
             if I.firing && !down {
                 inten = 0.7 + 0.3 * sinf(Float(flashCount) * 0.7 + Float(k))
-                len = 0.42; wid = 0.18; kind = 3; rays = 6
-                col = F3(0.75, 1.65, 2.6); lcol = F3(0.45, 0.8, 1.0); light = 2.0 * inten
+                len = 0.5; wid = 0.2; kind = 3; rays = 6
+                col = F3(0.75, 1.65, 2.6); lcol = F3(0.45, 0.8, 1.0); light = 2.6 * inten
+                // ice shards spat off the emitter
+                if flashCount % 5 == k % 5 { shotSeed[k] = frand() }
+                age = Float((flashCount + k) % 5) * 0.03
+                sparks = 0.45
                 roll += dt * 2.5
                 shotRoll[k] = roll
             }
@@ -306,7 +326,8 @@ final class WorldSquad {
         if inten > 0.02, let b = rig.asset.sockets["muzzle"]?.bone {
             let d = rig.worldAxis(b, F3(0, 0, 1))
             flashes.append(FlashInstance(pos: F4(mz.x, mz.y, mz.z, len), dir: F4(d.x, d.y, d.z, wid),
-                                         color: F4(col.x, col.y, col.z, kind), params: F4(roll, min(1, inten), shotSeed[k], rays)))
+                                         color: F4(col.x, col.y, col.z, kind), params: F4(roll, min(1, inten), shotSeed[k], rays),
+                                         extra: F4(age, jets, sparks, ring)))
         }
     }
 
@@ -314,8 +335,8 @@ final class WorldSquad {
         guard let r = renderer, let ps = psFlash, flashRegion.count > 0 else { return }
         r.use(enc, ps)
         enc.setVertexBuffer(r.arena, offset: flashRegion.offset, index: BufferIndex.instances)
-        enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 24, instanceCount: flashRegion.count)
-        r.count(draws: 1, instances: flashRegion.count, triangles: 8 * flashRegion.count)
+        enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 48, instanceCount: flashRegion.count)
+        r.count(draws: 1, instances: flashRegion.count, triangles: 16 * flashRegion.count)
     }
 
     /// The palettes into the frame arena.
