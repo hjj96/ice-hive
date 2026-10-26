@@ -417,7 +417,10 @@ final class MarineRig {
     private var lockOn = [false, false]
     private var lockPos = [F3](repeating: .zero, count: 2)
     private var stepClock: [Float] = [1, 1]
+    private var stepDur: [Float] = [0.2, 0.2]
     private var stepFrom = [F3](repeating: .zero, count: 2)
+    /// re-steps since the last read (a lock out of the leg's reach steps instead of dragging the foot)
+    var restepCount = 0
     /// pelvis drop that keeps the planted feet within reach (m, eases back up)
     private var pelvisDrop: Float = 0
     private var prevPos = F3(0, 0, 0)
@@ -837,15 +840,26 @@ final class MarineRig {
                 stepClock[side] = 1
                 slideAcc[side] = 0
             }
-            // too far from where the clip wants it (a turn on the spot): step there
+            // a re-step instead of a drag: too far from where the clip wants it (a turn on the spot), or the lock out of
+            // the leg's reach (a reversal, a sharp turn, the walk ↔ run blend) — the foot lifts and steps to the clip's
+            // ball, it never slides along the deck
             let dx = lockPos[side] - F3(ballW.x, lockPos[side].y, ballW.z)
-            if len3(dx) > 0.32 && stepClock[side] >= 1 && moveW < 0.3 {
-                stepFrom[side] = lockPos[side]
-                stepClock[side] = 0
+            if stepClock[side] >= 1 {
+                let l4 = inv.point(lockPos[side].x - I.pos.x, lockPos[side].y - I.pos.y, lockPos[side].z - I.pos.z)
+                let h0 = F3(l4.x, l4.y, l4.z) - Quat.rotate(wq[ft], lt[toe]) - wt[th]
+                let r0 = (len3(wt[sh] - wt[th]) + len3(wt[ft] - wt[sh])) * 0.995
+                let dxz = h0.x * h0.x + h0.z * h0.z
+                let outOfReach = dxz >= r0 * r0 || (-h0.y) - (r0 * r0 - dxz).squareRoot() > 0.07
+                if (len3(dx) > 0.32 && moveW < 0.3) || outOfReach {
+                    stepFrom[side] = lockPos[side]
+                    stepClock[side] = 0
+                    stepDur[side] = moveW < 0.3 ? 0.2 : 0.12
+                    restepCount += 1
+                }
             }
             var target = lockPos[side]
             if stepClock[side] < 1 {
-                stepClock[side] = min(1, stepClock[side] + dt / 0.2)
+                stepClock[side] = min(1, stepClock[side] + dt / stepDur[side])
                 let e = stepClock[side] * stepClock[side] * (3 - 2 * stepClock[side])
                 let goal = F3(ballW.x, lockPos[side].y, ballW.z)
                 target = stepFrom[side] + (goal - stepFrom[side]) * e + F3(0, 0.09 * sinf(Float.pi * stepClock[side]), 0)
