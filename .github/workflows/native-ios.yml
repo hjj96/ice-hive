@@ -416,6 +416,19 @@ jobs:
           run_demo swarmshot 4 "-demo swarmshot -seed 7" 0
           # the same with every speckle drawn again as an anti-aliased dot (-glintDots; default off, like the web)
           run_demo swarmshot-dots 4 "-demo swarmshot -seed 7 -glintDots" 0
+          # TEST BRANCH ONLY (native-vx-swarm-look, not for merge): WP3 look shots — HUD-off swarmshot / beacon, the
+          # LOD1 / LOD2 A/B of the same frozen swarmshot (pop), the bug sheet (every type × clip at the game camera,
+          # studio light and game light), one strip per type (every clip × 8 frames)
+          run_demo swarmshot-nohud 4 "-demo swarmshot -seed 7 -hideHUD" 0
+          run_demo beacon-nohud 15 "-demo beacon -seed 7 -hideHUD" 0
+          run_demo ss-lod1 4 "-demo swarmshot -seed 7 -hideHUD -swarmLOD 1" 0
+          run_demo ss-lod2 4 "-demo swarmshot -seed 7 -hideHUD -swarmLOD 2" 0
+          run_demo bugsheet 5 "-demo calm -hideHUD -bugsheet" 0
+          run_demo bugsheet-game 5 "-demo calm -hideHUD -bugsheet -bugsheetGame" 0
+          run_demo strip-runner 4 "-demo calm -hideHUD -bugstrip runner 2.2" 0
+          run_demo strip-spitter 4 "-demo calm -hideHUD -bugstrip spitter 1.8" 0
+          run_demo strip-brute 4 "-demo calm -hideHUD -bugstrip brute 0.95" 0
+          run_demo strip-boomer 4 "-demo calm -hideHUD -bugstrip boomer 1.7" 0
           # heavy swarm (the med tier's cap of 1400 live bugs), at the default 2x world target and at the native 3x
           run_demo swarm 15 "-demo combat -seed 7 -bugs 1400" 0
           run_demo swarm3x 15 "-demo combat -seed 7 -bugs 1400 -mscale 3" 0
