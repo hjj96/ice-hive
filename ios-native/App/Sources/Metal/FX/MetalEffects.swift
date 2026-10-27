@@ -116,6 +116,7 @@ final class MetalEffects {
     /// Live explosions (cap counter): age.
     private var blasts: [Float] = []
     private var blastsPeak = 0
+    private var blastsReduced = 0
     /// Flame spawns of the last frames (the GPU's flame count is three frames old).
     private var flameSpawns = [Int](repeating: 0, count: 4)
     private var flameSlot = 0
@@ -487,7 +488,14 @@ final class MetalEffects {
         let nm = rate(&acc[k][4], 12, dt)
         if nm > 0 {
             gpu.burst(.steam, nm, at: end, jitter: F3(0.4, 0.1, 0.4), vel: F3(0, 0.5, 0), velJitter: F3(0.5, 0.3, 0.5), life: (0.8, 1.3),
-                      size: (0.6, 1.7), color: F4(0.6, 0.75, 0.9, 0.35), drag: 1, spin: 0.6)
+                      size: (0.6, 1.7), color: F4(0.3, 0.42, 0.55, 0.3), drag: 1, spin: 0.6)
+        }
+        // frost vapour shed along the beam
+        let nv = rate(&acc[k][5], 10, dt)
+        if nv > 0 {
+            let t = rr(0.8, len)
+            gpu.burst(.steam, nv, at: o + d * t - F3(0, 0.3, 0), jitter: F3(0.2, 0.1, 0.2), vel: F3(0, 0.3, 0), velJitter: F3(0.3, 0.2, 0.3),
+                      life: (0.5, 0.9), size: (0.35, 0.9), color: F4(0.25, 0.38, 0.5, 0.25), drag: 1.5, spin: 0.6)
         }
         scorchT[k] -= dt
         if scorchT[k] <= 0 {
@@ -521,8 +529,9 @@ final class MetalEffects {
         }
         let big = kind.isBig
         let boomer = kind == .boomer
-        blasts.append(0)
-        let full = blasts.count <= blastCap
+        // the cap counts explosions drawn in full (fireball and licks); the rest are drawn without them
+        let full = blasts.count < blastCap
+        if full { blasts.append(0) } else { blastsReduced += 1 }
         blastsPeak = max(blastsPeak, blasts.count)
         // light and the white-hot core
         flash(p + F3(0, 1.2, 0), boomer ? F3(1.0, 0.75, 0.3) : F3(1.0, 0.6, 0.3), peak: big ? 520 : 170, dur: big ? 0.55 : 0.3,
@@ -563,7 +572,7 @@ final class MetalEffects {
             gpu.burst(.ichor, num(18), at: p, sphere: 7, upper: true, life: (0.6, 1.0), size: (0.09, 0.06), color: F4(0.25, 0.32, 0.03, 1),
                       gravity: 12)
             decals.add(x, z, size: r * 0.9, cell: .acid, kind: .acid, tint: F3(0.42, 0.6, 0.06))
-            floorTimed(x, z, radius: r * 0.8, mode: .acid, color: F3(0.35, 1.2, 0.15) * 0.5, life: 2.5, thickness: 0.1)
+            floorTimed(x, z, radius: r * 0.8, mode: .acid, color: F3(0.35, 1.2, 0.15) * 0.16, life: 2.5, thickness: 0.1)
         }
     }
 
@@ -574,7 +583,7 @@ final class MetalEffects {
         gpu.burst(.steam, 2, at: p, jitter: F3(0.4, 0.1, 0.4), vel: F3(0, 0.8, 0), life: (1.0, 1.6), size: (0.6, 1.6),
                   color: F4(0.3, 0.45, 0.15, 0.4), drag: 1, spin: 0.5)
         decals.add(x, z, size: rr(1.6, 2.1), cell: .acid, kind: .acid, tint: F3(0.42, 0.6, 0.06))
-        floorTimed(x, z, radius: 1.3, mode: .acid, color: F3(0.3, 1.0, 0.12) * 0.6, life: 2.5, thickness: 0.1)
+        floorTimed(x, z, radius: 1.3, mode: .acid, color: F3(0.3, 1.0, 0.12) * 0.2, life: 2.5, thickness: 0.1)
         flash(F3(x, p.y + 0.6, z), F3(0.45, 1.0, 0.2), peak: 30, dur: 0.25, range: 4, priority: 6)
     }
 
@@ -745,7 +754,7 @@ final class MetalEffects {
         for e in game.telegraphs where e.active {
             if floorMax.count >= 96 { break }
             let u = e.progress
-            let col = F3(e.r, e.g, e.b) * 1.7
+            let col = F3(e.r, e.g, e.b) * 1.25
             switch e.shape {
             case .lane:
                 let wind = max(0.001, e.wind)
@@ -957,15 +966,19 @@ final class MetalEffects {
         let (sp, rec) = gpu.takeRates()
         let (peak, fpeak) = gpu.takeMaxima()
         let (tl, tn) = ribbons.takeTracerStats()
+        gpu.calibrate()
+        let simMs = gpu.takeSimMs()
         let cpu = cpuFrames > 0 ? cpuAcc / Double(cpuFrames) : 0
         cpuAcc = 0; cpuFrames = 0
         AppLog.info("hb fx parts=\(gpu.liveCount)/\(gpu.ringCap) peak=\(peak) fire=\(gpu.liveFlames)/\(gpu.flameCap) peak=\(fpeak)"
-                    + " expl=\(blasts.count)/\(blastCap) peak=\(blastsPeak) throttled=\(flameThrottled) spawn=\(sp)/s rec=\(rec)/s"
+                    + " expl=\(blasts.count)/\(blastCap) peak=\(blastsPeak) reduced=\(blastsReduced) throttled=\(flameThrottled) spawn=\(sp)/s rec=\(rec)/s"
                     + " decals=\(decals.items.count)/\(decals.ring) beams=\(ribbons.beams.count) tracers=\(tn) tracer=" + String(format: "%.1fm", tl)
                     + " lights=\(flashLights.count) floor=\(floorAdd.count)+\(floorMax.count) heat=\(heat.count)"
                     + String(format: " cpu=%.3fms", cpu) + " sim=" + (gpu.simOff ? "off" : "on")
+                    + (simMs.map { String(format: " gpusim=%.3fms", $0) } ?? " gpusim=-")
                     + " tier=" + ((renderer?.frameTier ?? .efficient) == .high ? "high" : "efficient") + (look.mode.isEmpty ? "" : " look=" + look.mode))
         blastsPeak = blasts.count
+        blastsReduced = 0
         flameThrottled = 0
     }
 
@@ -980,6 +993,9 @@ final class MetalEffects {
     fileprivate func lookFlame(_ o: F3, _ ax: Float, _ az: Float, dt: Float) { flameJet(o, ax: ax, az: az, vel: .zero, dt: dt, k: 3) }
     fileprivate func lookCryo(_ o: F3, _ ax: Float, _ az: Float, len: Float, dt: Float) { cryoStream(o, ax: ax, az: az, len: len, dt: dt, k: 2) }
     fileprivate func lookNova(_ x: Float, _ z: Float, _ r: Float) { nova(x, z, r) }
+    fileprivate func lookCryoBeam(_ o: F3, _ ax: Float, _ az: Float, len: Float) {
+        ribbons.cryoBeam(from: o, ax: ax, az: az, len: len, time: frameTime, seed: 3.4)
+    }
     fileprivate func lookShot(_ o: F3, _ ax: Float, _ az: Float, rotary: Bool, k: Int) {
         // a round without a core marine (look-dev): casing, sparks, light, a tracer from the muzzle
         let d = F3(ax, 0, az)
@@ -1058,56 +1074,63 @@ final class FXLookDev {
 
     private func stepSheet(_ fx: MetalEffects, game: Game, t: Float) {
         let t0: Float = 1.5
-        if frozen { return }
+        let s: Float = 0.70710678
+        let (fx1, fz1) = at(2.5, 2.4)
+        let flameO = F3(fx1, game.level.groundY(fx1, fz1) + 1.2, fz1)
+        let (cx, cz) = at(2.5, -0.6)
+        let cryoO = F3(cx, game.level.groundY(cx, cz) + 1.2, cz)
+        if frozen {
+            // the frozen frame keeps the beam (a ribbon, redrawn every frame)
+            fx.lookCryoBeam(cryoO, s, -s, len: 7)
+            return
+        }
         // continuous ones (flamer, cryo, napalm field) run from t0 − 0.6 until the freeze
         if t > t0 - 0.6 {
             let dt: Float = 1.0 / 60
-            let (fx1, fz1) = at(4.0, 2.6)
-            fx.lookFlame(F3(fx1, game.level.groundY(fx1, fz1) + 1.2, fz1), 0.70710678, -0.70710678, dt: dt)
-            let (cx, cz) = at(4.0, -1.0)
-            fx.lookCryo(F3(cx, game.level.groundY(cx, cz) + 1.2, cz), 0.70710678, -0.70710678, len: 7.5, dt: dt)
-            let (nx, nz) = at(-6.5, -3.2)
-            fx.lookNapalm(nx, nz, 2.4, burst: false, dt: dt)
+            fx.lookFlame(flameO, s, -s, dt: dt)
+            fx.lookCryo(cryoO, s, -s, len: 7, dt: dt)
+            let (nx, nz) = at(-7.5, -2.6)
+            fx.lookNapalm(nx, nz, 2.2, burst: false, dt: dt)
         }
         guard !staged, t >= t0 else {
             if staged && t >= t0 + freezeAfter { frozen = true; AppLog.info("fx: look-dev sheet frozen") }
             return
         }
         staged = true
-        let (ax, az) = at(-5.5, 3.2)
+        let (ax, az) = at(-7.0, 2.8)
         fx.lookExplosion(ax, az, 4, .frag)
-        let (bx, bz) = at(0.5, 4.2)
+        let (bx, bz) = at(-1.5, 3.6)
         fx.lookExplosion(bx, bz, 3.2, .boomer)
-        let (nx, nz) = at(-6.5, -3.2)
-        fx.lookNapalm(nx, nz, 2.4, burst: true, dt: 0)
-        // hits and kills along a row in front of the squad
-        for (i, a) in [Float(-3.5), -2.2, -1.0].enumerated() {
-            let (hx, hz) = at(a, -4.6)
-            for _ in 0..<3 { fx.lookHit(game, hx, hz, 0.70710678, 0.70710678 * (i % 2 == 0 ? 1 : -1)) }
+        let (nx, nz) = at(-7.5, -2.6)
+        fx.lookNapalm(nx, nz, 2.2, burst: true, dt: 0)
+        // hits along a row below the squad
+        for (i, a) in [Float(-4.5), -3.0, -1.5].enumerated() {
+            let (hx, hz) = at(a, -2.4)
+            for _ in 0..<3 { fx.lookHit(game, hx, hz, s * (i % 2 == 0 ? 1 : -1), s) }
         }
-        let (rx, rz) = at(0.8, -4.8)
+        let (rx, rz) = at(0.5, -3.0)
         fx.lookDeath(.runner, rx, rz, frozen: false)
-        let (sx, sz) = at(2.4, -5.0)
+        let (sx, sz) = at(2.6, -3.2)
         fx.lookDeath(.brute, sx, sz, frozen: false)
-        let (ix, iz) = at(-1.8, -6.6)
+        let (ix, iz) = at(4.8, -3.0)
         fx.lookDeath(.spitter, ix, iz, frozen: true)
-        let (qx, qz) = at(7.2, -4.4)
+        let (qx, qz) = at(7.0, -3.4)
         fx.lookAcid(qx, qz)
-        let (vx, vz) = at(8.2, 2.0)
-        fx.lookNova(vx, vz, 2.6)
-        // shots: muzzles in a row, casings in the air
+        let (vx, vz) = at(6.5, 4.0)
+        fx.lookNova(vx, vz, 2.4)
+        // shots: muzzles in a row left of the squad, casings in the air
         for i in 0..<4 {
-            let (mx, mz) = at(-3.0 + Float(i) * 0.9, 1.4)
-            fx.lookShot(F3(mx, game.level.groundY(mx, mz) + 1.2, mz), 0.70710678, -0.70710678, rotary: i % 2 == 1, k: i)
+            let (mx, mz) = at(-4.8 + Float(i) * 0.8, 0.5)
+            fx.lookShot(F3(mx, game.level.groundY(mx, mz) + 1.2, mz), s, -s, rotary: i % 2 == 1, k: i)
         }
-        // a row of stains of every kind
+        // a row of stains of every kind along the bottom
         let D = fx.lookDecals
         let row: [(Decals.Cell, Decals.Kind, F3)] = [(.splat, .ichor, MetalEffectsLook.ichor(0)), (.streak, .ichor, MetalEffectsLook.ichor(1)),
                                                       (.gore, .gore, MetalEffectsLook.ichor(2)), (.acid, .acid, F3(0.42, 0.6, 0.06)),
                                                       (.scorch, .scorch, F3(0.08, 0.07, 0.07)), (.frost, .frost, F3(0.75, 0.86, 0.98))]
         for (i, d) in row.enumerated() {
-            let (dx, dz) = at(-6.0 + Float(i) * 2.4, -8.2)
-            D.add(dx, dz, size: 1.9, cell: d.0, kind: d.1, tint: d.2, flecks: d.1 == .scorch || d.1 == .ichor ? 1 : 0)
+            let (dx, dz) = at(-8.0 + Float(i) * 3.2, -4.6)
+            D.add(dx, dz, size: 2.0, cell: d.0, kind: d.1, tint: d.2, flecks: d.1 == .scorch || d.1 == .ichor ? 1 : 0)
         }
         AppLog.info("fx: look-dev sheet staged")
     }

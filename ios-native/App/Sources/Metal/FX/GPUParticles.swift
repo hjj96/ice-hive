@@ -73,7 +73,7 @@ struct GPUEmitter {
 struct GPUParticleParams {
     /// x slots simulated, y ring size (tier cap), z first ring slot of this frame's spawns, w spawns.
     var counts = SIMD4<UInt32>(0, 0, 0, 0)
-    /// x emitter records, y 1 = clear every particle, z 1 = High tier, w frame.
+    /// x emitter records, y 1 = clear every particle, z 1 = High tier, w list stride (slots allocated).
     var flags = SIMD4<UInt32>(0, 0, 0, 0)
     /// x dt, y time, z lift rise, w unused.
     var time = F4(0, 0, 0, 0)
@@ -177,6 +177,14 @@ final class GPUParticles {
     private var spawnAcc = 0, recordAcc = 0
     private(set) var maxLiveSeen = 0
     private(set) var maxFlamesSeen = 0
+    // device: GPU time of the compute pass (timestamps at the encoder's start / end; the simulator has none)
+    private var stamps: [MTLCounterSampleBuffer?] = []
+    private var secondsPerTick: Double = 1e-9
+    private var calCPU: Double = 0
+    private var calGPU: MTLTimestamp = 0
+    private let simLock = NSLock()
+    private var simMsSum: Double = 0
+    private var simMsN = 0
 
     init(level: Level) {
         self.level = level
@@ -207,6 +215,19 @@ final class GPUParticles {
         fallbackLight = dev.makeBuffer(length: LightingHub.blockBytes, options: .storageModeShared)
         if let f = fallbackLight { memset(f.contents(), 0, f.length) }
         buildGround(dev)
+        if dev.supportsCounterSampling(.atStageBoundary),
+           let set = dev.counterSets?.first(where: { $0.name == MTLCommonCounterSet.timestamp.rawValue }) {
+            for k in 0..<MetalRenderer.arenaSlots {
+                let d = MTLCounterSampleBufferDescriptor()
+                d.counterSet = set
+                d.label = "particle timestamps \(k)"
+                d.storageMode = .shared
+                d.sampleCount = 2
+                stamps.append(try? dev.makeCounterSampleBuffer(descriptor: d))
+            }
+            if stamps.contains(where: { $0 == nil }) { stamps = [] }
+            calibrate()
+        }
         psAlpha = r.pipeline("gpartAlpha")
         psAdd = r.pipeline("gpartAdd")
         r.registerPrePass(order: 100, "particles") { [unowned self] cb in self.encodeCompute(cb) }
@@ -254,11 +275,20 @@ final class GPUParticles {
         ground?.label = "deck heights"
     }
 
-    /// The tier's ring size (RenderQuality tier and the «Графика» density).
+    /// The tier's ring size (RenderQuality tier and the «Графика» density). After a downgrade the slots above the new
+    /// ring keep being simulated for 4 s (their particles die out), then the simulation covers the ring only.
     func setTier(high: Bool, fxK: Float) {
         let cap = fxK < 0.5 ? GPUParticles.capLow : (high ? GPUParticles.capHigh : GPUParticles.capEfficient)
-        if cap != ringCap { ringCap = cap; head %= cap }
+        if cap == ringCap { return }
+        if cap < ringCap { simHighWater = max(simHighWater, ringCap); shrinkAt = FrameTimer.now() + 4 }
+        ringCap = cap
+        head %= cap
     }
+
+    /// Slots the simulation covers this frame.
+    private var simSlots: Int { min(capacity, max(ringCap, simHighWater)) }
+    private var simHighWater = 0
+    private var shrinkAt: Double = 0
 
     /// Kill every particle (a new mission; memory warning).
     func clear() {
@@ -326,17 +356,43 @@ final class GPUParticles {
         head = (head + frameSpawns) % max(1, ringCap)
         frameDt = dt
         frameIndex &+= 1
+        if simHighWater > 0 && FrameTimer.now() > shrinkAt { simHighWater = 0 }
         frameReady = true
     }
 
     /// Pre-pass 100: emission and simulation (one compute encoder; the two dispatches run in order).
     private func encodeCompute(_ cb: MTLCommandBuffer) {
         guard frameReady, let r = renderer, let eps = psEmit, let sps = psSim, let P = particles, let L = lists, let A = args,
-              let G = ground, let enc = cb.makeComputeCommandEncoder() else { return }
+              let G = ground else { return }
+        let stamp: MTLCounterSampleBuffer? = frameSlot < stamps.count ? stamps[frameSlot] : nil
+        let encOpt: MTLComputeCommandEncoder?
+        if let sb = stamp {
+            let pd = MTLComputePassDescriptor()
+            pd.sampleBufferAttachments[0].sampleBuffer = sb
+            pd.sampleBufferAttachments[0].startOfEncoderSampleIndex = 0
+            pd.sampleBufferAttachments[0].endOfEncoderSampleIndex = 1
+            encOpt = cb.makeComputeCommandEncoder(descriptor: pd)
+            let spt = secondsPerTick
+            cb.addCompletedHandler { [weak self] _ in
+                guard let d = try? sb.resolveCounterRange(0..<2) else { return }
+                d.withUnsafeBytes { raw in
+                    let ts = raw.bindMemory(to: MTLCounterResultTimestamp.self)
+                    guard ts.count >= 2 else { return }
+                    let a = ts[0].timestamp, e = ts[1].timestamp
+                    let ms = e > a ? Double(e - a) * spt * 1000 : -1
+                    if ms >= 0 && ms < 100 { self?.addSim(ms) }
+                }
+            }
+        } else {
+            encOpt = cb.makeComputeCommandEncoder()
+        }
+        guard let enc = encOpt else { return }
         enc.label = "particles"
         var S = GPUParticleParams()
-        S.counts = SIMD4(UInt32(capacity), UInt32(ringCap), UInt32(frameHead), UInt32(frameSpawns))
-        S.flags = SIMD4(UInt32(frameRecords), clearPending ? 1 : 0, r.frameTier == .high ? 1 : 0, frameIndex)
+        // (a clear covers every allocated slot)
+        let slots = clearPending ? capacity : simSlots
+        S.counts = SIMD4(UInt32(slots), UInt32(ringCap), UInt32(frameHead), UInt32(frameSpawns))
+        S.flags = SIMD4(UInt32(frameRecords), clearPending ? 1 : 0, r.frameTier == .high ? 1 : 0, UInt32(capacity))
         S.time = F4(frameDt, r.frame.camPos.w, liftRise, 0)
         S.lift = lift
         clearPending = false
@@ -361,7 +417,7 @@ final class GPUParticles {
         bindLightBlock(enc, r)
         enc.setBuffer(G, offset: 0, index: 6)
         let tg = min(GPUParticles.threadsPerGroup, sps.maxTotalThreadsPerThreadgroup)
-        enc.dispatchThreadgroups(MTLSize(width: (capacity + tg - 1) / tg, height: 1, depth: 1),
+        enc.dispatchThreadgroups(MTLSize(width: (slots + tg - 1) / tg, height: 1, depth: 1),
                                  threadsPerThreadgroup: MTLSize(width: tg, height: 1, depth: 1))
         enc.endEncoding()
     }
@@ -402,6 +458,28 @@ final class GPUParticles {
         enc.drawPrimitives(type: .triangle, indirectBuffer: A, indirectBufferOffset: frameSlot * GPUParticles.argsStride + (alpha ? 16 : 0))
         let n = alpha ? liveAlpha : liveAdditive
         r.count(draws: 1, instances: n, triangles: 2 * n)
+    }
+
+    private func addSim(_ ms: Double) {
+        simLock.lock(); simMsSum += ms; simMsN += 1; simLock.unlock()
+    }
+
+    /// Device: the GPU tick length against the host clock (once per heartbeat).
+    func calibrate() {
+        guard let dev = renderer?.device, !stamps.isEmpty else { return }
+        let gpu = dev.sampleTimestamps().gpu
+        let now = FrameTimer.now()
+        if calCPU > 0 && gpu > calGPU && now - calCPU > 0.2 { secondsPerTick = (now - calCPU) / Double(gpu - calGPU) }
+        calCPU = now
+        calGPU = gpu
+    }
+
+    /// Mean GPU time of the compute pass since the last call (ms; nil without timestamps — the simulator).
+    func takeSimMs() -> Double? {
+        guard !stamps.isEmpty else { return nil }
+        simLock.lock()
+        defer { simMsSum = 0; simMsN = 0; simLock.unlock() }
+        return simMsN > 0 ? simMsSum / Double(simMsN) : nil
     }
 
     /// Heartbeat: spawns and records per second since the last call.

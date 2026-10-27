@@ -75,8 +75,8 @@ final class Ribbons {
             let y = 1.2 + level.groundY(p.x, p.y)
             let head = F3(p.x, y, p.y), tail = F3(p.x - d.x * len, y, p.y - d.y * len)
             let c = Ribbons.tracerColor[ci]
-            add(tail, head, width: ci == 0 ? 0.055 : 0.042, mode: .tracer, color: c, head: ci == 0 ? 7 : 5)
-            add(tail, head, width: ci == 0 ? 0.2 : 0.15, mode: .halo, color: c * 0.22)
+            add(tail, head, width: ci == 0 ? 0.07 : 0.058, mode: .tracer, color: c, head: ci == 0 ? 8 : 6.5)
+            add(tail, head, width: ci == 0 ? 0.26 : 0.21, mode: .halo, color: c * 0.32)
             longestTracer = max(longestTracer, len)
             tracersDrawn += 1
         }
@@ -98,11 +98,11 @@ final class Ribbons {
         let flick = 0.88 + 0.12 * sinf(time * 41 + seed)
         for s in 0..<n {
             let u0 = Float(s) / Float(n), u1 = Float(s + 1) / Float(n)
-            let w = 0.1 + 0.16 * (u0 + u1) * 0.5
+            let w = 0.2 + 0.3 * (u0 + u1) * 0.5
             add(pt(u0), pt(u1), width: w, mode: .cryo, color: F3(1, 1, 1), intensity: flick, u0: u0, u1: u1, seed: seed)
         }
         // a wide cold halo along the whole beam
-        add(pt(0), pt(1), width: 0.55, mode: .halo, color: F3(0.18, 0.45, 0.9), intensity: 0.6)
+        add(pt(0), pt(1), width: 0.9, mode: .halo, color: F3(0.1, 0.3, 0.75), intensity: 0.55)
     }
 
     /// A light column (beacons): camera-facing, fading upward.

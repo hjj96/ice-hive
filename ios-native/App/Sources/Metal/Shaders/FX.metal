@@ -241,30 +241,30 @@ fragment float4 fs_telegraph(FloorOut in [[stage_in]],
     float k = 0.0;
     float px = max(fwidth(r), 1e-4);
     if (mode == FM_RING) {
-        // warning ring: a thin rim with a soft inner glow and 24 ticks
-        float rim = 1.0 - smoothstep(0.0, 2.2 * px + 0.012, abs(r - 0.93));
+        // warning ring: a thin rim with 24 faint ticks and a whisper of glow inside
+        float rim = 1.0 - smoothstep(0.0, 1.5 * px + 0.006, abs(r - 0.94));
         float ang = atan2(q.y, q.x) / 6.2831853 + 0.5;
-        float ticks = step(0.5, fract(ang * 24.0)) * (1.0 - smoothstep(0.0, 2.0 * px + 0.02, abs(r - 0.86)));
-        float inner = (1.0 - smoothstep(0.0, 0.93, r)) * 0.12;
-        k = (rim + ticks * 0.45 + inner) * blink * (1.0 - smoothstep(0.95, 1.0, r));
+        float ticks = step(0.5, fract(ang * 24.0)) * (1.0 - smoothstep(0.0, 1.5 * px + 0.012, abs(r - 0.88)));
+        float inner = (1.0 - smoothstep(0.0, 0.94, r)) * 0.05;
+        k = (rim * 0.75 + ticks * 0.3 + inner) * blink * (1.0 - smoothstep(0.96, 1.0, r));
     } else if (mode == FM_WAVE) {
         // expanding shock ring of an ability: a crisp front
         float rim = 1.0 - smoothstep(0.0, 2.5 * px + 0.02, abs(r - 0.94));
         k = rim * (1.0 - smoothstep(0.97, 1.0, r));
     } else if (mode == FM_FILL) {
-        // acid target: a soft pool deepening toward impact, the rim, and a countdown ring closing in from the rim
-        float pool = (1.0 - smoothstep(0.2, 0.95, r)) * (0.18 + 0.5 * u);
-        float rim = 1.0 - smoothstep(0.0, 2.0 * px + 0.015, abs(r - 0.94));
-        float cr = 0.94 * (1.0 - u);
-        float count = (1.0 - smoothstep(0.0, 2.0 * px + 0.012, abs(r - cr))) * step(0.02, cr);
-        k = (pool + rim * 0.9 + count * 0.8 * blink) * (1.0 - smoothstep(0.96, 1.0, r));
+        // acid target: a faint pool deepening toward impact, a thin rim, and a countdown ring closing in from the rim
+        float pool = (1.0 - smoothstep(0.35, 0.97, r)) * (0.035 + 0.17 * u * u);
+        float rim = 1.0 - smoothstep(0.0, 1.4 * px + 0.006, abs(r - 0.95));
+        float cr = 0.95 * (1.0 - u);
+        float count = (1.0 - smoothstep(0.0, 1.4 * px + 0.006, abs(r - cr))) * step(0.03, cr);
+        k = (pool + rim * 0.55 + count * 0.45 * blink) * (1.0 - smoothstep(0.97, 1.0, r));
     } else {
         // brute lane: two thin border lines, chevrons running toward +y (the charge direction)
         float ax = abs(q.x);
         float pxx = max(fwidth(q.x), 1e-4);
         float border = 1.0 - smoothstep(0.0, 2.0 * pxx + 0.02, abs(ax - 0.9));
         float along = q.y * in.aspect;
-        float chev = fract((along - ax * 0.6) * 0.45 - F.camPos.w * 1.2);
+        float chev = fract((along + ax * 0.6) * 0.45 - F.camPos.w * 1.2);   // tips toward +y, running along the charge
         float ch = (1.0 - smoothstep(0.0, 0.08, abs(chev - 0.5))) * step(ax, 0.7) * 0.5;
         float fill = 0.1;
         k = (border + ch + fill) * blink * (1.0 - smoothstep(0.92, 1.0, abs(q.y)));
@@ -346,15 +346,16 @@ fragment float4 fs_beam(BeamOut in [[stage_in]],
         float k = 1.0 - x;
         c = in.color.rgb * k * k * (0.35 + 0.65 * across);
     } else if (mode == BM_CRYO) {
-        // the cryo beam: a hard white-cyan core, a crackling sheath, frost swirling along it, a soft start and end
+        // the cryo beam: a cold white-cyan core, a thick turbulent frost sheath with crackle, a soft start and end
         float u = mix(in.params.x, in.params.y, x);
         float n = noise.sample(repeatSampler, float2(u * 2.3 - time * 3.1, y * 0.35 + in.params.z)).r;
         float n2 = noise.sample(repeatSampler, float2(u * 5.1 - time * 6.3, y * 0.6 - in.params.z)).r;
-        float core = pow(saturate(across), 10.0) * 2.2;
-        float sheath = pow(saturate(across), 2.0) * (0.25 + 0.75 * n) * 0.55;
-        float crackle = smoothstep(0.62, 0.8, n2) * pow(saturate(across), 3.0) * 1.4;
-        float fade = smoothstep(0.0, 0.06, u) * (1.0 - smoothstep(0.82, 1.0, u));
-        c = (float3(0.85, 0.97, 1.0) * core + float3(0.3, 0.75, 1.0) * (sheath + crackle)) * fade;
+        float core = pow(saturate(across), 14.0) * 1.15;
+        float inner = pow(saturate(across), 4.0) * 0.5;
+        float sheath = saturate(across) * (0.2 + 0.8 * n) * 0.32;
+        float crackle = smoothstep(0.66, 0.82, n2) * pow(saturate(across), 2.0) * 0.9;
+        float fade = smoothstep(0.0, 0.06, u) * (1.0 - smoothstep(0.85, 1.0, u));
+        c = (float3(0.72, 0.93, 1.0) * core + float3(0.35, 0.78, 1.0) * inner + float3(0.16, 0.5, 1.0) * (sheath + crackle)) * fade;
         c *= in.color.rgb;
     } else if (mode == BM_COLUMN) {
         float k = 1.0 - x;
