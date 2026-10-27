@@ -98,11 +98,12 @@ final class Ribbons {
         let flick = 0.88 + 0.12 * sinf(time * 41 + seed)
         for s in 0..<n {
             let u0 = Float(s) / Float(n), u1 = Float(s + 1) / Float(n)
-            let w = 0.2 + 0.3 * (u0 + u1) * 0.5
+            // the sheath widens with the distance from the emitter (m), not with the fraction of a short beam
+            let w = min(0.42, 0.13 + 0.045 * (u0 + u1) * 0.5 * len)
             add(pt(u0), pt(u1), width: w, mode: .cryo, color: F3(1, 1, 1), intensity: flick, u0: u0, u1: u1, seed: seed)
         }
         // a wide cold halo along the whole beam
-        add(pt(0), pt(1), width: 0.9, mode: .halo, color: F3(0.1, 0.3, 0.75), intensity: 0.55)
+        add(pt(0), pt(1), width: min(0.9, 0.35 + 0.06 * len), mode: .halo, color: F3(0.1, 0.3, 0.75), intensity: 0.55)
     }
 
     /// A light column (beacons): camera-facing, fading upward.
