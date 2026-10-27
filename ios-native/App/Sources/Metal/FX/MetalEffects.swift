@@ -367,7 +367,7 @@ final class MetalEffects {
         if type != .boomer {
             corpses?.add(x, z, hd, sc, type, rnd: { [unowned self] in self.rnd() })
         } else {
-            decals.add(x, z, size: 2.6, cell: .acid, kind: .acid, tint: F3(0.42, 0.6, 0.06))
+            decals.add(x, z, size: 2.0, cell: .acid, kind: .acid, tint: F3(0.42, 0.6, 0.06))
         }
         if big { flash(p, F3(1.0, 0.35, 0.55), peak: 40, dur: 0.15, range: 5, priority: 8) }
     }
@@ -571,14 +571,14 @@ final class MetalEffects {
         flash(p + F3(0, 1.2, 0), boomer ? F3(1.0, 0.75, 0.3) : F3(1.0, 0.6, 0.3), peak: big ? 520 : 170, dur: big ? 0.55 : 0.3,
               range: r * 3.2, priority: 30)
         gpu.burst(.flash, 1, at: p + F3(0, 0.3, 0), life: (0.12, 0.15), size: (big ? 4.4 : 2.2, big ? 5.4 : 2.7), color: F4(8, 6, 4, 1), sizeJitter: 0)
-        gpu.burst(.glow, 1, at: p, life: (0.18, 0.22), size: (r * 1.1, r * 1.6), color: F4(5, 2.8, 1.2, 1), sizeJitter: 0)
+        gpu.burst(.glow, 1, at: p, life: (0.18, 0.22), size: (r * 1.1, r * 1.6), color: F4(2.8, 1.55, 0.66, 1), sizeJitter: 0)
         if full {
             // the fireball and the licks of flame flung out of it
             let fb = flameBudget(big ? 7 : 3)
             if fb > 0 {
                 gpu.burst(.blast, fb, at: p, jitter: F3(0.4, 0.25, 0.4), vel: F3(0, 1.4, 0), velJitter: F3(0.6, 0.5, 0.6),
                           radial: 1.3 * r.squareRoot(), life: (0.7, 1.0), size: (r * 0.55, r * 0.95),
-                          color: boomer ? F4(1.0, 1.08, 0.62, 1) : F4(1, 1, 1, 1), gravity: -1, drag: 2.2, spin: 0.6)
+                          color: boomer ? F4(1.0, 0.96, 0.6, 1) : F4(1, 1, 1, 1), gravity: -1, drag: 2.2, spin: 0.6)
             }
             let nl = flameBudget(num(big ? 12 : 5))
             if nl > 0 {
@@ -594,8 +594,8 @@ final class MetalEffects {
         gpu.burst(.debris, num(big ? 14 : 4), at: p, sphere: 9, upper: true, life: (1.2, 2.0), size: (0.12, 0.1),
                   color: boomer ? F4(0.2, 0.14, 0.04, 1) : F4(0.05, 0.045, 0.05, 1), gravity: 14, drag: 0.3, spin: 8)
         // dark smoke, rising and thinning (chained blasts must not wash the deck out: the swarm stays readable)
-        gpu.burst(.smoke, num(big ? 6 : 3), at: p + F3(0, 0.6, 0), jitter: F3(r * 0.4, 0.3, r * 0.4), delay: 0.18, vel: F3(0, 1.5, 0),
-                  radial: 0.8, life: (1.6, 2.6), size: (r * 0.4, r * 1.05), color: F4(0.035, 0.032, 0.03, 0.62), gravity: -0.6, drag: 0.9,
+        gpu.burst(.smoke, num(big ? 5 : 2), at: p + F3(0, 0.6, 0), jitter: F3(r * 0.4, 0.3, r * 0.4), delay: 0.18, vel: F3(0, 1.6, 0),
+                  radial: 0.8, life: (1.4, 2.2), size: (r * 0.4, r * 1.0), color: F4(0.055, 0.05, 0.048, 0.45), gravity: -0.7, drag: 0.9,
                   spin: 0.4)
         // the deck: a shock ring, heat waves, a scorch with cooling embers
         floorTimed(x, z, radius: r * 1.7, mode: .shock, color: boomer ? F3(3.0, 3.2, 1.1) : F3(4.0, 2.5, 1.25), life: big ? 0.42 : 0.28,
@@ -606,8 +606,8 @@ final class MetalEffects {
         if boomer {
             gpu.burst(.ichor, num(18), at: p, sphere: 7, upper: true, life: (0.6, 1.0), size: (0.09, 0.06), color: F4(0.25, 0.32, 0.03, 1),
                       gravity: 12)
-            decals.add(x, z, size: r * 0.9, cell: .acid, kind: .acid, tint: F3(0.42, 0.6, 0.06))
-            floorTimed(x, z, radius: r * 0.8, mode: .acid, color: F3(0.35, 1.2, 0.15) * 0.1, life: 2.0, thickness: 0.1)
+            decals.add(x, z, size: r * 0.65, cell: .acid, kind: .acid, tint: F3(0.42, 0.6, 0.06))
+            floorTimed(x, z, radius: r * 0.6, mode: .acid, color: F3(0.35, 1.2, 0.15) * 0.07, life: 1.6, thickness: 0.1)
         }
     }
 
@@ -658,7 +658,7 @@ final class MetalEffects {
         }
         if rnd() < 7 * fxK * dt {
             gpu.burst(.smoke, 1, at: F3(x, g + 1.2, z), jitter: F3(r * 0.6, 0.3, r * 0.6), vel: F3(0, 1.4, 0), life: (1.6, 2.4), size: (1.2, 3.2),
-                      color: F4(0.05, 0.045, 0.04, 0.45), gravity: -0.4, drag: 0.6, spin: 0.3)
+                      color: F4(0.06, 0.055, 0.05, 0.38), gravity: -0.4, drag: 0.6, spin: 0.3)
         }
         if rnd() < 16 * fxK * dt {
             gpu.burst(.ember, 1, at: F3(x, g + 0.3, z), jitter: F3(r * 0.8, 0.1, r * 0.8), vel: F3(0, 2.2, 0), velJitter: F3(0.8, 0.8, 0.8),
