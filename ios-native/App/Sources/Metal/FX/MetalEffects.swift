@@ -147,6 +147,12 @@ final class MetalEffects {
     private var psHeat: MTLRenderPipelineState?
     private var rFloor = Region(), rTele = Region(), rHeat = Region()
     private var cpuAcc: Double = 0
+    /// This frame's update() wall / thread-CPU time (ms) and its emission, for the slow-frame line.
+    private var updWall: Double = 0, updThread: Double = 0
+    private var updRecords = 0, updSpawns = 0
+    /// A frame whose update + upload take longer than this (ms) is logged with its thread CPU time, so CI can tell the
+    /// effects' own work from time the main thread spent off the CPU (`fx: slow frame …`).
+    static let slowFrameMs: Double = 4
     private var cpuFrames = 0
     private var lastLog: Double = 0
 
@@ -794,6 +800,7 @@ final class MetalEffects {
 
     func update(game: Game, dt dt0: Float, time: Float, poses ps: [MarinePose], focus: F3, liftRise rise: Float) {
         let c0 = FrameTimer.now()
+        let t0 = AppLog.diagnostics ? CPUTime.thread() : 0
         poses = ps
         frameTime = time
         liftRiseNow = rise
@@ -870,7 +877,11 @@ final class MetalEffects {
         beaconBeams(game: game, time: time)
         pointLights(game: game, dt: dt, time: time, poses: ps)
         emitLights(dt: dt)
-        cpuAcc += (FrameTimer.now() - c0) * 1000
+        updWall = (FrameTimer.now() - c0) * 1000
+        updThread = AppLog.diagnostics ? (CPUTime.thread() - t0) * 1000 : 0
+        updRecords = gpu.pendingRecords
+        updSpawns = gpu.pendingSpawns
+        cpuAcc += updWall
     }
 
     // ---------------------------------------------------------------- telegraphs
@@ -1054,14 +1065,21 @@ final class MetalEffects {
     /// (empty since WP4: the HP arcs replace them).
     func upload(_ r: MetalRenderer, teamRings: [SpriteInstance], dt: Float) {
         let c0 = FrameTimer.now()
+        let t0 = AppLog.diagnostics ? CPUTime.thread() : 0
         decals.upload(r)
         rFloor = r.upload(floorAdd)
         rTele = r.upload(floorMax)
         rHeat = r.upload(heat)
         ribbons.upload(r)
         gpu.upload(r, dt: lastDt, time: frameTime, rise: liftRiseNow)
-        cpuAcc += (FrameTimer.now() - c0) * 1000
+        let upWall = (FrameTimer.now() - c0) * 1000
+        cpuAcc += upWall
         cpuFrames += 1
+        if AppLog.diagnostics && updWall + upWall > MetalEffects.slowFrameMs {
+            AppLog.info(String(format: "fx: slow frame %.1f ms (update %.1f, upload %.1f; thread cpu %.1f ms) records=%d spawns=%d decals=%d beams=%d wall=%.3f",
+                               updWall + upWall, updWall, upWall, updThread + (CPUTime.thread() - t0) * 1000, updRecords, updSpawns,
+                               decals.items.count, ribbons.beams.count, Date().timeIntervalSince1970))
+        }
         heartbeat()
     }
 

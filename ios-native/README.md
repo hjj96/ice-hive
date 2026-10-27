@@ -773,7 +773,9 @@ iPhone 16e (844 × 390) и iPhone 16 Plus (932 × 430), если рантайм 
   кислота, морозная волна, гильзы, ряд пятен всех видов); `-fxHigh` — то же на High; `-fxPeak` — сценарный пик плана
   (три бумера подряд через 0,25 с + напалм + криолуч каждые 2,5 с). Демо CI `fxsheet`, `fxsheet-high`, `fxpeak`. Раз в
   секунду `hb fx parts=живые/кольцо peak=… fire=…/кап peak=… expl=…/кап peak=… throttled=… spawn=…/с rec=…/с
-  decals=…/кольцо beams=… tracers=… tracer=…м lights=… floor=… heat=… cpu=…мс sim=on|off tier=…`.
+  decals=…/кольцо beams=… tracers=… tracer=…м lights=… floor=… heat=… cpu=…мс sim=on|off tier=…`. Кадр, в котором
+  `update` + `upload` эффектов дольше 4 мс, — строка `fx: slow frame N ms (update …, upload …; thread cpu … ms) records=…
+  spawns=… wall=…`: время потока на CPU отделяет собственную работу эффектов от времени, когда главный поток стоял (хост CI).
 - **Бюджет устройства** (iPhone 12; не измерен — нужен телефон): симуляция ≤ 0,25 мс High / ≤ 0,10 Efficient,
   прозрачные ≤ 1,2 / 0,7 мс обычно, сценарный пик ≤ 11,5 / 7,0 мс всего GPU. Замер: `hb gpu frame=` одного и того же
   демо с `-fxSim off` и без (флаг убирает вычислительный проход и обе отрисовки частиц, выпуск записей остаётся) и
