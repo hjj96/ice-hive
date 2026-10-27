@@ -42,7 +42,7 @@
 #define PK_DOT 12      // hard hot dot (target dots)
 
 static inline bool pkAlpha(int k) { return k == PK_SMOKE || k == PK_DEBRIS || k == PK_ICHOR || k == PK_STEAM || k == PK_CASING; }
-static inline bool pkStretch(int k) { return k == PK_SPARK || k == PK_ICE || k == PK_DEBRIS || k == PK_ICHOR || k == PK_CASING || k == PK_EMBER; }
+static inline bool pkStretch(int k) { return k == PK_SPARK || k == PK_ICE || k == PK_DEBRIS || k == PK_ICHOR || k == PK_CASING || k == PK_EMBER || k == PK_FIRE; }
 static inline bool pkFlip(int k) { return k == PK_FIRE || k == PK_BLAST || k == PK_SMOKE || k == PK_STEAM; }
 static inline float pkBounce(int k) {
     return k == PK_SPARK ? 0.38 : (k == PK_ICE ? 0.3 : (k == PK_DEBRIS ? 0.22 : (k == PK_CASING ? 0.42 : (k == PK_EMBER ? 0.15 : 0.0))));
@@ -74,7 +74,7 @@ struct Emitter {
 
 struct SimParams {
     uint4 counts;      // x slots simulated, y ring size (tier cap), z first ring slot of this frame's spawns, w spawns
-    uint4 flags;       // x emitters, y 1 = clear every particle, z 1 = High tier, w frame
+    uint4 flags;       // x emitters, y 1 = clear every particle, z 1 = High tier, w list stride (slots allocated)
     float4 time;       // x dt, y time, z lift rise, w unused
     float4 lift;       // xyz lift centre, w radius (0 = no lift)
 };
@@ -270,7 +270,7 @@ kernel void fx_sim(device Particle* P [[buffer(0)]],
         if (n2 > 0u) atomic_fetch_add_explicit(&args[8], n2, memory_order_relaxed);
     }
     threadgroup_barrier(mem_flags::mem_threadgroup);
-    if (cls >= 0) lists[uint(cls) * S.counts.x + tgBase[cls] + local] = gid;
+    if (cls >= 0) lists[uint(cls) * S.flags.w + tgBase[cls] + local] = gid;
 }
 
 // ---------------------------------------------------------------- R2: draw
@@ -372,7 +372,7 @@ vertex PartOut vs_gpart(uint vid [[vertex_id]], uint iid [[instance_id]],
     if (size < minM) { col.a *= size / minM; size = minM; }
     float3 R = F.camRight.xyz, U = F.camUp.xyz;
     float halfL = size * 0.5, halfW = size * 0.5;
-    float stretch = 1.0;
+    float stretch = 0.0;   // > 0: the quad's x runs along the motion (length / width)
     if (pkStretch(kind)) {
         // stretched along the motion on screen: length = size + the distance covered in ~1/30 s, capped
         float2 vs = float2(dot(v, R), dot(v, U));
@@ -381,9 +381,11 @@ vertex PartOut vs_gpart(uint vid [[vertex_id]], uint iid [[instance_id]],
             float2 d = vs / sp;
             float3 a = R * d.x + U * d.y;
             float3 b = R * -d.y + U * d.x;
-            float k = kind == PK_SPARK ? 0.04 : (kind == PK_ICE ? 0.03 : 0.022);
+            float k = kind == PK_SPARK ? 0.04 : (kind == PK_ICE ? 0.03 : (kind == PK_FIRE ? 0.035 : 0.022));
             halfL = min(size * 0.5 + sp * k, min(1.2, maxM * 0.5));
             if (kind == PK_DEBRIS || kind == PK_CASING) halfL = min(halfL, size * 1.6);
+            // flames stretch only a little (a licking jet, not streaks), their frames rise along the motion
+            if (kind == PK_FIRE) halfL = min(halfL, size * 0.95);
             R = a;
             U = b;
             stretch = halfL / max(halfW, 1e-4);
@@ -412,9 +414,10 @@ vertex PartOut vs_gpart(uint vid [[vertex_id]], uint iid [[instance_id]],
     return o;
 }
 
-/// One frame of an 8 × 8 flipbook atlas at the quad's uv (inset half a texel from the cell's edge).
+/// One frame of an 8 × 8 flipbook atlas at sprite coordinates q (−1…1, +y up: the atlas's rows run top-down), inset
+/// half a texel from the cell's edge.
 static inline float4 flipTap(texture2d<float> atlas, float2 cell, float2 q) {
-    float2 lu = clamp(q * 0.5 + 0.5, 0.004, 0.996);
+    float2 lu = clamp(float2(q.x * 0.5 + 0.5, 0.5 - q.y * 0.5), 0.004, 0.996);
     return atlas.sample(clampSampler, cell + lu * 0.125);
 }
 
@@ -437,6 +440,8 @@ fragment float4 fs_gpart_add(PartOut in [[stage_in]],
     float a = in.color.a;
     if (kind == PK_FIRE || kind == PK_BLAST) {
         bool fire = kind == PK_FIRE;
+        // a flame carried by its motion licks forward: the frame's up along the quad's x
+        if (fire && in.info.w > 0.0) q = float2(-q.y, q.x);
         float4 s0 = fire ? flipTap(fireAtlas, in.fb.xy, q) : flipTap(blastAtlas, in.fb.xy, q);
         float4 s1 = fire ? flipTap(fireAtlas, in.fb.zw, q) : flipTap(blastAtlas, in.fb.zw, q);
         float4 s = mix(s0, s1, in.fbMix);
@@ -448,7 +453,7 @@ fragment float4 fs_gpart_add(PartOut in [[stage_in]],
         // a streak: hot thin core, brightest toward its head (+x), tapered tail
         float across = 1.0 - q.y * q.y;
         float along = smoothstep(-1.0, 0.2, q.x) * (1.0 - smoothstep(0.75, 1.0, q.x));
-        float core = pow(saturate(across), in.info.w > 2.0 ? 6.0 : 2.5);
+        float core = pow(saturate(across), in.info.w > 2.0 ? 6.0 : 2.5);   // long streaks: a thinner core
         a *= core * along;
         c *= 1.0 + 1.5 * pow(saturate(across), 12.0);
     } else if (kind == PK_FLASH) {
