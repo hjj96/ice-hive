@@ -319,6 +319,10 @@ final class GPUParticles {
         spawns += n
     }
 
+    /// This frame's emission so far (records, particles), before upload() hands it to the GPU.
+    var pendingRecords: Int { records.count }
+    var pendingSpawns: Int { spawns }
+
     // ---------------------------------------------------------------- per frame
     /// The frame's records into the arena, this slot's counters (three frames old) read and reset; `dt` the effect time
     /// of the frame, `rise` the lift's.
