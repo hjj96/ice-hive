@@ -262,18 +262,26 @@ fragment float4 fs_telegraph(FloorOut in [[stage_in]],
         // acid target: a faint pool deepening toward impact, a thin dim rim, and a countdown ring closing in from the rim
         // that brightens as the glob comes down (several spitters at once read as a few faint rings, not a lime target
         // board; the one about to land stands out)
+        // (early in the flight both rings are faint — rim 0.14, count 0.1 — and they reach full strength only as u² grows:
+        // CI combat / swarmshot showed 6–8 lime rings stacked over the squad while most globs were still far off)
         float pool = (1.0 - smoothstep(0.35, 0.97, r)) * (0.025 + 0.13 * u * u);
         float rim = 1.0 - smoothstep(0.0, 1.4 * px + 0.006, abs(r - 0.95));
         float cr = 0.95 * (1.0 - u);
         float count = (1.0 - smoothstep(0.0, 1.4 * px + 0.006, abs(r - cr))) * step(0.03, cr);
-        k = (pool + rim * (0.3 + 0.15 * u) + count * (0.15 + 0.45 * u) * blink) * (1.0 - smoothstep(0.97, 1.0, r));
+        k = (pool + rim * (0.14 + 0.3 * u * u) + count * (0.1 + 0.5 * u * u) * blink) * (1.0 - smoothstep(0.97, 1.0, r));
     } else {
-        // brute lane: two thin border lines, chevrons running toward +y (the charge direction)
+        // brute lane: two DASHED border lines whose dashes run with the chevrons toward +y (the charge direction), over a
+        // faint continuous edge — a hazard marking on the deck; two solid HDR lines across the platform read as laser
+        // sights (CI combat), which the game no longer has
         float ax = abs(q.x);
         float pxx = max(fwidth(q.x), 1e-4);
-        float border = 1.0 - smoothstep(0.0, 2.0 * pxx + 0.02, abs(ax - 0.9));
         float along = q.y * in.aspect;
-        float chev = fract((along + ax * 0.6) * 0.45 - F.camPos.w * 1.2);   // tips toward +y, running along the charge
+        float run = F.camPos.w * 1.2;
+        float dash = fract(along * 0.45 - run);
+        float dw = max(fwidth(dash), 1e-3);
+        float dashOn = smoothstep(0.0, dw + 0.04, dash) * (1.0 - smoothstep(0.52, 0.52 + dw + 0.04, dash));
+        float border = (1.0 - smoothstep(0.0, 2.0 * pxx + 0.02, abs(ax - 0.9))) * (0.18 + 0.62 * dashOn);
+        float chev = fract((along + ax * 0.6) * 0.45 - run);   // tips toward +y, running along the charge
         float ch = (1.0 - smoothstep(0.0, 0.08, abs(chev - 0.5))) * step(ax, 0.7) * 0.5;
         float fill = 0.1;
         k = (border + ch + fill) * blink * (1.0 - smoothstep(0.92, 1.0, abs(q.y)));
