@@ -109,9 +109,9 @@ fragment float4 fs_decal_wet(DecalOut in [[stage_in]],
     if (kind == 1) {
         // acid: glossy, stays wet longer, a faint sickly glow from the thick middle
         float wet = 1.0 - smoothstep(0.0, 70.0, age);
-        albedo = tint * 0.12;
-        rough = mix(0.5, 0.06, wet);
-        emit = float3(0.08, 0.35, 0.02) * (t.g * t.g) * (0.2 + 0.8 * exp(-age / 5.0)) * 0.22;
+        albedo = mix(float3(dot(tint, float3(0.3, 0.55, 0.15))), tint, 0.6) * 0.1;
+        rough = mix(0.5, 0.08, wet);
+        emit = float3(0.08, 0.35, 0.02) * (t.g * t.g) * (0.2 + 0.8 * exp(-age / 5.0)) * 0.14;
     } else if (kind == 2) {
         // scorch: dry soot, embers in it cool over a few seconds
         albedo = float3(0.018, 0.016, 0.015);
