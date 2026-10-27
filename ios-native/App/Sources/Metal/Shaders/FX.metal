@@ -72,6 +72,12 @@ fragment float4 fs_decal(DecalOut in [[stage_in]],
     float4 t = atlas.sample(clampSampler, in.uv);
     float cov = t.r * in.params.y;
     float3 tint = in.color.rgb * (0.8 + 0.4 * t.a);
+    int kind = int(in.params.x + 0.5);
+    if (kind == 0 || kind == 4 || kind == 1) {
+        // ichor / gore / acid: a dark wet stain of the hue (a saturated multiply read as red paint / green lily pads)
+        float l = dot(tint, float3(0.3, 0.55, 0.15));
+        tint = mix(float3(l), tint, kind == 1 ? 0.55 : 0.7) * 0.6;
+    }
     float3 c = mix(float3(1.0), tint, saturate(cov));
     return float4(encodeMultiply(c), 1.0);
 }
@@ -253,12 +259,14 @@ fragment float4 fs_telegraph(FloorOut in [[stage_in]],
         float rim = 1.0 - smoothstep(0.0, 2.5 * px + 0.02, abs(r - 0.94));
         k = rim * (1.0 - smoothstep(0.97, 1.0, r));
     } else if (mode == FM_FILL) {
-        // acid target: a faint pool deepening toward impact, a thin rim, and a countdown ring closing in from the rim
-        float pool = (1.0 - smoothstep(0.35, 0.97, r)) * (0.035 + 0.17 * u * u);
+        // acid target: a faint pool deepening toward impact, a thin dim rim, and a countdown ring closing in from the rim
+        // that brightens as the glob comes down (several spitters at once read as a few faint rings, not a lime target
+        // board; the one about to land stands out)
+        float pool = (1.0 - smoothstep(0.35, 0.97, r)) * (0.025 + 0.13 * u * u);
         float rim = 1.0 - smoothstep(0.0, 1.4 * px + 0.006, abs(r - 0.95));
         float cr = 0.95 * (1.0 - u);
         float count = (1.0 - smoothstep(0.0, 1.4 * px + 0.006, abs(r - cr))) * step(0.03, cr);
-        k = (pool + rim * 0.55 + count * 0.45 * blink) * (1.0 - smoothstep(0.97, 1.0, r));
+        k = (pool + rim * (0.3 + 0.15 * u) + count * (0.15 + 0.45 * u) * blink) * (1.0 - smoothstep(0.97, 1.0, r));
     } else {
         // brute lane: two thin border lines, chevrons running toward +y (the charge direction)
         float ax = abs(q.x);
