@@ -37,6 +37,9 @@ final class Decals {
     /// Atlas cells.
     enum Cell: Int { case splat = 0, streak, gore, scorch, acid, frost, small, drips }
 
+    /// Fragment buffer slot of the stains' clock (FX.metal fs_decal_wet).
+    static let clockIndex = 7
+
     static let pipelines: [PipelineSpec] = [
         .world("decal", "vs_decal", "fs_decal", .multiply),
         .world("decalWet", "vs_decal", "fs_decal_wet", .alpha),
@@ -52,7 +55,8 @@ final class Decals {
     /// Stains lying on the lift deck (ring index, base y) once the extraction starts.
     private var liftGore: [(Int, Float)]? = nil
     private var liftRiseLast: Float = 0
-    /// Effect clock of the stains (birth times, drying): the frame time.
+    /// Effect clock of the stains (birth times, drying): MetalEffects.clock — the effects' time (it stops with them in a
+    /// frozen look-dev shot), handed to the shader per draw.
     var clock: Float = 0
 
     private var renderer: MetalRenderer?
@@ -159,6 +163,8 @@ final class Decals {
         enc.setDepthBias(-4, slopeScale: -2, clamp: 0)
         enc.setVertexBuffer(region.buffer ?? r.arena, offset: region.offset, index: BufferIndex.instances)
         r.bindMain(enc, tex)
+        var now = clock
+        enc.setFragmentBytes(&now, length: MemoryLayout<Float>.stride, index: Decals.clockIndex)
         r.drawQuads(enc, region.count)
         enc.setDepthBias(0, slopeScale: 0, clamp: 0)
     }

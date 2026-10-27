@@ -29,7 +29,7 @@
 struct DecalInstance {
     float4 center;   // xyz on the deck, w = size (m, edge of the quad)
     float4 axis;     // x cos, y sin of the roll, z deck slope along z (dy / dz), w atlas cell (0…7)
-    float4 color;    // rgb stain tint (the multiply factor; the wet albedo follows from it), w = birth time (s)
+    float4 color;    // rgb stain tint (the multiply factor; the wet albedo follows from it), w = birth time (s, effects clock)
     float4 params;   // x kind (0 ichor, 1 acid, 2 scorch, 3 frost, 4 gore), y opacity, z flecks 0…1, w unused
 };
 
@@ -79,12 +79,13 @@ fragment float4 fs_decal(DecalOut in [[stage_in]],
 /// High: a wet stain lit like the deck, alpha blended over it.
 fragment float4 fs_decal_wet(DecalOut in [[stage_in]],
                              constant Frame& F [[buffer(1)]],
+                             constant float& now [[buffer(7)]],
                              texture2d<float> atlas [[texture(0)]],
                              LIGHTING_PARAMS) {
     float4 t = atlas.sample(clampSampler, in.uv);
     float cov = saturate(t.r * in.params.y);
     int kind = int(in.params.x + 0.5);
-    float age = max(0.0, F.camPos.w - in.color.w);
+    float age = max(0.0, now - in.color.w);   // the effects' clock (Decals.clock)
     // relief: the thickness gradient in the decal's own axes, turned into world xz
     float2 du = float2(1.0 / 1024.0, 0.0), dv = float2(0.0, 1.0 / 512.0);
     float hx = atlas.sample(clampSampler, in.uv + du).g - atlas.sample(clampSampler, in.uv - du).g;
@@ -102,9 +103,9 @@ fragment float4 fs_decal_wet(DecalOut in [[stage_in]],
     if (kind == 1) {
         // acid: glossy, stays wet longer, a faint sickly glow from the thick middle
         float wet = 1.0 - smoothstep(0.0, 70.0, age);
-        albedo = tint * 0.18;
+        albedo = tint * 0.12;
         rough = mix(0.5, 0.06, wet);
-        emit = float3(0.1, 0.45, 0.03) * (t.g * t.g) * (0.25 + 0.75 * exp(-age / 6.0)) * 0.5;
+        emit = float3(0.08, 0.35, 0.02) * (t.g * t.g) * (0.2 + 0.8 * exp(-age / 5.0)) * 0.22;
     } else if (kind == 2) {
         // scorch: dry soot, embers in it cool over a few seconds
         albedo = float3(0.018, 0.016, 0.015);
@@ -119,7 +120,7 @@ fragment float4 fs_decal_wet(DecalOut in [[stage_in]],
     } else {
         // ichor / gore: dark and wet, dries over 45 s (roughness 0.08 → 0.62), the pores' flecks fade in seconds
         float wet = 1.0 - smoothstep(0.0, 45.0, age);
-        albedo = tint * mix(0.32, 0.16, wet);
+        albedo = tint * mix(0.38, 0.22, wet);
         rough = mix(0.62, 0.08, wet);
         alpha = cov * (0.8 + 0.2 * wet);
         emit = float3(1.0, 0.36, 0.62) * t.b * in.params.z * exp(-age / 2.5) * 1.6;

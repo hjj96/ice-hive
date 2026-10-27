@@ -468,7 +468,7 @@ final class MetalEffects {
             decals.add(o.x + ax * t, o.z + az * t, size: rr(1.3, 2.0), cell: .scorch, kind: .scorch, tint: F3(0.25, 0.22, 0.2), opacity: 0.45,
                        flecks: 0)
         }
-        for t: Float in [2.2, 4.2, 6.2] { heatNow(o + d * t + F3(0, 0.2, 0), radius: 1.0 + t * 0.15, strength: 0.7, mode: 2) }
+        for t: Float in [2.2, 4.4] { heatNow(o + d * t + F3(0, 0.2, 0), radius: 0.8 + t * 0.12, strength: 0.3, mode: 2) }
         let f = 0.2 + 0.06 * rnd()
         floorNow(o.x + ax * 3.6, gy(o.x + ax * 3.6, o.z + az * 3.6) + 0.05, o.z + az * 3.6, radius: 3.4, mode: .fire,
                  color: F3(1.4, 0.55, 0.12) * f, seed: Float(k))
@@ -565,8 +565,8 @@ final class MetalEffects {
         // the deck: a shock ring, heat waves, a scorch with cooling embers
         floorTimed(x, z, radius: r * 1.7, mode: .shock, color: boomer ? F3(2.4, 2.6, 0.9) : F3(3.2, 2.0, 1.0), life: big ? 0.38 : 0.26,
                    thickness: 0.07)
-        heatTimed(p, radius: r * 2.2, strength: 1, mode: 1, life: 0.45)
-        heatTimed(p + F3(0, 0.6, 0), radius: r * 0.9, strength: 0.6, mode: 0, life: 1.2)
+        heatTimed(p, radius: r * 2.0, strength: 0.7, mode: 1, life: 0.4)
+        heatTimed(p + F3(0, 0.6, 0), radius: r * 0.8, strength: 0.35, mode: 0, life: 1.0)
         decals.add(x, z, size: r * (big ? 1.15 : 0.85), cell: .scorch, kind: .scorch, tint: F3(0.08, 0.07, 0.07), flecks: 1)
         if boomer {
             gpu.burst(.ichor, num(18), at: p, sphere: 7, upper: true, life: (0.6, 1.0), size: (0.09, 0.06), color: F4(0.25, 0.32, 0.03, 1),
@@ -605,7 +605,7 @@ final class MetalEffects {
         }
         flash(p + F3(0, 1.1, 0), F3(1.0, 0.45, 0.15), peak: 220, dur: 0.6, range: r * 2.6, priority: 25)
         floorTimed(x, z, radius: r * 1.4, mode: .shock, color: F3(2.6, 1.0, 0.25), life: 0.4, thickness: 0.07)
-        heatTimed(p, radius: r * 1.6, strength: 0.9, mode: 1, life: 0.5)
+        heatTimed(p, radius: r * 1.5, strength: 0.6, mode: 1, life: 0.45)
         decals.add(x, z, size: r * 1.8, cell: .scorch, kind: .scorch, tint: F3(0.12, 0.08, 0.06), flecks: 1)
     }
 
@@ -630,7 +630,7 @@ final class MetalEffects {
                       life: (0.8, 1.6), size: (0.05, 0.02), color: F4(2.2, 0.7, 0.15, 1), gravity: 0.6, drag: 1)
         }
         floorNow(x, g + 0.05, z, radius: r * 1.2, mode: .fire, color: F3(1.2, 0.42, 0.08) * (0.18 + 0.05 * rnd()), seed: Float(k))
-        heatNow(F3(x, g + 0.8, z), radius: r * 0.9, strength: 0.55, mode: 2)
+        heatNow(F3(x, g + 0.8, z), radius: r * 0.8, strength: 0.28, mode: 2)
     }
 
     private func nova(_ x: Float, _ z: Float, _ r: Float) {
@@ -673,12 +673,12 @@ final class MetalEffects {
         poses = ps
         frameTime = time
         liftRiseNow = rise
-        decals.clock = time
         if look.forceHigh, let r = renderer, r.quality.chosen != .high { r.quality.setChosen(fxK: 1) }
         applyTier()
         let dt = look.dt(dt0)
         lastDt = dt
         clock += dt
+        decals.clock = clock
         flameSlot = (flameSlot + 1) % flameSpawns.count
         flameSpawns[flameSlot] = 0
         for k in blasts.indices { blasts[k] += dt }
