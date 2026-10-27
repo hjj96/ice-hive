@@ -445,8 +445,9 @@ fragment float4 fs_gpart_add(PartOut in [[stage_in]],
         float4 s0 = fire ? flipTap(fireAtlas, in.fb.xy, q) : flipTap(blastAtlas, in.fb.xy, q);
         float4 s1 = fire ? flipTap(fireAtlas, in.fb.zw, q) : flipTap(blastAtlas, in.fb.zw, q);
         float4 s = mix(s0, s1, in.fbMix);
-        // r = heat, g = density; the record's colour tints the ramp, its alpha fades it
-        float heat = s.r * (1.15 - 0.55 * in.info.y);
+        // r = heat, g = density; the record's colour tints the ramp, its alpha fades it. A fireball is white-hot only
+        // in its first instants and in its thickest folds, then orange with glowing creases
+        float heat = fire ? s.r * (1.15 - 0.55 * in.info.y) : pow(s.r, 1.3) * (1.12 - 0.65 * in.info.y);
         c = heatRamp(heat) * c;
         a *= s.g;
     } else if (kind == PK_SPARK || kind == PK_ICE || kind == PK_EMBER) {

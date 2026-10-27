@@ -29,7 +29,12 @@ import IceHiveCore
 //  frost mist that rimes the deck. Explosions: a white-hot core, a
 //  flipbook fireball, flame licks, a fan of sparks, embers, gibs, dark
 //  smoke, a shock ring on the deck, heat waves, a scorch with cooling
-//  embers, a big light (the exposure dip is MetalWorld's). Hard caps
+//  embers, a big light (the exposure dip is MetalWorld's). The squad:
+//  bites throw sparks off the armour, a downed marine a shower of
+//  sparks and smoke, an overheated barrel vents steam, a reload drops
+//  the magazine; a spit leaves the spitter's mouth as lime droplets;
+//  the Матка rises in steam and shards and dies in a geyser of ichor.
+//  Hard caps
 //  per tier: particles (ring), live flames, live explosions; every
 //  sprite ≤ 25 % of the screen height (Particles.metal).
 //  Corpses are Swarm/Corpses.swift (fed with this file's random
@@ -306,6 +311,20 @@ final class MetalEffects {
             }
         case .turretExpired(let pos):
             turretDrop(pos.x, pos.y)
+        case .hurt(let k, let amount):
+            if k >= 0 && k < game.marines.count { armourHit(game.marines[k], k, amount) }
+        case .downed(let k):
+            if k >= 0 && k < game.marines.count { downed(game.marines[k], k) }
+        case .overheat(let k):
+            if k >= 0 && k < game.marines.count { overheatVent(game.marines[k], k) }
+        case .reload(let k):
+            if k >= 0 && k < game.marines.count { reloadDrop(game.marines[k], k) }
+        case .acidLaunched(let from, let to):
+            spit(from.x, from.y, to.x - from.x, to.y - from.y)
+        case .queenKilled(let pos):
+            queenDeath(pos.x, pos.y)
+        case .queenSpawned(let pos):
+            queenRise(pos.x, pos.y)
         default:
             break
         }
@@ -339,7 +358,8 @@ final class MetalEffects {
                   gravity: 12)
         gpu.burst(.debris, num(big ? 10 : 3), at: p, sphere: 5, upper: true, life: (0.9, 1.6), size: (0.1 * s, 0.08 * s),
                   color: MetalEffects.chitin, gravity: 14, drag: 0.25, spin: 9)
-        gpu.burst(.ember, num(big ? 10 : 4), at: p, sphere: 2.6, upper: true, life: (0.45, 0.9), size: (0.045, 0.02),
+        // the pores' pink-white flecks: a few, short (a swarm dies by the dozen: more read as pink confetti)
+        gpu.burst(.ember, num(big ? 6 : 2), at: p, sphere: 2.6, upper: true, life: (0.3, 0.6), size: (0.045, 0.02),
                   color: F4(2.4, 0.75, 1.45, 1), gravity: 4, drag: 1.5)
         gpu.burst(.steam, 1, at: p, vel: F3(0, 0.5, 0), life: (0.45, 0.7), size: (0.45 * s, 1.2 * s),
                   color: F4(ich.x * 0.35 + 0.08, ich.y * 0.35 + 0.06, ich.z * 0.35 + 0.07, 0.4), drag: 1.5)
@@ -352,14 +372,17 @@ final class MetalEffects {
         if big { flash(p, F3(1.0, 0.35, 0.55), peak: 40, dur: 0.15, range: 5, priority: 8) }
     }
 
-    /// One projectile hit at (x, z) along (dx, dz): sparks off the chitin, a hit flash, the bug's ichor, a wet splat.
+    /// One projectile hit at (x, z) along (dx, dz): sparks off the chitin, a hit flash, the bug's ichor, chips of shell, a
+    /// wet splat, a short light on the bug. The brute's plates throw twice the sparks and less ichor.
     private func bulletHit(_ game: Game, _ x: Float, _ z: Float, _ dx: Float, _ dz: Float, _ killed: Bool) {
         if !killed && rnd() > 0.5 * fxK + 0.4 { return }
         var p = F3(x, gy(x, z) + 0.45, z)
         var n = F3(-dx, 0.35, -dz)
         var ich = MetalEffects.ichor(0)
+        var armoured = false
         if let h = swarm?.impactPoint(x: x, z: z, dx: dx, dz: dz) {
             p = h.pos; n = h.normal; ich = h.ichor
+            armoured = h.ichor == WorldSwarm.ichor[2]
         } else {
             // the bug the shot hit (core heights and scales): the hit point on its body, facing the shooter
             let B = game.bugs
@@ -368,25 +391,36 @@ final class MetalEffects {
                 let t = Int(B.types[hit.bug])
                 let s = B.scales[hit.bug] * WorldSwarm.sizeK[max(0, min(3, t))]
                 p.y = gy(x, z) + max(-0.5, B.heights[hit.bug]) + (t == 2 ? 0.55 : 0.32) * s
+                // the body's near side, toward the shooter
+                p.x -= dx * 0.22 * s; p.z -= dz * 0.22 * s
                 ich = MetalEffects.ichor(t)
+                armoured = t == 2
             }
         }
         let l = max(1e-4, (n * n).sum().squareRoot())
         n /= l
         let d = F3(dx, 0, dz)
         // hot sparks off the chitin (bounce on the deck, cool white → orange), a four-ray hit flash
-        gpu.burst(.spark, num(killed ? 9 : 5), at: p, vel: n * 4.5 + d * 1.5, velJitter: F3(2.4, 2.0, 2.4), sphere: 2.5,
+        let ns = (killed ? 9 : 5) * (armoured ? 2 : 1)
+        gpu.burst(.spark, num(Float(ns)), at: p, vel: n * (armoured ? 5.5 : 4.5) + d * 1.5, velJitter: F3(2.4, 2.0, 2.4), sphere: 2.5,
                   life: (0.18, 0.45), size: (0.045, 0.03), color: F4(1.25, 1.05, 0.85, 1), gravity: 14, drag: 1.2)
-        gpu.burst(.flash, 1, at: p + n * 0.08, life: (0.06, 0.08), size: (killed ? 0.8 : 0.55, killed ? 0.95 : 0.7),
+        gpu.burst(.flash, 1, at: p + n * 0.08, life: (0.06, 0.08), size: (killed ? 0.9 : (armoured ? 0.75 : 0.6), killed ? 1.05 : 0.75),
                   color: F4(5.0, 3.6, 2.2, 1), sizeJitter: 0.2)
-        // the bug's ichor: droplets along the shot that stick to the deck
-        gpu.burst(.ichor, num(killed ? 6 : 3), at: p, vel: d * 2.4 + F3(0, 1.4, 0), velJitter: F3(1.6, 1.2, 1.6), life: (0.5, 0.9),
-                  size: (0.07, 0.05), color: F4(ich.x * 0.55, ich.y * 0.55, ich.z * 0.55, 1), gravity: 12)
+        // the bug's ichor: droplets along the shot that stick to the deck; chips of shell
+        gpu.burst(.ichor, num(Float(killed ? 6 : (armoured ? 1 : 3))), at: p, vel: d * 2.4 + F3(0, 1.4, 0), velJitter: F3(1.6, 1.2, 1.6),
+                  life: (0.5, 0.9), size: (0.07, 0.05), color: F4(ich.x * 0.55, ich.y * 0.55, ich.z * 0.55, 1), gravity: 12)
+        gpu.burst(.debris, killed ? 2 : 1, at: p, vel: n * 2.5 + F3(0, 1.5, 0), velJitter: F3(1.4, 1, 1.4), life: (0.5, 0.8),
+                  size: (0.05, 0.04), color: MetalEffects.chitin, gravity: 14, drag: 0.4, spin: 12)
         if killed || rnd() < 0.18 {
             decals.add(x + dx * 0.5, z + dz * 0.5, size: rr(0.45, 0.8), cell: .small, kind: .ichor, tint: ich, opacity: 0.9, flecks: 0.6,
                        roll: atan2f(dx, dz))
         }
-        if killed { flash(p, F3(1.0, 0.7, 0.45), peak: 22, dur: 0.07, range: 4, priority: 4) }
+        // the hit lights the bug and the deck for a moment (kills always; hits while the grid has room)
+        if killed {
+            flash(p, F3(1.0, 0.7, 0.45), peak: 24, dur: 0.07, range: 4, priority: 4)
+        } else if flashLights.count < 14 {
+            flash(p + n * 0.2, armoured ? F3(1.0, 0.78, 0.5) : F3(1.0, 0.62, 0.42), peak: 11, dur: 0.045, range: 2.6, priority: 2.5)
+        }
     }
 
     @inline(__always) func burningBug(_ x: Float, _ z: Float, _ sc: Float, dt: Float) {
@@ -447,7 +481,7 @@ final class MetalEffects {
         let n = flameBudget(rate(&acc[k][0], 130, dt))
         if n > 0 {
             gpu.burst(.fire, n, at: o + d * 0.25, jitter: F3(0.05, 0.05, 0.05), vel: d * 13.5 + vel * 0.5 + F3(0, 0.3, 0),
-                      velJitter: F3(2.1, 0.8, 2.1), life: (0.42, 0.58), size: (0.22, 1.75), color: F4(1, 0.95, 0.9, 0.78),
+                      velJitter: F3(2.1, 0.8, 2.1), life: (0.42, 0.58), size: (0.22, 1.75), color: F4(1, 0.84, 0.64, 0.8),
                       gravity: -1.2, drag: 1.6, sizeJitter: 0.3, spin: 2)
         }
         gpu.burst(.glow, 1, at: o + d * 0.35, life: (0.05, 0.07), size: (0.45, 0.7), color: F4(2.6, 1.4, 0.55, 1))
@@ -536,8 +570,8 @@ final class MetalEffects {
         // light and the white-hot core
         flash(p + F3(0, 1.2, 0), boomer ? F3(1.0, 0.75, 0.3) : F3(1.0, 0.6, 0.3), peak: big ? 520 : 170, dur: big ? 0.55 : 0.3,
               range: r * 3.2, priority: 30)
-        gpu.burst(.flash, 1, at: p + F3(0, 0.3, 0), life: (0.1, 0.12), size: (big ? 4.4 : 2.2, big ? 5.2 : 2.6), color: F4(8, 6, 4, 1), sizeJitter: 0)
-        gpu.burst(.glow, 1, at: p, life: (0.16, 0.2), size: (r * 1.1, r * 1.6), color: F4(5, 2.8, 1.2, 1), sizeJitter: 0)
+        gpu.burst(.flash, 1, at: p + F3(0, 0.3, 0), life: (0.12, 0.15), size: (big ? 4.4 : 2.2, big ? 5.4 : 2.7), color: F4(8, 6, 4, 1), sizeJitter: 0)
+        gpu.burst(.glow, 1, at: p, life: (0.18, 0.22), size: (r * 1.1, r * 1.6), color: F4(5, 2.8, 1.2, 1), sizeJitter: 0)
         if full {
             // the fireball and the licks of flame flung out of it
             let fb = flameBudget(big ? 7 : 3)
@@ -549,7 +583,7 @@ final class MetalEffects {
             let nl = flameBudget(num(big ? 12 : 5))
             if nl > 0 {
                 gpu.burst(.fire, nl, at: p, vel: F3(0, 2, 0), velJitter: F3(1, 1.5, 1), radial: r * 2.2, radialJitter: 0.5, life: (0.35, 0.55),
-                          size: (0.5, 1.3), color: F4(1, 1, 1, 0.9), gravity: -2, drag: 3.2, spin: 2)
+                          size: (0.5, 1.3), color: F4(1, 0.74, 0.5, 0.9), gravity: -2, drag: 3.2, spin: 2)
             }
         }
         // sparks fanning out, embers drifting, gibs, then dark smoke
@@ -559,11 +593,12 @@ final class MetalEffects {
                   color: F4(2.2, 0.75, 0.16, 1), gravity: 1.2, drag: 1.4)
         gpu.burst(.debris, num(big ? 14 : 4), at: p, sphere: 9, upper: true, life: (1.2, 2.0), size: (0.12, 0.1),
                   color: boomer ? F4(0.2, 0.14, 0.04, 1) : F4(0.05, 0.045, 0.05, 1), gravity: 14, drag: 0.3, spin: 8)
-        gpu.burst(.smoke, num(big ? 9 : 3), at: p + F3(0, 0.6, 0), jitter: F3(r * 0.4, 0.3, r * 0.4), delay: 0.18, vel: F3(0, 1.3, 0),
-                  radial: 0.8, life: (2.0, 3.2), size: (r * 0.4, r * 1.15), color: F4(0.035, 0.032, 0.03, 0.9), gravity: -0.5, drag: 0.9,
+        // dark smoke, rising and thinning (chained blasts must not wash the deck out: the swarm stays readable)
+        gpu.burst(.smoke, num(big ? 6 : 3), at: p + F3(0, 0.6, 0), jitter: F3(r * 0.4, 0.3, r * 0.4), delay: 0.18, vel: F3(0, 1.5, 0),
+                  radial: 0.8, life: (1.6, 2.6), size: (r * 0.4, r * 1.05), color: F4(0.035, 0.032, 0.03, 0.62), gravity: -0.6, drag: 0.9,
                   spin: 0.4)
         // the deck: a shock ring, heat waves, a scorch with cooling embers
-        floorTimed(x, z, radius: r * 1.7, mode: .shock, color: boomer ? F3(2.4, 2.6, 0.9) : F3(3.2, 2.0, 1.0), life: big ? 0.38 : 0.26,
+        floorTimed(x, z, radius: r * 1.7, mode: .shock, color: boomer ? F3(3.0, 3.2, 1.1) : F3(4.0, 2.5, 1.25), life: big ? 0.42 : 0.28,
                    thickness: 0.07)
         heatTimed(p, radius: r * 2.0, strength: 0.7, mode: 1, life: 0.4)
         heatTimed(p + F3(0, 0.6, 0), radius: r * 0.8, strength: 0.35, mode: 0, life: 1.0)
@@ -572,7 +607,7 @@ final class MetalEffects {
             gpu.burst(.ichor, num(18), at: p, sphere: 7, upper: true, life: (0.6, 1.0), size: (0.09, 0.06), color: F4(0.25, 0.32, 0.03, 1),
                       gravity: 12)
             decals.add(x, z, size: r * 0.9, cell: .acid, kind: .acid, tint: F3(0.42, 0.6, 0.06))
-            floorTimed(x, z, radius: r * 0.8, mode: .acid, color: F3(0.35, 1.2, 0.15) * 0.16, life: 2.5, thickness: 0.1)
+            floorTimed(x, z, radius: r * 0.8, mode: .acid, color: F3(0.35, 1.2, 0.15) * 0.1, life: 2.0, thickness: 0.1)
         }
     }
 
@@ -582,8 +617,8 @@ final class MetalEffects {
         gpu.burst(.glow, num(5), at: p, sphere: 2, upper: true, life: (0.3, 0.6), size: (0.15, 0.04), color: F4(0.4, 1.6, 0.2, 1), gravity: 3)
         gpu.burst(.steam, 2, at: p, jitter: F3(0.4, 0.1, 0.4), vel: F3(0, 0.8, 0), life: (1.0, 1.6), size: (0.6, 1.6),
                   color: F4(0.3, 0.45, 0.15, 0.4), drag: 1, spin: 0.5)
-        decals.add(x, z, size: rr(1.6, 2.1), cell: .acid, kind: .acid, tint: F3(0.42, 0.6, 0.06))
-        floorTimed(x, z, radius: 1.3, mode: .acid, color: F3(0.3, 1.0, 0.12) * 0.2, life: 2.5, thickness: 0.1)
+        decals.add(x, z, size: rr(1.2, 1.6), cell: .acid, kind: .acid, tint: F3(0.42, 0.6, 0.06))
+        floorTimed(x, z, radius: 1.3, mode: .acid, color: F3(0.3, 1.0, 0.12) * 0.12, life: 2.0, thickness: 0.1)
         flash(F3(x, p.y + 0.6, z), F3(0.45, 1.0, 0.2), peak: 30, dur: 0.25, range: 4, priority: 6)
     }
 
@@ -601,7 +636,7 @@ final class MetalEffects {
         let n = flameBudget(num(40))
         if n > 0 {
             gpu.burst(.fire, n, at: p, ring: r * 0.5, vel: F3(0, 0.6, 0), radial: r * 1.4, radialJitter: 0.4, life: (0.4, 0.8), size: (0.6, 2.0),
-                      color: F4(1, 0.95, 0.9, 0.85), gravity: -1.5, drag: 2.4, spin: 2)
+                      color: F4(1, 0.72, 0.46, 0.85), gravity: -1.5, drag: 2.4, spin: 2)
         }
         flash(p + F3(0, 1.1, 0), F3(1.0, 0.45, 0.15), peak: 220, dur: 0.6, range: r * 2.6, priority: 25)
         floorTimed(x, z, radius: r * 1.4, mode: .shock, color: F3(2.6, 1.0, 0.25), life: 0.4, thickness: 0.07)
@@ -623,7 +658,7 @@ final class MetalEffects {
         }
         if rnd() < 7 * fxK * dt {
             gpu.burst(.smoke, 1, at: F3(x, g + 1.2, z), jitter: F3(r * 0.6, 0.3, r * 0.6), vel: F3(0, 1.4, 0), life: (1.6, 2.4), size: (1.2, 3.2),
-                      color: F4(0.05, 0.045, 0.04, 0.6), gravity: -0.4, drag: 0.6, spin: 0.3)
+                      color: F4(0.05, 0.045, 0.04, 0.45), gravity: -0.4, drag: 0.6, spin: 0.3)
         }
         if rnd() < 16 * fxK * dt {
             gpu.burst(.ember, 1, at: F3(x, g + 0.3, z), jitter: F3(r * 0.8, 0.1, r * 0.8), vel: F3(0, 2.2, 0), velJitter: F3(0.8, 0.8, 0.8),
@@ -660,6 +695,95 @@ final class MetalEffects {
         flash(p + F3(0, 0.8, 0), F3(0.4, 1.0, 0.6), peak: 25, dur: 0.5, range: 4, priority: 5)
     }
 
+    // ---------------------------------------------------------------- the squad: hits, downs, weapons
+    private var hurtCd = [Float](repeating: 0, count: 4)
+
+    /// A bite / spit on a marine's armour: sparks off the plates away from the attacker, a hot flash (≤ 8 per s each).
+    private func armourHit(_ m: Marine, _ k: Int, _ amount: Float) {
+        guard k < hurtCd.count, hurtCd[k] <= 0 else { return }
+        hurtCd[k] = 0.12
+        let base = k < poses.count ? F3(poses[k].x, poses[k].y, poses[k].z) : F3(m.x, gy(m.x, m.z), m.z)
+        var away = F3(m.kx, 0, m.kz)
+        let al = (away * away).sum().squareRoot()
+        away = al > 1e-3 ? away / al : F3(-m.ax, 0, -m.az)
+        let p = base + F3(0, 1.1, 0) - away * 0.3
+        let big = amount >= 12
+        gpu.burst(.spark, num(big ? 10 : 5), at: p, vel: -away * 3.5 + F3(0, 1.5, 0), velJitter: F3(2.2, 1.6, 2.2), sphere: 2,
+                  life: (0.15, 0.4), size: (0.04, 0.03), color: F4(1.3, 1.05, 0.8, 1), gravity: 14, drag: 1.2)
+        gpu.burst(.flash, 1, at: p, life: (0.05, 0.07), size: (big ? 0.8 : 0.55, big ? 0.9 : 0.65), color: F4(4.0, 3.0, 2.2, 1), sizeJitter: 0.2)
+        if big { flash(p, F3(1.0, 0.6, 0.4), peak: 18, dur: 0.06, range: 3, priority: 4) }
+    }
+
+    /// A marine goes down: a shower of sparks from the armour, smoke, a red-orange light.
+    private func downed(_ m: Marine, _ k: Int) {
+        let base = k < poses.count ? F3(poses[k].x, poses[k].y, poses[k].z) : F3(m.x, gy(m.x, m.z), m.z)
+        let p = base + F3(0, 0.9, 0)
+        gpu.burst(.spark, num(22), at: p, sphere: 5, upper: true, life: (0.3, 0.8), size: (0.045, 0.03), color: F4(1.3, 1.0, 0.75, 1),
+                  gravity: 13, drag: 0.8)
+        gpu.burst(.smoke, num(4), at: p, jitter: F3(0.3, 0.2, 0.3), vel: F3(0, 1.0, 0), radial: 0.6, life: (1.2, 1.8), size: (0.4, 1.4),
+                  color: F4(0.08, 0.08, 0.085, 0.6), gravity: -0.4, drag: 1.2, spin: 0.4)
+        gpu.burst(.flash, 1, at: p, life: (0.08, 0.1), size: (1.2, 1.4), color: F4(5, 2.5, 1.5, 1), sizeJitter: 0)
+        flash(p, F3(1.0, 0.35, 0.25), peak: 60, dur: 0.3, range: 5, priority: 9)
+    }
+
+    /// A weapon overheats (rotary, flamer, cryo): a hiss of steam off the barrel, a few sparks.
+    private func overheatVent(_ m: Marine, _ k: Int) {
+        let o = muzzle(m, k)
+        let d = F3(m.ax, 0, m.az)
+        let side = F3(m.az, 0, -m.ax)
+        gpu.burst(.steam, num(6), at: o - d * 0.35, jitter: F3(0.08, 0.05, 0.08), vel: F3(0, 1.6, 0) + side * 0.6, velJitter: F3(0.5, 0.4, 0.5),
+                  life: (0.7, 1.2), size: (0.18, 0.9), color: F4(0.62, 0.66, 0.7, 0.4), gravity: -0.5, drag: 1.6, spin: 0.8)
+        gpu.burst(.spark, num(6), at: o - d * 0.2, vel: F3(0, 1.4, 0), velJitter: F3(1.4, 1.2, 1.4), life: (0.15, 0.35), size: (0.03, 0.02),
+                  color: F4(1.3, 0.9, 0.6, 1), gravity: 10, drag: 1)
+    }
+
+    /// A rifle / rotary reload: the spent magazine drops and bounces off the deck.
+    private func reloadDrop(_ m: Marine, _ k: Int) {
+        guard m.cls == .assault || m.cls == .gunner else { return }
+        let o = muzzle(m, k)
+        let d = F3(m.ax, 0, m.az)
+        let side = F3(m.az, 0, -m.ax)
+        gpu.burst(.debris, 1, at: o - d * 0.5 - F3(0, 0.15, 0), vel: side * 0.8 - d * 0.4 + F3(0, 0.6, 0), velJitter: F3(0.2, 0.2, 0.2),
+                  life: (1.6, 2.0), size: (0.13, 0.13), color: F4(0.22, 0.23, 0.25, 1), gravity: 13, drag: 0.3, sizeJitter: 0, spin: 5,
+                  bounce: 0.3)
+    }
+
+    /// A spitter's spit leaves its mouth: lime droplets and a wisp of vapour along the throw.
+    private func spit(_ x: Float, _ z: Float, _ dx: Float, _ dz: Float) {
+        let l = max(1e-3, (dx * dx + dz * dz).squareRoot())
+        let d = F3(dx / l, 0, dz / l)
+        let p = F3(x, gy(x, z) + 0.8, z) + d * 0.35
+        gpu.burst(.ichor, num(5), at: p, vel: d * 3.5 + F3(0, 1.6, 0), velJitter: F3(1.2, 0.8, 1.2), life: (0.4, 0.7), size: (0.06, 0.04),
+                  color: F4(0.28, 0.4, 0.04, 1), gravity: 12)
+        gpu.burst(.glow, num(3), at: p, vel: d * 2.5, velJitter: F3(0.6, 0.6, 0.6), life: (0.15, 0.3), size: (0.25, 0.05),
+                  color: F4(0.45, 1.5, 0.2, 1), drag: 3)
+    }
+
+    /// The Матка dies: a geyser of ichor and shell, a gore pool, a violet light (her blast is the core's frag).
+    private func queenDeath(_ x: Float, _ z: Float) {
+        let g = gy(x, z)
+        let p = F3(x, g + 1.4, z)
+        let ich = F3(0.5, 0.12, 0.42)
+        gpu.burst(.ichor, num(60), at: p, jitter: F3(0.6, 0.4, 0.6), vel: F3(0, 4, 0), sphere: 8, upper: true, life: (0.7, 1.3),
+                  size: (0.16, 0.1), color: F4(ich.x * 0.5, ich.y * 0.5, ich.z * 0.5, 1), gravity: 12)
+        gpu.burst(.debris, num(30), at: p, sphere: 10, upper: true, life: (1.2, 2.2), size: (0.22, 0.16), color: MetalEffects.chitin,
+                  gravity: 14, drag: 0.2, spin: 7)
+        gpu.burst(.ember, num(30), at: p, sphere: 4, upper: true, life: (0.8, 1.6), size: (0.06, 0.03), color: F4(2.2, 0.7, 2.0, 1),
+                  gravity: 3, drag: 1.2)
+        decals.add(x, z, size: 6, cell: .gore, kind: .gore, tint: ich, flecks: 1)
+        flash(p + F3(0, 1, 0), F3(0.8, 0.3, 1.0), peak: 300, dur: 0.8, range: 16, priority: 30)
+    }
+
+    /// The Матка climbs out of the abyss: steam and shards off the deck's edge where she rises.
+    private func queenRise(_ x: Float, _ z: Float) {
+        let p = F3(x, gy(x, z) + 0.3, z)
+        gpu.burst(.steam, num(14), at: p, ring: 1.6, vel: F3(0, 1.8, 0), velJitter: F3(0.6, 0.6, 0.6), radial: 1.2, life: (1.4, 2.2),
+                  size: (0.8, 2.8), color: F4(0.5, 0.55, 0.62, 0.4), gravity: -0.3, drag: 0.8, spin: 0.4)
+        gpu.burst(.debris, num(16), at: p, ring: 1.5, sphere: 6, upper: true, life: (0.9, 1.5), size: (0.14, 0.1),
+                  color: F4(0.3, 0.33, 0.36, 1), gravity: 14, drag: 0.3, spin: 8)
+        floorTimed(x, z, radius: 6, mode: .shock, color: F3(1.6, 0.5, 2.0), life: 0.6, thickness: 0.06)
+    }
+
     // ================================================================ per frame (renderFx)
     func beginFrame() {
         floorAdd.removeAll(keepingCapacity: true)
@@ -682,6 +806,7 @@ final class MetalEffects {
         flameSlot = (flameSlot + 1) % flameSpawns.count
         flameSpawns[flameSlot] = 0
         for k in blasts.indices { blasts[k] += dt }
+        for k in hurtCd.indices where hurtCd[k] > 0 { hurtCd[k] -= dt0 }
         blasts.removeAll(where: { $0 > 1.1 })
         look.step(self, game: game, focus: focus, time: time)
         // the weapons' continuous effects
@@ -710,7 +835,7 @@ final class MetalEffects {
             steamT = 0.12
             for v in level.layout.vents where abs(v.x - focus.x) < 30 && abs(v.y - focus.z) < 30 && rnd() < 0.6 {
                 gpu.burst(.steam, 1, at: F3(v.x, gy(v.x, v.y) + 0.2, v.y), jitter: F3(0.4, 0, 0.4), vel: F3(0.4, 1.6, 0),
-                          velJitter: F3(0.3, 0.4, 0.3), life: (2, 3), size: (0.6, 3.2), color: F4(0.55, 0.6, 0.65, 0.22), gravity: -0.15,
+                          velJitter: F3(0.3, 0.4, 0.3), life: (2, 3), size: (0.5, 2.4), color: F4(0.55, 0.6, 0.65, 0.13), gravity: -0.15,
                           drag: 0.3, spin: 0.3)
             }
         }
@@ -1028,6 +1153,7 @@ final class FXLookDev {
     var mode: String { sheet ? "sheet" : (peak ? "peak" : "") }
     private var start: Double = 0
     private var staged = false
+    private var late = false
     private var frozen = false
     private var lastPeak: Float = -100
     private var peakStep = -1
@@ -1053,6 +1179,7 @@ final class FXLookDev {
     func restart() {
         start = 0
         staged = false
+        late = false
         frozen = false
         lastPeak = -100
         peakStep = -1
@@ -1093,6 +1220,12 @@ final class FXLookDev {
             fx.lookNapalm(nx, nz, 2.2, burst: false, dt: dt)
         }
         guard !staged, t >= t0 else {
+            if staged && !late && t >= t0 + freezeAfter - 0.07 {
+                // a late grenade: the frozen frame shows a blast core and its shock ring at their peak too
+                late = true
+                let (lx, lz) = at(-4.2, 4.6)
+                fx.lookExplosion(lx, lz, 3, .frag)
+            }
             if staged && t >= t0 + freezeAfter { frozen = true; AppLog.info("fx: look-dev sheet frozen") }
             return
         }
