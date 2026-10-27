@@ -536,8 +536,9 @@ enum FXTextures {
                 let rec = tab + 16 * m
                 let off = Int(u32(rec)), n = Int(u32(rec + 4)), bpr = Int(u32(rec + 8))
                 guard off + n <= raw.count else { return nil }
-                tex.replace(region: MTLRegionMake2D(0, 0, max(1, w >> m), max(1, h >> m)), mipmapLevel: m, slice: 0,
-                            withBytes: base + off, bytesPerRow: bpr, bytesPerImage: n)
+                // the 2D overload (no bytesPerImage: that stride is for 3D / array sources; a plain 2D texture takes none)
+                tex.replace(region: MTLRegionMake2D(0, 0, max(1, w >> m), max(1, h >> m)), mipmapLevel: m,
+                            withBytes: base + off, bytesPerRow: bpr)
             }
             tex.label = name
             return tex
