@@ -1048,8 +1048,9 @@ final class MetalEffects {
     /// Resolve pipelines, register the draw items (MetalWorld, once).
     func attach(_ r: MetalRenderer) {
         renderer = r
-        gpu.attach(r)
+        // the stains' persistent buffers first: gpu.attach starts the background compute compile
         decals.attach(r)
+        gpu.attach(r)
         ribbons.attach(r)
         psFloor = r.pipeline("floorFx")
         psTele = r.pipeline("telegraph")
