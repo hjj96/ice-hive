@@ -756,23 +756,36 @@ jobs:
           dest="${GITHUB_REF_NAME}/${short}"
           src="$PWD/results"
           remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          # The tip of ci-results holds every run's folder (≈ 250 MB of shots each): a checkout of it took the whole job
+          # (the step hung for 30 min and was cancelled on several runs). Fetch the tip's commit and trees only
+          # (no blobs), write this run's folder as a tree from a temporary index and graft it in as <branch>/<sha7>
+          # with mktree — nothing of the other runs is downloaded or checked out.
           attempt() {
             rm -rf ci && git init -q ci && cd ci
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git remote add origin "$remote"
-            if git fetch -q --depth=1 origin ci-results 2>/dev/null; then
-              git checkout -q -b ci-results FETCH_HEAD
-            else
-              git checkout -q --orphan ci-results
-              printf '# ci-results\n\nCI output of .github/workflows/native-ios.yml, one folder per <branch>/<short-sha>/.\n' > README.md
-              git add README.md
+            local gd="$PWD/.git" br="${GITHUB_REF_NAME//\//-}" parent="" old="" entries=""
+            if git fetch -q --depth=1 --filter=blob:none origin ci-results 2>/dev/null; then
+              parent=$(git rev-parse FETCH_HEAD)
+            elif git ls-remote --exit-code -q origin refs/heads/ci-results >/dev/null 2>&1; then
+              cd ..; return 1   # the branch exists but the fetch failed: retry (never start ci-results over)
             fi
-            rm -rf "$dest" && mkdir -p "$dest"
-            cp -R "$src"/. "$dest"/
-            git add -A "$dest"
-            git commit -q -m "ci: ${GITHUB_REF_NAME}@${short} core=${{ needs.core-tests.result }} build=${{ needs.build.result }} smoke=${{ needs.sim-smoke.result }}" || true
-            git push -q origin HEAD:ci-results
+            GIT_INDEX_FILE="$gd/idx-results" git --git-dir="$gd" --work-tree="$src" -C "$src" add -A .
+            local rtree; rtree=$(GIT_INDEX_FILE="$gd/idx-results" git --git-dir="$gd" write-tree)
+            if [ -n "$parent" ]; then old=$(git rev-parse -q --verify "${parent}:${br}" || true); fi
+            if [ -n "$old" ]; then entries=$(git ls-tree "$old" | awk -F'\t' -v s="$short" '$2 != s'); fi
+            local btree; btree=$( { if [ -n "$entries" ]; then printf '%s\n' "$entries"; fi; printf '040000 tree %s\t%s\n' "$rtree" "$short"; } | git mktree --missing )
+            local root
+            if [ -n "$parent" ]; then
+              root=$( { git ls-tree "$parent" | awk -F'\t' -v b="$br" '$2 != b'; printf '040000 tree %s\t%s\n' "$btree" "$br"; } | git mktree --missing )
+            else
+              root=$(printf '040000 tree %s\t%s\n' "$btree" "$br" | git mktree --missing)
+            fi
+            local msg="ci: ${GITHUB_REF_NAME}@${short} core=${{ needs.core-tests.result }} build=${{ needs.build.result }} smoke=${{ needs.sim-smoke.result }}"
+            local commit
+            if [ -n "$parent" ]; then commit=$(git commit-tree "$root" -p "$parent" -m "$msg"); else commit=$(git commit-tree "$root" -m "$msg"); fi
+            git push -q origin "${commit}:refs/heads/ci-results"
             local rc=$?
             cd ..
             return $rc
