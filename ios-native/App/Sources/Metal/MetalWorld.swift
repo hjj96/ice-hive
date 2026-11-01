@@ -204,6 +204,14 @@ final class MetalWorld: HUDProjection {
                       title: game.attract, time: time, extract: ex, zoom: cam.zoom)
         // look-dev close-ups of the squad (WP4: -squadSheet -closeup)
         if let cu = squad.closeUpCamera() { camera.lookAt(eye: cu.0, target: cu.1, fovDeg: cu.2) }
+        // WP7 cinematics: the scripted shot over the game camera (punch-in, extraction, title), the grade mood, the shot EV
+        let cine = Cinematics.shared
+        if let c = cine.camera(base: Cinematics.Pose(eye: camera.eye, target: camera.focus, fovDeg: camera.fov),
+                               aspect: camera.aspect, time: time) {
+            camera.lookAt(eye: c.eye, target: c.target, fovDeg: c.fovDeg)
+        }
+        renderer.post.setMood(cine.mood)
+        renderer.post.shotEV = cine.shotEV
         game.setVisibleQuad(camera.ground(ndcX: -1, ndcY: -1, height: cam.ty), camera.ground(ndcX: 1, ndcY: -1, height: cam.ty),
                             camera.ground(ndcX: 1, ndcY: 1, height: cam.ty), camera.ground(ndcX: -1, ndcY: 1, height: cam.ty))
         timer.mark()
