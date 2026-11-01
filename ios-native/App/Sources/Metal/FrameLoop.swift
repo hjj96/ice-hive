@@ -315,7 +315,8 @@ final class FrameLoop: GameHost {
         let layer = view.metalLayer
         layer.device = device
         layer.pixelFormat = .bgra8Unorm
-        layer.framebufferOnly = true
+        // -burst (CI): the drawable is a blit source for BurstCapture; otherwise framebuffer-only
+        layer.framebufferOnly = !BurstCapture.shared.on
         layer.isOpaque = true
         layer.maximumDrawableCount = 3
         drawables = DrawableSource(layer: layer)
@@ -474,6 +475,7 @@ final class FrameLoop: GameHost {
         }
         enc.endEncoding()
         finalPass.colorAttachments[0].texture = nil
+        if BurstCapture.shared.on { BurstCapture.shared.capture(cb, tex, device: device, sinceReady: scene?.sinceReady ?? -1) }
         let t2 = FrameTimer.now()
         if AppLog.diagnostics { tk.hudCpuMs = (CPUTime.thread() - cpu0) * 1000 }
         if pacedPresent && targetTime > 0 { cb.present(d, atTime: targetTime) } else { cb.present(d) }

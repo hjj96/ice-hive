@@ -97,6 +97,8 @@ final class GameScene: SKScene {
     private var coverStart: Double = 0
     private var hudWasVisible = false
     private var readyTime: Double = -1
+    /// Seconds since «scene ready» at this frame (-1 while loading): BurstCapture's clock.
+    var sinceReady: Double { readyTime > 0 && lastTime > 0 ? lastTime - readyTime : -1 }
     private var loadStep = 0
     private var metalFailed = false
     private let sceneTimer = FrameTimer(["sim", "ev", "cam", "world", "hud", "au"])
