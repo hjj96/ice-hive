@@ -948,6 +948,8 @@ final class MetalEffects {
     private var turretSight: Float = 0
     /// Longest sight glint (m): no long laser line across the screen, only a short fading glint off the muzzle.
     static let sightGlintLength: Float = 1.2
+    /// The flashlight lamp's glow (linear HDR, × gains in sights()).
+    static let lampColor = F3(1.0, 0.93, 0.8)
     private static var sightLogged = false
 
     /// While a marine fires, a short class-coloured glint fades off its muzzle (≤ 1.2 m) and a small dot of the same hue
@@ -961,6 +963,14 @@ final class MetalEffects {
             let rt: Float = want > sightLevel[k] ? 14 : 5
             sightLevel[k] += (want - sightLevel[k]) * min(1, rt * rdt)
             if m.downed { sightLevel[k] = 0 }
+            // polish: the flashlight's lamp itself — a small warm-white lens glow and a short streak along the beam at the
+            // torch socket (horror: the squad's lamps are the light; from the game camera the beams had no visible source)
+            if !m.downed {
+                let (tp, td) = WorldSquad.flashlight(m, poses[k])
+                let pk: Float = m.isPlayer ? 1.25 : 1
+                ribbons.add(tp - td * 0.05, tp + td * 0.08, width: 0.2 * pk, mode: .halo, color: MetalEffects.lampColor * (1.3 * pk))
+                ribbons.glint(tp, tp + td * 0.45, width: 0.045, color: MetalEffects.lampColor * (2.6 * pk), intensity: 1)
+            }
             let lv = sightLevel[k]
             if lv < 0.02 { continue }
             let o = muzzle(m, k)
