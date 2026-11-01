@@ -96,9 +96,11 @@ def deck_stats(shot, mask_shot):
     a, k = load(shot), load(mask_shot)
     if a.shape != k.shape:
         return None
-    G = k[..., 1]
-    deck = (G > 60) & (k[..., 0] < 40) & (k[..., 2] < 40) & (G > 2 * k[..., 0] + 30)
-    snow = (k[..., 2] > 60) & (k[..., 0] < 40) & (G < 40)
+    R, G, B = k[..., 0], k[..., 1], k[..., 2]
+    # the mask's flat colours after the composite (tone curve, grade, vignette): deck green ≈ (91, 217, 37), snow blue,
+    # icicles red; the void stays a dark navy (≈ (26, 46, 80)) and must not count as snow
+    deck = (G > 140) & (G > R + 80) & (G > B + 100)
+    snow = (B > 140) & (B > G + 80) & (B > R + 100)
     if deck.sum() < 1000:
         return None
     Y = 0.2126 * a[..., 0] + 0.7152 * a[..., 1] + 0.0722 * a[..., 2]
