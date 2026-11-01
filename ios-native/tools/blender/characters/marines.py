@@ -902,7 +902,7 @@ def backpack(b):
         bx = box_cage(0.34, 0.34, 0.15, 2, 2, 1)
         bx = deform(bx, lambda p: np.array([p[0] * (1 - 0.16 * (0.17 - p[1]) / 0.34), p[1], p[2] - 0.03 * (p[1] + 0.17) / 0.34]))
         bx = b.sd(bx, 1, 3, 40.0, 0.92, seams=(lambda p, n, a: n[2] < -0.6, 0.014, 0.005))
-        b.add('pack', bone, ARMOUR, xform(bx, T(0, 1.44, -0.296)), sharp=50.0, keep=True)
+        b.add('pack', bone, PAINT, xform(bx, T(0, 1.44, -0.296)), sharp=50.0, keep=True)
         sp = box_cage(0.09, 0.36, 0.05, 1, 2, 1)
         sp = deform(sp, lambda p: np.array([p[0] * (1 - 0.3 * (p[2] + 0.025) / 0.05), p[1], p[2]]))
         b.add('pack_spine', bone, METAL, xform(b.sd(sp, 1, 2, 40.0, 0.95), T(0, 1.45, -0.385)), sharp=45.0)
@@ -923,6 +923,13 @@ def backpack(b):
         b.add('antenna_base', 'antenna', METAL, xform(cyl(0.02, 0.045, 8), T(a[0], a[1] - 0.045, a[2])), sharp=70.0)
         b.add('antenna', 'antenna', METAL, xform(cyl(0.007, 0.44, 6, r1=0.004), T(a[0], a[1], a[2])), sharp=70.0)
         b.add('antenna_tip', 'antenna', GLOW, xform(cyl(0.013, 0.022, 8), T(a[0], a[1] + 0.44, a[2])))
+        # frag grenades on the belt, right of the buckle (the class's «Осколочная граната»): steel bodies, a class band
+        for gx, gz, ga in ((-0.142, 0.178, 18.0), (-0.205, 0.142, 40.0)):
+            M = mm(T(gx, 0.965, gz), R('Y', ga))
+            b.add('grenade', 'pelvis', METAL, xform(lathe([(0.0, -0.036), (0.022, -0.034), (0.027, -0.012), (0.027, 0.018),
+                                                             (0.021, 0.034), (0.0, 0.036)], 8), M), sharp=60.0)
+            b.add('grenade_band', 'pelvis', PAINT, xform(cyl(0.0285, 0.012, 8, y0=-0.004), M), sharp=70.0)
+            b.add('grenade_cap', 'pelvis', DARK, xform(cyl(0.011, 0.016, 6, y0=0.034), M), sharp=70.0)
     elif c == 'pyro':
         tz = -0.318
         for s in (1.0, -1.0):
@@ -947,8 +954,9 @@ def backpack(b):
         for s in (1.0, -1.0):
             b.panel(['tank'], (s * 0.5, 1.43, tz), (0, 1, 0), (0, 0, 1), (-s, 0, 0), 0.2, 0.07, bone, mat=METAL)
         b.stencil(['tank'], (0.0, 1.31, tz - 0.5), (-1, 0, 0), (0, 1, 0), (0, 0, 1), bone, '-196', 0.028, MARK_DARK)
-        win = lathe([(0.129, 1.33), (0.133, 1.336), (0.133, 1.54), (0.129, 1.546)], 12, 140, 220)
-        b.add('tank_glow', bone, GLOW, xform(win, T(0, 0, tz)))
+        for y0, y1 in ((1.335, 1.425), (1.455, 1.545)):
+            win = lathe([(0.129, y0), (0.133, y0 + 0.005), (0.133, y1 - 0.005), (0.129, y1)], 12, 160, 200)
+            b.add('tank_glow', bone, GLOW, xform(win, T(0, 0, tz)))
         for y in (1.28, 1.42, 1.57):
             fin = lathe([(0.126, y), (0.148, y + 0.004), (0.148, y + 0.018), (0.126, y + 0.022)], 12)
             b.add('fin', bone, METAL, xform(fin, T(0, 0, tz)), sharp=70.0)
