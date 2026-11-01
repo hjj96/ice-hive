@@ -1,0 +1,16 @@
+combat              load 3.02 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 44.6 min 5.0 gap 834 ms stall-s 15 cbmax 836 ms | gpu ema 0.22 ms allocs 1 tier efficient scale 1.60 | ok
+beacon              load 2.40 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 56.0 min 54.0 gap 109 ms stall-s 15 cbmax 101 ms | gpu ema 0.16 ms allocs 1 tier efficient scale 1.25/1.35/1.40/1.45/1.55/1.60 | ok
+swarmshot           load 2.60 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 55.2 min 54.0 gap 88 ms stall-s 4 cbmax 100 ms | gpu ema 0.18 ms allocs 1 tier high scale 2.00 | ok
+extract-cine        load 2.42 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 51.1 min 44.0 gap 145 ms stall-s 8 cbmax 145 ms | gpu ema 0.20 ms allocs 1 tier high scale 2.00 | ok
+title               load 2.53 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 55.2 min 53.0 gap 89 ms stall-s 6 cbmax 103 ms | gpu ema 0.19 ms allocs 1 tier efficient scale 1.60 | ok
+punchin             load 2.48 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 53.4 min 42.0 gap 103 ms stall-s 7 cbmax 134 ms | gpu ema 0.19 ms allocs 1 tier high scale 2.00 | ok
+swarmshot-nohud     load 2.37 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 55.2 min 55.0 gap 110 ms stall-s 4 cbmax 100 ms | gpu ema 0.18 ms allocs 1 tier high scale 2.00 | ok
+beacon-nohud        load 2.75 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 57.2 min 56.0 gap 77 ms stall-s 10 cbmax 93 ms | gpu ema 0.16 ms allocs 1 tier efficient scale 1.60 | ok
+punchin-nohud       load 2.25 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 56.3 min 55.0 gap 87 ms stall-s 6 cbmax 110 ms | gpu ema 0.17 ms allocs 1 tier high scale 2.00 | ok
+extract-cine-nohud  load 2.57 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 55.8 min 53.0 gap 115 ms stall-s 7 cbmax 106 ms | gpu ema 0.18 ms allocs 1 tier high scale 2.00 | ok
+title-nohud         load 2.77 s | loop avg 59.7 min 58.0 worst 40 ms hitches 0 host-stalls 1 (40 ms) | gpu drawn avg 56.2 min 53.0 gap 148 ms stall-s 3 cbmax 156 ms | gpu ema 0.15 ms allocs 1 tier efficient scale 1.60 | ok
+calm-nohud          load 3.22 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 57.4 min 55.0 gap 65 ms stall-s 6 cbmax 97 ms | gpu ema 0.17 ms allocs 1 tier efficient scale 1.60 | ok
+
+GPU side (gated only in release-combat, swarm3x, floor 53.0): drawn avg < 55/s in combat 44.6, extract-cine 51.1, punchin 53.4
+
+GATE: passed
