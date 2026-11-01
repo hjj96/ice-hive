@@ -113,6 +113,7 @@ final class Cinematics {
         func value(_ k: String) -> String? { a.firstIndex(of: k).flatMap { i in i + 1 < a.count ? a[i + 1] : nil } }
         camerasOn = value("-cine") != "off"
         launchEV = value("-exposure").flatMap { Float($0) }.map { min(max($0, -4), 4) } ?? 0
+        shotEV = launchEV
         loadTable()
     }
 
