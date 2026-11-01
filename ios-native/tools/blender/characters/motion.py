@@ -393,11 +393,13 @@ def idle(cls, report):
         s = base.copy()
         b = np.sin(2 * np.pi * u)
         b2 = np.sin(4 * np.pi * u + 0.7)
-        s.pelvis_p = s.pelvis_p + np.array([0.008 * np.sin(2 * np.pi * u + 1.1), 0.004 * b, 0.0])
-        s.chest_q = qmul(s.chest_q, qeuler(x=0.9 * b, z=0.5 * np.sin(2 * np.pi * u + 1.1)))
+        # breathing that reads in the close-ups (native-vx-squad: 0.9° / 4 mm was a statue): the chest rises 1.8°, the
+        # pelvis 7 mm, the weight shifts side to side over the loop
+        s.pelvis_p = s.pelvis_p + np.array([0.011 * np.sin(2 * np.pi * u + 1.1), 0.007 * b, 0.0])
+        s.chest_q = qmul(s.chest_q, qeuler(x=1.8 * b, z=0.8 * np.sin(2 * np.pi * u + 1.1)))
         s.head_q = qeuler(y=5.0 * np.sin(2 * np.pi * u + 0.3) + 2.0 * b2, x=4.0 + 1.5 * np.sin(2 * np.pi * u + 2.0))
         wp, wq = stance_weapon(cls)
-        s.weapon_p = wp + np.array([0.003 * b2, 0.004 * b, 0.002 * np.sin(2 * np.pi * u + 2.2)])
+        s.weapon_p = wp + np.array([0.003 * b2, 0.007 * b, 0.002 * np.sin(2 * np.pi * u + 2.2)])
         s.weapon_q = qeuler(x=-0.6 * b, y=0.5 * np.sin(2 * np.pi * u + 0.4))
         s.extra['antenna'] = qeuler(x=2.0 * np.sin(2 * np.pi * u - 0.6), z=1.5 * np.sin(4 * np.pi * u))
         poses.append(build(cls, s, report))

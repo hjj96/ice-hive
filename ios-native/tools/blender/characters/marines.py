@@ -100,7 +100,7 @@ MARK_DARK, MARK_CLASS = 0.5, 1.0
 
 # sRGB colours; paint = class trim, glow = class laser (IceHiveCore Tuning CLASS_SPECS)
 HUE = {'assault': 0xff2a22, 'pyro': 0xffa214, 'cryo': 0x30b4ff, 'gunner': 0x3cff58}
-TRIM = {'assault': 0xb8322a, 'pyro': 0xd8901c, 'cryo': 0x3592c8, 'gunner': 0x47a538}
+TRIM = {'assault': 0xa62a22, 'pyro': 0xc98118, 'cryo': 0x2c82ba, 'gunner': 0x3c9431}
 
 
 def rgb(h):
@@ -475,10 +475,10 @@ def legs(b):
         und = lathe([(0.086, 0.0), (0.099, 0.16), (0.106, 0.33), (0.096, 0.43)], 8)
         b.add('thigh_suit', 'thigh_' + side, DARK, xform(und, F), sharp=70.0)
         # cuisse: a faceted shell over the front and the outside (a keel down the front panel), flaring at the hip
-        secs = limb_sections([(0.075, THIGH_CTRL, 0.106, 0.008, 0.0, 0.014),
-                              (0.17, THIGH_CTRL, 0.123, 0.014, 0.004, 0.014),
-                              (0.29, THIGH_CTRL, 0.131, 0.016, 0.008, 0.01),
-                              (0.395, THIGH_CTRL, 0.136, 0.01, 0.012, 0.002)], mirror=mir)
+        secs = limb_sections([(0.075, THIGH_CTRL, 0.1, 0.008, 0.0, 0.014),
+                              (0.17, THIGH_CTRL, 0.12, 0.014, 0.004, 0.014),
+                              (0.29, THIGH_CTRL, 0.134, 0.018, 0.008, 0.01),
+                              (0.395, THIGH_CTRL, 0.143, 0.012, 0.012, 0.002)], mirror=mir)
         tp = loft_shell(secs, 0.026, (0.0, 0.2, 0.0))
         tp = b.sd(tp, 0, 3, 24.0, 0.8, seams=(lambda p, n, a: a > 0.0012, 0.007, 0.003))
         b.add('thigh_plate', 'thigh_' + side, ARMOUR, xform(tp, F), sharp=40.0, keep=True)
@@ -501,10 +501,10 @@ def legs(b):
         b.add('knee', 'shin_' + side, PAINT, xform(kp, mm(T(knee[0], knee[1] - 0.012, knee[2] + 0.07), R('X', -8))), sharp=55.0)
         # greave: a faceted shell round the front and the sides, a keel down the shin, flared over the boot
         F2 = frame(ank, knee - ank, (0, 0, 1))
-        secs = limb_sections([(0.062, GREAVE_CTRL, 0.106, 0.006, 0.0, 0.008),
-                              (0.12, GREAVE_CTRL, 0.097, 0.012, 0.0, 0.008),
-                              (0.245, GREAVE_CTRL, 0.109, 0.02, 0.0, 0.01),
-                              (0.352, GREAVE_CTRL, 0.112, 0.016, 0.0, 0.006)], mirror=mir)
+        secs = limb_sections([(0.062, GREAVE_CTRL, 0.102, 0.006, 0.0, 0.008),
+                              (0.12, GREAVE_CTRL, 0.094, 0.012, 0.0, 0.008),
+                              (0.245, GREAVE_CTRL, 0.12, 0.024, 0.0, 0.012),
+                              (0.352, GREAVE_CTRL, 0.113, 0.016, 0.0, 0.006)], mirror=mir)
         sg = loft_shell(secs, 0.026, (0.0, 0.2, 0.0))
         sg = b.sd(sg, 0, 3, 24.0, 0.8, seams=(lambda p, n, a: a > 0.0012, 0.007, 0.003))
         b.add('shin', 'shin_' + side, ARMOUR, xform(sg, F2), sharp=40.0, keep=True)
@@ -514,7 +514,7 @@ def legs(b):
         b.bolts_on(['shin'], [ank + gy * yy + gx * (s * 0.075) + gz * 0.3 for yy in (0.12, 0.3)], -gz - gx * s * 0.6, 'shin_' + side, r=0.006)
         b.stencil(['shin'], ank + gy * 0.27 + gx * (s * 0.5), gz, gy, -gx * s, 'shin_' + side,
                   '|' + str(1 + MR_INDEX.get(b.cls, 0)), 0.03, MARK_DARK)
-        cf = wrap(0.094, 0.1, 124.0, 236.0, 0.27, 0.022, nu=5, nv=2, bulge=0.008, y0=0.075)
+        cf = wrap(0.092, 0.1, 124.0, 236.0, 0.27, 0.022, nu=5, nv=2, bulge=0.017, y0=0.075)
         b.add('calf', 'shin_' + side, METAL, xform(b.sd(cf, 0, 2, 50.0, 0.8), F2), sharp=55.0)
         b.decal(b.sticker(['shin'], ank + np.array([s * 0.0, 0.33, 0.3]), (1, 0, 0), (0, 1, 0), (0, 0, -1), 0.1, 0.026), 'shin_' + side, MARK_CLASS)
         # boot (foot bone): a sculpted shell with a raised heel counter, ankle guards, an armoured instep plate and a
@@ -1020,7 +1020,7 @@ def weapon(b):
         # shroud, a muzzle brake, a holographic sight on a rail, an under-barrel launcher, glowing cells
         body = [(-0.34, 0.03), (-0.34, 0.135), (-0.27, 0.152), (-0.06, 0.152), (0.0, 0.162), (0.3, 0.156), (0.345, 0.138),
                 (0.345, 0.05), (0.25, 0.04), (0.16, 0.034), (0.05, 0.046), (-0.05, 0.034), (-0.2, 0.024), (-0.3, 0.024)]
-        add('receiver', ARMOUR, hard(gun_prism(body, 0.074)), keep=True)
+        add('receiver', METAL, hard(gun_prism(body, 0.074)), keep=True)
         add('rail', METAL, hard(gun_prism([(-0.04, 0.16), (0.24, 0.16), (0.24, 0.172), (-0.04, 0.172)], 0.032)))
         shroud = lathe([(0.032, 0.0), (0.036, 0.012), (0.036, 0.25), (0.03, 0.27)], 8, cap0=False, cap1=False)
         add('shroud', METAL, xform(b.sd(shroud, 0, 2, 25.0, 0.9), mm(T(0, 0.092, 0.34), R('X', 90))), keep=True)
@@ -1038,7 +1038,8 @@ def weapon(b):
         b.vents(['shroud'], W((0.0, 0.2, 0.47)), W((0.0, 0.0, 1.0)) - g, (0, -1, 0), bone, 6, 0.02, 0.016, 0.012)
         for s in (1.0, -1.0):
             b.vents(['muzzle'], W((s * 0.2, 0.092, 0.692)), (0, 0, 1), (-s, 0, 0), bone, 3, 0.03, 0.008, 0.008)
-            b.panel(['receiver'], W((s * 0.2, 0.1, 0.12)), (0, 0, 1), (0, 1, 0), (-s, 0, 0), 0.2, 0.07, bone, mat=ARMOUR)
+            b.panel(['receiver'], W((s * 0.2, 0.1, 0.12)), (0, 0, 1), (0, 1, 0), (-s, 0, 0), 0.2, 0.07, bone, mat=METAL)
+            b.decal(b.sticker(['receiver'], W((s * 0.2, 0.128, 0.05)), (0, 0, 1), (0, 1, 0), (-s, 0, 0), 0.34, 0.022), bone, MARK_CLASS)
             b.stencil(['receiver'], W((s * 0.2, 0.07, -0.22)), (0, 0, s), (0, 1, 0), (-s, 0, 0), bone, '07', 0.03, MARK_DARK)
         b.hazard(['receiver'], W((0.0, 0.3, -0.31)), (0, 0, 1), (1, 0, 0), (0, -1, 0), bone, 0.06, 0.07, 3, MARK_DARK)
     elif c == 'pyro':
@@ -1076,7 +1077,7 @@ def weapon(b):
         by = 0.08
         body = [(-0.25, 0.03), (-0.25, 0.1), (-0.14, 0.14), (0.1, 0.15), (0.28, 0.13), (0.32, 0.095), (0.3, 0.05),
                 (0.16, 0.022), (0.05, 0.03), (-0.05, 0.02)]
-        add('body', ARMOUR, hard(gun_prism(body, 0.1)), keep=True)
+        add('body', METAL, hard(gun_prism(body, 0.1)), keep=True)
         add('barrel', HOT, xform(cyl(0.028, 0.42, 10), mm(T(0, by, 0.3), R('X', 90))), sharp=70.0)
         for z in (0.48, 0.56, 0.64):
             coil = lathe([(0.04, -0.011), (0.066, -0.011), (0.075, 0.0), (0.066, 0.011), (0.04, 0.011)], 10)
@@ -1089,9 +1090,10 @@ def weapon(b):
             add('fin', METAL, hard(gun_prism([(z - 0.012, 0.03), (z + 0.012, 0.03), (z + 0.012, 0.15), (z - 0.012, 0.15)], 0.15)))
         add('foregrip', DARK, xform(blk(0.034, 0.11, 0.04, (0, -0.012, 0), lo=1, hi=2, crease=0.6), T(*sup)))
         add('fg_mount', METAL, blk(0.056, 0.032, 0.05, (sup[0] + 0.022, 0.032, sup[2]), lo=1, hi=2))
-        add('stock', ARMOUR, hard(gun_prism([(-0.4, 0.03), (-0.4, 0.12), (-0.25, 0.12), (-0.25, 0.04)], 0.056)))
+        add('stock', DARK, hard(gun_prism([(-0.4, 0.03), (-0.4, 0.12), (-0.25, 0.12), (-0.25, 0.04)], 0.056)))
         for s in (1.0, -1.0):
-            b.panel(['body'], W((s * 0.3, 0.09, -0.12)), (0, 0, 1), (0, 1, 0), (-s, 0, 0), 0.18, 0.06, bone, mat=ARMOUR)
+            b.panel(['body'], W((s * 0.3, 0.09, -0.12)), (0, 0, 1), (0, 1, 0), (-s, 0, 0), 0.18, 0.06, bone, mat=METAL)
+            b.decal(b.sticker(['body'], W((s * 0.3, 0.118, 0.02)), (0, 0, 1), (0, 1, 0), (-s, 0, 0), 0.4, 0.024), bone, MARK_CLASS)
             b.stencil(['body'], W((s * 0.3, 0.06, 0.22)), (0, 0, s), (0, 1, 0), (-s, 0, 0), bone, '-3', 0.028, MARK_DARK)
     else:  # gunner: rotary cannon
         by = 0.1
@@ -1110,7 +1112,7 @@ def weapon(b):
         mz = lathe([(0.06, 0.0), (0.079, 0.0), (0.082, 0.018), (0.079, 0.034), (0.06, 0.034)], 12, cap0=False, cap1=False)
         b.add('muzzle_ring', 'weapon_aux', HOT, xform(mz, mm(G, T(aux[0], aux[1], 0.84), R('X', 90))), sharp=70.0)
         sh = lathe([(0.095, 0.0), (0.1, 0.012), (0.1, 0.2), (0.094, 0.215)], 8, 300.0, 420.0, cap0=False, cap1=False)
-        add('shroud', ARMOUR, xform(b.sd(sh, 0, 2, 25.0, 0.9), mm(T(aux[0], aux[1], 0.36), R('X', 90))), keep=True)
+        add('shroud', PAINT, xform(b.sd(sh, 0, 2, 25.0, 0.9), mm(T(aux[0], aux[1], 0.36), R('X', 90))), keep=True)
         add('motor', DARK, xform(cyl(0.05, 0.08, 10), mm(T(aux[0], aux[1], -0.21), R('X', 90))), sharp=70.0)
         add('handle', DARK, xform(cyl(0.019, 0.18, 10), mm(T(sup[0], sup[1], sup[2] - 0.09), R('X', 90))), sharp=70.0)
         for z in (-0.075, 0.075):

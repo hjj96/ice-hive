@@ -35,7 +35,7 @@ CLASSES = ['assault', 'pyro', 'cryo', 'gunner']
 CLASSES_SHOWN = CLASSES
 TITLES = {'assault': 'ШТУРМОВИК', 'pyro': 'ОГНЕМЁТЧИК', 'cryo': 'КРИОТЕХНИК', 'gunner': 'ПУЛЕМЁТЧИК'}
 HUE = {'assault': 0xff2a22, 'pyro': 0xffa214, 'cryo': 0x30b4ff, 'gunner': 0x3cff58}
-TRIM = {'assault': 0xb8322a, 'pyro': 0xd8901c, 'cryo': 0x3592c8, 'gunner': 0x47a538}
+TRIM = {'assault': 0xa62a22, 'pyro': 0xc98118, 'cryo': 0x2c82ba, 'gunner': 0x3c9431}   # = marines.TRIM
 
 
 def log(*a):
