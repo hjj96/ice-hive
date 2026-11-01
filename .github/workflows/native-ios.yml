@@ -448,6 +448,10 @@ jobs:
           pull_burst burst-tight
           run_demo burst-combat 8 "-demo combat -seed 7 -burst combat 5 12"
           pull_burst burst-combat
+          # the squad cycling its clips in the close-up (idle / run / strafe / dash / hit / down / crawl / revive, offset per
+          # marine), every 5th frame over 1.3 s: popping, sliding, interpenetration frame by frame
+          run_demo burst-anim 6 "-demo calm -squadSheet -closeup -hideHUD -burst anim 1.0 16 5"
+          pull_burst burst-anim
           # every bug type × clip (WorldSwarm's sheet: walk, run, attack, hit, deaths, specials), every 3rd frame over 0.6 s
           run_demo burst-bugs 5 "-demo bugsheet -hideHUD -burst bugs 1.5 12 3"
           pull_burst burst-bugs
