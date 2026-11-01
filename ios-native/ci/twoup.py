@@ -45,7 +45,7 @@ def numbers(row):
     if 'deck_median' in row:
         s += f' · палуба {row["deck_median"]:.0f}'
     if row.get('fails'):
-        s += '  ✗ ' + '; '.join(row['fails'])
+        s += '  · НЕ ПРОШЛО: ' + '; '.join(row['fails'])
     return s
 
 

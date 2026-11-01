@@ -10,17 +10,18 @@ import IceHiveCore
 //                ×0.3 for ≈ 0.45 s (smooth edges); it holds, then
 //                eases back to the game camera (2.4 s in all)
 //    extraction  the lift rises: the camera sits on the shaft wall on
-//                the game camera's side, 3 m outside the platform and
-//                2.6 m above its deck, and rides up with it — a little
-//                slower, so at the top it looks up across the railing
-//                at the squad (until the mission ends)
+//                the game camera's side (+20°), 3 m outside the
+//                platform and 2.6 m above its deck, and rides up with it
+//                — a little slower, so at the top it looks up across the
+//                railing at the squad (until the mission ends); fov 36°
 //    title       attract mode: a lower, closer orbit on the squad
-//                (pitch 40°, 15 m), composed into the free space right
-//                of the «ЛЕДЯНОЙ УЛЕЙ» logo like MetalCamera's title
+//                (pitch 44°, 21 m, fov 34°), composed into the free
+//                space top right, above the subtitle and the class cards
 //  Every shot keeps its eye out of the four flashlight cones (the
-//  beams' 28.6° half-angle + 6° margin, 32 m — VolumeCones): the yaw
-//  swings ±15° / 30° / 45° (then the pitch rises 12°) until the eye is
-//  outside every beam, and eases to that offset (no jumps).
+//  beams' 28.6° half-angle + ≈ 3.4° margin, 32 m — VolumeCones): after
+//  0.3 s inside one (a marine sweeping its aim past the camera does not
+//  swing it) the yaw swings ±15° / 30° / 45° (then the pitch rises 12°)
+//  until the eye is outside every beam, easing there at 45°/s.
 //  Mood (grade LUT + EV, PostChain): "title" in attract mode,
 //  "extraction" while the lift rises, "beacon" while a beacon charges
 //  or a punch-in runs, else "gameplay". A mood's EV step is eased:
@@ -58,8 +59,12 @@ final class Cinematics {
 
     // ---- framing
     static let punchIn = (pitchDeg: Float(33), dist: Float(10.5), push: Float(1.0), fovDeg: Float(38), orbitDeg: Float(4))
-    static let extraction = (out: Float(3.0), relY0: Float(2.6), relY1: Float(0.9), fovDeg: Float(44), yawOffDeg: Float(20))
-    static let title = (pitchDeg: Float(40), dist: Float(15), fovDeg: Float(36), swayDeg: Float(14))
+    static let extraction = (out: Float(3.0), relY0: Float(2.6), relY1: Float(0.9), fovDeg: Float(36), yawOffDeg: Float(20))
+    /// (the squad sits higher than MetalCamera's title spot: closer, it would otherwise run into the subtitle and the cards)
+    static let title = (pitchDeg: Float(44), dist: Float(21), fovDeg: Float(34), swayDeg: Float(12), ndcX: Float(0.5), ndcY: Float(0.64))
+    /// Beams: the eye stays this far (cos) outside a cone's 28.6° edge; it moves only after `coneDwell` s inside one
+    /// (a marine sweeping its aim across the camera does not swing it), at `coneRate` °/s.
+    static let coneMargin: Float = 0.03, coneDwell: Float = 0.3, coneRate: Float = 45
 
     /// Scripted cameras and the dilation run (off: `-cine off`, or a setting once the menu has one).
     var camerasOn: Bool
@@ -186,7 +191,7 @@ final class Cinematics {
         kind = k
         t = 0
         dilMin = 1; dilTime = 0
-        coneWantDeg = 0; conePitchDeg = 0
+        coneWantDeg = 0; conePitchDeg = 0; coneInside = 0
         if k == .title { weight = 1 }
         started += 1
         logT = 0
@@ -315,7 +320,7 @@ final class Cinematics {
         let dir = F3(sinf(yaw), 0, cosf(yaw))
         let wall = lift.c + dir * (lift.r + X.out)
         let eye = F3(wall.x, lift.c.y + X.relY0 + (X.relY1 - X.relY0) * u * u, wall.z)
-        let target = centroid + (lift.c - centroid) * 0.3 + F3(0, 1.0 + 0.6 * u, 0)
+        let target = centroid + (lift.c - centroid) * 0.3 + F3(0, 0.7 + 0.5 * u, 0)
         let d = eye - target
         let hd = (d.x * d.x + d.z * d.z).squareRoot()
         shotOrbit = (target, atan2f(d.x, d.z), atan2f(d.y, max(1e-3, hd)), length(d))
@@ -331,8 +336,7 @@ final class Cinematics {
         let eye0 = orbit(s, yaw: yaw, pitch: pitch, dist: T.dist)
         let (right, up) = basis(eye: eye0, target: s)
         let th = tanf(T.fovDeg * .pi / 360)
-        let n = MetalCamera.titleSquadNDC
-        let shift = right * (-n.x * th * aspect * T.dist) + up * (-n.y * th * T.dist)
+        let shift = right * (-T.ndcX * th * aspect * T.dist) + up * (-T.ndcY * th * T.dist)
         let target = s + shift
         shotOrbit = (target, yaw, pitch, T.dist)
         return Pose(eye: eye0 + shift, target: target, fovDeg: T.fovDeg)
@@ -352,7 +356,10 @@ final class Cinematics {
         func eye(_ yawDeg: Float, _ pitchDeg: Float) -> F3 {
             orbit(o.target, yaw: o.yaw + yawDeg * .pi / 180, pitch: min(1.45, o.pitch + pitchDeg * .pi / 180), dist: o.dist)
         }
-        if inCone(eye(coneWantDeg, conePitchDeg)) {
+        if inCone(eye(coneWantDeg, conePitchDeg)) { coneInside += dt } else { coneInside = 0 }
+        // (at a shot's start the eye moves at once: it is still blending in from the game camera)
+        if coneInside >= (t < 0.1 ? 0 : Cinematics.coneDwell) && coneInside > 0 {
+            coneInside = 0
             var found = false
             search: for pitch in [Float(0), 12] {
                 for off in [Float(0), 15, -15, 30, -30, 45, -45] where !inCone(eye(off, pitch)) {
@@ -362,7 +369,7 @@ final class Cinematics {
             }
             if found { coneMoves += 1 }
         }
-        let step = 90 * dt
+        let step = Cinematics.coneRate * dt
         coneYawDeg += max(-step, min(step, coneWantDeg - coneYawDeg))
         coneLift += max(-step * 0.5, min(step * 0.5, conePitchDeg - coneLift))
         if abs(coneYawDeg) < 0.01 && abs(coneLift) < 0.01 { return p }
@@ -370,10 +377,11 @@ final class Cinematics {
         return Pose(eye: p.eye + eye(coneYawDeg, coneLift) - eye(0, 0), target: p.target, fovDeg: p.fovDeg)
     }
     private var coneLift: Float = 0
+    private var coneInside: Float = 0
 
     /// Inside one of the four beams (with a 6° margin), within its range.
     private func inCone(_ e: F3) -> Bool {
-        let cosLimit = VolumeCones.cosOut - 0.06
+        let cosLimit = VolumeCones.cosOut - Cinematics.coneMargin
         for s in spots {
             let v = e - s.pos
             let d = length(v)
