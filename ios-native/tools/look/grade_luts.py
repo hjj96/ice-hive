@@ -13,7 +13,7 @@ mood starts from the built-in "gameplay" grade of PostChain.grade() (kept identi
 
   gameplay    a small lift of the low mid-tones (≈ 6–30 %: the lamp-lit deck and the dark structure, where the swarm
               has to read) — the near-blacks under the toe and the highlights are untouched — and a little more contrast
-              around the mid-tones (pivot 30 %: the lit pools and effects stand off the body of the frame, swarmshot
+              around the mid-tones (pivot 30 %, 0.20 since the polish pass: the lit pools and effects stand off the body of the frame, swarmshot
               p95/p50 ≥ 3.6 with the median at 40+); cool shadows / neutral-warm highlights as before
   beacon      gameplay + warmer highlights (the amber beacon column and the muzzles) and a touch more mid contrast
   extraction  gameplay + cooler, a little more open shadows (the lift shaft is the darkest set: its void reads as
@@ -108,7 +108,7 @@ def grade(c, mood):
     x = base(c)
     if mood == 'gameplay':
         x = lift_lowmids(x, 0.10)
-        x = contrast_mids(x, 0.12, pivot=0.30)
+        x = contrast_mids(x, 0.20, pivot=0.30)
     elif mood == 'beacon':
         x = lift_lowmids(x, 0.10)
         x = contrast_mids(x, 0.06)

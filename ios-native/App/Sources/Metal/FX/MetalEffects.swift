@@ -468,7 +468,7 @@ final class MetalEffects {
         let rotary = m.cls == .gunner
         // the pop of light on the shooter and the deck (on top of the squad's continuous muzzle lights of LightGrid)
         let c = rotary ? F3(1.0, 0.78, 0.42) : F3(1.0, 0.5, 0.3)
-        flash(o + d * 0.35, c, peak: m.isPlayer ? 85 : 55, dur: rotary ? 0.05 : 0.07, range: 8, priority: m.isPlayer ? 9 : 6)   // polish: a harder pop on the deck per round
+        flash(o + d * 0.35, c, peak: m.isPlayer ? 85 : 70, dur: rotary ? 0.05 : 0.08, range: 8, priority: m.isPlayer ? 9 : 6)   // polish: a harder pop on the deck per round
         gpu.burst(.spark, rotary ? 2 : 3, at: o + d * 0.15, vel: d * 10, velJitter: F3(2.6, 1.6, 2.6), life: (0.05, 0.13), size: (0.03, 0.02),
                   color: F4(1.3, 1.0, 0.7, 1), gravity: 2, drag: 4)
         // spent casings to the right of the weapon (rotary: every other round)
@@ -631,7 +631,7 @@ final class MetalEffects {
         gpu.burst(.steam, 2, at: p, jitter: F3(0.4, 0.1, 0.4), vel: F3(0, 0.8, 0), life: (1.0, 1.6), size: (0.6, 1.6),
                   color: F4(0.3, 0.45, 0.15, 0.4), drag: 1, spin: 0.5)
         decals.add(x, z, size: rr(1.2, 1.6), cell: .acid, kind: .acid, tint: F3(0.42, 0.6, 0.06))
-        floorTimed(x, z, radius: 1.3, mode: .acid, color: F3(0.3, 1.0, 0.12) * 0.12, life: 2.0, thickness: 0.1)
+        floorTimed(x, z, radius: 1.3, mode: .acid, color: F3(0.3, 1.0, 0.12) * 0.085, life: 2.0, thickness: 0.1)
         flash(F3(x, p.y + 0.6, z), F3(0.45, 1.0, 0.2), peak: 30, dur: 0.25, range: 4, priority: 6)
     }
 
@@ -897,6 +897,10 @@ final class MetalEffects {
     private func telegraphs(game: Game, time: Float) {
         let blink = 0.6 + 0.4 * sinf(time * 18)
         acidPick.removeAll(keepingCapacity: true)
+        // polish: the acid targets are for the player to dodge — globs coming down far from the player's marine (aimed at
+        // the AI squad, who dodge on their own) draw no target; 6–7 lime rings across the beacon platform read as noise
+        // over the squad and the swarm in CI combat. The glob in flight and its splash still show.
+        let me = game.marines.first { $0.isPlayer && !$0.downed }
         for e in game.telegraphs where e.active {
             if floorMax.count + acidPick.count >= 96 { break }
             let u = e.progress
@@ -912,6 +916,10 @@ final class MetalEffects {
                 floorMax.append(FloorFx(center: F4(cx, (y0 + y1) * 0.5 + 0.06, cz, e.w / 2), color: F4(col.x, col.y, col.z, inten),
                                         params: F4(FloorMode.lane.rawValue, u, 0, 1), axis: F4(e.dx, e.dz, e.len / 2, (y1 - y0) / max(0.01, e.len))))
             case .fill:
+                if let me = me {
+                    let dx = e.x - me.x, dz = e.z - me.z, near = 3.5 + e.r0
+                    if dx * dx + dz * dz > near * near { continue }
+                }
                 var merged = false
                 for j in acidPick.indices {
                     let p = acidPick[j]
