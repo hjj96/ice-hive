@@ -371,7 +371,7 @@ jobs:
             local label=$1 secs=$2 args=$3; shift 3
             # TEST BRANCH ONLY (native-vx-direction-look, not for merge): the WP7 look shots + the frame-gate demos they
             # touch, nothing else (a short run)
-            case " ${LOOK_DEMOS:-firstlaunch combat swarmshot beacon calm stress1400 punchin extract-cine title bugsheet calm-bright swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud calm-deckmask calm-bright-nohud} " in
+            case " ${LOOK_DEMOS:-firstlaunch combat swarmshot beacon calm stress1400 punchin extract-cine title bugsheet calm-bright swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud calm-deckmask calm-bright-nohud layout pause} " in
               *" $label "*) ;;
               *) return 0;;
             esac
