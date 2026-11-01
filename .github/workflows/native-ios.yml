@@ -317,7 +317,7 @@ jobs:
     env:
       # every frame-gated demo, all landscape (the app is landscape-only); `layout` (the four-phone layout check)
       # runs as well but builds ~40 screens in one go, so it is not gated
-      DEMOS: firstlaunch combat beacon swarmshot swarmshot-dots swarm swarm3x calm squad squadclose squadtight squadfire fxsheet fxsheet-high fxpeak title title-fresh title-return title-nm title-left probe hold extract holdhint queen queenlock coach coach3 pressure pressure-amber levelup pause pause-nm end report-first report-win report-loss report-chip release-combat
+      DEMOS: firstlaunch combat beacon swarmshot swarmshot-dots swarm swarm3x calm squad squadclose squadtight squadfire fxsheet fxsheet-high fxpeak stress1400 punchin extract-cine title title-fresh title-return title-nm title-left probe hold extract holdhint queen queenlock coach coach3 pressure pressure-amber levelup pause pause-nm end report-first report-win report-loss report-chip release-combat
       MENUS: levelup,pause,pause-nm,end,report-first,report-win,report-loss,report-chip
     steps:
       - uses: actions/checkout@v4
@@ -436,6 +436,17 @@ jobs:
           run_demo fxsheet 4 "-demo calm -fxSheet" 0
           run_demo fxsheet-high 4 "-demo calm -fxSheet -fxHigh" 0
           run_demo fxpeak 10 "-demo calm -fxPeak -fxHigh" 0 3
+          # WP7 «Режиссура»: the device-capture scenario (1400 live bugs, «высокая»; on an iPhone 12 its `hb gpu` lines are
+          # the per-pass budget run), the cinematics — a beacon coming on (punch-in at the game yaw, ×0.3 time for
+          # ≈ 0.45 s; replayed and held at its peak for the shot) and the extraction from the shaft wall (Cinematics
+          # drives the dilation, the grade mood and the shot EV; the camera itself needs the MetalWorld seam) — then the
+          # look shots: every bug type × clip (WorldSwarm's sheet) and the calm start with the «Яркость» option at its
+          # maximum (gamma 1.3: ci/look_metrics.py wants the median ≥ 15 luma above calm's)
+          run_demo stress1400 20 "-demo stress1400 -seed 7" 0
+          run_demo punchin 7 "-demo punchin -seed 7" 0
+          run_demo extract-cine 8 "-demo extract-cine -seed 3" 0
+          run_demo bugsheet 5 "-demo bugsheet" 0
+          run_demo calm-bright 6 "-demo calm -brightness 1.3" 0
           run_demo title 6 "-demo title" 0
           # v1.1 title: a fresh profile (НОВОБРАНЕЦ selected, premise, no profile line) and a returning one (ВЕТЕРАН,
           # profile line, rank chips + medal pips); -layoutCheck logs overlaps / off-screen / small taps
@@ -540,7 +551,7 @@ jobs:
             grep -q 'rend=metal' "results/app-$d.log" || { fail "$d: no Metal heartbeat lines"; }
             if grep -q 'ERROR' "results/app-$d.log"; then fail "$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; fi
           done
-          for d in title-fresh title-return title-nm layout holdhint queenlock coach coach3 pressure pressure-amber pause-nm report-first report-win report-loss report-chip; do
+          for d in title-fresh title-return title-nm layout holdhint queenlock coach coach3 pressure pressure-amber pause-nm report-first report-win report-loss report-chip stress1400 punchin extract-cine bugsheet calm-bright; do
             grep -q 'scene ready' "results/app-$d.log" || { fail "$d: no 'scene ready'"; }
             if grep -q 'ERROR' "results/app-$d.log"; then fail "$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; fi
           done
@@ -568,6 +579,14 @@ jobs:
           need report-loss 'v11 run tier=vet won=0 .*downBy=4'
           need report-chip 'v11 run .*recTip=1'
           need combat 'v11 start tier=vet coach=0'
+          # WP7: the device-capture swarm, the punch-in (started, dilated, ended, replayed and held) and the extraction shot
+          need stress1400 'demo stress1400: spawned 1[0-9]{3} bugs'
+          need punchin 'cine punchin start beacon='
+          need punchin 'cine punchin end dilation x0\.[0-9]+ for 0\.[0-9]+ s'
+          need punchin 'demo punchin: held at 0.95 s'
+          need extract-cine 'cine extraction start'
+          need extract-cine 'demo extract-cine: pinned at'
+          need bugsheet 'demo bugsheet: director off'
           # WP4: the four skinned marines loaded (IHV1 skinned + texture arrays) and animated (rig CPU, foot slide,
           # hand-to-grip error once a second)
           for d in combat squad squadclose squadtight squadfire; do
@@ -665,12 +684,27 @@ jobs:
     # the ci-results tree grows with every run: fetching its tip and pushing ~150 MB took 7–10+ min
     timeout-minutes: 30
     steps:
+      # (before the artifacts: checkout cleans the workspace) the look scripts, their golden frames and the game's font
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            ios-native/ci
+            ios-native/App/Resources/Fonts
       - uses: actions/download-artifact@v4
         with:
           pattern: results-*
           merge-multiple: true
           path: results
         continue-on-error: true
+      # WP7 «Режиссура»: look numbers of the scenes (ci/look_metrics.py; gates in ci/golden/thresholds.json: HUD-off shots
+      # are gated, HUD-on ones measured inside the HUD mask and reported) and the 2-up sheets today | concept | commit
+      # (twoup-<scene>.jpg) — informational here until the HUD-off look shots run on every push (FrameLoop -hideHUD)
+      - name: Look metrics and 2-up sheets
+        continue-on-error: true
+        run: |
+          python3 -m venv /tmp/look && /tmp/look/bin/pip install -q numpy pillow
+          /tmp/look/bin/python ios-native/ci/look_metrics.py --json results/look.json results | tee results/look.txt
+          /tmp/look/bin/python ios-native/ci/twoup.py --look results/look.json --sha "$GITHUB_SHA" results
       - name: Write status.json
         env:
           R_CORE: ${{ needs.core-tests.result }}
