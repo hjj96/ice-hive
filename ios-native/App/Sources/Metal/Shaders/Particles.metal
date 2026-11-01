@@ -507,7 +507,7 @@ fragment float4 fs_gpart_alpha(PartOut in [[stage_in]],
         // a brass cylinder: a bright line along it
         float across = abs(q.y);
         a *= (1.0 - smoothstep(0.75, 1.0, across)) * (1.0 - smoothstep(0.8, 1.0, abs(q.x)));
-        c *= 0.6 + 1.6 * exp(-across * across * 10.0);
+        c *= 0.5 + 1.25 * exp(-across * across * 12.0);
     }
     return float4(c, a);
 }

@@ -43,6 +43,9 @@ final class Ribbons {
     private var ps: MTLRenderPipelineState?
     private var region = Region()
     /// Longest tracer drawn since the last heartbeat (m; acceptance ≤ 3 m).
+    /// Tracer thickness at this frame's camera (MetalEffects sets it from WorldSquad.gameK): 1 in the close-ups, 1.6 at
+    /// the game camera, where a 10 cm bolt was ≈ 2 px of core on a phone (native-vx-squad: «эффекты стрельбы эпичнее»).
+    var tracerScale: Float = 1
     private(set) var longestTracer: Float = 0
     private(set) var tracersDrawn = 0
 
@@ -73,16 +76,22 @@ final class Ribbons {
             let ci = max(0, min(2, P.colorIndex(k)))
             let len = min(Ribbons.tracerLength[ci], P.speed(k) * 0.034)
             let y = 1.2 + level.groundY(p.x, p.y)
-            let head = F3(p.x, y, p.y), tail = F3(p.x - d.x * len, y, p.y - d.y * len)
-            let c = Ribbons.tracerColor[ci]
-            // polish (owner: «эффекты стрельбы эпичнее»): a thinner, hotter bolt — a crisp white-hot head and a glow
-            // around the head only; a halo along the whole bolt read as a glowing rod (a light sabre) in CI combat
-            add(tail, head, width: ci == 0 ? 0.05 : 0.045, mode: .tracer, color: c, head: ci == 0 ? 14 : 11)
-            let hs = tail + (head - tail) * 0.55
-            add(hs, head + d3(d) * 0.12, width: ci == 0 ? 0.3 : 0.25, mode: .halo, color: c * 0.42)
-            longestTracer = max(longestTracer, len)
-            tracersDrawn += 1
+            bolt(head: F3(p.x, y, p.y), dir: d3(d), len: len, ci: ci)
         }
+    }
+
+    /// One tracer bolt: `len` m behind its head along the unit `dir`, in projectile colour `ci` (Ribbons.tracerColor).
+    func bolt(head: F3, dir: F3, len: Float, ci: Int) {
+        let tail = head - dir * len
+        let c = Ribbons.tracerColor[max(0, min(2, ci))]
+        // polish (owner: «эффекты стрельбы эпичнее»): a thinner, hotter bolt — a crisp white-hot head and a glow
+        // around the head only; a halo along the whole bolt read as a glowing rod (a light sabre) in CI combat
+        let k = tracerScale
+        add(tail, head, width: (ci == 0 ? 0.05 : 0.045) * k, mode: .tracer, color: c, head: ci == 0 ? 14 : 11)
+        let hs = tail + (head - tail) * 0.55
+        add(hs, head + dir * 0.12, width: (ci == 0 ? 0.3 : 0.25) * (0.5 + 0.5 * k), mode: .halo, color: c * 0.42)
+        longestTracer = max(longestTracer, len)
+        tracersDrawn += 1
     }
 
     @inline(__always) private func d3(_ d: Vec2) -> F3 { F3(d.x, 0, d.y) }

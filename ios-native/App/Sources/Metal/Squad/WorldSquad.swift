@@ -78,7 +78,7 @@ final class WorldSquad {
     }
 
     /// Class paint (sRGB) — the same values the Blender build paints with (tools/blender/characters/marines.py TRIM).
-    static let trim: [UInt32] = [0xb8322a, 0xd8901c, 0x3592c8, 0x47a538]
+    static let trim: [UInt32] = [0xa62a22, 0xc98118, 0x2c82ba, 0x3c9431]
     /// The squad's readability key light (fs_marine: a soft light from above-left of the view, linear colour ×
     /// intensity) and how much the baked AO darkens the albedo (grime in the seams).
     static let keyLight = F3(1.0, 0.92, 0.82) * 0.3
@@ -124,6 +124,9 @@ final class WorldSquad {
     private var prevMuzzle: [Float] = [0, 0, 0, 0]
     private var shotAge: [Float] = [9, 9, 9, 9]
     private var heat: [Float] = [0, 0, 0, 0]
+    /// Marine k fired a new round this frame (rifle / rotary; the scripted `-squadFire` too): MetalEffects gives the
+    /// look-dev rounds their light pop, sparks, casing and tracer from it.
+    private(set) var newRound: [Bool] = [false, false, false, false]
     private var flashRng: UInt32 = 0x9e3779b9
     private var flashCount = 0
     let lookDev = SquadLookDev()
@@ -272,6 +275,7 @@ final class WorldSquad {
         // a new shot (the core's muzzle jumps back to 1): a new roll and seed, the flash restarts
         let newShot = I.muzzle > prevMuzzle[k] + 0.3
         prevMuzzle[k] = I.muzzle
+        newRound[k] = newShot && !down && (m.cls == .assault || m.cls == .gunner)
         if newShot { shotRoll[k] = frand() * TAU; shotSeed[k] = frand(); shotAge[k] = 0 } else { shotAge[k] += dt }
         var h = heat[k]
         var inten: Float = 0, len: Float = 0, wid: Float = 0, kind: Float = 0, rays: Float = 4
@@ -288,7 +292,8 @@ final class WorldSquad {
             let a = max(0, 1 - shotAge[k] / 0.1)
             inten = a * a.squareRoot() * (0.8 + 0.2 * shotSeed[k])
             len = 0.86 * (0.85 + 0.35 * shotSeed[k]); wid = 0.21; kind = 0; rays = 4
-            col = F3(3.1, 0.95, 0.36); lcol = F3(1.0, 0.5, 0.28); light = 5.0 * a
+            // (native-vx-squad: a hotter orange body — the old red-pink flame read as a soft pink disc at 100 %)
+            col = F3(3.4, 1.3, 0.42); lcol = F3(1.0, 0.55, 0.28); light = 5.0 * a
             jets = 1; sparks = 0.9; ring = 1
         case .gunner:
             // the rotary's continuous six-ray flicker, a new roll every frame; the barrels heat with the core's heat

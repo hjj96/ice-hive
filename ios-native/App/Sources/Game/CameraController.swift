@@ -36,6 +36,13 @@ final class CameraController {
     /// Aim lead along the screen's long (right) axis and its depth (up) axis, and the push toward screen-down (m).
     static let leadSide: Float = 3.6, leadDepth: Float = 1.5, pushDown: Float = 2.4
     private var zoomWant: Float = 1
+    /// Per-round recoil of the player's weapon (native-vx-squad): each round kicks the look-at back along the aim with a
+    /// fast attack and a ~45 ms half-life (the rifle's 9 rounds/s read as distinct thumps; the old `muzzle × 7 cm`
+    /// sawtooth was ≈ 0.1° at the game camera — invisible); the rotary adds a fine rumble, the flamer and the cryo
+    /// projector a low tremor while they run. Reduce Motion: 35 %.
+    private var recoil: Float = 0
+    private var lastMuzzle: Float = 0
+    private var rumble: Float = 0
 
     func addShake(_ a: Float) {
         shake = min(1.4, shake + a * (reducedMotion ? 0.35 : 1))
@@ -69,7 +76,17 @@ final class CameraController {
         }
         shake *= expf(-6 * dt)
         let sk = shake * 0.35
-        let kick: Float = (title || P.downed) ? 0 : max(0, P.muzzle) * (P.cls == .gunner ? 0.045 : 0.07) * (reducedMotion ? 0.35 : 1)
+        let armed = !(title || P.downed)
+        let rm: Float = reducedMotion ? 0.35 : 1
+        if armed && P.muzzle > lastMuzzle + 0.3 {
+            recoil = min(1.6, recoil + (P.cls == .gunner ? 0.5 : 1))
+            if P.cls == .gunner { rumble = min(0.8, rumble + 0.12) }
+        }
+        lastMuzzle = P.muzzle
+        recoil *= expf(-15 * dt)
+        let stream = armed && P.firing && (P.cls == .pyro || P.cls == .cryo)
+        rumble = stream ? min(0.45, rumble + 2.5 * dt) : rumble * expf(-7 * dt)
+        let kick: Float = armed ? recoil * (P.cls == .gunner ? 0.12 : 0.2) * rm : 0
         let kx = -P.ax * kick, kz = -P.az * kick
         shakeAcc += dt
         if shakeAcc >= 1 / 60 {
@@ -77,6 +94,7 @@ final class CameraController {
             shakeOff = ((rng.next() - 0.5), (rng.next() - 0.5), (rng.next() - 0.5))
         }
         focus = (tx + kx, ty, tz + kz)
-        shakeOffset = (shakeOff.0 * sk, shakeOff.1 * sk, shakeOff.2 * sk)
+        let rb = rumble * 0.06 * rm
+        shakeOffset = (shakeOff.0 * (sk + rb), shakeOff.1 * (sk + rb * 0.5), shakeOff.2 * (sk + rb))
     }
 }

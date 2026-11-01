@@ -101,6 +101,7 @@ struct MarineDraw {
 struct MarineOut {
     float4 position [[position]];
     float3 world;
+    float3 bind;      // the bind-pose model-space position: the armour's procedural wear / grime sticks to the body
     float3 normal;
     float4 tangent;
     float2 uv;
@@ -143,6 +144,7 @@ vertex MarineOut vs_marine(uint vid [[vertex_id]],
     MarineOut o;
     o.position = F.viewProj * float4(p, 1.0);
     o.world = p;
+    o.bind = float3(v.rest.xyz);
     o.normal = n;
     o.tangent = float4(t, v.tan.w < 0 ? -1.0 : 1.0);
     o.uv = float2(v.uv);
@@ -151,6 +153,24 @@ vertex MarineOut vs_marine(uint vid [[vertex_id]],
     o.depth = -(F.view * float4(p, 1.0)).z;
     o.flags = uint(uchar(v.nrm.w));
     return o;
+}
+
+// value noise in the marine's bind space (native-vx-squad: the armour's breakup — the plates were one flat value each,
+// the «plastic toy» look the owner objected to)
+static inline float mHash(float3 p) {
+    p = fract(p * 0.1031);
+    p += dot(p, p.zyx + 31.32);
+    return fract((p.x + p.y) * p.z);
+}
+
+static inline float mNoise(float3 p) {
+    float3 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    float a = mix(mHash(i), mHash(i + float3(1, 0, 0)), f.x);
+    float b = mix(mHash(i + float3(0, 1, 0)), mHash(i + float3(1, 1, 0)), f.x);
+    float c = mix(mHash(i + float3(0, 0, 1)), mHash(i + float3(1, 0, 1)), f.x);
+    float d = mix(mHash(i + float3(0, 1, 1)), mHash(i + float3(1, 1, 1)), f.x);
+    return mix(mix(a, b, f.y), mix(c, d, f.y), f.z);
 }
 
 fragment float4 fs_marine(MarineOut in [[stage_in]],
@@ -181,8 +201,32 @@ fragment float4 fs_marine(MarineOut in [[stage_in]],
     albedo = mix(albedo, D.trim.rgb, clsPaint);
     albedo = mix(albedo, float3(0.016, 0.017, 0.019), darkPaint * 0.94);
     bool painted = (in.flags & 4u) != 0u;
+    bool emissive = (in.flags & 2u) != 0u;
     float wear = painted ? smoothstep(0.3, 0.8, metal) : 0.0;
     albedo = mix(albedo, float3(0.42, 0.43, 0.45), wear);
+    // field wear in bind space (native-vx-squad): each plate drifts a little in value, painted plates carry chips down to
+    // the dark primer (class paint) or to steel (the ceramic), scuffs vary the roughness, and the boots and greaves carry
+    // the deck's soot and slush up to the knees, with rime on the toe caps — a used power armour, not a clean toy
+    float3 mp = in.bind;
+    float macro = mNoise(mp * 5.3);
+    float fine = mNoise(mp * 29.0 + 7.1);
+    if (painted && !emissive) {
+        albedo *= 0.88 + 0.2 * macro;
+        float chip = smoothstep(0.72, 0.78, mNoise(mp * 47.0 + 3.7)) * smoothstep(0.35, 0.75, fine) * (1.0 - wear);
+        chip *= 0.35 + 0.65 * clsPaint;
+        albedo = mix(albedo, clsPaint > 0.5 ? float3(0.035, 0.036, 0.04) : float3(0.3, 0.31, 0.33), chip);
+        metal = mix(metal, clsPaint > 0.5 ? 0.0 : 0.8, chip);
+        rough = clamp(rough + (fine - 0.5) * 0.18 + chip * 0.1, 0.18, 0.9);
+    }
+    if (!emissive) {
+        float grime = (1.0 - smoothstep(0.06, 0.6, mp.y)) * (0.6 + 0.4 * macro);
+        albedo = mix(albedo, albedo * 0.42 + float3(0.008, 0.008, 0.009), grime * 0.75);
+        rough = mix(rough, 0.82, grime * 0.6);
+        metal *= 1.0 - 0.5 * grime;
+        float rime = (1.0 - smoothstep(0.1, 0.2, mp.y)) * smoothstep(0.35, 0.8, N0.y) * smoothstep(0.45, 0.7, fine);
+        albedo = mix(albedo, float3(0.5, 0.56, 0.62), rime * 0.6);
+        rough = mix(rough, 0.55, rime);
+    }
     // cavity: the baked AO also darkens the albedo a little (grime in the seams: panel lines, bolts and vents read in
     // direct light too)
     albedo *= mix(1.0, ao, D.key.w);
@@ -191,7 +235,8 @@ fragment float4 fs_marine(MarineOut in [[stage_in]],
     albedo = mix(albedo, float3(dot(albedo, float3(0.3, 0.5, 0.2))), dim * 0.4) * (1.0 - 0.3 * dim);
     LitSurface s;
     s.P = in.world; s.N = N; s.V = V; s.albedo = albedo; s.rough = rough; s.metal = metal;
-    s.coat = painted ? 0.35 : 0.0; s.coatRough = 0.18; s.ao = ao; s.shadow = 1.0;
+    // a thin satin coat on the paint (it was 0.35 at 0.18 rough: a lacquered toy)
+    s.coat = painted ? 0.12 : 0.0; s.coatRough = 0.34; s.ao = ao; s.shadow = 1.0;
     float3 c = shadeLit(LIGHTING_ARGS, s, D.params.w > 0.5);
     // the squad's readability key: a soft light from above-left of the view (no shadow, follows the camera) so the
     // plates, panel lines and the class paint keep their shape outside the beams and in the close-ups
@@ -392,13 +437,14 @@ fragment float4 fs_muzzle_flash(FlashOut in [[stage_in]]) {
             float ring = in.extra.w * (1.0 - saturate(age / 0.09));
             if (ring > 0.0) {
                 float rr = 0.3 + 0.62 * saturate(age / 0.09);
-                c += mix(hue, hot, 0.4) * exp(-pow((r - rr) * 14.0, 2.0)) * ring * 0.9;
+                c += mix(hue, hot, 0.4) * exp(-pow((r - rr) * 16.0, 2.0)) * ring * 0.55;
             }
         } else {
             // disc across the bore: a ring of petals (the muzzle brake's blast), dim
             float petals = 0.5 + 0.5 * cos(a * (rays + 1.0) + seed * 6.0);
             float ring = exp(-pow((r - 0.35) * 4.0, 2.0));
-            c = hue * ring * (0.35 + 0.65 * petals) * 0.9 * edge;
+            // (native-vx-squad: 0.9 → 0.5 — with the pressure ring it read as a round reticle at the muzzle, not a blast)
+            c = hue * ring * (0.35 + 0.65 * petals) * 0.5 * edge;
             if (kind == FLASH_FLAMER) c = float3(0.0);
         }
     } else if (in.part < 7u) {

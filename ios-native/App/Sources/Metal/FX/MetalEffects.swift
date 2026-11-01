@@ -386,7 +386,10 @@ final class MetalEffects {
     /// One projectile hit at (x, z) along (dx, dz): sparks off the chitin, a hit flash, the bug's ichor, chips of shell, a
     /// wet splat, a short light on the bug. The brute's plates throw twice the sparks and less ichor.
     private func bulletHit(_ game: Game, _ x: Float, _ z: Float, _ dx: Float, _ dz: Float, _ killed: Bool) {
-        if !killed && rnd() > 0.5 * fxK + 0.4 { return }
+        // native-vx-squad: every hit shows (the hit flash and a pair of sparks — 3 particle slots); the full spray only
+        // on part of them on a tight budget (it used to drop the whole hit: on Efficient one round in three hit
+        // without any feedback)
+        let full = killed || rnd() <= 0.5 * fxK + 0.4
         var p = F3(x, gy(x, z) + 0.45, z)
         var n = F3(-dx, 0.35, -dz)
         var ich = MetalEffects.ichor(0)
@@ -412,11 +415,12 @@ final class MetalEffects {
         n /= l
         let d = F3(dx, 0, dz)
         // hot sparks off the chitin (bounce on the deck, cool white → orange), a four-ray hit flash
-        let ns = (killed ? 13 : 7) * (armoured ? 2 : 1)   // polish: hits throw more sparks (owner: shooting more epic)
-        gpu.burst(.spark, num(Float(ns)), at: p, vel: n * (armoured ? 5.5 : 4.5) + d * 1.5, velJitter: F3(2.4, 2.0, 2.4), sphere: 2.5,
+        let ns = full ? (killed ? 13 : 7) * (armoured ? 2 : 1) : 2   // polish: hits throw more sparks (owner: shooting more epic)
+        gpu.burst(.spark, full ? num(Float(ns)) : ns, at: p, vel: n * (armoured ? 5.5 : 4.5) + d * 1.5, velJitter: F3(2.4, 2.0, 2.4), sphere: 2.5,
                   life: (0.18, 0.45), size: (0.045, 0.03), color: F4(1.25, 1.05, 0.85, 1), gravity: 14, drag: 1.2)
         gpu.burst(.flash, 1, at: p + n * 0.08, life: (0.06, 0.09), size: (killed ? 1.2 : (armoured ? 0.95 : 0.8), killed ? 1.4 : 1.0),
                   color: F4(6.5, 4.4, 2.6, 1), sizeJitter: 0.2)
+        if !full { return }
         // the bug's ichor: droplets along the shot that stick to the deck; chips of shell
         gpu.burst(.ichor, num(Float(killed ? 6 : (armoured ? 1 : 3))), at: p, vel: d * 2.4 + F3(0, 1.4, 0), velJitter: F3(1.6, 1.2, 1.6),
                   life: (0.5, 0.9), size: (0.07, 0.05), color: F4(ich.x * 0.55, ich.y * 0.55, ich.z * 0.55, 1), gravity: 12)
@@ -480,7 +484,7 @@ final class MetalEffects {
             if let s = squad?.socket(k, "eject") { e = s }
             let side = F3(m.az, 0, -m.ax)
             gpu.burst(.casing, 1, at: e, vel: side * rr(1.8, 2.8) + F3(0, 2.6, 0) - d * 0.4, velJitter: F3(0.5, 0.6, 0.5),
-                      life: (1.0, 1.5), size: (0.055, 0.055), color: F4(0.62, 0.42, 0.13, 1), gravity: 13, drag: 0.4, sizeJitter: 0.1, spin: 14)
+                      life: (1.0, 1.5), size: (0.042, 0.042), color: F4(0.44, 0.29, 0.1, 1), gravity: 13, drag: 0.4, sizeJitter: 0.1, spin: 14)
         }
         if shots[k] % 3 == 0 {
             gpu.burst(.smoke, 1, at: o + d * 0.3, vel: d * 0.8 + F3(0, 0.6, 0), velJitter: F3(0.2, 0.2, 0.2), life: (0.5, 0.8),
@@ -826,6 +830,7 @@ final class MetalEffects {
         for k in hurtCd.indices where hurtCd[k] > 0 { hurtCd[k] -= dt0 }
         blasts.removeAll(where: { $0 > 1.1 })
         look.step(self, game: game, focus: focus, time: time)
+        if let sq = squad, sq.lookDev.fire { squadFireLook(sq, game: game, dt: dt) }
         // the weapons' continuous effects
         for (k, m) in game.marines.enumerated() where !m.downed && k < 4 {
             if m.firing && m.cls == .pyro && dt > 0 {
@@ -884,6 +889,7 @@ final class MetalEffects {
         }
         decals.liftRise(rise)
         telegraphs(game: game, time: time)
+        ribbons.tracerScale = 1 + 0.6 * (squad?.gameK ?? 1)
         ribbons.tracers(game: game, level: level)
         sights(game: game, dt: dt, poses: ps)
         beaconBeams(game: game, time: time)
@@ -1194,10 +1200,49 @@ final class MetalEffects {
         gpu.burst(.spark, 2, at: o + d * 0.15, vel: d * 9, velJitter: F3(2.6, 1.6, 2.6), life: (0.05, 0.13), size: (0.03, 0.02),
                   color: F4(1.3, 1.0, 0.7, 1), gravity: 2, drag: 4)
         let side = F3(az, 0, -ax)
-        gpu.burst(.casing, 1, at: o - d * 0.55 + side * 0.12, vel: side * rr(1.8, 2.8) + F3(0, 2.6, 0), velJitter: F3(0.5, 0.6, 0.5),
-                  life: (1.0, 1.5), size: (0.055, 0.055), color: F4(0.62, 0.42, 0.13, 1), gravity: 13, drag: 0.4, sizeJitter: 0.1, spin: 14)
+        var e = o - d * 0.55 + side * 0.12
+        if let s = squad?.socket(k, "eject"), squad?.lookDev.fire == true { e = s }
+        gpu.burst(.casing, 1, at: e, vel: side * rr(1.8, 2.8) + F3(0, 2.6, 0), velJitter: F3(0.5, 0.6, 0.5),
+                  life: (1.0, 1.5), size: (0.042, 0.042), color: F4(0.44, 0.29, 0.1, 1), gravity: 13, drag: 0.4, sizeJitter: 0.1, spin: 14)
     }
     fileprivate var lookDecals: Decals { decals }
+
+    /// Look-dev tracers of `-squadFire` (no core projectiles there): head, direction, age, colour index.
+    private var lookBolts: [(p: F3, d: F3, age: Float, ci: Int)] = []
+
+    /// `-squadSheet -squadFire` (native-vx-squad): the scripted fire gets the whole shot at the rig's muzzles and bores —
+    /// each rifle / rotary round its light pop, brake sparks, casing and a tracer flying out at the weapon's speed (74 /
+    /// 95 m/s, 0.3 s), the flamer its jet, the cryo projector its beam and frost — so the close-ups and the burst captures
+    /// show every weapon's fire complete (before, only WorldSquad's weapon flashes).
+    private func squadFireLook(_ sq: WorldSquad, game: Game, dt: Float) {
+        for k in 0..<min(4, game.marines.count) {
+            guard let mz = sq.muzzle(k), let b = sq.bore(k) else { continue }
+            let l = max(1e-4, (b.x * b.x + b.z * b.z).squareRoot())
+            let ax = b.x / l, az = b.z / l
+            switch game.marines[k].cls {
+            case .assault, .gunner:
+                if sq.newRound[k] {
+                    let rotary = game.marines[k].cls == .gunner
+                    lookShot(mz, ax, az, rotary: rotary, k: k)
+                    lookBolts.append((mz + F3(ax, 0, az) * 0.4, F3(ax, 0, az), 0, rotary ? 1 : 0))
+                }
+            case .pyro:
+                if dt > 0 { flameJet(mz, ax: ax, az: az, vel: .zero, dt: dt, k: k) }
+            case .cryo:
+                cryoStream(mz, ax: ax, az: az, len: 7, dt: dt, k: k)
+            }
+        }
+        var i = 0
+        while i < lookBolts.count {
+            lookBolts[i].age += dt
+            let e = lookBolts[i]
+            if e.age > 0.3 { lookBolts.remove(at: i); continue }
+            let v: Float = e.ci == 1 ? 95 : 74
+            let len = min(Ribbons.tracerLength[e.ci], v * 0.034, 0.4 + v * e.age)
+            ribbons.bolt(head: e.p + e.d * (v * e.age), dir: e.d, len: len, ci: e.ci)
+            i += 1
+        }
+    }
 }
 
 // ================================================================
