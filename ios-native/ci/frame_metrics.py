@@ -155,7 +155,7 @@ for d in demos:
     for line in lines:
         e = rx_slow_enc.search(line)
         if e:
-            slow_enc.append((float(e.group(3)), max(0.0, float(e.group(1)) - float(e.group(2)))))
+            slow_enc.append((float(e.group(3)), max(0.0, float(e.group(1)) - float(e.group(2))), float(e.group(1))))
     hitches, host_stalls, stall_tds = [], [], []
     rate_switch = []
     for k, line in enumerate(lines):
@@ -173,9 +173,13 @@ for d in demos:
             hw = rx_hitch_wall.search(line)
             if hw and wk.group(3) is not None:
                 w = float(hw.group(1))
-                off = [o for (t, o) in slow_enc if w - 0.3 <= t <= w + 0.01]
+                off = [(o, em) for (t, o, em) in slow_enc if w - 0.3 <= t <= w + 0.01]
                 if off:
-                    work -= min(int(wk.group(3)), off[-1])
+                    # the encode's own time off the CPU, and — as without a slow-encode line — the part of FrameLoop's
+                    # `world` span outside the encode (the thread waiting in makeCommandBuffer): 3558a3f swarmshot-dots
+                    # logged a 4 ms encode (0.8 ms on the CPU) inside a 52 ms `world` span
+                    o, em = off[-1]
+                    work -= min(int(wk.group(3)), o + max(0, int(wk.group(3)) - em))
                 elif enc_log_ms is not None:
                     # no slow-encode line in this tick: the encode itself took < enc_log_ms, the rest of FrameLoop's
                     # `world` span is the thread waiting in makeCommandBuffer
