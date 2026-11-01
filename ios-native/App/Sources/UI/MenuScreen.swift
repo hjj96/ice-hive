@@ -14,12 +14,14 @@ import IceHiveCore
 //  tightens, then drops the second tip.
 // ================================================================
 final class MenuScreen {
-    enum Action: Equatable { case resume, sound, volume, quality, tutorial, haptics, quit, again, newStation, changeClass, chip }
+    enum Action: Equatable { case resume, sound, volume, quality, brightness, tutorial, haptics, quit, again, newStation, changeClass, chip }
     struct PauseState {
         var soundOn: Bool
         var volume: Float
         var quality: String
         var hapticsOn: Bool
+        /// «Яркость» gamma (SettingsStore.brightnessSteps).
+        var brightness: Float = 1
         /// The mission's tier («Ветеран»), shown after «ПАУЗА».
         var tierName: String = Difficulty.veteran.name
     }
@@ -51,6 +53,11 @@ final class MenuScreen {
     static func qualityLabel(_ q: String) -> String {
         if q == "auto" { return "Графика: авто (" + QualityTier.med.label.lowercased() + ")" }
         return "Графика: " + (QualityTier(rawValue: q) ?? .med).label.lowercased()
+    }
+
+    /// «Яркость: обычная / выше / максимум».
+    static func brightnessLabel(_ g: Float) -> String {
+        "Яркость: " + (g >= 1.25 ? "максимум" : (g > 1.05 ? "выше" : "обычная"))
     }
 
     /// Box background + hazard band, top-left at (x, top).
@@ -85,6 +92,7 @@ final class MenuScreen {
             ("Звук: " + (state.soundOn ? "вкл" : "выкл"), .ghost, .sound),
             ("Громкость: \(Int((state.volume * 100).rounded()))%", .ghost, .volume),
             (MenuScreen.qualityLabel(state.quality), .ghost, .quality),
+            (MenuScreen.brightnessLabel(state.brightness), .ghost, .brightness),
             ("Вибрация: " + (state.hapticsOn ? "вкл" : "выкл"), .ghost, .haptics)]
         let titleH: CGFloat = short ? 48 : 56
         let rowsH = CGFloat(settings.count) * step - (step - bh)
