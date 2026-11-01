@@ -1,0 +1,10 @@
+LOOK (ci/look_metrics.py; gates: ci/golden/thresholds.json — HUD-off shots gated, HUD-on shots masked and reported)
+swarmshot  swarmshot-0s.png             median  41.3 (plan 40–55) mean  62.4 p95 197.3 p95/p50 4.78 dark 12.4% clip 0.15% specks  991 R-B hi +70.5 lo -29.0 colorf 56.7 [HUD on, masked: reported only] in range
+beacon     beacon-0s.png                median  33.7 mean  46.3 p95 129.9 p95/p50 3.85 dark 16.0% clip 0.01% specks  643 R-B hi +37.7 lo -26.8 colorf 44.0 [HUD on, masked: reported only] would fail: median 33.69 not 35–50
+punchin    punchin-0s.png               median  43.1 mean  63.2 p95 185.3 p95/p50 4.30 dark 10.7% clip 0.17% specks  719 R-B hi +30.0 lo -34.5 colorf 50.3 [HUD on, masked: reported only] in range
+extract    extract-cine-0s.png          median  40.3 mean  62.3 p95 200.6 p95/p50 4.98 dark 11.0% clip 0.41% specks  440 R-B hi  +5.9 lo -31.2 colorf 41.7 [HUD on, masked: reported only] in range
+title      title-0s.png                 median  22.1 mean  44.3 p95 178.3 p95/p50 8.07 dark 29.0% clip 0.00% specks    0 R-B hi +10.9 lo -17.4 colorf 37.1 [HUD on, masked: reported only] would fail: median 22.10 not 25–50
+calm       calm-0s.png                  median  34.8 mean  46.2 p95 129.2 p95/p50 3.71 dark 19.4% clip 0.00% specks    8 R-B hi +41.3 lo -31.1 colorf 47.7 [HUD on, masked: reported only] in range
+brightness gamma 1.3: frame median 34.8 → 53.3 (+18.5, need ≥ +15) [HUD on, reported only] ok
+punch-in entry: started td=1.52, worst loop tick 17 ms over 3 heartbeat s (need ≤ 34), dilation ×0.30 for 0.52 s ok
+LOOK GATE: passed
