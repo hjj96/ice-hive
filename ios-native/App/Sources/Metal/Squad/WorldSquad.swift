@@ -513,8 +513,12 @@ final class SquadLookDev {
         I.dead = false
         I.invulnerable = false
         if fire {
-            // hold and fire: the bores across the camera, a slow sway so the frames differ
-            I.yaw = face + [1.15, 0.85, -0.85, -1.15][k % 4] + 0.12 * sinf(time * 0.7 + Float(k))
+            // hold and fire away from the camera in a fan (native-vx-squad: with the whole shot — tracers, the flame jet,
+            // the cryo beam — the old bores, turned toward the camera at ±49–66°, fired the streams into the lens and the
+            // outer two shot at each other across the line): the outer two nearly across the screen (72° off «away»: the
+            // flashes side-on), the inner two steeper (35°) so their streams pass behind the outer ones; + = screen-left;
+            // a slow sway so the frames differ
+            I.yaw = face + Float.pi + [1.25, 0.6, -0.6, -1.25][k % 4] + 0.1 * sinf(time * 0.7 + Float(k))
             I.firing = true
             I.spin = 1
             let r: Float = [9, 0, 0, 22][k % 4]

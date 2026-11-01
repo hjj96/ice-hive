@@ -535,7 +535,7 @@ final class MetalEffects {
         // a frost stream, not a laser line, from the game camera: a wider sheath there (native-vx-squad)
         let gk = squad?.gameK ?? 1
         ribbons.cryoBeam(from: o, ax: ax, az: az, len: len, time: frameTime, seed: Float(k) * 1.7, intensity: env * env * (1 - 0.15 * gk),
-                         widthK: 1 + 0.5 * gk)
+                         widthK: 1 + 0.5 * gk, soft: gk)
         let ni = rate(&acc[k][3], 55, dt)
         if ni > 0 {
             let t = rr(0.5, len)
@@ -1242,7 +1242,7 @@ final class MetalEffects {
             case .pyro:
                 if dt > 0 { flameJet(mz, ax: ax, az: az, vel: .zero, dt: dt, k: k) }
             case .cryo:
-                cryoStream(mz, ax: ax, az: az, len: 7, dt: dt, k: k)
+                cryoStream(mz, ax: ax, az: az, len: 6, dt: dt, k: k)
             }
         }
         var i = 0

@@ -369,10 +369,13 @@ fragment float4 fs_beam(BeamOut in [[stage_in]],
         float u = mix(in.params.x, in.params.y, x);
         float n = noise.sample(repeatSampler, float2(u * 2.3 - time * 3.1, y * 0.35 + in.params.z)).r;
         float n2 = noise.sample(repeatSampler, float2(u * 5.1 - time * 6.3, y * 0.6 - in.params.z)).r;
-        float core = pow(saturate(across), 14.0) * 1.15;
-        float inner = pow(saturate(across), 4.0) * 0.5;
-        float sheath = saturate(across) * (0.2 + 0.8 * n) * 0.32;
-        float crackle = smoothstep(0.66, 0.82, n2) * pow(saturate(across), 2.0) * 0.9;
+        // params.w = softness (native-vx-squad: from the game camera the white core read as a laser line — there it
+        // dims and the turbulent frost sheath and crackle carry the stream)
+        float soft = in.params.w;
+        float core = pow(saturate(across), 14.0) * 1.15 * (1.0 - 0.55 * soft);
+        float inner = pow(saturate(across), 4.0) * 0.5 * (1.0 - 0.2 * soft);
+        float sheath = saturate(across) * (0.2 + 0.8 * n) * 0.32 * (1.0 + 0.6 * soft);
+        float crackle = smoothstep(0.66, 0.82, n2) * pow(saturate(across), 2.0) * 0.9 * (1.0 + 0.4 * soft);
         float fade = smoothstep(0.0, 0.06, u) * (1.0 - smoothstep(0.85, 1.0, u));
         c = (float3(0.72, 0.93, 1.0) * core + float3(0.35, 0.78, 1.0) * inner + float3(0.16, 0.5, 1.0) * (sheath + crackle)) * fade;
         c *= in.color.rgb;
