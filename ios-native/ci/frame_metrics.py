@@ -157,7 +157,8 @@ for d in demos:
         if e:
             slow_enc.append((float(e.group(3)), max(0.0, float(e.group(1)) - float(e.group(2)))))
     hitches, host_stalls, stall_tds = [], [], []
-    for line in lines:
+    rate_switch = []
+    for k, line in enumerate(lines):
         h = rx_hitch.search(line)
         # (classified up to 1 s past the window: the app's own worst / min fps can include the tick that ends it)
         if not h or not (0.2 <= float(h.group(2)) <= secs + 1):
@@ -182,6 +183,14 @@ for d in demos:
             if work < 10:
                 host_stalls.append(int(h.group(1)))
                 stall_tds.append(float(h.group(2)))
+                continue
+            # a menu demo's tick right after the loop drops from 60 to 30 Hz (`frame rate 30 Hz` just before it) lasts
+            # two 30 Hz frames, ≈ 67 ms, while the app worked a fraction of it (LAND's handoff to the frame-loop owner;
+            # it failed report-loss / report-chip / pause-nm at random on native-metal and on native-vx-polish 497288e:
+            # upd 5 + draw 10 ms in a 67 ms tick) — listed, not counted, up to 70 ms and under 34 ms of the app's work
+            if d in menus and int(h.group(1)) <= 70 and work < 34 \
+                    and any('frame rate 30 Hz' in lines[j] for j in range(max(0, k - 3), k)):
+                rate_switch.append(int(h.group(1)))
                 continue
         if not (1.2 <= float(h.group(2)) <= secs):
             continue
@@ -404,6 +413,7 @@ for d in demos:
            + (f', sim/events {sweep_other}' if sweep_other else '') + ')' if sweep and sweep_worst > 34 else '')
     rows.append((d, f'load {lm.group(1) if lm else "-"} s | loop avg {avg:.1f} min {mn:.1f} worst {worst:.0f} ms '
                     f'hitches {len(hitches)}' + (f' host-stalls {len(host_stalls)} ({max(host_stalls)} ms)' if host_stalls else '')
+                    + (f' rate-switch {max(rate_switch)} ms' if rate_switch else '')
                     + f' | gpu drawn avg {drawn_avg} min {drawn_min} gap {gap} ms '
                     f'stall-s {stalls} cbmax {cbmax:.0f} ms | {fg} | {verdict}'))
 

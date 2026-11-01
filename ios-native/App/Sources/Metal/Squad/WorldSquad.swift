@@ -88,11 +88,12 @@ final class WorldSquad {
     /// Eye-to-target distance of this frame's camera (MetalWorld sets it before build): the game camera sits ≈ 33 m out,
     /// the punch-in ends at 10 m, the extraction shot rides the shaft wall a few metres off the squad.
     var cameraDistance: Float = 33
-    /// 0 at a close camera (≤ 14 m: the close-ups, the punch-in, the extraction shot), 1 at the game camera (≥ 26 m):
-    /// how much of the game-camera boost (flash size, class rim, visor gain) applies.
+    /// 0 at a close camera (≤ 18 m: the close-ups, the punch-in, the extraction shot), 1 at the game camera (≥ 30 m):
+    /// how much of the game-camera boost (flash size, class rim, visor gain, the rounds' light pop) applies — the title
+    /// camera at 24 m gets half (with the full boost its muzzles clipped, title 1.41 % on native-vx-polish-look 55931cb).
     var gameK: Float {
         if lookDev.closeUp { return 0 }
-        let t = max(0, min(1, (cameraDistance - 14) / 12))
+        let t = max(0, min(1, (cameraDistance - 18) / 12))
         return t * t * (3 - 2 * t)
     }
 
