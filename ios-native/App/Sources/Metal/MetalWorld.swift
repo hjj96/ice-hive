@@ -234,6 +234,8 @@ final class MetalWorld: HUDProjection {
         let dt = dt0 + dtCarry
         dtCarry = 0
 
+        let ce = camera.eye - camera.focus
+        squad.cameraDistance = (ce * ce).sum().squareRoot()
         squad.build(game: game, alpha: alpha, dt: dt, time: time, rise: rise)
         spot0.on = false
         if let m = game.marines.first {

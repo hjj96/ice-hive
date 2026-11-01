@@ -85,6 +85,16 @@ final class WorldSquad {
     static let cavity: Float = 0.45
     /// Weapon flash size from the game camera (polish), × the modelled size; close-ups draw it at 1.
     static let flashGameScale: Float = 1.45
+    /// Eye-to-target distance of this frame's camera (MetalWorld sets it before build): the game camera sits ≈ 33 m out,
+    /// the punch-in ends at 10 m, the extraction shot rides the shaft wall a few metres off the squad.
+    var cameraDistance: Float = 33
+    /// 0 at a close camera (≤ 14 m: the close-ups, the punch-in, the extraction shot), 1 at the game camera (≥ 26 m):
+    /// how much of the game-camera boost (flash size, class rim, visor gain) applies.
+    private var gameK: Float {
+        if lookDev.closeUp { return 0 }
+        let t = max(0, min(1, (cameraDistance - 14) / 12))
+        return t * t * (3 - 2 * t)
+    }
 
     let level: Level
     /// Interpolated feet of each marine this frame (effects, rings, lights and the HUD attach here).
@@ -234,7 +244,7 @@ final class WorldSquad {
             draws[k] = MarineDraw(hue: F4(hue.x, hue.y, hue.z, visor),
                                   trim: F4(tr.x, tr.y, tr.z, Float(m.cls.rawValue)),
                                   flash: F4(0.55 * hurt + inv * 0.4, 0.04 * hurt + inv * 0.9, 0.03 * hurt + inv, m.downed && !I.dead ? 0.6 : (I.dead ? 1 : 0)),
-                                  params: F4(lookDev.closeUp ? (m.isPlayer ? 0.16 : 0.12) : (m.isPlayer ? 0.26 : 0.2), lookDev.closeUp ? 5.5 : 7.5, 3.5, high ? 1 : 0))
+                                  params: F4((m.isPlayer ? 0.16 : 0.12) + 0.1 * gameK, 5.5 + 2 * gameK, 3.5, high ? 1 : 0))
             draws[k].key = F4(WorldSquad.keyLight.x, WorldSquad.keyLight.y, WorldSquad.keyLight.z, WorldSquad.cavity)
             weaponFx(k, m, I, rig, dt: dt, coreHeat: lookDev.on ? -1 : m.heat)
             drawn.append(k)
@@ -325,9 +335,13 @@ final class WorldSquad {
         if down { inten = 0; light = 0 }
         // polish (owner: «эффекты стрельбы эпичнее»): from the game camera a marine is ~60 px tall and the 0.86 m star
         // read as a spark; the flash is drawn larger and a little hotter there (the close-ups keep the modelled size)
-        if !lookDev.closeUp && (kind != 2 || len > 0.2) {   // (not the pyro's pilot light)
-            len *= WorldSquad.flashGameScale; wid *= WorldSquad.flashGameScale * 0.95
-            col *= 1.2; light *= 1.3
+        // (not the pyro's pilot light; by the camera's distance — at the close extraction shot the 1.45× flashes clipped,
+        // CI 1d5bd98 extract 1.01 %)
+        let gk = gameK
+        if gk > 0 && (kind != 2 || len > 0.2) {
+            let fs = 1 + (WorldSquad.flashGameScale - 1) * gk
+            len *= fs; wid *= fs * (1 - 0.05 * gk)
+            col *= 1 + 0.2 * gk; light *= 1 + 0.3 * gk
         }
         guard let mz = mzOpt else { return }
         draws[k].muzzle = F4(mz.x, mz.y, mz.z, light)
