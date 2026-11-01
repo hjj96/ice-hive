@@ -148,7 +148,7 @@ vertex CreatureOut vs_creature(uint vid [[vertex_id]], uint iid [[instance_id]],
 }
 
 // polish: albedo lift of the living shell per type (runner, spitter, brute, boomer)
-constant float kBodyLift[4] = {1.9, 1.7, 1.45, 1.4};
+constant float kBodyLift[4] = {1.9, 1.7, 1.15, 1.2};
 
 fragment float4 fs_chitin(CreatureOut in [[stage_in]],
                           constant Frame& F [[buffer(1)]],
@@ -202,7 +202,9 @@ fragment float4 fs_chitin(CreatureOut in [[stage_in]],
         float2 ns = float2(dot(N, F.camRight.xyz), dot(N, F.camUp.xyz));
         float keyEdge = smoothstep(0.1, 0.9, dot(ns, float2(-0.552, 0.834))) * pow(1.0 - NoV, 1.2);
         c += rimC * (T.rim.w * rimLive * keyEdge * 1.6);
-        c += albedo * (rim * min(lightIn, 3.0) * 1.2 * (1.0 - 0.75 * dead));
+        // the lit outline in the type's hue (pass 2: an albedo-coloured one turned the brutes' faceted LOD2 shells into
+        // grey-white blobs under the blast lights in CI combat)
+        c += rimC * (rim * min(lightIn, 2.0) * 0.3 * (1.0 - 0.75 * dead));
     }
     c += float3(0.08, 0.22, 0.38) * (frz * (0.05 + 0.6 * rim));
     // pores: HDR from the glow table (they pulse, flare on the attack, fade through the death clip)

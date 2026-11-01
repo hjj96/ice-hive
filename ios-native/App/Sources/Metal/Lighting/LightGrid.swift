@@ -362,7 +362,7 @@ final class LightGrid {
         for (k, m) in game.marines.enumerated() where k < 4 && k < poses.count && !m.downed {
             let p = poses[k]
             if m.firing && m.cls == .pyro && !m.isPlayer {
-                add(F3(p.x + m.ax * 3.5, p.y + 1.4, p.z + m.az * 3.5), linearRGB(0xff7a28), intensity: 80 * (0.8 + 0.2 * sinf(time * 37 + Float(k))), range: 14, priority: 12)
+                add(F3(p.x + m.ax * 3.5, p.y + 1.4, p.z + m.az * 3.5), linearRGB(0xff7a28), intensity: 62 * (0.8 + 0.2 * sinf(time * 37 + Float(k))), range: 13, priority: 12)
             }
             if m.firing && m.cls == .cryo {
                 add(F3(p.x + m.ax * m.beamLen * 0.5, p.y + 1.2, p.z + m.az * m.beamLen * 0.5), linearRGB(0x60c8ff), intensity: 40, range: 12, priority: 10)

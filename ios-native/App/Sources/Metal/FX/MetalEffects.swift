@@ -579,9 +579,11 @@ final class MetalEffects {
         if full { blasts.append(0) } else { blastsReduced += 1 }
         blastsPeak = max(blastsPeak, blasts.count)
         // light and the white-hot core
-        flash(p + F3(0, 1.2, 0), boomer ? F3(1.0, 0.75, 0.3) : F3(1.0, 0.6, 0.3), peak: big ? 520 : 170, dur: big ? 0.55 : 0.3,
-              range: r * 3.2, priority: 30)
-        gpu.burst(.flash, 1, at: p + F3(0, 0.3, 0), life: (0.12, 0.15), size: (big ? 4.4 : 2.2, big ? 5.4 : 2.7), color: F4(8, 6, 4, 1), sizeJitter: 0)
+        // (polish: CI fxpeak / combat — chained blasts lit the deck and the swarm pale cream: a warmer, lower light and a
+        // smaller white core keep the fireball orange against a dark deck)
+        flash(p + F3(0, 1.2, 0), boomer ? F3(1.0, 0.68, 0.24) : F3(1.0, 0.52, 0.22), peak: big ? 340 : 125, dur: big ? 0.5 : 0.28,
+              range: r * 3.0, priority: 30)
+        gpu.burst(.flash, 1, at: p + F3(0, 0.3, 0), life: (0.1, 0.13), size: (big ? 3.4 : 1.8, big ? 4.2 : 2.2), color: F4(8, 6, 4, 1), sizeJitter: 0)
         gpu.burst(.glow, 1, at: p, life: (0.18, 0.22), size: (r * 1.1, r * 1.6), color: F4(2.8, 1.55, 0.66, 1), sizeJitter: 0)
         if full {
             // the fireball and the licks of flame flung out of it
@@ -589,7 +591,7 @@ final class MetalEffects {
             if fb > 0 {
                 gpu.burst(.blast, fb, at: p, jitter: F3(0.4, 0.25, 0.4), vel: F3(0, 1.4, 0), velJitter: F3(0.6, 0.5, 0.6),
                           radial: 1.3 * r.squareRoot(), life: (0.7, 1.0), size: (r * 0.55, r * 0.95),
-                          color: boomer ? F4(1.0, 0.96, 0.6, 1) : F4(1, 1, 1, 1), gravity: -1, drag: 2.2, spin: 0.6)
+                          color: boomer ? F4(1.0, 0.85, 0.45, 1) : F4(1.0, 0.8, 0.58, 1), gravity: -1, drag: 2.2, spin: 0.6)
             }
             let nl = flameBudget(num(big ? 12 : 5))
             if nl > 0 {
@@ -836,9 +838,11 @@ final class MetalEffects {
         if game.stage == .extract && dt > 0 {
             // the platform tears loose: steam pours off the rim, sparks rain into the shaft
             let L = level.lift, ry = L.y + rise
-            let ns = rate(&extractAcc[0], 140, dt), nk = rate(&extractAcc[1], 90, dt)
-            gpu.burst(.steam, ns, at: F3(L.x, ry + 0.2, L.z), ring: L.r, vel: F3(0, -1.2, 0), velJitter: F3(0.3, 0.7, 0.3), radial: 0.6,
-                      life: (1.0, 1.4), size: (0.6, 2.4), color: F4(0.7, 0.75, 0.8, 0.35), noFloor: true)
+            // (polish, WP6 handoff 8: at 140 / s, 0.7–0.8 grey and α 0.35 the rim steam read as white puffs outside the
+            // railing in the extraction shots — thinner, darker, smaller, falling into the shaft)
+            let ns = rate(&extractAcc[0], 90, dt), nk = rate(&extractAcc[1], 90, dt)
+            gpu.burst(.steam, ns, at: F3(L.x, ry + 0.1, L.z), ring: L.r + 0.2, vel: F3(0, -1.5, 0), velJitter: F3(0.3, 0.7, 0.3), radial: 0.5,
+                      life: (0.9, 1.3), size: (0.5, 1.8), color: F4(0.42, 0.47, 0.52, 0.24), noFloor: true)
             gpu.burst(.spark, nk, at: F3(L.x, ry - 0.3, L.z), ring: L.r + 0.6, vel: F3(0, 0.2, 0), velJitter: F3(0.3, 1.2, 0.3),
                       radial: 1.2, life: (0.4, 0.8), size: (0.045, 0.03), color: F4(1.2, 1.0, 0.8, 1), gravity: 12, drag: 0.3, noFloor: true)
         }
@@ -911,7 +915,7 @@ final class MetalEffects {
                 var merged = false
                 for j in acidPick.indices {
                     let p = acidPick[j]
-                    let dx = p.x - e.x, dz = p.z - e.z, m = 1.3 * max(p.r, e.r0)   // polish: any two that overlap (0.8 left 5–6 rings round the squad, CI 8902b6e)
+                    let dx = p.x - e.x, dz = p.z - e.z, m = max(2.0 * max(p.r, e.r0), 2.5)   // polish: any two that overlap (0.8 left 5–6 rings round the squad, CI 8902b6e)
                     if dx * dx + dz * dz < m * m {
                         if u > p.u { acidPick[j] = (e.x, e.z, e.r0, u, col, p.n + 1) } else { acidPick[j].n += 1 }
                         merged = true
