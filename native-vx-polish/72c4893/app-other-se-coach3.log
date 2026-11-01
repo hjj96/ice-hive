@@ -1,0 +1,617 @@
+[IceHive] launch v2.0.0 (1) core=2.0.0 options=demo=coach seconds=6.0 debugHUD=false seed=7 orient=right coachStep=2 layoutCheck
+[IceHive] view ready maxFPS=60 scale=2.0 worldScale=2.0
+[IceHive] frame loop resumed
+[IceHive] metal: view 667x375 pt, drawable 1334x750 px (scale 2.0)
+[IceHive] settings: cls=assault best=0/0s muted=false vol=0.8 haptics=true quality=auto
+[IceHive] v11 meta: runs=0 wins=0 pick=- tut=0 sticks=0 tier=rec first=1 (demo, in memory)
+[IceHive] glyph calibration in 374 ms: JetBrainsMono-Bold 17pt 1/1 dx=+0px dy=+2px width-1px bottom+0px; JetBrainsMono-Bold 17pt 1/1 dx=+0px dy=+2px width-1px bottom+0px; JetBrainsMono-Bold 16pt 1/1 dx=+0px dy=+2px width+0px bottom+0px; JetBrainsMono-Bold 13pt 2/1 dx=-2px dy=+2px width+0px bottom+0px; JetBrainsMono-Bold 12pt 1/1 dx=+2px dy=+3px width+0px bottom+0px; JetBrainsMono-Bold 12pt 0/1 dx=+0px dy=+3px width+0px bottom+0px; JetBrainsMono-Medium 9pt 1/3 2 lines dx=+2px dy=+7px width+0px bottom+0px
+[IceHive] frame loop: display link started, 2 frames in flight, max 60 Hz
+[IceHive] fonts: Oswald + JetBrains Mono registered
+[IceHive] scene presented size=667x375 iface=landscapeRight
+[IceHive] scene active
+[IceHive] metal: meshes 24 (5446 triangles, 0.4 MB) textures 9 in 694 ms glints 3/4/3/3 | kit 20 pieces (4013 triangles), trims ASTC, 6.7 MB in 557 ms (pieces 2, textures read 357, GPU upload wait 198)
+[IceHive] metal: pipelines built in 56 ms (31 world + 5 post; first request 7 ms, then 35 in parallel 47 ms, slowest: creature 15, pad 14, shadowKit 9, level 9, cones.high 8) device=Apple iOS simulator GPU
+[IceHive] metal: post: grade LUTs gameplay/beacon/extraction/title, exposure table 4 moods in 19 ms | counters command-buffer totals | device class a13OrOlder (simulator) bug cap 900 default tier efficient | world encodes > 2 ms logged
+[IceHive] squad: 4 marines (9696/9880/9816/9972 triangles, 2.89 MB, 28 clips each) maps ASTC in 178 ms
+[IceHive] metal: station: 206278 vertices, 108241 triangles in 27 chunks (9.3 MB; assembled in 33 ms) glows 72 | casters 17902 triangles | triangles decks 2310, edges 70103, supports 14948, props 15730, lift 5150 | edges: 360 posts, 197 icicle fringes, 46 drifts, 48 lamps (47 ms)
+[IceHive] swarm: creatures 863 KB in 6.6 ms: runner 2886/436/146 tris 8 clips, spitter 2564/388/146 tris 8 clips, brute 2756/414/146 tris 9 clips, boomer 2512/410/146 tris 5 clips
+[IceHive] metal: environment probe 64x64, 5 mips, 256 KB in 2.9 ms
+[IceHive] metal: lighting: shadow atlas 2048x1024 D32F (8.0 MB), occupancy 2x256² RG8, probe 5 mips, 32 grid lights / 16² cells of 3 m
+[IceHive] metal world ready in 331 ms (preload 724 ms, started 637 ms before the scene) mem=53MB avail=0MB
+[IceHive] demo coach: coach on step 1 tier=rec
+[IceHive] mode playing class=assault seed=7 demo=coach
+[IceHive] v11 start tier=rec coach=1 station=Кельвин-9 seed=7
+[IceHive] metal: world target 1334x750 px (allocation 1, RG11B10F, 4x MSAA, MSAA private (simulator), scene + bloom 5.2 MB) in 1.6 ms
+[IceHive] v11 coach step=0
+[IceHive] v11 coach step=1
+[IceHive] v11 threat 0 t=0.1 pressure=0.0
+[IceHive] hb gpu frame=0.00 max=0.00 passes=- (no counter sampling: command-buffer totals only) | ema=0.00 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.129ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=0 lod=0/0/0 tris=0k corpses=0/0 glints=0 proxies=0 build=0.01ms tier=efficient
+[IceHive] hb fx parts=0/12288 peak=0 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=0/1000 beams=8 tracers=0 tracer=0.0m lights=0 floor=0+0 acid=0/0 heat=0 cpu=0.017ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=16 cells=143 tiles=1 beams=4 occ=4 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] particles: compute ready in 264 ms, 32768 slots (3.0 MB), flipbooks fx_fire fx_blast fx_smoke
+[IceHive] hb t=1.0 fps=37.4 drawn=3 mode=playing demo=coach
+[IceHive] interface settled iface=landscapeRight
+[IceHive] audio: 38 sounds, 6 loops, 20 voices (1064 ms)
+[IceHive] text warm-up: 109 wrapped strings in 1504 ms
+[IceHive] hb gpu frame=14.23 max=21.05 passes=- (no counter sampling: command-buffer totals only) | ema=0.00 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.123ms slide=0.0cm grip=0.0mm draws=4 restep=3 flashes=1 states=idle,idle,idle,idle
+[IceHive] hb swarm vis=5 lod=0/7/0 tris=2k corpses=2/2 glints=20 proxies=0 build=0.02ms tier=efficient
+[IceHive] hb fx parts=0/12288 peak=0 fire=0/600 peak=0 expl=3/3 peak=3 reduced=0 throttled=0 spawn=0/s rec=0/s decals=12/1000 beams=8 tracers=0 tracer=0.0m lights=0 floor=2+0 acid=0/0 heat=3 cpu=0.041ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=16 cells=143 tiles=1 beams=4 occ=9 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=2.0 fps=59.0 drawn=28 mode=playing demo=coach
+[IceHive] loading took 2.08 s (from the first frame)
+[IceHive] scene ready mode=playing size=667x375 renderer=metal
+[IceHive] hb gpu frame=0.42 max=13.27 passes=- (no counter sampling: command-buffer totals only) | ema=0.00 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.078ms slide=0.0cm grip=0.0mm draws=4 restep=3 flashes=1 states=idle,idle,idle,idle
+[IceHive] hb swarm vis=10 lod=0/10/0 tris=4k corpses=0/0 glints=40 proxies=0 build=0.03ms tier=efficient
+[IceHive] hb fx parts=0/12288 peak=0 fire=0/600 peak=0 expl=0/3 peak=3 reduced=0 throttled=0 spawn=0/s rec=0/s decals=0/1000 beams=8 tracers=0 tracer=0.0m lights=0 floor=0+0 acid=0/0 heat=0 cpu=0.017ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=16 cells=143 tiles=1 beams=4 occ=14 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=3.0 td=0.9 fps=60.0 worst=17ms drawn=53 gap=62ms sim=0.07ms world=0.23ms mode=playing bugs=10 vis=10 parts=0 stage=0 hp=100 kills=0 mem=55MB avail=0MB demo=coach rend=metal cpu=15 main=7 dc=26 inst=2187 tris=208635 enc=0.27ms gpu=0.17ms gpumax=0.4ms skip=3 nodraw=0 drw=0ms cbmax=73ms sk=2ms/0 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 0 | max world=3 hud=3 au=4 / cam=2
+[IceHive] layout hud stats x=-318 y=138 w=126 h=40
+[IceHive] layout hud objective x=-182 y=132 w=427 h=46
+[IceHive] layout hud pause x=274 y=134 w=44 h=44
+[IceHive] layout hud squad x=-318 y=56 w=117 h=74
+[IceHive] layout hud coach x=-190 y=86 w=381 h=44
+[IceHive] layout hud toasts x=-2 y=28 w=320 h=52
+[IceHive] layout hud hint x=-144 y=-118 w=219 h=35
+[IceHive] layout hud armour x=-107 y=-180 w=213 h=46
+[IceHive] layout hud ring.move x=-280 y=-126 w=124 h=124
+[IceHive] layout hud caption.move x=-252 y=-146 w=70 h=14
+[IceHive] layout hud ring.aim x=88 y=-126 w=124 h=124
+[IceHive] layout hud caption.aim x=128 y=-146 w=42 h=14
+[IceHive] layout hud dash x=222 y=-42 w=62 h=62
+[IceHive] layout hud ability x=228 y=-148 w=78 h=78
+[IceHive] layout ok hud 667x375 safe 0|0|0|0 (14 elements)
+[IceHive] hb gpu frame=0.16 max=0.31 passes=- (no counter sampling: command-buffer totals only) | ema=0.17 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.098ms slide=0.0cm grip=0.0mm draws=4 restep=3 flashes=1 states=idle,walk,walk,run
+[IceHive] hb swarm vis=10 lod=0/10/0 tris=4k corpses=0/0 glints=40 proxies=0 build=0.03ms tier=efficient
+[IceHive] hb fx parts=6/12288 peak=6 fire=3/600 peak=3 expl=0/3 peak=0 reduced=0 throttled=0 spawn=16/s rec=14/s decals=1/1000 beams=10 tracers=0 tracer=0.0m lights=0 floor=1+0 acid=0/0 heat=2 cpu=0.021ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=18 cells=165 tiles=1 beams=4 occ=14 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] demo coach: step 2 at td=1.50
+[IceHive] v11 coach step=2
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.1 ms) wall=1793557771.435
+[IceHive] hb t=4.0 td=1.9 fps=60.0 worst=17ms drawn=57 gap=64ms sim=0.07ms world=0.23ms mode=playing bugs=21 vis=21 parts=37 stage=0 hp=100 kills=2 mem=55MB avail=0MB demo=coach rend=metal cpu=15 main=8 dc=27 inst=2287 tris=214477 enc=0.45ms gpu=0.14ms gpumax=0.6ms skip=3 nodraw=0 drw=0ms cbmax=55ms sk=1ms/2 skcpu=0ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 2 | max - / -
+[IceHive] first ability.turret td=2.03
+[IceHive] hb gpu frame=0.17 max=0.61 passes=- (no counter sampling: command-buffer totals only) | ema=0.16 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.109ms slide=0.0cm grip=0.0mm draws=4 restep=5 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=24 lod=0/28/0 tris=12k corpses=4/4 glints=96 proxies=0 build=0.04ms tier=efficient
+[IceHive] hb fx parts=72/12288 peak=75 fire=14/600 peak=14 expl=0/3 peak=0 reduced=0 throttled=0 spawn=137/s rec=79/s decals=6/1000 beams=11 tracers=1 tracer=1.8m lights=0 floor=1+0 acid=0/0 heat=2 cpu=0.022ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=18 cells=172 tiles=1 beams=4 occ=28 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] demo coach: frozen at t=4.1 step 2
+[IceHive] hb t=5.0 td=2.9 fps=60.0 worst=17ms drawn=52 gap=103ms sim=0.03ms world=0.24ms mode=playing bugs=20 vis=20 parts=127 stage=0 hp=100 kills=8 mem=55MB avail=0MB demo=coach rend=metal cpu=15 main=8 dc=30 inst=2397 tris=216979 enc=0.24ms gpu=0.14ms gpumax=0.3ms skip=8 nodraw=0 drw=0ms cbmax=91ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 8 | max ev=2 / -
+[IceHive] hb gpu frame=0.16 max=0.35 passes=- (no counter sampling: command-buffer totals only) | ema=0.19 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.098ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=20 lod=0/28/0 tris=12k corpses=8/8 glints=80 proxies=0 build=0.03ms tier=efficient
+[IceHive] hb fx parts=188/12288 peak=188 fire=18/600 peak=19 expl=0/3 peak=0 reduced=0 throttled=0 spawn=131/s rec=87/s decals=11/1000 beams=11 tracers=1 tracer=1.8m lights=2 floor=1+0 acid=0/0 heat=2 cpu=0.034ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=20 cells=170 tiles=1 beams=4 occ=24 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] sights: glint 1.2 m (no laser line), first on marine 1 (pyro)
+[IceHive] hb t=6.0 td=3.9 fps=60.0 worst=17ms drawn=57 gap=35ms sim=0.02ms world=0.33ms mode=playing bugs=20 vis=20 parts=208 stage=0 hp=100 kills=8 mem=55MB avail=0MB demo=coach rend=metal cpu=16 main=8 dc=29 inst=2469 tris=217123 enc=0.36ms gpu=0.22ms gpumax=1.0ms skip=2 nodraw=1 drw=5ms cbmax=49ms sk=5ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.2 bug=0.1 fx=0.0 up=0.1 | sfx 8 | max - / -
+[IceHive] hb gpu frame=0.20 max=1.01 passes=- (no counter sampling: command-buffer totals only) | ema=0.18 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.120ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=20 lod=0/28/0 tris=12k corpses=8/8 glints=80 proxies=0 build=0.04ms tier=efficient
+[IceHive] hb fx parts=206/12288 peak=208 fire=18/600 peak=19 expl=0/3 peak=0 reduced=0 throttled=0 spawn=17/s rec=17/s decals=11/1000 beams=11 tracers=0 tracer=0.0m lights=1 floor=0+0 acid=0/0 heat=0 cpu=0.032ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=18 cells=170 tiles=1 beams=4 occ=24 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=7.0 td=4.9 fps=60.0 worst=17ms drawn=57 gap=49ms sim=0.01ms world=0.27ms mode=playing bugs=20 vis=20 parts=204 stage=0 hp=100 kills=8 mem=55MB avail=0MB demo=coach rend=metal cpu=16 main=8 dc=29 inst=2465 tris=217115 enc=0.26ms gpu=0.28ms gpumax=1.3ms skip=1 nodraw=1 drw=4ms cbmax=44ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.0 up=0.0 | sfx 8 | max - / -
+[IceHive] hb gpu frame=0.20 max=1.35 passes=- (no counter sampling: command-buffer totals only) | ema=0.20 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.104ms slide=0.0cm grip=0.0mm draws=4 restep=2 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=20 lod=0/28/0 tris=12k corpses=8/8 glints=80 proxies=0 build=0.04ms tier=efficient
+[IceHive] hb fx parts=199/12288 peak=206 fire=18/600 peak=18 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=11/1000 beams=11 tracers=0 tracer=0.0m lights=0 floor=0+0 acid=0/0 heat=0 cpu=0.028ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=170 tiles=1 beams=4 occ=24 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=8.0 td=5.9 fps=60.0 worst=17ms drawn=58 gap=33ms sim=0.01ms world=0.27ms mode=playing bugs=20 vis=20 parts=190 stage=0 hp=100 kills=8 mem=55MB avail=0MB demo=coach rend=metal cpu=17 main=8 dc=29 inst=2452 tris=217089 enc=0.28ms gpu=0.18ms gpumax=0.5ms skip=1 nodraw=1 drw=4ms cbmax=54ms sk=9ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 8 | max - / -
+[IceHive] hb gpu frame=0.19 max=0.42 passes=- (no counter sampling: command-buffer totals only) | ema=0.17 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.135ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=20 lod=0/28/0 tris=12k corpses=8/8 glints=80 proxies=0 build=0.04ms tier=efficient
+[IceHive] hb fx parts=152/12288 peak=199 fire=18/600 peak=18 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=11/1000 beams=11 tracers=0 tracer=0.0m lights=0 floor=0+0 acid=0/0 heat=0 cpu=0.030ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=170 tiles=1 beams=4 occ=24 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=9.0 td=6.9 fps=60.0 worst=17ms drawn=59 gap=47ms sim=0.01ms world=0.30ms mode=playing bugs=20 vis=20 parts=135 stage=0 hp=100 kills=8 mem=55MB avail=0MB demo=coach rend=metal cpu=16 main=8 dc=29 inst=2396 tris=216977 enc=0.24ms gpu=0.20ms gpumax=0.4ms skip=2 nodraw=0 drw=0ms cbmax=55ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 8 | max - / -
+[IceHive] demo done after 6s avgFps=60.0 minFps=60.0 worstFrame=17ms drawnAvg=56.7 drawnMin=52.0 worstGap=103ms mem=55MB avail=0MB
+[IceHive] hb gpu frame=0.19 max=0.42 passes=- (no counter sampling: command-buffer totals only) | ema=0.22 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.110ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=20 lod=0/28/0 tris=12k corpses=8/8 glints=80 proxies=0 build=0.04ms tier=efficient
+[IceHive] hb fx parts=128/12288 peak=152 fire=17/600 peak=18 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=11/1000 beams=11 tracers=0 tracer=0.0m lights=0 floor=0+0 acid=0/0 heat=0 cpu=0.033ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=170 tiles=1 beams=4 occ=24 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=10.0 td=7.9 fps=60.0 worst=17ms drawn=57 gap=40ms sim=0.03ms world=0.26ms mode=playing bugs=20 vis=20 parts=126 stage=0 hp=100 kills=8 mem=55MB avail=0MB demo=coach rend=metal cpu=16 main=7 dc=29 inst=2387 tris=216959 enc=0.22ms gpu=0.14ms gpumax=0.4ms skip=3 nodraw=0 drw=0ms cbmax=42ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 8 | max - / -
+[IceHive] hb gpu frame=0.16 max=0.75 passes=- (no counter sampling: command-buffer totals only) | ema=0.15 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.108ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=20 lod=0/28/0 tris=12k corpses=8/8 glints=80 proxies=0 build=0.03ms tier=efficient
+[IceHive] hb fx parts=123/12288 peak=128 fire=17/600 peak=17 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=11/1000 beams=11 tracers=0 tracer=0.0m lights=0 floor=0+0 acid=0/0 heat=0 cpu=0.024ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=170 tiles=1 beams=4 occ=24 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=11.0 td=8.9 fps=60.0 worst=17ms drawn=55 gap=112ms sim=0.01ms world=0.26ms mode=playing bugs=20 vis=20 parts=123 stage=0 hp=100 kills=8 mem=55MB avail=0MB demo=coach rend=metal cpu=14 main=7 dc=29 inst=2384 tris=216953 enc=0.24ms gpu=0.14ms gpumax=0.7ms skip=5 nodraw=0 drw=0ms cbmax=102ms sk=2ms/0 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 8 | max - / -
+[IceHive] hb gpu frame=0.15 max=0.42 passes=- (no counter sampling: command-buffer totals only) | ema=0.16 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.105ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=20 lod=0/28/0 tris=12k corpses=8/8 glints=80 proxies=0 build=0.04ms tier=efficient
+[IceHive] hb fx parts=123/12288 peak=123 fire=17/600 peak=17 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=11/1000 beams=11 tracers=0 tracer=0.0m lights=0 floor=0+0 acid=0/0 heat=0 cpu=0.029ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=170 tiles=1 beams=4 occ=24 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=12.0 td=9.9 fps=60.0 worst=17ms drawn=57 gap=56ms sim=0.01ms world=0.25ms mode=playing bugs=20 vis=20 parts=141 stage=0 hp=100 kills=8 mem=55MB avail=0MB demo=coach rend=metal cpu=15 main=7 dc=29 inst=2401 tris=216987 enc=0.20ms gpu=0.24ms gpumax=1.1ms skip=3 nodraw=0 drw=0ms cbmax=81ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 8 | max - / -
+[IceHive] hb gpu frame=0.19 max=1.08 passes=- (no counter sampling: command-buffer totals only) | ema=0.17 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.096ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=20 lod=0/28/0 tris=12k corpses=8/8 glints=80 proxies=0 build=0.03ms tier=efficient
+[IceHive] hb fx parts=174/12288 peak=174 fire=17/600 peak=17 expl=0/3 peak=0 reduced=0 throttled=0 spawn=55/s rec=55/s decals=11/1000 beams=11 tracers=0 tracer=0.0m lights=0 floor=0+0 acid=0/0 heat=0 cpu=0.024ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=170 tiles=1 beams=4 occ=24 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=13.0 td=10.9 fps=60.0 worst=17ms drawn=57 gap=69ms sim=0.01ms world=0.25ms mode=playing bugs=20 vis=20 parts=196 stage=0 hp=100 kills=8 mem=55MB avail=0MB demo=coach rend=metal cpu=15 main=7 dc=29 inst=2456 tris=217097 enc=0.23ms gpu=0.16ms gpumax=0.5ms skip=3 nodraw=0 drw=0ms cbmax=60ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 8 | max - / -
+[IceHive] hb gpu frame=0.17 max=0.52 passes=- (no counter sampling: command-buffer totals only) | ema=0.19 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.108ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=20 lod=0/28/0 tris=12k corpses=8/8 glints=80 proxies=0 build=0.04ms tier=efficient
+[IceHive] hb fx parts=227/12288 peak=227 fire=17/600 peak=17 expl=0/3 peak=0 reduced=0 throttled=0 spawn=57/s rec=57/s decals=11/1000 beams=11 tracers=0 tracer=0.0m lights=0 floor=0+0 acid=0/0 heat=0 cpu=0.026ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=170 tiles=1 beams=4 occ=24 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=14.0 td=11.9 fps=60.0 worst=17ms drawn=56 gap=58ms sim=0.01ms world=0.26ms mode=playing bugs=20 vis=20 parts=229 stage=0 hp=100 kills=8 mem=55MB avail=0MB demo=coach rend=metal cpu=15 main=7 dc=29 inst=2490 tris=217165 enc=0.24ms gpu=0.15ms gpumax=0.3ms skip=4 nodraw=0 drw=0ms cbmax=87ms sk=2ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 8 | max - / -
+[IceHive] hb gpu frame=0.16 max=0.49 passes=- (no counter sampling: command-buffer totals only) | ema=0.20 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.106ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=20 lod=0/28/0 tris=12k corpses=8/8 glints=80 proxies=0 build=0.05ms tier=efficient
+[IceHive] hb fx parts=227/12288 peak=231 fire=17/600 peak=17 expl=0/3 peak=0 reduced=0 throttled=0 spawn=57/s rec=57/s decals=11/1000 beams=11 tracers=0 tracer=0.0m lights=0 floor=0+0 acid=0/0 heat=0 cpu=0.037ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=16 cells=143 tiles=1 beams=4 occ=24 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=15.0 td=12.9 fps=60.0 worst=17ms drawn=57 gap=39ms sim=0.02ms world=0.27ms mode=playing bugs=20 vis=20 parts=227 stage=0 hp=100 kills=8 mem=55MB avail=0MB demo=coach rend=metal cpu=16 main=8 dc=29 inst=2488 tris=217161 enc=0.24ms gpu=0.18ms gpumax=0.5ms skip=3 nodraw=0 drw=0ms cbmax=60ms sk=2ms/0 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 8 | max - / -
+[IceHive] hb gpu frame=0.18 max=0.36 passes=- (no counter sampling: command-buffer totals only) | ema=0.17 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.102ms slide=0.0cm grip=0.0mm draws=4 restep=1 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=20 lod=0/28/0 tris=12k corpses=8/8 glints=80 proxies=0 build=0.04ms tier=efficient
+[IceHive] hb fx parts=212/12288 peak=230 fire=17/600 peak=17 expl=0/3 peak=0 reduced=0 throttled=0 spawn=40/s rec=40/s decals=11/1000 beams=11 tracers=0 tracer=0.0m lights=0 floor=0+0 acid=0/0 heat=0 cpu=0.028ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=16 cells=143 tiles=1 beams=4 occ=24 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=16.0 td=13.9 fps=60.0 worst=17ms drawn=57 gap=45ms sim=0.01ms world=0.27ms mode=playing bugs=20 vis=20 parts=190 stage=0 hp=100 kills=8 mem=55MB avail=0MB demo=coach rend=metal cpu=15 main=7 dc=29 inst=2452 tris=217089 enc=0.25ms gpu=0.15ms gpumax=0.3ms skip=3 nodraw=0 drw=0ms cbmax=41ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 8 | max - / -
+[IceHive] hb gpu frame=0.16 max=0.31 passes=- (no counter sampling: command-buffer totals only) | ema=0.18 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.108ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=20 lod=0/28/0 tris=12k corpses=8/8 glints=80 proxies=0 build=0.04ms tier=efficient
+[IceHive] hb fx parts=150/12288 peak=211 fire=16/600 peak=17 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=11/1000 beams=11 tracers=0 tracer=0.0m lights=0 floor=0+0 acid=0/0 heat=0 cpu=0.024ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=16 cells=143 tiles=1 beams=4 occ=24 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=17.0 td=14.9 fps=60.0 worst=17ms drawn=55 gap=72ms sim=0.01ms world=0.27ms mode=playing bugs=20 vis=20 parts=130 stage=0 hp=100 kills=8 mem=55MB avail=0MB demo=coach rend=metal cpu=16 main=8 dc=29 inst=2392 tris=216969 enc=0.23ms gpu=0.16ms gpumax=0.3ms skip=5 nodraw=0 drw=0ms cbmax=97ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 8 | max hud=3 / -
+[IceHive] hb gpu frame=0.17 max=0.83 passes=- (no counter sampling: command-buffer totals only) | ema=0.19 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.090ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=20 lod=0/28/0 tris=12k corpses=8/8 glints=80 proxies=0 build=0.04ms tier=efficient
+[IceHive] hb fx parts=105/12288 peak=149 fire=16/600 peak=16 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=11/1000 beams=11 tracers=0 tracer=0.0m lights=0 floor=0+0 acid=0/0 heat=0 cpu=0.021ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=16 cells=143 tiles=1 beams=4 occ=24 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=18.0 td=15.9 fps=60.0 worst=17ms drawn=56 gap=52ms sim=0.01ms world=0.27ms mode=playing bugs=20 vis=20 parts=105 stage=0 hp=100 kills=8 mem=55MB avail=0MB demo=coach rend=metal cpu=15 main=7 dc=29 inst=2366 tris=216917 enc=0.23ms gpu=0.17ms gpumax=0.8ms skip=0 nodraw=3 drw=5ms cbmax=26ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 8 | max - / -
+[IceHive] hb gpu frame=0.17 max=0.56 passes=- (no counter sampling: command-buffer totals only) | ema=0.17 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.113ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=20 lod=0/28/0 tris=12k corpses=8/8 glints=80 proxies=0 build=0.04ms tier=efficient
+[IceHive] hb fx parts=105/12288 peak=105 fire=16/600 peak=16 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=11/1000 beams=11 tracers=0 tracer=0.0m lights=0 floor=0+0 acid=0/0 heat=0 cpu=0.029ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=16 cells=143 tiles=1 beams=4 occ=24 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=19.0 td=16.9 fps=60.0 worst=17ms drawn=53 gap=66ms sim=0.01ms world=0.24ms mode=playing bugs=20 vis=20 parts=105 stage=0 hp=100 kills=8 mem=55MB avail=0MB demo=coach rend=metal cpu=17 main=8 dc=29 inst=2366 tris=216917 enc=0.22ms gpu=0.18ms gpumax=0.6ms skip=5 nodraw=3 drw=5ms cbmax=88ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 8 | max - / -
+[IceHive] hb gpu frame=0.25 max=3.63 passes=- (no counter sampling: command-buffer totals only) | ema=0.23 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.106ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=20 lod=0/28/0 tris=12k corpses=8/8 glints=80 proxies=0 build=0.05ms tier=efficient
+[IceHive] hb fx parts=104/12288 peak=105 fire=16/600 peak=16 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=11/1000 beams=11 tracers=0 tracer=0.0m lights=0 floor=0+0 acid=0/0 heat=0 cpu=0.024ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=16 cells=143 tiles=1 beams=4 occ=24 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=20.0 td=17.9 fps=60.0 worst=17ms drawn=53 gap=52ms sim=0.02ms world=0.32ms mode=playing bugs=20 vis=20 parts=104 stage=0 hp=100 kills=8 mem=55MB avail=0MB demo=coach rend=metal cpu=16 main=8 dc=29 inst=2365 tris=216915 enc=0.31ms gpu=0.22ms gpumax=3.6ms skip=4 nodraw=3 drw=6ms cbmax=61ms sk=3ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.0 up=0.1 | sfx 8 | max world=3 / cam=3
+[IceHive] metal: slow world encode 6 ms (thread cpu 4.1 ms) wall=1793557787.991
+[IceHive] hb gpu frame=0.19 max=0.55 passes=- (no counter sampling: command-buffer totals only) | ema=0.17 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.117ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=20 lod=0/28/0 tris=12k corpses=8/8 glints=80 proxies=0 build=0.05ms tier=efficient
+[IceHive] hb fx parts=101/12288 peak=104 fire=14/600 peak=16 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=11/1000 beams=11 tracers=0 tracer=0.0m lights=0 floor=0+0 acid=0/0 heat=0 cpu=0.028ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=16 cells=143 tiles=1 beams=4 occ=24 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=21.0 td=18.9 fps=60.0 worst=17ms drawn=55 gap=77ms sim=0.02ms world=0.29ms mode=playing bugs=20 vis=20 parts=101 stage=0 hp=100 kills=8 mem=55MB avail=0MB demo=coach rend=metal cpu=17 main=8 dc=29 inst=2362 tris=216909 enc=0.28ms gpu=0.18ms gpumax=0.4ms skip=4 nodraw=1 drw=4ms cbmax=92ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 8 | max - / -
+[IceHive] hb gpu frame=0.19 max=0.45 passes=- (no counter sampling: command-buffer totals only) | ema=0.17 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.126ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=20 lod=0/28/0 tris=12k corpses=8/8 glints=80 proxies=0 build=0.04ms tier=efficient
+[IceHive] hb fx parts=99/12288 peak=101 fire=13/600 peak=14 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=11/1000 beams=11 tracers=0 tracer=0.0m lights=0 floor=0+0 acid=0/0 heat=0 cpu=0.028ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=16 cells=143 tiles=1 beams=4 occ=24 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=22.0 td=19.9 fps=59.0 worst=33ms drawn=52 gap=54ms sim=0.02ms world=0.31ms mode=playing bugs=20 vis=20 parts=98 stage=0 hp=100 kills=8 mem=55MB avail=0MB demo=coach rend=metal cpu=18 main=9 dc=29 inst=2359 tris=216903 enc=0.31ms gpu=0.17ms gpumax=0.5ms skip=7 nodraw=0 drw=0ms cbmax=49ms sk=5ms/0 skcpu=3ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.1 | sfx 8 | max - / -
+[IceHive] hb gpu frame=0.19 max=0.53 passes=- (no counter sampling: command-buffer totals only) | ema=0.21 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.120ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=20 lod=0/28/0 tris=12k corpses=8/8 glints=80 proxies=0 build=0.07ms tier=efficient
+[IceHive] hb fx parts=97/12288 peak=99 fire=13/600 peak=13 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=11/1000 beams=11 tracers=0 tracer=0.0m lights=0 floor=0+0 acid=0/0 heat=0 cpu=0.029ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=16 cells=143 tiles=1 beams=4 occ=24 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=23.0 td=20.9 fps=59.0 worst=37ms drawn=51 gap=49ms sim=0.01ms world=0.26ms mode=playing bugs=20 vis=20 parts=97 stage=0 hp=100 kills=8 mem=55MB avail=0MB demo=coach rend=metal cpu=19 main=9 dc=29 inst=2358 tris=216901 enc=0.24ms gpu=0.23ms gpumax=0.6ms skip=8 nodraw=0 drw=0ms cbmax=91ms sk=14ms/0 skcpu=9ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 8 | max - / -
+[IceHive] hb gpu frame=0.22 max=1.01 passes=- (no counter sampling: command-buffer totals only) | ema=0.19 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.142ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=20 lod=0/28/0 tris=12k corpses=8/8 glints=80 proxies=0 build=0.05ms tier=efficient
+[IceHive] hb fx parts=95/12288 peak=97 fire=12/600 peak=13 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=11/1000 beams=11 tracers=0 tracer=0.0m lights=0 floor=0+0 acid=0/0 heat=0 cpu=0.029ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=16 cells=143 tiles=1 beams=4 occ=24 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=24.0 td=21.9 fps=60.0 worst=17ms drawn=33 gap=267ms sim=0.06ms world=0.21ms mode=playing bugs=20 vis=20 parts=90 stage=0 hp=100 kills=8 mem=55MB avail=0MB demo=coach rend=metal cpu=13 main=7 dc=29 inst=2352 tris=216889 enc=0.35ms gpu=0.21ms gpumax=1.0ms skip=26 nodraw=0 drw=0ms cbmax=355ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.0 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.3 bug=0.1 fx=0.0 up=0.1 | sfx 8 | max - / -
+[IceHive] hb gpu frame=0.18 max=0.44 passes=- (no counter sampling: command-buffer totals only) | ema=0.17 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.155ms slide=0.0cm grip=0.0mm draws=4 restep=1 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=20 lod=0/28/0 tris=12k corpses=8/8 glints=80 proxies=0 build=0.04ms tier=efficient
+[IceHive] hb fx parts=85/12288 peak=95 fire=8/600 peak=12 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=11/1000 beams=11 tracers=0 tracer=0.0m lights=0 floor=0+0 acid=0/0 heat=0 cpu=0.038ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=16 cells=143 tiles=1 beams=4 occ=24 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=25.0 td=22.9 fps=60.0 worst=17ms drawn=42 gap=329ms sim=0.03ms world=0.32ms mode=playing bugs=20 vis=20 parts=85 stage=0 hp=100 kills=8 mem=55MB avail=0MB demo=coach rend=metal cpu=14 main=7 dc=29 inst=2346 tris=216877 enc=0.30ms gpu=0.18ms gpumax=0.4ms skip=18 nodraw=0 drw=2ms cbmax=330ms sk=2ms/0 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.1 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.2 bug=0.1 fx=0.1 up=0.1 | sfx 9 | max - / -
+[IceHive] hb gpu frame=0.21 max=0.57 passes=- (no counter sampling: command-buffer totals only) | ema=0.23 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.118ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=20 lod=0/28/0 tris=12k corpses=8/8 glints=80 proxies=0 build=0.04ms tier=efficient
+[IceHive] hb fx parts=84/12288 peak=87 fire=6/600 peak=8 expl=0/3 peak=0 reduced=0 throttled=0 spawn=2/s rec=1/s decals=11/1000 beams=13 tracers=45 tracer=1.8m lights=1 floor=0+0 acid=0/0 heat=0 cpu=0.035ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=143 tiles=1 beams=4 occ=24 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=26.0 td=23.9 fps=60.0 worst=17ms drawn=58 gap=58ms sim=0.03ms world=0.33ms mode=playing bugs=20 vis=20 parts=84 stage=0 hp=100 kills=8 mem=55MB avail=0MB demo=coach rend=metal cpu=20 main=9 dc=29 inst=2347 tris=216879 enc=0.35ms gpu=0.19ms gpumax=0.6ms skip=3 nodraw=0 drw=0ms cbmax=65ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.1 | sfx 9 | max - / -
+[IceHive] hb gpu frame=0.18 max=0.39 passes=- (no counter sampling: command-buffer totals only) | ema=0.18 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.121ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=20 lod=0/28/0 tris=12k corpses=8/8 glints=80 proxies=0 build=0.04ms tier=efficient
+[IceHive] hb fx parts=83/12288 peak=84 fire=5/600 peak=6 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=11/1000 beams=13 tracers=58 tracer=1.8m lights=1 floor=0+0 acid=0/0 heat=0 cpu=0.031ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=143 tiles=1 beams=4 occ=24 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] metal: slow world encode 3 ms (thread cpu 1.0 ms) wall=1793557794.271
+[IceHive] hb t=27.0 td=24.9 fps=60.0 worst=17ms drawn=57 gap=39ms sim=0.02ms world=0.34ms mode=playing bugs=20 vis=20 parts=83 stage=0 hp=100 kills=8 mem=55MB avail=0MB demo=coach rend=metal cpu=18 main=9 dc=29 inst=2346 tris=216877 enc=0.36ms gpu=0.24ms gpumax=0.6ms skip=3 nodraw=0 drw=3ms cbmax=55ms sk=6ms/0 skcpu=3ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.3 hud=0.1 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 9 | max - / -
+[IceHive] hb gpu frame=0.22 max=0.69 passes=- (no counter sampling: command-buffer totals only) | ema=0.20 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.121ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=20 lod=0/28/0 tris=12k corpses=8/8 glints=80 proxies=0 build=0.05ms tier=efficient
+[IceHive] hb fx parts=92/12288 peak=92 fire=5/600 peak=5 expl=0/3 peak=0 reduced=0 throttled=0 spawn=10/s rec=4/s decals=11/1000 beams=11 tracers=38 tracer=1.8m lights=2 floor=0+0 acid=0/0 heat=0 cpu=0.029ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=18 cells=143 tiles=1 beams=4 occ=24 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=28.0 td=25.9 fps=59.0 worst=33ms drawn=47 gap=71ms sim=0.02ms world=0.27ms mode=playing bugs=20 vis=20 parts=90 stage=0 hp=100 kills=8 mem=55MB avail=0MB demo=coach rend=metal cpu=15 main=7 dc=29 inst=2351 tris=216887 enc=0.27ms gpu=0.17ms gpumax=0.7ms skip=4 nodraw=7 drw=12ms cbmax=77ms sk=17ms/0 skcpu=0ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.2 bug=0.1 fx=0.0 up=0.0 | sfx 9 | max - / -
+[IceHive] hb gpu frame=1.72 max=39.74 passes=- (no counter sampling: command-buffer totals only) | ema=3.80 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb t=29.0 td=26.9 fps=60.0 worst=17ms drawn=14 gap=240ms sim=0.02ms world=0.10ms mode=playing bugs=20 vis=20 parts=89 stage=0 hp=100 kills=8 mem=55MB avail=0MB demo=coach rend=metal cpu=8 main=3 dc=29 inst=2351 tris=216887 enc=0.35ms gpu=3.80ms gpumax=39.7ms skip=40 nodraw=6 drw=27ms cbmax=217ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.0 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.0 up=0.0 | sfx 9 | max - / -
+[IceHive] hb squad cpu=0.150ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=20 lod=0/28/0 tris=12k corpses=8/8 glints=80 proxies=0 build=0.06ms tier=efficient
+[IceHive] hb fx parts=89/12288 peak=92 fire=4/600 peak=5 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=11/1000 beams=11 tracers=0 tracer=0.0m lights=1 floor=0+0 acid=0/0 heat=0 cpu=0.043ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=143 tiles=1 beams=4 occ=24 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb gpu frame=1.60 max=36.19 passes=- (no counter sampling: command-buffer totals only) | ema=1.08 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb t=30.0 td=27.9 fps=60.0 worst=17ms drawn=32 gap=402ms sim=0.02ms world=0.15ms mode=playing bugs=20 vis=20 parts=83 stage=0 hp=100 kills=8 mem=62MB avail=0MB demo=coach rend=metal cpu=10 main=5 dc=29 inst=2344 tris=216873 enc=0.23ms gpu=0.64ms gpumax=36.2ms skip=21 nodraw=7 drw=9ms cbmax=404ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 9 | max world=2 / -
+[IceHive] hb squad cpu=0.109ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=20 lod=0/28/0 tris=12k corpses=8/8 glints=80 proxies=0 build=0.04ms tier=efficient
+[IceHive] hb fx parts=83/12288 peak=87 fire=2/600 peak=3 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=11/1000 beams=11 tracers=0 tracer=0.0m lights=0 floor=0+0 acid=0/0 heat=0 cpu=0.023ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=16 cells=143 tiles=1 beams=4 occ=24 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb gpu frame=0.32 max=4.22 passes=- (no counter sampling: command-buffer totals only) | ema=0.25 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb t=31.0 td=28.9 fps=60.0 worst=17ms drawn=38 gap=80ms sim=0.02ms world=0.22ms mode=playing bugs=20 vis=20 parts=82 stage=0 hp=100 kills=8 mem=64MB avail=0MB demo=coach rend=metal cpu=11 main=5 dc=29 inst=2345 tris=216875 enc=0.25ms gpu=0.21ms gpumax=4.2ms skip=9 nodraw=14 drw=21ms cbmax=119ms sk=11ms/0 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 10 | max - / -
+[IceHive] hb squad cpu=0.103ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=20 lod=0/28/0 tris=12k corpses=8/8 glints=80 proxies=0 build=0.04ms tier=efficient
+[IceHive] hb fx parts=82/12288 peak=83 fire=2/600 peak=2 expl=0/3 peak=0 reduced=0 throttled=0 spawn=2/s rec=1/s decals=11/1000 beams=13 tracers=18 tracer=1.8m lights=1 floor=0+0 acid=0/0 heat=0 cpu=0.028ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=143 tiles=1 beams=4 occ=24 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb gpu frame=0.20 max=0.47 passes=- (no counter sampling: command-buffer totals only) | ema=0.22 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb t=32.0 td=29.9 fps=60.0 worst=17ms drawn=30 gap=184ms sim=0.02ms world=0.16ms mode=playing bugs=20 vis=20 parts=81 stage=0 hp=100 kills=8 mem=64MB avail=0MB demo=coach rend=metal cpu=11 main=6 dc=29 inst=2344 tris=216873 enc=0.33ms gpu=0.28ms gpumax=1.4ms skip=23 nodraw=6 drw=61ms cbmax=182ms sk=11ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.0 up=0.1 | sfx 10 | max - / -
+[IceHive] hb squad cpu=0.135ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=20 lod=0/28/0 tris=12k corpses=8/8 glints=80 proxies=0 build=0.05ms tier=efficient
+[IceHive] hb fx parts=80/12288 peak=82 fire=2/600 peak=2 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=11/1000 beams=13 tracers=26 tracer=1.8m lights=1 floor=0+0 acid=0/0 heat=0 cpu=0.033ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=143 tiles=1 beams=4 occ=24 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb gpu frame=0.28 max=1.37 passes=- (no counter sampling: command-buffer totals only) | ema=0.26 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb t=33.0 td=30.9 fps=58.0 worst=40ms drawn=16 gap=321ms sim=0.02ms world=0.14ms mode=playing bugs=19 vis=19 parts=106 stage=0 hp=100 kills=9 mem=64MB avail=0MB demo=coach rend=metal cpu=10 main=5 dc=29 inst=2336 tris=216857 enc=0.35ms gpu=0.26ms gpumax=0.5ms skip=29 nodraw=15 drw=99ms cbmax=312ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.2 bug=0.1 fx=0.0 up=0.1 | sfx 11 | max - / -
+[IceHive] hb gpu frame=0.25 max=0.36 passes=- (no counter sampling: command-buffer totals only) | ema=0.26 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb t=34.0 td=31.9 fps=59.0 worst=35ms drawn=0 gap=0ms sim=0.02ms world=0.08ms mode=playing bugs=19 vis=19 parts=106 stage=0 hp=100 kills=9 mem=64MB avail=0MB demo=coach rend=metal cpu=6 main=2 dc=29 inst=2365 tris=216915 enc=0.35ms gpu=0.26ms gpumax=0.0ms skip=50 nodraw=7 drw=154ms cbmax=0ms sk=0ms/0 skcpu=0ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.0 hud=0.0 au=0.0 | cam=0.0 mar=0.2 bug=0.1 fx=0.0 up=0.1 | sfx 11 | max - / -
+[IceHive] hb squad cpu=0.214ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=19 lod=0/28/0 tris=12k corpses=9/9 glints=76 proxies=0 build=0.13ms tier=efficient
+[IceHive] hb fx parts=106/12288 peak=106 fire=2/600 peak=2 expl=0/3 peak=0 reduced=0 throttled=0 spawn=29/s rec=8/s decals=13/1000 beams=11 tracers=7 tracer=1.8m lights=1 floor=0+0 acid=0/0 heat=0 cpu=0.085ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=143 tiles=1 beams=4 occ=23 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb gpu frame=0.13 max=0.13 passes=- (no counter sampling: command-buffer totals only) | ema=0.23 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb t=35.0 td=32.9 fps=60.0 worst=17ms drawn=3 gap=1463ms sim=0.02ms world=0.11ms mode=playing bugs=19 vis=19 parts=106 stage=0 hp=100 kills=9 mem=64MB avail=0MB demo=coach rend=metal cpu=6 main=3 dc=29 inst=2365 tris=216915 enc=0.31ms gpu=0.26ms gpumax=0.5ms skip=57 nodraw=0 drw=0ms cbmax=1307ms sk=0ms/0 skcpu=0ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.2 bug=0.1 fx=0.0 up=0.1 | sfx 11 | max world=4 / cam=4
+[IceHive] hb squad cpu=0.115ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=19 lod=0/28/0 tris=12k corpses=9/9 glints=76 proxies=0 build=0.08ms tier=efficient
+[IceHive] hb fx parts=92/12288 peak=106 fire=0/600 peak=2 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=13/1000 beams=11 tracers=0 tracer=0.0m lights=1 floor=0+0 acid=0/0 heat=0 cpu=0.038ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=143 tiles=1 beams=4 occ=23 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb gpu frame=0.35 max=1.20 passes=- (no counter sampling: command-buffer totals only) | ema=0.32 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb t=36.0 td=33.9 fps=60.0 worst=17ms drawn=23 gap=127ms sim=0.02ms world=0.17ms mode=playing bugs=19 vis=19 parts=91 stage=0 hp=100 kills=9 mem=65MB avail=0MB demo=coach rend=metal cpu=10 main=5 dc=29 inst=2350 tris=216885 enc=0.34ms gpu=0.29ms gpumax=1.2ms skip=31 nodraw=6 drw=12ms cbmax=620ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.2 bug=0.1 fx=0.0 up=0.1 | sfx 11 | max - / -
+[IceHive] hb squad cpu=0.135ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=19 lod=0/28/0 tris=12k corpses=9/9 glints=76 proxies=0 build=0.12ms tier=efficient
+[IceHive] hb fx parts=91/12288 peak=92 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=13/1000 beams=11 tracers=0 tracer=0.0m lights=0 floor=0+0 acid=0/0 heat=0 cpu=0.033ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=16 cells=143 tiles=1 beams=4 occ=23 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb gpu frame=0.25 max=0.92 passes=- (no counter sampling: command-buffer totals only) | ema=0.29 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb t=37.0 td=34.9 fps=60.0 worst=17ms drawn=30 gap=296ms sim=0.03ms world=0.23ms mode=playing bugs=19 vis=19 parts=90 stage=0 hp=100 kills=9 mem=65MB avail=0MB demo=coach rend=metal cpu=11 main=6 dc=29 inst=2349 tris=216883 enc=0.36ms gpu=1.19ms gpumax=9.8ms skip=14 nodraw=17 drw=43ms cbmax=333ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.0 up=0.1 | sfx 11 | max - / -
+[IceHive] hb gpu frame=1.54 max=9.84 passes=- (no counter sampling: command-buffer totals only) | ema=1.19 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.148ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=19 lod=0/28/0 tris=12k corpses=9/9 glints=76 proxies=0 build=0.10ms tier=efficient
+[IceHive] hb fx parts=90/12288 peak=91 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=13/1000 beams=11 tracers=0 tracer=0.0m lights=0 floor=0+0 acid=0/0 heat=0 cpu=0.057ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=16 cells=143 tiles=1 beams=4 occ=23 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] metal: slow world encode 4 ms (thread cpu 3.6 ms) wall=1793557805.456
+[IceHive] hb t=38.0 td=35.9 fps=60.0 worst=17ms drawn=1 gap=1032ms sim=0.02ms world=0.26ms mode=playing bugs=19 vis=19 parts=90 stage=0 hp=100 kills=9 mem=65MB avail=0MB demo=coach rend=metal cpu=7 main=3 dc=29 inst=2349 tris=216883 enc=0.40ms gpu=3.44ms gpumax=23.7ms skip=55 nodraw=3 drw=97ms cbmax=1003ms sk=2ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.3 bug=0.1 fx=0.1 up=0.2 | sfx 11 | max world=4 / -
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.9 ms) wall=1793557805.702
+[IceHive] hb gpu frame=1.23 max=23.69 passes=- (no counter sampling: command-buffer totals only) | ema=0.45 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.110ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=19 lod=0/28/0 tris=12k corpses=9/9 glints=76 proxies=0 build=0.04ms tier=efficient
+[IceHive] hb fx parts=86/12288 peak=89 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=2/s rec=1/s decals=13/1000 beams=13 tracers=23 tracer=1.8m lights=1 floor=0+0 acid=0/0 heat=0 cpu=0.024ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=143 tiles=1 beams=4 occ=23 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=39.0 td=36.9 fps=60.0 worst=17ms drawn=37 gap=107ms sim=0.02ms world=0.19ms mode=playing bugs=19 vis=19 parts=86 stage=0 hp=100 kills=9 mem=65MB avail=0MB demo=coach rend=metal cpu=12 main=6 dc=29 inst=2347 tris=216879 enc=0.28ms gpu=0.29ms gpumax=3.4ms skip=16 nodraw=7 drw=41ms cbmax=959ms sk=4ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 12 | max - / -
+[IceHive] hb gpu frame=0.17 max=0.29 passes=- (no counter sampling: command-buffer totals only) | ema=0.19 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.122ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=19 lod=0/28/0 tris=12k corpses=9/9 glints=76 proxies=0 build=0.08ms tier=efficient
+[IceHive] hb fx parts=85/12288 peak=86 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=13/1000 beams=13 tracers=25 tracer=1.8m lights=1 floor=0+0 acid=0/0 heat=0 cpu=0.040ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=143 tiles=1 beams=4 occ=23 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=40.0 td=37.9 fps=60.0 worst=17ms drawn=26 gap=298ms sim=0.03ms world=0.27ms mode=playing bugs=19 vis=19 parts=85 stage=0 hp=100 kills=9 mem=65MB avail=0MB demo=coach rend=metal cpu=10 main=5 dc=29 inst=2346 tris=216877 enc=0.35ms gpu=0.21ms gpumax=0.5ms skip=22 nodraw=12 drw=28ms cbmax=278ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.2 bug=0.1 fx=0.0 up=0.1 | sfx 12 | max - / -
+[IceHive] hb gpu frame=0.46 max=5.93 passes=- (no counter sampling: command-buffer totals only) | ema=0.33 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.116ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=19 lod=0/28/0 tris=12k corpses=9/9 glints=76 proxies=0 build=0.05ms tier=efficient
+[IceHive] hb fx parts=93/12288 peak=93 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=10/s rec=4/s decals=13/1000 beams=11 tracers=31 tracer=1.8m lights=2 floor=0+0 acid=0/0 heat=0 cpu=0.028ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=18 cells=143 tiles=1 beams=4 occ=23 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=41.0 td=38.9 fps=60.0 worst=17ms drawn=38 gap=108ms sim=0.03ms world=0.25ms mode=playing bugs=19 vis=19 parts=93 stage=0 hp=100 kills=9 mem=65MB avail=0MB demo=coach rend=metal cpu=13 main=7 dc=29 inst=2352 tris=216889 enc=0.27ms gpu=0.28ms gpumax=5.9ms skip=11 nodraw=12 drw=57ms cbmax=101ms sk=3ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.0 up=0.0 | sfx 12 | max - / -
+[IceHive] hb gpu frame=0.19 max=0.84 passes=- (no counter sampling: command-buffer totals only) | ema=0.17 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.100ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=19 lod=0/28/0 tris=12k corpses=9/9 glints=76 proxies=0 build=0.04ms tier=efficient
+[IceHive] hb fx parts=86/12288 peak=93 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=13/1000 beams=11 tracers=0 tracer=0.0m lights=1 floor=0+0 acid=0/0 heat=0 cpu=0.025ms sim=on gpusim=- tier=efficient
+[IceHive] hb t=42.0 td=39.9 fps=60.0 worst=17ms drawn=42 gap=77ms sim=0.01ms world=0.22ms mode=playing bugs=19 vis=19 parts=86 stage=0 hp=100 kills=9 mem=65MB avail=0MB demo=coach rend=metal cpu=12 main=6 dc=29 inst=2345 tris=216875 enc=0.29ms gpu=0.19ms gpumax=0.4ms skip=16 nodraw=2 drw=5ms cbmax=93ms sk=2ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.0 up=0.0 | sfx 12 | max - / -
+[IceHive] hb light lights=17 cells=143 tiles=1 beams=4 occ=23 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb gpu frame=0.63 max=18.58 passes=- (no counter sampling: command-buffer totals only) | ema=0.30 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb t=43.0 td=40.9 fps=60.0 worst=17ms drawn=46 gap=92ms sim=0.01ms world=0.22ms mode=playing bugs=19 vis=19 parts=83 stage=0 hp=100 kills=9 mem=65MB avail=0MB demo=coach rend=metal cpu=12 main=6 dc=30 inst=2342 tris=216579 enc=0.26ms gpu=0.21ms gpumax=18.6ms skip=10 nodraw=5 drw=8ms cbmax=87ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 12 | max - / -
+[IceHive] hb squad cpu=0.087ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=19 lod=0/27/1 tris=11k corpses=9/9 glints=76 proxies=0 build=0.04ms tier=efficient
+[IceHive] hb fx parts=83/12288 peak=86 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=13/1000 beams=11 tracers=0 tracer=0.0m lights=1 floor=0+0 acid=0/0 heat=0 cpu=0.024ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=143 tiles=1 beams=4 occ=23 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb gpu frame=0.20 max=0.35 passes=- (no counter sampling: command-buffer totals only) | ema=0.19 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb t=44.0 td=41.9 fps=60.0 worst=17ms drawn=38 gap=110ms sim=0.02ms world=0.33ms mode=playing bugs=19 vis=19 parts=80 stage=0 hp=100 kills=9 mem=65MB avail=0MB demo=coach rend=metal cpu=17 main=8 dc=30 inst=2337 tris=216569 enc=0.37ms gpu=0.22ms gpumax=0.3ms skip=9 nodraw=11 drw=49ms cbmax=95ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.1 mar=0.1 bug=0.1 fx=0.0 up=0.1 | sfx 12 | max - / -
+[IceHive] hb squad cpu=0.154ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=19 lod=0/27/1 tris=11k corpses=9/9 glints=76 proxies=0 build=0.10ms tier=efficient
+[IceHive] hb fx parts=80/12288 peak=83 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=13/1000 beams=9 tracers=0 tracer=0.0m lights=0 floor=0+0 acid=0/0 heat=0 cpu=0.038ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=16 cells=143 tiles=1 beams=4 occ=23 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb gpu frame=0.33 max=2.95 passes=- (no counter sampling: command-buffer totals only) | ema=0.34 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb t=45.0 td=42.9 fps=60.0 worst=17ms drawn=46 gap=62ms sim=0.03ms world=0.47ms mode=playing bugs=19 vis=19 parts=78 stage=0 hp=100 kills=9 mem=65MB avail=0MB demo=coach rend=metal cpu=21 main=10 dc=30 inst=2337 tris=216569 enc=0.44ms gpu=0.25ms gpumax=3.0ms skip=9 nodraw=7 drw=17ms cbmax=91ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.4 hud=0.0 au=0.0 | cam=0.2 mar=0.2 bug=0.1 fx=0.0 up=0.1 | sfx 13 | max ev=11 world=5 / cam=4
+[IceHive] hb squad cpu=0.179ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=19 lod=0/27/1 tris=11k corpses=9/9 glints=76 proxies=0 build=0.06ms tier=efficient
+[IceHive] hb fx parts=78/12288 peak=82 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=2/s rec=1/s decals=13/1000 beams=11 tracers=41 tracer=1.8m lights=1 floor=0+0 acid=0/0 heat=0 cpu=0.060ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=143 tiles=1 beams=4 occ=23 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb gpu frame=0.51 max=12.09 passes=- (no counter sampling: command-buffer totals only) | ema=0.57 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb t=46.0 td=43.9 fps=60.0 worst=17ms drawn=31 gap=276ms sim=0.02ms world=0.16ms mode=playing bugs=18 vis=18 parts=75 stage=0 hp=100 kills=10 mem=65MB avail=0MB demo=coach rend=metal cpu=12 main=6 dc=30 inst=2335 tris=216275 enc=0.26ms gpu=0.61ms gpumax=12.1ms skip=22 nodraw=5 drw=22ms cbmax=281ms sk=3ms/0 skcpu=3ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.1 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.0 up=0.0 | sfx 14 | max - / -
+[IceHive] hitch 54 ms td=43.99 wall=1793557813.548 upd=36ms draw=0ms (drawable 0 world 0 hud 0 (cpu 0) commit 0) labels=0 skip=576/162 cb=281ms (sched 4, gpu 0.9) vis=18 parts=75
+[IceHive] hb squad cpu=0.107ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,walk,walk
+[IceHive] hb swarm vis=18 lod=0/26/2 tris=11k corpses=10/10 glints=72 proxies=0 build=0.06ms tier=efficient
+[IceHive] hb fx parts=75/12288 peak=78 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=29/s rec=8/s decals=15/1000 beams=9 tracers=29 tracer=1.8m lights=2 floor=0+0 acid=0/0 heat=0 cpu=0.032ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=18 cells=143 tiles=1 beams=4 occ=22 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb gpu frame=0.70 max=5.64 passes=- (no counter sampling: command-buffer totals only) | ema=0.52 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb t=47.0 td=44.9 fps=58.0 worst=54ms drawn=15 gap=460ms sim=0.03ms world=0.22ms mode=playing bugs=18 vis=18 parts=98 stage=0 hp=100 kills=10 mem=65MB avail=0MB demo=coach rend=metal cpu=10 main=5 dc=30 inst=2353 tris=216311 enc=0.33ms gpu=1.57ms gpumax=11.7ms skip=39 nodraw=4 drw=18ms cbmax=571ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.0 mar=0.2 bug=0.1 fx=0.0 up=0.1 | sfx 14 | max - / -
+[IceHive] hb gpu frame=3.99 max=11.74 passes=- (no counter sampling: command-buffer totals only) | ema=1.57 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.185ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,idle,walk
+[IceHive] hb swarm vis=18 lod=0/26/2 tris=11k corpses=10/10 glints=72 proxies=0 build=0.08ms tier=efficient
+[IceHive] hb fx parts=98/12288 peak=102 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=15/1000 beams=9 tracers=0 tracer=0.0m lights=1 floor=0+0 acid=0/0 heat=0 cpu=0.060ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=143 tiles=1 beams=4 occ=22 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=48.0 td=45.9 fps=60.0 worst=17ms drawn=2 gap=979ms sim=0.02ms world=0.29ms mode=playing bugs=18 vis=18 parts=98 stage=0 hp=100 kills=10 mem=65MB avail=0MB demo=coach rend=metal cpu=6 main=3 dc=30 inst=2353 tris=216311 enc=0.34ms gpu=9.89ms gpumax=95.4ms skip=58 nodraw=0 drw=1ms cbmax=1070ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.2 mar=0.2 bug=0.1 fx=0.1 up=0.1 | sfx 14 | max world=5 / cam=5
+[IceHive] hb gpu frame=2.88 max=95.39 passes=- (no counter sampling: command-buffer totals only) | ema=0.48 tier=efficient scale=1.55 range=1.20-1.60 view=1034x581 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb t=49.0 td=46.9 fps=60.0 worst=17ms drawn=39 gap=119ms sim=0.02ms world=0.26ms mode=playing bugs=18 vis=18 parts=88 stage=0 hp=100 kills=10 mem=65MB avail=0MB demo=coach rend=metal cpu=14 main=7 dc=30 inst=2343 tris=216291 enc=0.31ms gpu=0.37ms gpumax=0.8ms skip=9 nodraw=13 drw=19ms cbmax=111ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.0 mar=0.2 bug=0.1 fx=0.0 up=0.0 | sfx 14 | max - / -
+[IceHive] hb squad cpu=0.133ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,idle,walk
+[IceHive] hb swarm vis=18 lod=0/26/2 tris=11k corpses=10/10 glints=72 proxies=0 build=0.05ms tier=efficient
+[IceHive] hb fx parts=88/12288 peak=98 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=15/1000 beams=9 tracers=0 tracer=0.0m lights=1 floor=0+0 acid=0/0 heat=0 cpu=0.034ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=143 tiles=1 beams=4 occ=22 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.3 ms) wall=1793557817.018
+[IceHive] hb gpu frame=0.33 max=5.83 passes=- (no counter sampling: command-buffer totals only) | ema=0.34 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] first ability.nova td=47.93
+[IceHive] first telegraph.ring td=47.93
+[IceHive] hb t=50.0 td=47.9 fps=60.0 worst=17ms drawn=47 gap=112ms sim=0.04ms world=0.22ms mode=playing bugs=4 vis=4 parts=85 stage=0 hp=100 kills=24 mem=65MB avail=0MB demo=coach rend=metal cpu=14 main=8 dc=30 inst=2340 tris=216285 enc=0.27ms gpu=0.25ms gpumax=5.8ms skip=8 nodraw=5 drw=19ms cbmax=99ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.4 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 16 | max ev=4 / -
+[IceHive] hb squad cpu=0.111ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,idle,walk
+[IceHive] hb swarm vis=4 lod=0/12/2 tris=5k corpses=10/10 glints=16 proxies=0 build=0.04ms tier=efficient
+[IceHive] hb fx parts=85/12288 peak=87 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=317/s rec=44/s decals=30/1000 beams=9 tracers=0 tracer=0.0m lights=1 floor=1+2 acid=0/0 heat=0 cpu=0.028ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=164 tiles=1 beams=4 occ=8 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] first explosion.frost td=48.77
+[IceHive] hb gpu frame=0.19 max=0.92 passes=- (no counter sampling: command-buffer totals only) | ema=0.18 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb t=51.0 td=48.9 fps=60.0 worst=17ms drawn=46 gap=82ms sim=0.02ms world=0.23ms mode=playing bugs=0 vis=0 parts=724 stage=0 hp=100 kills=28 mem=65MB avail=0MB demo=coach rend=metal cpu=13 main=6 dc=31 inst=2943 tris=211415 enc=0.30ms gpu=0.15ms gpumax=0.9ms skip=10 nodraw=4 drw=13ms cbmax=71ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.1 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 17 | max ev=2 / -
+[IceHive] hb squad cpu=0.113ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,idle,walk
+[IceHive] hb swarm vis=0 lod=0/12/2 tris=5k corpses=14/14 glints=0 proxies=0 build=0.03ms tier=efficient
+[IceHive] hb fx parts=724/12288 peak=724 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=324/s rec=44/s decals=48/1000 beams=9 tracers=0 tracer=0.0m lights=1 floor=15+2 acid=0/0 heat=0 cpu=0.030ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=164 tiles=1 beams=4 occ=4 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb gpu frame=0.17 max=0.41 passes=- (no counter sampling: command-buffer totals only) | ema=0.17 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb t=52.0 td=49.9 fps=60.0 worst=17ms drawn=59 gap=40ms sim=0.01ms world=0.22ms mode=playing bugs=0 vis=0 parts=717 stage=0 hp=100 kills=28 mem=65MB avail=0MB demo=coach rend=metal cpu=14 main=7 dc=31 inst=2936 tris=211401 enc=0.21ms gpu=0.14ms gpumax=0.4ms skip=0 nodraw=0 drw=2ms cbmax=31ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 17 | max - / -
+[IceHive] hb squad cpu=0.084ms slide=0.0cm grip=0.0mm draws=4 restep=1 flashes=1 states=idle,walk,idle,walk
+[IceHive] hb swarm vis=0 lod=0/12/2 tris=5k corpses=14/14 glints=0 proxies=0 build=0.03ms tier=efficient
+[IceHive] hb fx parts=717/12288 peak=724 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=48/1000 beams=9 tracers=0 tracer=0.0m lights=1 floor=15+2 acid=0/0 heat=0 cpu=0.022ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=164 tiles=1 beams=4 occ=4 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb gpu frame=0.32 max=6.66 passes=- (no counter sampling: command-buffer totals only) | ema=0.41 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb t=53.0 td=50.9 fps=60.0 worst=17ms drawn=48 gap=54ms sim=0.02ms world=0.23ms mode=playing bugs=0 vis=0 parts=716 stage=0 hp=100 kills=28 mem=65MB avail=0MB demo=coach rend=metal cpu=13 main=6 dc=31 inst=2935 tris=211399 enc=0.23ms gpu=0.30ms gpumax=6.7ms skip=6 nodraw=6 drw=12ms cbmax=85ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 17 | max - / -
+[IceHive] hb squad cpu=0.119ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,idle,walk
+[IceHive] hb swarm vis=0 lod=0/12/2 tris=5k corpses=14/14 glints=0 proxies=0 build=0.03ms tier=efficient
+[IceHive] hb fx parts=716/12288 peak=717 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=48/1000 beams=9 tracers=0 tracer=0.0m lights=1 floor=15+2 acid=0/0 heat=0 cpu=0.024ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=164 tiles=1 beams=4 occ=4 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb gpu frame=0.16 max=0.43 passes=- (no counter sampling: command-buffer totals only) | ema=0.19 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb t=54.0 td=51.9 fps=60.0 worst=17ms drawn=49 gap=69ms sim=0.01ms world=0.22ms mode=playing bugs=0 vis=0 parts=714 stage=0 hp=100 kills=28 mem=65MB avail=0MB demo=coach rend=metal cpu=12 main=6 dc=31 inst=2933 tris=211395 enc=0.25ms gpu=0.17ms gpumax=0.4ms skip=6 nodraw=6 drw=11ms cbmax=67ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 17 | max - / -
+[IceHive] hb squad cpu=0.091ms slide=0.0cm grip=0.0mm draws=4 restep=1 flashes=1 states=idle,walk,idle,walk
+[IceHive] hb swarm vis=0 lod=0/12/2 tris=5k corpses=14/14 glints=0 proxies=0 build=0.03ms tier=efficient
+[IceHive] hb fx parts=714/12288 peak=716 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=48/1000 beams=9 tracers=0 tracer=0.0m lights=1 floor=15+2 acid=0/0 heat=0 cpu=0.024ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=164 tiles=1 beams=4 occ=4 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb gpu frame=0.28 max=3.30 passes=- (no counter sampling: command-buffer totals only) | ema=0.50 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb t=55.0 td=52.9 fps=60.0 worst=17ms drawn=38 gap=136ms sim=0.03ms world=0.21ms mode=playing bugs=0 vis=0 parts=713 stage=0 hp=100 kills=28 mem=65MB avail=0MB demo=coach rend=metal cpu=13 main=6 dc=31 inst=2932 tris=211393 enc=0.28ms gpu=0.44ms gpumax=3.3ms skip=14 nodraw=8 drw=15ms cbmax=162ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.2 bug=0.0 fx=0.0 up=0.0 | sfx 17 | max - / -
+[IceHive] hb squad cpu=0.137ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,idle,walk
+[IceHive] hb swarm vis=0 lod=0/12/2 tris=5k corpses=14/14 glints=0 proxies=0 build=0.05ms tier=efficient
+[IceHive] hb fx parts=712/12288 peak=714 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=48/1000 beams=9 tracers=0 tracer=0.0m lights=1 floor=15+2 acid=0/0 heat=0 cpu=0.031ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=164 tiles=1 beams=4 occ=4 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb gpu frame=0.19 max=0.51 passes=- (no counter sampling: command-buffer totals only) | ema=0.21 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb t=56.0 td=53.9 fps=58.0 worst=38ms drawn=40 gap=119ms sim=0.02ms world=0.27ms mode=playing bugs=0 vis=0 parts=709 stage=0 hp=100 kills=28 mem=65MB avail=0MB demo=coach rend=metal cpu=13 main=6 dc=31 inst=2928 tris=211385 enc=0.28ms gpu=0.22ms gpumax=0.5ms skip=8 nodraw=9 drw=20ms cbmax=97ms sk=9ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 17 | max - / -
+[IceHive] hb squad cpu=0.114ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,idle,walk
+[IceHive] hb swarm vis=0 lod=0/12/2 tris=5k corpses=14/14 glints=0 proxies=0 build=0.03ms tier=efficient
+[IceHive] hb fx parts=709/12288 peak=712 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=48/1000 beams=9 tracers=0 tracer=0.0m lights=1 floor=15+2 acid=0/0 heat=0 cpu=0.027ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=164 tiles=1 beams=4 occ=4 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb gpu frame=0.24 max=1.80 passes=- (no counter sampling: command-buffer totals only) | ema=0.20 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb t=57.0 td=54.9 fps=60.0 worst=17ms drawn=39 gap=136ms sim=0.02ms world=0.21ms mode=playing bugs=0 vis=0 parts=708 stage=0 hp=100 kills=28 mem=65MB avail=0MB demo=coach rend=metal cpu=11 main=5 dc=31 inst=2927 tris=211383 enc=0.28ms gpu=0.21ms gpumax=1.8ms skip=15 nodraw=7 drw=28ms cbmax=123ms sk=1ms/0 skcpu=0ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 17 | max - / -
+[IceHive] hb squad cpu=0.118ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,idle,walk
+[IceHive] hb swarm vis=0 lod=0/12/2 tris=5k corpses=14/14 glints=0 proxies=0 build=0.04ms tier=efficient
+[IceHive] hb fx parts=708/12288 peak=709 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=48/1000 beams=9 tracers=0 tracer=0.0m lights=1 floor=15+2 acid=0/0 heat=0 cpu=0.034ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=164 tiles=1 beams=4 occ=4 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb gpu frame=0.17 max=0.27 passes=- (no counter sampling: command-buffer totals only) | ema=0.19 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb t=58.0 td=55.9 fps=60.0 worst=17ms drawn=2 gap=123ms sim=0.03ms world=0.14ms mode=playing bugs=0 vis=0 parts=708 stage=0 hp=100 kills=28 mem=65MB avail=0MB demo=coach rend=metal cpu=6 main=3 dc=31 inst=2927 tris=211383 enc=0.31ms gpu=0.19ms gpumax=0.1ms skip=46 nodraw=11 drw=152ms cbmax=149ms sk=2ms/0 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.1 hud=0.1 au=0.0 | cam=0.1 mar=0.2 bug=0.0 fx=0.0 up=0.1 | sfx 17 | max hud=3 / -
+[IceHive] hb squad cpu=0.143ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,idle,walk
+[IceHive] hb swarm vis=0 lod=0/12/2 tris=5k corpses=14/14 glints=0 proxies=0 build=0.04ms tier=efficient
+[IceHive] hb fx parts=708/12288 peak=708 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=48/1000 beams=9 tracers=0 tracer=0.0m lights=1 floor=15+2 acid=0/0 heat=0 cpu=0.078ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=164 tiles=1 beams=4 occ=4 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb gpu frame=6.19 max=116.68 passes=- (no counter sampling: command-buffer totals only) | ema=1.95 tier=efficient scale=1.40 range=1.20-1.60 view=934x525 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb t=59.0 td=56.9 fps=60.0 worst=17ms drawn=21 gap=1138ms sim=0.02ms world=0.18ms mode=playing bugs=0 vis=0 parts=703 stage=0 hp=100 kills=28 mem=65MB avail=0MB demo=coach rend=metal cpu=8 main=4 dc=31 inst=2922 tris=211373 enc=0.26ms gpu=1.77ms gpumax=116.7ms skip=39 nodraw=1 drw=14ms cbmax=1112ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 17 | max - / -
+[IceHive] hb gpu frame=4.00 max=27.38 passes=- (no counter sampling: command-buffer totals only) | ema=5.68 tier=efficient scale=1.45 range=1.20-1.60 view=967x544 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb t=60.0 td=57.9 fps=60.0 worst=17ms drawn=13 gap=55ms sim=0.03ms world=0.13ms mode=playing bugs=0 vis=0 parts=702 stage=0 hp=100 kills=28 mem=65MB avail=0MB demo=coach rend=metal cpu=7 main=3 dc=31 inst=2922 tris=211373 enc=0.22ms gpu=5.68ms gpumax=27.4ms skip=44 nodraw=2 drw=24ms cbmax=82ms sk=1ms/0 skcpu=0ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.1 hud=0.1 au=0.0 | cam=0.1 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 17 | max - / -
+[IceHive] hb squad cpu=0.114ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,idle,walk
+[IceHive] hb swarm vis=0 lod=0/11/3 tris=5k corpses=14/14 glints=0 proxies=0 build=0.04ms tier=efficient
+[IceHive] hb fx parts=702/12288 peak=706 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=48/1000 beams=9 tracers=0 tracer=0.0m lights=1 floor=15+2 acid=0/0 heat=0 cpu=0.028ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=164 tiles=1 beams=4 occ=4 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=61.0 td=58.9 fps=60.0 worst=17ms drawn=38 gap=972ms sim=0.01ms world=0.23ms mode=playing bugs=0 vis=0 parts=696 stage=0 hp=100 kills=28 mem=65MB avail=0MB demo=coach rend=metal cpu=11 main=5 dc=31 inst=2915 tris=211069 enc=0.27ms gpu=0.28ms gpumax=1.9ms skip=22 nodraw=1 drw=6ms cbmax=970ms sk=2ms/0 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 17 | max - / -
+[IceHive] hb gpu frame=0.24 max=1.94 passes=- (no counter sampling: command-buffer totals only) | ema=0.27 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.097ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,idle,idle
+[IceHive] hb swarm vis=0 lod=0/11/3 tris=5k corpses=14/14 glints=0 proxies=0 build=0.03ms tier=efficient
+[IceHive] hb fx parts=695/12288 peak=702 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=48/1000 beams=9 tracers=0 tracer=0.0m lights=1 floor=15+2 acid=0/0 heat=0 cpu=0.027ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=164 tiles=1 beams=4 occ=4 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=62.0 td=59.9 fps=60.0 worst=17ms drawn=48 gap=119ms sim=0.02ms world=0.24ms mode=playing bugs=0 vis=0 parts=692 stage=0 hp=100 kills=28 mem=65MB avail=0MB demo=coach rend=metal cpu=13 main=7 dc=31 inst=2911 tris=211061 enc=0.31ms gpu=0.19ms gpumax=1.1ms skip=9 nodraw=3 drw=8ms cbmax=108ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 17 | max - / -
+[IceHive] hb gpu frame=0.23 max=1.10 passes=- (no counter sampling: command-buffer totals only) | ema=0.19 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.115ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,idle,idle
+[IceHive] hb swarm vis=0 lod=0/11/3 tris=5k corpses=14/14 glints=0 proxies=0 build=0.04ms tier=efficient
+[IceHive] hb fx parts=691/12288 peak=695 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=48/1000 beams=9 tracers=0 tracer=0.0m lights=1 floor=15+2 acid=0/0 heat=0 cpu=0.029ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=164 tiles=1 beams=4 occ=4 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=63.0 td=60.9 fps=60.0 worst=17ms drawn=48 gap=78ms sim=0.02ms world=0.28ms mode=playing bugs=0 vis=0 parts=689 stage=0 hp=100 kills=28 mem=65MB avail=0MB demo=coach rend=metal cpu=16 main=8 dc=31 inst=2908 tris=211055 enc=0.43ms gpu=0.21ms gpumax=0.7ms skip=5 nodraw=7 drw=50ms cbmax=75ms sk=2ms/0 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.3 hud=0.1 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 17 | max - / -
+[IceHive] hb gpu frame=0.22 max=0.67 passes=- (no counter sampling: command-buffer totals only) | ema=0.21 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.118ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,idle,idle
+[IceHive] hb swarm vis=0 lod=0/11/3 tris=5k corpses=14/14 glints=0 proxies=0 build=0.04ms tier=efficient
+[IceHive] hb fx parts=689/12288 peak=691 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=48/1000 beams=9 tracers=0 tracer=0.0m lights=1 floor=15+2 acid=0/0 heat=0 cpu=0.030ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=164 tiles=1 beams=4 occ=4 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=64.0 td=61.9 fps=60.0 worst=17ms drawn=32 gap=166ms sim=0.02ms world=0.17ms mode=playing bugs=0 vis=0 parts=688 stage=0 hp=100 kills=28 mem=65MB avail=0MB demo=coach rend=metal cpu=12 main=6 dc=31 inst=2907 tris=211053 enc=0.34ms gpu=11.92ms gpumax=121.5ms skip=18 nodraw=10 drw=51ms cbmax=145ms sk=2ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.1 hud=0.1 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.0 up=0.1 | sfx 17 | max - / -
+[IceHive] hb gpu frame=4.52 max=121.47 passes=- (no counter sampling: command-buffer totals only) | ema=11.92 tier=efficient scale=1.45 range=1.20-1.60 view=967x544 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.130ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,idle,idle
+[IceHive] hb swarm vis=0 lod=0/11/3 tris=5k corpses=14/14 glints=0 proxies=0 build=0.05ms tier=efficient
+[IceHive] hb fx parts=688/12288 peak=688 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=48/1000 beams=9 tracers=0 tracer=0.0m lights=1 floor=15+2 acid=0/0 heat=0 cpu=0.039ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=164 tiles=1 beams=4 occ=4 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=65.0 td=62.9 fps=60.0 worst=17ms drawn=2 gap=1073ms sim=0.03ms world=0.16ms mode=playing bugs=0 vis=0 parts=688 stage=0 hp=100 kills=28 mem=65MB avail=0MB demo=coach rend=metal cpu=6 main=2 dc=31 inst=2907 tris=211053 enc=0.33ms gpu=19.64ms gpumax=103.0ms skip=54 nodraw=3 drw=96ms cbmax=996ms sk=0ms/0 skcpu=0ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.2 bug=0.1 fx=0.0 up=0.1 | sfx 17 | max - / -
+[IceHive] hb gpu frame=36.77 max=102.95 passes=- (no counter sampling: command-buffer totals only) | ema=17.69 tier=efficient scale=1.20 range=1.20-1.60 view=800x450 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.107ms slide=0.0cm grip=0.0mm draws=4 restep=1 flashes=1 states=idle,walk,idle,idle
+[IceHive] hb swarm vis=0 lod=0/11/3 tris=5k corpses=14/14 glints=0 proxies=0 build=0.04ms tier=efficient
+[IceHive] hb fx parts=684/12288 peak=688 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=48/1000 beams=9 tracers=0 tracer=0.0m lights=1 floor=15+2 acid=0/0 heat=0 cpu=0.034ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=164 tiles=1 beams=4 occ=4 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=66.0 td=63.9 fps=60.0 worst=17ms drawn=57 gap=53ms sim=0.01ms world=0.27ms mode=playing bugs=0 vis=0 parts=684 stage=0 hp=100 kills=28 mem=65MB avail=0MB demo=coach rend=metal cpu=14 main=7 dc=31 inst=2903 tris=211045 enc=0.28ms gpu=0.28ms gpumax=1.6ms skip=4 nodraw=0 drw=3ms cbmax=72ms sk=2ms/0 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.1 | sfx 17 | max - / -
+[IceHive] hb gpu frame=0.22 max=1.60 passes=- (no counter sampling: command-buffer totals only) | ema=0.26 tier=efficient scale=1.40 range=1.20-1.60 view=934x525 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.074ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,idle,idle
+[IceHive] hb swarm vis=0 lod=0/11/3 tris=5k corpses=14/14 glints=0 proxies=0 build=0.02ms tier=efficient
+[IceHive] hb fx parts=680/12288 peak=684 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=48/1000 beams=9 tracers=0 tracer=0.0m lights=1 floor=15+2 acid=0/0 heat=0 cpu=0.021ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=164 tiles=1 beams=4 occ=4 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=67.0 td=64.9 fps=60.0 worst=17ms drawn=58 gap=70ms sim=0.01ms world=0.20ms mode=playing bugs=0 vis=0 parts=680 stage=0 hp=100 kills=28 mem=65MB avail=0MB demo=coach rend=metal cpu=12 main=6 dc=31 inst=2899 tris=211037 enc=0.20ms gpu=0.20ms gpumax=2.5ms skip=2 nodraw=0 drw=1ms cbmax=59ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 17 | max - / -
+[IceHive] hb gpu frame=0.21 max=2.45 passes=- (no counter sampling: command-buffer totals only) | ema=0.18 tier=efficient scale=1.55 range=1.20-1.60 view=1034x581 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] metal: slow world encode 3 ms (thread cpu 0.8 ms) wall=1793557834.589
+[IceHive] hb t=68.0 td=65.9 fps=60.0 worst=17ms drawn=4 gap=20ms sim=0.02ms world=0.07ms mode=playing bugs=0 vis=0 parts=680 stage=0 hp=100 kills=28 mem=65MB avail=0MB demo=coach rend=metal cpu=7 main=3 dc=31 inst=2899 tris=211037 enc=0.23ms gpu=0.18ms gpumax=0.1ms skip=55 nodraw=0 drw=0ms cbmax=9ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.0 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 17 | max - / -
+[IceHive] hb gpu frame=0.00 max=0.00 passes=- (no counter sampling: command-buffer totals only) | ema=0.18 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.130ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,idle,idle
+[IceHive] hb swarm vis=0 lod=0/11/3 tris=5k corpses=14/14 glints=0 proxies=0 build=0.03ms tier=efficient
+[IceHive] hb fx parts=680/12288 peak=680 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=48/1000 beams=9 tracers=0 tracer=0.0m lights=1 floor=15+2 acid=0/0 heat=0 cpu=0.027ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=164 tiles=1 beams=4 occ=4 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=69.0 td=66.9 fps=60.0 worst=17ms drawn=42 gap=1044ms sim=0.01ms world=0.22ms mode=playing bugs=0 vis=0 parts=676 stage=0 hp=100 kills=28 mem=65MB avail=0MB demo=coach rend=metal cpu=12 main=6 dc=31 inst=2895 tris=211029 enc=0.28ms gpu=0.23ms gpumax=5.7ms skip=15 nodraw=4 drw=7ms cbmax=1032ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 17 | max - / -
+[IceHive] hb gpu frame=0.40 max=5.70 passes=- (no counter sampling: command-buffer totals only) | ema=0.25 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.092ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,idle,idle
+[IceHive] hb swarm vis=0 lod=0/11/3 tris=5k corpses=14/14 glints=0 proxies=0 build=0.03ms tier=efficient
+[IceHive] hb fx parts=676/12288 peak=680 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=48/1000 beams=9 tracers=0 tracer=0.0m lights=1 floor=15+2 acid=0/0 heat=0 cpu=0.025ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=164 tiles=1 beams=4 occ=4 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=70.0 td=67.9 fps=60.0 worst=17ms drawn=49 gap=84ms sim=0.02ms world=0.22ms mode=playing bugs=0 vis=0 parts=675 stage=0 hp=100 kills=28 mem=65MB avail=0MB demo=coach rend=metal cpu=13 main=6 dc=31 inst=2894 tris=211027 enc=0.31ms gpu=0.19ms gpumax=0.9ms skip=4 nodraw=6 drw=48ms cbmax=59ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.1 | sfx 17 | max - / -
+[IceHive] hb gpu frame=0.19 max=0.52 passes=- (no counter sampling: command-buffer totals only) | ema=0.19 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.087ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,idle,idle
+[IceHive] hb swarm vis=0 lod=0/11/3 tris=5k corpses=14/14 glints=0 proxies=0 build=0.03ms tier=efficient
+[IceHive] hb fx parts=675/12288 peak=676 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=48/1000 beams=9 tracers=0 tracer=0.0m lights=1 floor=15+2 acid=0/0 heat=0 cpu=0.027ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=164 tiles=1 beams=4 occ=4 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=71.0 td=68.9 fps=60.0 worst=17ms drawn=53 gap=77ms sim=0.02ms world=0.23ms mode=playing bugs=0 vis=0 parts=671 stage=0 hp=100 kills=28 mem=65MB avail=0MB demo=coach rend=metal cpu=14 main=6 dc=31 inst=2890 tris=210729 enc=0.25ms gpu=0.18ms gpumax=0.8ms skip=7 nodraw=1 drw=7ms cbmax=69ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.0 | sfx 17 | max - / -
+[IceHive] hb gpu frame=0.19 max=0.85 passes=- (no counter sampling: command-buffer totals only) | ema=0.22 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.091ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,idle,idle
+[IceHive] hb swarm vis=0 lod=0/10/4 tris=4k corpses=14/14 glints=0 proxies=0 build=0.05ms tier=efficient
+[IceHive] hb fx parts=669/12288 peak=675 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=48/1000 beams=9 tracers=0 tracer=0.0m lights=1 floor=15+2 acid=0/0 heat=0 cpu=0.028ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=164 tiles=1 beams=4 occ=4 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=72.0 td=69.9 fps=60.0 worst=17ms drawn=57 gap=40ms sim=0.01ms world=0.26ms mode=playing bugs=0 vis=0 parts=651 stage=0 hp=100 kills=28 mem=65MB avail=0MB demo=coach rend=metal cpu=18 main=9 dc=31 inst=2871 tris=210691 enc=0.32ms gpu=0.19ms gpumax=0.8ms skip=2 nodraw=1 drw=4ms cbmax=35ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.1 | sfx 17 | max - / -
+[IceHive] hb gpu frame=0.22 max=0.76 passes=- (no counter sampling: command-buffer totals only) | ema=0.22 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
+[IceHive] hb squad cpu=0.091ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 states=idle,walk,idle,idle
+[IceHive] hb swarm vis=0 lod=0/10/4 tris=4k corpses=14/14 glints=0 proxies=0 build=0.04ms tier=efficient
+[IceHive] hb fx parts=651/12288 peak=668 fire=0/600 peak=0 expl=0/3 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=48/1000 beams=9 tracers=0 tracer=0.0m lights=1 floor=15+2 acid=0/0 heat=0 cpu=0.035ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=17 cells=164 tiles=1 beams=4 occ=4 tier=efficient
+[IceHive] hb level draws=1 tris=103025 chunks=23/27 casters=1/17902 tier=efficient
+[IceHive] hb t=73.0 td=70.9 fps=60.0 worst=17ms drawn=56 gap=52ms sim=0.01ms world=0.27ms mode=playing bugs=0 vis=0 parts=643 stage=0 hp=100 kills=28 mem=65MB avail=0MB demo=coach rend=metal cpu=17 main=8 dc=31 inst=2862 tris=210673 enc=0.31ms gpu=0.19ms gpumax=0.4ms skip=3 nodraw=1 drw=7ms cbmax=74ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.0 ev=0.0 cam=0.0 world=0.2 hud=0.1 au=0.0 | cam=0.0 mar=0.1 bug=0.0 fx=0.0 up=0.1 | sfx 17 | max - / -
+[IceHive] hb gpu frame=0.20 max=0.42 passes=- (no counter sampling: command-buffer totals only) | ema=0.19 tier=efficient scale=1.60 range=1.20-1.60 view=1067x600 alloc=1334x750 allocs=1 thermal=nominal 120hz=no bugcap=900 ev=0.10
