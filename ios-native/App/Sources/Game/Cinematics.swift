@@ -15,7 +15,7 @@ import IceHiveCore
 //                — a little slower, so at the top it looks up across the
 //                railing at the squad (until the mission ends); fov 36°
 //    title       attract mode: a lower, closer orbit on the squad
-//                (pitch 44°, 21 m, fov 34°), composed into the free
+//                (pitch 44°, 24 m, fov 34°), composed into the free
 //                space top right, above the subtitle and the class cards
 //  Every shot keeps its eye out of the four flashlight cones (the
 //  beams' 28.6° half-angle + ≈ 3.4° margin, 32 m — VolumeCones): after
@@ -61,7 +61,7 @@ final class Cinematics {
     static let punchIn = (pitchDeg: Float(33), dist: Float(10.5), push: Float(1.0), fovDeg: Float(38), orbitDeg: Float(4))
     static let extraction = (out: Float(3.0), relY0: Float(2.6), relY1: Float(0.9), fovDeg: Float(36), yawOffDeg: Float(20))
     /// (the squad sits higher than MetalCamera's title spot: closer, it would otherwise run into the subtitle and the cards)
-    static let title = (pitchDeg: Float(44), dist: Float(21), fovDeg: Float(34), swayDeg: Float(12), ndcX: Float(0.5), ndcY: Float(0.64))
+    static let title = (pitchDeg: Float(44), dist: Float(24), fovDeg: Float(34), swayDeg: Float(12), ndcX: Float(0.5), ndcY: Float(0.66))
     /// Beams: the eye stays this far (cos) outside a cone's 28.6° edge; it moves only after `coneDwell` s inside one
     /// (a marine sweeping its aim across the camera does not swing it), at `coneRate` °/s.
     static let coneMargin: Float = 0.03, coneDwell: Float = 0.3, coneRate: Float = 45
