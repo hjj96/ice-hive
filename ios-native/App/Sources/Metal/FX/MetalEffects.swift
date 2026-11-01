@@ -105,6 +105,10 @@ final class MetalEffects {
     private(set) var glowSprites: [SpriteInstance] = []
     private var floorAdd: [FloorFx] = []
     private var floorMax: [FloorFx] = []
+    /// This frame's acid targets after clustering: several spitters on one marine land within a metre of each other, and
+    /// each drew its own rim and countdown ring (CI 0e0ce1a combat: 8–10 stacked lime loops per marine read as a
+    /// scribble). Targets closer than 0.8 × the larger radius draw as one — the one closest to landing.
+    private var acidPick: [(x: Float, z: Float, r: Float, u: Float, col: F3, n: Int)] = []
     private var heat: [HeatInstance] = []
 
     // light pool (LightGrid reads it): [0] follows flames / napalm / the player's muzzle, [1], [2] unused
@@ -172,6 +176,7 @@ final class MetalEffects {
         decals = Decals(level: level)
         floorAdd.reserveCapacity(64)
         floorMax.reserveCapacity(96)
+        acidPick.reserveCapacity(24)
         heat.reserveCapacity(32)
         flashLights.reserveCapacity(32)
         timedFloor.reserveCapacity(32)
@@ -887,8 +892,9 @@ final class MetalEffects {
     // ---------------------------------------------------------------- telegraphs
     private func telegraphs(game: Game, time: Float) {
         let blink = 0.6 + 0.4 * sinf(time * 18)
+        acidPick.removeAll(keepingCapacity: true)
         for e in game.telegraphs where e.active {
-            if floorMax.count >= 96 { break }
+            if floorMax.count + acidPick.count >= 96 { break }
             let u = e.progress
             let col = F3(e.r, e.g, e.b) * 1.25
             switch e.shape {
@@ -902,9 +908,17 @@ final class MetalEffects {
                 floorMax.append(FloorFx(center: F4(cx, (y0 + y1) * 0.5 + 0.06, cz, e.w / 2), color: F4(col.x, col.y, col.z, inten),
                                         params: F4(FloorMode.lane.rawValue, u, 0, 1), axis: F4(e.dx, e.dz, e.len / 2, (y1 - y0) / max(0.01, e.len))))
             case .fill:
-                let y = gy(e.x, e.z) + 0.055
-                floorMax.append(FloorFx(center: F4(e.x, y, e.z, e.r0), color: F4(col.x, col.y, col.z, 1),
-                                        params: F4(FloorMode.fill.rawValue, u, 0, u > 0.75 ? blink : 1), axis: .zero))
+                var merged = false
+                for j in acidPick.indices {
+                    let p = acidPick[j]
+                    let dx = p.x - e.x, dz = p.z - e.z, m = 0.8 * max(p.r, e.r0)
+                    if dx * dx + dz * dz < m * m {
+                        if u > p.u { acidPick[j] = (e.x, e.z, e.r0, u, col, p.n + 1) } else { acidPick[j].n += 1 }
+                        merged = true
+                        break
+                    }
+                }
+                if !merged { acidPick.append((e.x, e.z, e.r0, u, col, 1)) }
             case .ring:
                 let y = gy(e.x, e.z) + 0.05
                 if e.pulse {
@@ -917,6 +931,14 @@ final class MetalEffects {
                                             params: F4(FloorMode.wave.rawValue, u, 0, 1), axis: .zero))
                 }
             }
+        }
+        // the merged acid targets: one rim + countdown per landing spot; a spot several globs head for is a touch
+        // stronger (≤ +30 %), not several rings
+        for p in acidPick where floorMax.count < 96 {
+            let y = gy(p.x, p.z) + 0.055
+            let k: Float = 1 + 0.1 * Float(min(3, p.n - 1))
+            floorMax.append(FloorFx(center: F4(p.x, y, p.z, p.r), color: F4(p.col.x, p.col.y, p.col.z, k),
+                                    params: F4(FloorMode.fill.rawValue, p.u, 0, p.u > 0.75 ? blink : 1), axis: .zero))
         }
     }
 
@@ -1048,8 +1070,9 @@ final class MetalEffects {
     /// Resolve pipelines, register the draw items (MetalWorld, once).
     func attach(_ r: MetalRenderer) {
         renderer = r
-        gpu.attach(r)
+        // the stains' persistent buffers first: gpu.attach starts the background compute compile
         decals.attach(r)
+        gpu.attach(r)
         ribbons.attach(r)
         psFloor = r.pipeline("floorFx")
         psTele = r.pipeline("telegraph")
@@ -1100,7 +1123,7 @@ final class MetalEffects {
     }
 
     /// Once per second (diagnostics): `hb fx parts=live/ring peak=… fire=…/cap expl=…/cap spawn=…/s rec=…/s decals=…/ring
-    /// beams=… tracer=…m lights=… cpu=…ms sim=on|off tier=…`.
+    /// beams=… tracer=…m lights=… floor=… acid=drawn/targets cpu=…ms sim=on|off tier=…`.
     private func heartbeat() {
         guard AppLog.diagnostics else { return }
         let now = FrameTimer.now()
@@ -1116,7 +1139,7 @@ final class MetalEffects {
         AppLog.info("hb fx parts=\(gpu.liveCount)/\(gpu.ringCap) peak=\(peak) fire=\(gpu.liveFlames)/\(gpu.flameCap) peak=\(fpeak)"
                     + " expl=\(blasts.count)/\(blastCap) peak=\(blastsPeak) reduced=\(blastsReduced) throttled=\(flameThrottled) spawn=\(sp)/s rec=\(rec)/s"
                     + " decals=\(decals.items.count)/\(decals.ring) beams=\(ribbons.beams.count) tracers=\(tn) tracer=" + String(format: "%.1fm", tl)
-                    + " lights=\(flashLights.count) floor=\(floorAdd.count)+\(floorMax.count) heat=\(heat.count)"
+                    + " lights=\(flashLights.count) floor=\(floorAdd.count)+\(floorMax.count) acid=\(acidPick.count)/\(acidPick.reduce(0) { $0 + $1.n }) heat=\(heat.count)"
                     + String(format: " cpu=%.3fms", cpu) + " sim=" + (gpu.simOff ? "off" : "on")
                     + (simMs.map { String(format: " gpusim=%.3fms", $0) } ?? " gpusim=-")
                     + " tier=" + ((renderer?.frameTier ?? .efficient) == .high ? "high" : "efficient") + (look.mode.isEmpty ? "" : " look=" + look.mode))

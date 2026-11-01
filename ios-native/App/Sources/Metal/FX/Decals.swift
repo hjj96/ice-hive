@@ -63,14 +63,20 @@ final class Decals {
     private var psMul: MTLRenderPipelineState?
     private var psWet: MTLRenderPipelineState?
     private var atlas: MTLTexture?
-    private let pool = EventPool<DecalInstance>("stains", capacity: 1600)
+    /// One persistent buffer per arena slot for the largest ring (1600), made in attach() — not lazily on the first frame
+    /// with stains: CI swarm3x (791d52f) logged `fx: slow frame 133 ms (upload 133.3; thread cpu 0.4 ms)` behind the
+    /// loading cover, the first upload's makeBuffer waiting while the particles' compute pipelines compiled. A slot is
+    /// re-copied only after a change (the EventPool rule: written only by the frame that fills the same arena slot).
+    static let maxItems = 1600
+    private var buffers: [MTLBuffer?] = []
+    private var copied = [Int](repeating: -1, count: MetalRenderer.arenaSlots)
     private var region = Region()
     private var rng = SeededRNG(seed: 2718)
 
     init(level: Level) {
         self.level = level
-        items.reserveCapacity(1600)
-        xz.reserveCapacity(1600)
+        items.reserveCapacity(Decals.maxItems)
+        xz.reserveCapacity(Decals.maxItems)
         assert(MemoryLayout<DecalInstance>.stride == 64, "DecalInstance is 64 bytes in FX.metal")
     }
 
@@ -79,6 +85,12 @@ final class Decals {
         psMul = r.pipeline("decal")
         psWet = r.pipeline("decalWet")
         let dev = r.device
+        buffers = (0..<MetalRenderer.arenaSlots).map { k in
+            let b = dev.makeBuffer(length: MemoryLayout<DecalInstance>.stride * Decals.maxItems,
+                                   options: [.storageModeShared, .cpuCacheModeWriteCombined])
+            b?.label = "stains \(k)"
+            return b
+        }
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let t = FXTextures.load("fx_decals", device: dev) ?? FXTextures.flat(dev, [200, 128, 0, 128])
             DispatchQueue.main.async { self?.atlas = t }
@@ -152,7 +164,19 @@ final class Decals {
     }
 
     func upload(_ r: MetalRenderer) {
-        region = pool.region(items, version: version, renderer: r)
+        if items.isEmpty { region = Region(); return }
+        let s = r.arenaSlot
+        guard s < buffers.count, let b = buffers[s], b.length >= MemoryLayout<DecalInstance>.stride * items.count else {
+            region = r.upload(items)
+            return
+        }
+        if copied[s] != version {
+            items.withUnsafeBufferPointer { src in
+                b.contents().bindMemory(to: DecalInstance.self, capacity: items.count).update(from: src.baseAddress!, count: items.count)
+            }
+            copied[s] = version
+        }
+        region = Region(offset: 0, count: items.count, buffer: b)
     }
 
     private func encode(_ enc: MTLRenderCommandEncoder) {
