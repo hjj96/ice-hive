@@ -1,0 +1,60 @@
+{
+  "_note": "WP7 look gates (ci/look_metrics.py) and 2-up sheets (ci/twoup.py). Each scene: the shots tried in order (the first that exists is measured; a HUD-off one, `*-nohud-*`, is gated, a HUD-on one is measured inside the HUD mask and only reported), the gates, the golden today frame (native-metal 385e8a7, the tree before WP7, HUD on) and the concept panel. Ranges follow the user's blend (base «Кристалл» + horror's beams and deep darkness + frost's rime): frame median 35–50 (between crisp's 50–60 and horror's floor; the plan's frost-base swarmshot range 40–55 is printed next to it), the swarmshot gates of the plan (p95/p50 ≥ 3.6, specks ≥ 800, clipped ≤ 0.8 %, R−B highlights ≥ +25, shadows ≤ −10), near-black ≤ 30 % (horror's limit).",
+  "crop": {"left": 0.065, "right": 0.0, "top": 0.0, "bottom": 0.0},
+  "hud_mask": [[0.0, 0.0, 1.0, 0.13], [0.0, 0.80, 1.0, 1.0], [0.0, 0.45, 0.30, 0.80], [0.62, 0.40, 1.0, 0.80], [0.95, 0.0, 1.0, 1.0]],
+  "scenes": {
+    "swarmshot": {
+      "shots": ["swarmshot-nohud-0s.png", "swarmshot-0s.png"],
+      "gates": {"median": [35, 50], "p95_p50": [3.6, null], "specks": [800, null], "clip": [null, 0.8],
+                "warm": [25, null], "cold": [null, -10], "dark": [null, 30]},
+      "plan_median": [40, 55],
+      "today": "today-swarmshot.jpg",
+      "concept": "concept-swarmshot.jpg",
+      "concept_label": "Кристалл · бой с роем (+ лучи и тьма хоррора)"
+    },
+    "beacon": {
+      "shots": ["beacon-nohud-0s.png", "beacon-0s.png"],
+      "gates": {"median": [35, 50], "clip": [null, 0.8], "warm": [10, null], "cold": [null, -5], "dark": [null, 30]},
+      "today": "today-beacon.jpg",
+      "concept": "concept-beacon.jpg",
+      "concept_label": "Кристалл · удержание маяка (+ хоррор)"
+    },
+    "punchin": {
+      "shots": ["punchin-nohud-0s.png", "punchin-0s.png"],
+      "gates": {"median": [30, 55], "clip": [null, 1.5], "dark": [null, 35]},
+      "today": "today-beacon.jpg",
+      "concept": "concept-punchin.jpg",
+      "concept_label": "Иней · наезд на маяк · Кристалл · маяк"
+    },
+    "extract": {
+      "shots": ["extract-cine-nohud-0s.png", "extract-cine-0s.png", "extract-nohud-0s.png", "extract-0s.png"],
+      "gates": {"median": [30, 50], "clip": [null, 1.0], "dark": [null, 35]},
+      "today": "today-extract.jpg",
+      "concept": "concept-extract.jpg",
+      "concept_label": "Кристалл · эвакуация · Иней · камера со стены шахты"
+    },
+    "title": {
+      "shots": ["title-nohud-0s.png", "title-0s.png"],
+      "gates": {"median": [25, 50], "clip": [null, 1.0], "dark": [null, 40]},
+      "today": "today-title.jpg",
+      "concept": "concept-title.jpg",
+      "concept_label": "Кристалл · лист моделей (свет)"
+    },
+    "calm": {
+      "shots": ["calm-nohud-0s.png", "calm-0s.png"],
+      "deck_mask": ["calm-deckmask-0s.png"],
+      "gates": {"median": [30, 50], "deck_median": [35, 50], "clip": [null, 0.5], "dark": [null, 30]},
+      "today": "today-calm.jpg",
+      "concept": "concept-calm.jpg",
+      "concept_label": "Кристалл · кромки дорожек · Иней · иней и сугробы"
+    }
+  },
+  "brightness": {
+    "_note": "the player's «Яркость» at its maximum (gamma 1.3, -brightness 1.3) lifts the deck median (frame median without a deck mask) by ≥ 15 luma",
+    "base": "calm", "shots": ["calm-bright-nohud-0s.png", "calm-bright-0s.png"], "gamma": 1.3, "min_lift": 15
+  },
+  "punchin_entry": {
+    "_note": "the punch-in enters without a loop tick > 34 ms: the worst tick of the heartbeat seconds from the shot's start to its end (2.4 s), app-punchin.log",
+    "log": "app-punchin.log", "max_tick_ms": 34, "window_s": 2.6
+  }
+}

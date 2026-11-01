@@ -184,6 +184,7 @@ final class Cinematics {
     private func start(_ k: Kind) {
         kind = k
         t = 0
+        dilMin = 1; dilTime = 0
         coneWantDeg = 0; conePitchDeg = 0
         if k == .title { weight = 1 }
         started += 1
@@ -196,7 +197,11 @@ final class Cinematics {
         if let h = hold { t = h } else { t += dt }
         switch k {
         case .punchIn:
-            if t >= Cinematics.punchInLength && hold == nil { kind = nil; weight = 0; timeScale = 1; AppLog.info("cine punchin end"); return }
+            if t >= Cinematics.punchInLength && hold == nil {
+                kind = nil; weight = 0; timeScale = 1
+                AppLog.info(String(format: "cine punchin end dilation x%.2f for %.2f s", dilMin, dilTime))
+                return
+            }
             let tin = Cinematics.punchInEase, tout = Cinematics.punchInOutStart, len = Cinematics.punchInLength
             let wi = easeOut(t / tin)
             let wo = 1 - smooth01f((t - tout) / (len - tout))
@@ -204,6 +209,10 @@ final class Cinematics {
             let (a, b) = Cinematics.dilate, e = Cinematics.dilateEdge
             let d = smooth01f((t - a) / e) * (1 - smooth01f((t - b) / e))
             timeScale = camerasOn && !reducedMotion ? 1 - (1 - Cinematics.dilateSlow) * d : 1
+            if hold == nil {
+                dilMin = min(dilMin, timeScale)
+                if timeScale < 0.95 { dilTime += dt }
+            }
         case .extraction:
             weight = easeOut(t / Cinematics.extractionEase)
             timeScale = 1
@@ -277,6 +286,8 @@ final class Cinematics {
                     fovDeg: base.fovDeg + (shot.fovDeg - base.fovDeg) * w)
     }
     private var lastCameraClock: Float = 0
+    /// The punch-in's dilation as it ran (lowest scale, seconds under 0.95) for its end line.
+    private var dilMin: Float = 1, dilTime: Float = 0
     /// The shot's own yaw / pitch before the cone offsets (for keepOutOfCones).
     private var shotOrbit = (target: F3(0, 0, 0), yaw: Float(0), pitch: Float(0), dist: Float(10))
 
