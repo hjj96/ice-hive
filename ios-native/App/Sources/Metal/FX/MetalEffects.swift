@@ -468,7 +468,7 @@ final class MetalEffects {
         let rotary = m.cls == .gunner
         // the pop of light on the shooter and the deck (on top of the squad's continuous muzzle lights of LightGrid)
         let c = rotary ? F3(1.0, 0.78, 0.42) : F3(1.0, 0.5, 0.3)
-        flash(o + d * 0.35, c, peak: m.isPlayer ? 85 : 55, dur: rotary ? 0.05 : 0.07, range: 8, priority: m.isPlayer ? 9 : 6)   // polish: a harder pop on the deck per round
+        flash(o + d * 0.35, c, peak: m.isPlayer ? 85 : 70, dur: rotary ? 0.05 : 0.08, range: 8, priority: m.isPlayer ? 9 : 6)   // polish: a harder pop on the deck per round
         gpu.burst(.spark, rotary ? 2 : 3, at: o + d * 0.15, vel: d * 10, velJitter: F3(2.6, 1.6, 2.6), life: (0.05, 0.13), size: (0.03, 0.02),
                   color: F4(1.3, 1.0, 0.7, 1), gravity: 2, drag: 4)
         // spent casings to the right of the weapon (rotary: every other round)

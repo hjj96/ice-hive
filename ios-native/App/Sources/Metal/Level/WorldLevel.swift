@@ -41,7 +41,7 @@ struct LevelParams {
     /// x = vertical offset of the draw (lift rise).
     var lift = F4(0, 0, 0, 0)
     /// x rime strength, y contact-AO strength, z chamfer wear, w snow albedo.
-    var look = F4(1, 0.65, 0.55, 0.4)   // w snow albedo (polish: 0.5 clipped white in a flashlight's hot spot)
+    var look = F4(1, 0.65, 0.55, 0.45)   // w snow albedo (polish: 0.5 clipped white in a flashlight's hot spot)
     /// x = 1 on the High tier (wet trails, ice rim, grid-light specular); y = 1: the `-deckMask` look-dev view.
     var misc = F4(0, 0, 0, 0)
     /// World mask: xy world origin, z 1 / size (m).

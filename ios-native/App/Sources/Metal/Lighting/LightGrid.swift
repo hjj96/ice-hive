@@ -196,7 +196,8 @@ final class LightGrid {
     /// is normalised to the web's d^-1.35 at 5 m, so the near field (a bug at the barrel, a marine in a squadmate's
     /// beam) gets about 0.6 of the web's light: the pool reads as a gradient (hot near the lens, the cookie's core and
     /// reflector ring), nothing in front of the lens blows out, and the beams in the air (VolumeCones) carry the light.
-    static let spotPlayer: Float = 34, spotSquad: Float = 23, spotDowned: Float = 4
+    // polish: +8 % (horror: the squad's lamps are the light — the lit pool is where a dark bug reads best)
+    static let spotPlayer: Float = 37, spotSquad: Float = 25, spotDowned: Float = 4
     /// Cool fill light over the squad (readability in the dark): height above the squad's centre, range, intensity.
     static let fillHeight: Float = 4.5, fillRange: Float = 10, fillIntensity: Float = 10
     static let fillColor = F3(0.62, 0.76, 1.0)
