@@ -297,6 +297,7 @@ final class GameScene: SKScene {
     func applyReduceMotion() {
         let on = UIAccessibility.isReduceMotionEnabled
         cameraCtl.reducedMotion = on
+        Cinematics.shared.reducedMotion = on
         hud.reducedMotion = on
     }
 
@@ -370,6 +371,7 @@ final class GameScene: SKScene {
         if options.queen { cfg.queenAt = 0 }
         cfg.queenHp = options.queenHp
         let seed: UInt32 = options.seed ?? UInt32(truncatingIfNeeded: Int(Date().timeIntervalSince1970 * 1000) & 0x7fff_ffff)
+        Cinematics.shared.reset()
         return Game(seed: seed, playerClass: selectedClass, config: cfg, level: lv)
     }
 
@@ -731,6 +733,8 @@ final class GameScene: SKScene {
                 g.setPlayerInput(move: c.move, aim: c.aim, fire: c.fire, ability: c.ability, dash: c.dash, assist: c.assist)
                 input.consumePresses()
             }
+            // WP7: the scripted cameras, the grade mood and the punch-in's time dilation (wall dt; the demos only trigger)
+            Cinematics.shared.update(game: g, dt: dt, by: .scene)
             demo?.sinceReady = readyTime > 0 ? currentTime - readyTime : -1
             demo?.frame(game: g, dt: dt)
             if let pr = demo?.probe { runProbe(pr, g) }
@@ -742,6 +746,7 @@ final class GameScene: SKScene {
                 case .layoutSizes: LayoutSizes.run(game: g, station: stationName)
                 }
             }
+            ts *= Cinematics.shared.timeScale
             acc += Double(dt * ts)
             var steps = 0
             let step = Double(SIM_DT)
