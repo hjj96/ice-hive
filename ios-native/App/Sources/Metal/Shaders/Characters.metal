@@ -337,7 +337,9 @@ vertex FlashOut vs_muzzle_flash(uint vid [[vertex_id]], uint iid [[instance_id]]
         w = f.pos.xyz + d * (mix(-0.05, 1.0, u) * L) + e * (c.y * W);
         uv = float2(u, c.y);
     } else if (part == 3u) {
-        float sz = W * (1.9 + 2.2 * f.extra.w * saturate(f.extra.x / 0.09));
+        // (native-vx-squad: the pressure ring grew to 0.86 m and held 90 ms — a hula hoop round the muzzle in the tight
+        // close-up burst; now it stays inside the flash and is gone in 60 ms)
+        float sz = W * (1.9 + 0.8 * f.extra.w * saturate(f.extra.x / 0.06));
         w = f.pos.xyz + d * (0.04 * L) + (F.camRight.xyz * c.x + F.camUp.xyz * c.y) * sz;
         uv = c;
     } else if (part == 4u) {
@@ -434,9 +436,9 @@ fragment float4 fs_muzzle_flash(FlashOut in [[stage_in]]) {
             float3 col = mix(hue, hot, core);
             c = col * (ray * 1.5 + core * 3.8 + halo) * edge;
             if (kind == FLASH_FLAMER) c = hue * (core * 1.4 + halo * 0.8) * edge;
-            float ring = in.extra.w * (1.0 - saturate(age / 0.09));
+            float ring = in.extra.w * (1.0 - saturate(age / 0.06));
             if (ring > 0.0) {
-                float rr = 0.3 + 0.62 * saturate(age / 0.09);
+                float rr = 0.3 + 0.62 * saturate(age / 0.06);
                 c += mix(hue, hot, 0.4) * exp(-pow((r - rr) * 16.0, 2.0)) * ring * 0.55;
             }
         } else {

@@ -448,6 +448,9 @@ jobs:
           pull_burst burst-tight
           run_demo burst-combat 8 "-demo combat -seed 7 -burst combat 5 12"
           pull_burst burst-combat
+          # every bug type × clip (WorldSwarm's sheet: walk, run, attack, hit, deaths, specials), every 3rd frame over 0.6 s
+          run_demo burst-bugs 5 "-demo bugsheet -hideHUD -burst bugs 1.5 12 3"
+          pull_burst burst-bugs
           # WP5 effects look-dev: every effect staged around the squad and frozen mid-air (-fxSheet: blasts, napalm, the
           # flamer jet, the cryo beam, hits, kills, a frozen shatter, acid, a nova, casings, a row of every stain), on
           # Efficient and on High (wet decals, heat haze); the plan's scripted peak (three chained boomers + napalm +

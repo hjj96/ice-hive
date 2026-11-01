@@ -133,6 +133,9 @@ final class MetalEffects {
     // per-marine emission accumulators (fractional rates), shot counters
     private var acc = [[Float]](repeating: [Float](repeating: 0, count: 6), count: 4)
     private var shots = [Int](repeating: 0, count: 4)
+    /// The cryo beams' envelope and last length per marine (native-vx-squad).
+    private var beamEnv: [Float] = [0, 0, 0, 0]
+    private var beamLen: [Float] = [0, 0, 0, 0]
     private var scorchT = [Float](repeating: 0, count: 4)
     private var napalmAcc: [Float] = [0, 0, 0, 0, 0, 0, 0, 0]
     private var steamT: Float = 0
@@ -527,9 +530,12 @@ final class MetalEffects {
     }
 
     /// The cryo beam from `o` over `len`: the ribbon, ice glints along it, frost mist and rime where it ends.
-    private func cryoStream(_ o: F3, ax: Float, az: Float, len: Float, dt: Float, k: Int) {
+    private func cryoStream(_ o: F3, ax: Float, az: Float, len: Float, dt: Float, k: Int, env: Float = 1) {
         let d = F3(ax, 0, az)
-        ribbons.cryoBeam(from: o, ax: ax, az: az, len: len, time: frameTime, seed: Float(k) * 1.7)
+        // a frost stream, not a laser line, from the game camera: a wider sheath there (native-vx-squad)
+        let gk = squad?.gameK ?? 1
+        ribbons.cryoBeam(from: o, ax: ax, az: az, len: len, time: frameTime, seed: Float(k) * 1.7, intensity: env * env * (1 - 0.15 * gk),
+                         widthK: 1 + 0.5 * gk)
         let ni = rate(&acc[k][3], 55, dt)
         if ni > 0 {
             let t = rr(0.5, len)
@@ -836,8 +842,15 @@ final class MetalEffects {
             if m.firing && m.cls == .pyro && dt > 0 {
                 flameJet(muzzle(m, k), ax: m.ax, az: m.az, vel: F3(m.vx, 0, m.vz), dt: dt, k: k)
             }
-            if m.firing && m.cls == .cryo {
-                cryoStream(muzzle(m, k), ax: m.ax, az: m.az, len: m.beamLen, dt: dt, k: k)
+            if m.cls == .cryo {
+                // the beam's envelope (native-vx-squad): an AI cryo's `firing` drops for single ticks while it re-picks a
+                // target, and the beam blinked on and off frame to frame (burst combat 00–04: a lone white line in one frame
+                // of four, a laser strobe); now it ramps in over 60 ms and dies out over 160 ms at its last length
+                if m.firing { beamLen[k] = m.beamLen }
+                beamEnv[k] = m.firing ? min(1, beamEnv[k] + dt / 0.06) : max(0, beamEnv[k] - dt / 0.16)
+                if beamEnv[k] > 0 && beamLen[k] > 0.3 {
+                    cryoStream(muzzle(m, k), ax: m.ax, az: m.az, len: beamLen[k], dt: m.firing ? dt : 0, k: k, env: beamEnv[k])
+                }
             }
         }
         if dt > 0 {
