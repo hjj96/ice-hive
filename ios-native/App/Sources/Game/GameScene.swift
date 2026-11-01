@@ -275,6 +275,8 @@ final class GameScene: SKScene {
             scale = min(scale, 1.5)
         }
         world?.fxK = fxK
+        // «Яркость» (a `-brightness G` launch option — look-dev / CI — wins)
+        if !options.unknown.contains("-brightness") { world?.renderer.post.brightness = settings.brightness }
         host?.setWorldScale(scale)
         let note = hot ? "thermal \(th == .critical ? "critical" : "serious"): fxK \(fxK) scale \(scale)" : ""
         if note != thermalNote { thermalNote = note; if !note.isEmpty { AppLog.info(note) } }
@@ -456,7 +458,7 @@ final class GameScene: SKScene {
 
     private var pauseState: MenuScreen.PauseState {
         MenuScreen.PauseState(soundOn: !settings.muted, volume: settings.vol, quality: settings.quality, hapticsOn: settings.haptics,
-                              tierName: game?.difficulty.name ?? Difficulty.veteran.name)
+                              brightness: settings.brightness, tierName: game?.difficulty.name ?? Difficulty.veteran.name)
     }
 
     private func pause() {
@@ -650,6 +652,12 @@ final class GameScene: SKScene {
             audio?.play(.click, pos: nil, listener: listener())
             menu.showPause(size: size, state: pauseState, layoutCheck: options.layoutCheck, insets: insets)
             AppLog.info("quality \(settings.quality) bugCap=\(game?.bugCap ?? 0) next=\((QualityTier(rawValue: qualityName) ?? .med).bugCap)")
+        case .brightness:
+            settings.cycleBrightness()
+            if !options.unknown.contains("-brightness") { world?.renderer.post.brightness = settings.brightness }
+            audio?.play(.click, pos: nil, listener: listener())
+            menu.showPause(size: size, state: pauseState, layoutCheck: options.layoutCheck, insets: insets)
+            AppLog.info(String(format: "brightness %.2f", settings.brightness))
         case .haptics:
             settings.setHaptics(!settings.haptics)
             haptics.enabled = settings.haptics

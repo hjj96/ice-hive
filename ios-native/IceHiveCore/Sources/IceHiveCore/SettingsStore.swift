@@ -9,6 +9,7 @@ import Foundation
 //    vol      0.2 … 1 (default 0.8)
 //    haptics  true / false (iOS app only, default on)
 //    quality  "\"auto\"" | "\"low\"" | "\"med\"" | "\"high\""
+//    bright   1 / 1.15 / 1.3                 «Яркость»: gamma on the graded image (iOS app only, default 1)
 //  v1.1 «Ставки» meta keys (web 11c-meta.js / 11b-coach.js / 04b-stations.js):
 //    profile  {"v":1,"runs":…,"wins":…,"earned":…,"recTip":…,"cls":{…}}   fighter profile (absent → built from `best`)
 //    diff     0 / 1 / 2                         the player's tier pick (absent = no pick)
@@ -36,6 +37,9 @@ public final class SettingsStore {
     public private(set) var haptics: Bool = true
     /// "auto" | "low" | "med" | "high".
     public private(set) var quality: String = "auto"
+    /// «Яркость» (WP7): gamma of the composite after the grade — 1 (обычная), 1.15 (выше), 1.3 (максимум).
+    public private(set) var brightness: Float = 1
+    public static let brightnessSteps: [Float] = [1, 1.15, 1.3]
 
     /// Keys copied from the v1 (Capacitor) store at init.
     public private(set) var migrated: [String] = []
@@ -113,6 +117,10 @@ public final class SettingsStore {
         }
         if let s = raw("haptics"), let v = SettingsStore.bool(SettingsStore.parse(s)) { haptics = v }
         if let s = raw("quality"), let v = SettingsStore.parse(s) as? String, ["auto", "low", "med", "high"].contains(v) { quality = v }
+        if let s = raw("bright"), let v = SettingsStore.parse(s) as? NSNumber, v.floatValue.isFinite {
+            let f = v.floatValue
+            brightness = SettingsStore.brightnessSteps.min { abs($0 - f) < abs($1 - f) } ?? 1
+        }
     }
 
     private func put(_ k: String, _ json: String) { d.set(json, forKey: SettingsStore.prefix + k) }
@@ -181,6 +189,16 @@ public final class SettingsStore {
     public func setMuted(_ m: Bool) { muted = m; put("muted", m ? "true" : "false") }
     public func setHaptics(_ on: Bool) { haptics = on; put("haptics", on ? "true" : "false") }
     public func setQuality(_ q: String) { quality = q; put("quality", "\"" + q + "\"") }
+
+    /// «Яркость»: обычная → выше → максимум → обычная, remembered.
+    @discardableResult
+    public func cycleBrightness() -> Float {
+        let steps = SettingsStore.brightnessSteps
+        let k = steps.firstIndex { abs($0 - brightness) < 0.01 } ?? -1
+        brightness = steps[(k + 1) % steps.count]
+        put("bright", String(format: "%.2f", brightness))
+        return brightness
+    }
 
     /// Web cycleVolume(): 100 → 80 → 60 → 40 → 20 %, remembered.
     @discardableResult
