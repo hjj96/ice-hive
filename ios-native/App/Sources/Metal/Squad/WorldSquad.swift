@@ -90,7 +90,7 @@ final class WorldSquad {
     var cameraDistance: Float = 33
     /// 0 at a close camera (≤ 14 m: the close-ups, the punch-in, the extraction shot), 1 at the game camera (≥ 26 m):
     /// how much of the game-camera boost (flash size, class rim, visor gain) applies.
-    private var gameK: Float {
+    var gameK: Float {
         if lookDev.closeUp { return 0 }
         let t = max(0, min(1, (cameraDistance - 14) / 12))
         return t * t * (3 - 2 * t)
