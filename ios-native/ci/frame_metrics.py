@@ -256,9 +256,13 @@ for d in demos:
         if g:
             tiers.add(g.group(4))
             scales.add(g.group(5))
-            if 1.2 <= td <= secs + 1:
+            # only seconds in which the world drew (frame > 0): behind an opaque menu the world stops and its `hb gpu`
+            # line repeats the last smoothed value — one host-side GPU frame of 29.6 ms as the report opened
+            # (native-vx-polish bf8ed41 report-first) froze the ema at 2.12 ms for the whole window
+            if 1.2 <= td <= secs + 1 and float(g.group(1)) > 0:
                 emas.append(float(g.group(3)))
-    ema = sorted(emas)[len(emas) // 2] if emas else None
+    # (the lower median: a menu demo has two or three such seconds, and the one the menu opens in can hold a host frame)
+    ema = sorted(emas)[(len(emas) - 1) // 2] if emas else None
     allocs = sum(1 for line in lines if rx_alloc.search(line))
     sweep = max((int(s.group(1)) for line in lines for s in [rx_sweep.search(line)] if s), default=0)
     # the worst loop tick of each second that holds a DRS sweep step (the heartbeat after the step's line), and the part
