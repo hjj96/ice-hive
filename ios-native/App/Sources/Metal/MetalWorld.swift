@@ -120,6 +120,9 @@ final class MetalWorld: HUDProjection {
         glyphs = GroundGlyphs(level: level)
         levelDraw = WorldLevel(level: level, store: store)
         fx.corpses = corpses
+        // hits on the chitin (WorldSwarm.impactPoint), muzzles and casings at the rig's sockets (WorldSquad)
+        fx.swarm = swarm
+        fx.squad = squad
         renderer.clearRegistrations()
         renderer.registerBatchService()
         renderer.targets.setClearColor(MetalWorld.fogRadiance)
@@ -177,6 +180,8 @@ final class MetalWorld: HUDProjection {
     }
 
     func handle(_ e: GameEvent, game: Game) {
+        // the hit bug recoils along the actual shot (WorldSwarm.noteHit), not away from the nearest marine
+        if case .bulletHit(let pos, let dir, _) = e { swarm.noteHit(pos, dir) }
         fx.handle(e, game: game)
         // flash adaptation: a big blast dips the exposure for a moment (scripted; no auto-exposure)
         if case .explosion(let kind, _, _) = e, kind.isBig { renderer.post.dip(ev: -0.35, duration: 0.45) }

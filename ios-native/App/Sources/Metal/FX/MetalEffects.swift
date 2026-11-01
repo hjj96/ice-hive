@@ -412,11 +412,11 @@ final class MetalEffects {
         n /= l
         let d = F3(dx, 0, dz)
         // hot sparks off the chitin (bounce on the deck, cool white → orange), a four-ray hit flash
-        let ns = (killed ? 9 : 5) * (armoured ? 2 : 1)
+        let ns = (killed ? 13 : 7) * (armoured ? 2 : 1)   // polish: hits throw more sparks (owner: shooting more epic)
         gpu.burst(.spark, num(Float(ns)), at: p, vel: n * (armoured ? 5.5 : 4.5) + d * 1.5, velJitter: F3(2.4, 2.0, 2.4), sphere: 2.5,
                   life: (0.18, 0.45), size: (0.045, 0.03), color: F4(1.25, 1.05, 0.85, 1), gravity: 14, drag: 1.2)
-        gpu.burst(.flash, 1, at: p + n * 0.08, life: (0.06, 0.08), size: (killed ? 0.9 : (armoured ? 0.75 : 0.6), killed ? 1.05 : 0.75),
-                  color: F4(5.0, 3.6, 2.2, 1), sizeJitter: 0.2)
+        gpu.burst(.flash, 1, at: p + n * 0.08, life: (0.06, 0.09), size: (killed ? 1.2 : (armoured ? 0.95 : 0.8), killed ? 1.4 : 1.0),
+                  color: F4(6.5, 4.4, 2.6, 1), sizeJitter: 0.2)
         // the bug's ichor: droplets along the shot that stick to the deck; chips of shell
         gpu.burst(.ichor, num(Float(killed ? 6 : (armoured ? 1 : 3))), at: p, vel: d * 2.4 + F3(0, 1.4, 0), velJitter: F3(1.6, 1.2, 1.6),
                   life: (0.5, 0.9), size: (0.07, 0.05), color: F4(ich.x * 0.55, ich.y * 0.55, ich.z * 0.55, 1), gravity: 12)
@@ -468,8 +468,8 @@ final class MetalEffects {
         let rotary = m.cls == .gunner
         // the pop of light on the shooter and the deck (on top of the squad's continuous muzzle lights of LightGrid)
         let c = rotary ? F3(1.0, 0.78, 0.42) : F3(1.0, 0.5, 0.3)
-        flash(o + d * 0.35, c, peak: m.isPlayer ? 60 : 38, dur: rotary ? 0.05 : 0.07, range: 7, priority: m.isPlayer ? 9 : 6)
-        gpu.burst(.spark, rotary ? 1 : 2, at: o + d * 0.15, vel: d * 9, velJitter: F3(2.6, 1.6, 2.6), life: (0.05, 0.13), size: (0.03, 0.02),
+        flash(o + d * 0.35, c, peak: m.isPlayer ? 85 : 55, dur: rotary ? 0.05 : 0.07, range: 8, priority: m.isPlayer ? 9 : 6)   // polish: a harder pop on the deck per round
+        gpu.burst(.spark, rotary ? 2 : 3, at: o + d * 0.15, vel: d * 10, velJitter: F3(2.6, 1.6, 2.6), life: (0.05, 0.13), size: (0.03, 0.02),
                   color: F4(1.3, 1.0, 0.7, 1), gravity: 2, drag: 4)
         // spent casings to the right of the weapon (rotary: every other round)
         if !rotary || shots[k] % 2 == 0 {
@@ -481,7 +481,7 @@ final class MetalEffects {
         }
         if shots[k] % 3 == 0 {
             gpu.burst(.smoke, 1, at: o + d * 0.3, vel: d * 0.8 + F3(0, 0.6, 0), velJitter: F3(0.2, 0.2, 0.2), life: (0.5, 0.8),
-                      size: (0.25, 0.75), color: F4(0.45, 0.45, 0.47, 0.32), drag: 2, spin: 1)
+                      size: (0.22, 0.6), color: F4(0.26, 0.26, 0.28, 0.22), drag: 2, spin: 1)   // polish: lit by a beam it read as a white puff
         }
     }
 
@@ -609,7 +609,7 @@ final class MetalEffects {
                   radial: 0.8, life: (1.4, 2.2), size: (r * 0.4, r * 1.0), color: F4(0.055, 0.05, 0.048, 0.45), gravity: -0.7, drag: 0.9,
                   spin: 0.4)
         // the deck: a shock ring, heat waves, a scorch with cooling embers
-        floorTimed(x, z, radius: r * 1.7, mode: .shock, color: boomer ? F3(3.0, 3.2, 1.1) : F3(4.0, 2.5, 1.25), life: big ? 0.42 : 0.28,
+        floorTimed(x, z, radius: r * 1.7, mode: .shock, color: boomer ? F3(3.4, 2.1, 0.6) : F3(4.0, 2.5, 1.25), life: big ? 0.42 : 0.28,   // polish: the boomer's ring amber (a pale lime band washed over the swarm in CI combat)
                    thickness: 0.07)
         heatTimed(p, radius: r * 2.0, strength: 0.7, mode: 1, life: 0.4)
         heatTimed(p + F3(0, 0.6, 0), radius: r * 0.8, strength: 0.35, mode: 0, life: 1.0)
@@ -911,7 +911,7 @@ final class MetalEffects {
                 var merged = false
                 for j in acidPick.indices {
                     let p = acidPick[j]
-                    let dx = p.x - e.x, dz = p.z - e.z, m = 0.8 * max(p.r, e.r0)
+                    let dx = p.x - e.x, dz = p.z - e.z, m = 1.3 * max(p.r, e.r0)   // polish: any two that overlap (0.8 left 5–6 rings round the squad, CI 8902b6e)
                     if dx * dx + dz * dz < m * m {
                         if u > p.u { acidPick[j] = (e.x, e.z, e.r0, u, col, p.n + 1) } else { acidPick[j].n += 1 }
                         merged = true

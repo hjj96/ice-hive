@@ -74,6 +74,10 @@ final class WorldSwarm {
     static let scratchCap = MAX_BUGS + 640
     /// Glint sprites per bug at most (the brightest dorsal pores), and per frame.
     static let glintsPerBug = 6
+    /// Polish: glint pores per type (runner, spitter, brute, boomer) — the runner's six dorsal pores in a row read as a
+    /// pink «dotted line» over a near-invisible body from the game camera (CI 8902b6e swarmshot / beacon); four, a touch
+    /// smaller, sit on a shell that now reads (Swarm.metal kBodyLift + the carapace key edge)
+    static let glintsPerType = [4, 5, 6, 6]
     static let glintCap = (high: 16000, efficient: 8000)
     /// LOD caps (High: LOD0 32 largest, LOD1 600; Efficient: LOD1 300) and the triangle budget (per bug at 1400).
     static let lod0Cap = 32, lod1Cap = (high: 600, efficient: 300)
@@ -243,7 +247,7 @@ final class WorldSwarm {
         glintTable.removeAll()
         for t in 0..<4 {
             let c = lib.types[t]
-            let g = c.sockets.filter { $0.glint }.sorted { ($0.intensity, $0.radius) > ($1.intensity, $1.radius) }.prefix(WorldSwarm.glintsPerBug)
+            let g = c.sockets.filter { $0.glint }.sorted { ($0.intensity, $0.radius) > ($1.intensity, $1.radius) }.prefix(min(WorldSwarm.glintsPerBug, WorldSwarm.glintsPerType[t]))
             glintFirst[t] = glintTable.count
             glintPer[t] = g.count
             for s in g {
@@ -681,7 +685,7 @@ final class WorldSwarm {
         }
         params.types = (ty(0, params.types.0.glint), ty(1, params.types.1.glint), ty(2, params.types.2.glint), ty(3, params.types.3.glint))
         if glintCount == 0 { for t in 0..<4 { setGlint(t, first: 0, per: 0, start: 0, bug: 0) } }
-        params.info = F4(time, (sheet?.studio ?? false) ? 1 : 0, 1.7, 1.25)
+        params.info = F4(time, (sheet?.studio ?? false) ? 1 : 0, 1.5, 1.1)
         params.queen = F4(0.55, 0.22, 1.1, 0)
     }
 

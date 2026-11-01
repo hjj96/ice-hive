@@ -358,13 +358,9 @@ final class LightGrid {
         // the effects' pooled light (flame / napalm / the player's muzzle; also the frame-only point light 0)
         let l0 = fx.lights[0]
         if l0.intensity > 0.01 { add(l0.pos, l0.color, intensity: l0.intensity, range: 18, priority: 40) }
-        // every firing marine's muzzle (squad muzzles are not in the effects' pool), flames and the cryo beam
+        // flames and the cryo beam of the AI marines (every round's muzzle light is MetalEffects' own short grid light)
         for (k, m) in game.marines.enumerated() where k < 4 && k < poses.count && !m.downed {
             let p = poses[k]
-            if m.muzzle > 0 && !m.isPlayer && (m.cls == .assault || m.cls == .gunner) {
-                let col = linearRGB(m.cls == .assault ? 0xff6040 : 0xffc060)
-                add(F3(p.x + m.ax * 1.0, p.y + 1.3, p.z + m.az * 1.0), col, intensity: 45 * min(1, m.muzzle + 0.3), range: 9, priority: 6)
-            }
             if m.firing && m.cls == .pyro && !m.isPlayer {
                 add(F3(p.x + m.ax * 3.5, p.y + 1.4, p.z + m.az * 3.5), linearRGB(0xff7a28), intensity: 80 * (0.8 + 0.2 * sinf(time * 37 + Float(k))), range: 14, priority: 12)
             }
@@ -375,14 +371,6 @@ final class LightGrid {
         // napalm fires
         for nap in game.napalms where nap.active {
             add(F3(nap.x, game.level.groundY(nap.x, nap.z) + 1.5, nap.z), linearRGB(0xff6a20), intensity: 110 * (0.8 + 0.2 * sinf(time * 29 + nap.x)), range: 16, priority: 20)
-        }
-        // the effects' floor light pools (blasts, muzzle pools, acid): the brightest become real lights
-        for s in fx.glowSprites where s.center.w < 0.5 {
-            let size = max(abs(s.axisU.x), abs(s.axisU.z), abs(s.axisV.x), abs(s.axisV.z))
-            let c = F3(s.color.x, s.color.y, s.color.z) * s.color.w
-            let e = max(c.x, max(c.y, c.z))
-            if e < 0.06 || size < 1.5 { continue }
-            add(F3(s.center.x, s.center.y + 1.2, s.center.z), c / e, intensity: e * 160, range: min(14, size * 1.6), priority: 4 + e * 10)
         }
         // beacon lamps: amber while charging, teal when lit
         for (k, b) in game.beacons.enumerated() where b.state >= 1 {

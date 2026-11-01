@@ -34,9 +34,9 @@ final class Ribbons {
 
     static let pipelines: [PipelineSpec] = [.world("beams", "vs_beam", "fs_beam", .add)]
     /// Tracer length (m) by projectile colour index (0 rifle, 1 rotary, 2 turret) — the plan's ≤ 3 m.
-    static let tracerLength: [Float] = [2.4, 1.7, 1.6]
+    static let tracerLength: [Float] = [2.8, 2.2, 1.8]   // polish: a touch longer streaks (still ≤ 3 m, no laser line)
     /// Tracer HDR colours: the class hue (assault red, gunner green; the turret a paler green-teal).
-    static let tracerColor: [F3] = [F3(3.4, 0.42, 0.26), F3(0.55, 3.1, 0.75), F3(0.5, 2.6, 1.5)]
+    static let tracerColor: [F3] = [F3(4.6, 0.62, 0.34), F3(0.7, 4.0, 0.95), F3(0.6, 3.2, 1.8)]
 
     private(set) var beams: [BeamInstance] = []
     private var renderer: MetalRenderer?
@@ -75,12 +75,17 @@ final class Ribbons {
             let y = 1.2 + level.groundY(p.x, p.y)
             let head = F3(p.x, y, p.y), tail = F3(p.x - d.x * len, y, p.y - d.y * len)
             let c = Ribbons.tracerColor[ci]
-            add(tail, head, width: ci == 0 ? 0.07 : 0.058, mode: .tracer, color: c, head: ci == 0 ? 8 : 6.5)
-            add(tail, head, width: ci == 0 ? 0.26 : 0.21, mode: .halo, color: c * 0.32)
+            // polish (owner: «эффекты стрельбы эпичнее»): a thinner, hotter bolt — a crisp white-hot head and a glow
+            // around the head only; a halo along the whole bolt read as a glowing rod (a light sabre) in CI combat
+            add(tail, head, width: ci == 0 ? 0.05 : 0.045, mode: .tracer, color: c, head: ci == 0 ? 14 : 11)
+            let hs = tail + (head - tail) * 0.55
+            add(hs, head + d3(d) * 0.12, width: ci == 0 ? 0.3 : 0.25, mode: .halo, color: c * 0.42)
             longestTracer = max(longestTracer, len)
             tracersDrawn += 1
         }
     }
+
+    @inline(__always) private func d3(_ d: Vec2) -> F3 { F3(d.x, 0, d.y) }
 
     /// Short glint ribbon from a to b, half width `w`: brightest at the start, k² to nothing at the end.
     func glint(_ a: F3, _ b: F3, width w: Float, color: F3, intensity: Float) {

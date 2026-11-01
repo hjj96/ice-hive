@@ -83,6 +83,8 @@ final class WorldSquad {
     /// intensity) and how much the baked AO darkens the albedo (grime in the seams).
     static let keyLight = F3(1.0, 0.92, 0.82) * 0.3
     static let cavity: Float = 0.45
+    /// Weapon flash size from the game camera (polish), × the modelled size; close-ups draw it at 1.
+    static let flashGameScale: Float = 1.45
 
     let level: Level
     /// Interpolated feet of each marine this frame (effects, rings, lights and the HUD attach here).
@@ -232,7 +234,7 @@ final class WorldSquad {
             draws[k] = MarineDraw(hue: F4(hue.x, hue.y, hue.z, visor),
                                   trim: F4(tr.x, tr.y, tr.z, Float(m.cls.rawValue)),
                                   flash: F4(0.55 * hurt + inv * 0.4, 0.04 * hurt + inv * 0.9, 0.03 * hurt + inv, m.downed && !I.dead ? 0.6 : (I.dead ? 1 : 0)),
-                                  params: F4(m.isPlayer ? 0.16 : 0.12, 5.5, 3.5, high ? 1 : 0))
+                                  params: F4(lookDev.closeUp ? (m.isPlayer ? 0.16 : 0.12) : (m.isPlayer ? 0.26 : 0.2), lookDev.closeUp ? 5.5 : 7.5, 3.5, high ? 1 : 0))
             draws[k].key = F4(WorldSquad.keyLight.x, WorldSquad.keyLight.y, WorldSquad.keyLight.z, WorldSquad.cavity)
             weaponFx(k, m, I, rig, dt: dt, coreHeat: lookDev.on ? -1 : m.heat)
             drawn.append(k)
@@ -321,6 +323,12 @@ final class WorldSquad {
         }
         heat[k] = h
         if down { inten = 0; light = 0 }
+        // polish (owner: «эффекты стрельбы эпичнее»): from the game camera a marine is ~60 px tall and the 0.86 m star
+        // read as a spark; the flash is drawn larger and a little hotter there (the close-ups keep the modelled size)
+        if !lookDev.closeUp && (kind != 2 || len > 0.2) {   // (not the pyro's pilot light)
+            len *= WorldSquad.flashGameScale; wid *= WorldSquad.flashGameScale * 0.95
+            col *= 1.2; light *= 1.3
+        }
         guard let mz = mzOpt else { return }
         draws[k].muzzle = F4(mz.x, mz.y, mz.z, light)
         draws[k].fx = F4(lcol.x, lcol.y, lcol.z, h)

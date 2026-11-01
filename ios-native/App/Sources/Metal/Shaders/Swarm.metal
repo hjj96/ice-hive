@@ -147,6 +147,9 @@ vertex CreatureOut vs_creature(uint vid [[vertex_id]], uint iid [[instance_id]],
     return o;
 }
 
+// polish: albedo lift of the living shell per type (runner, spitter, brute, boomer)
+constant float kBodyLift[4] = {1.9, 1.7, 1.45, 1.4};
+
 fragment float4 fs_chitin(CreatureOut in [[stage_in]],
                           constant Frame& F [[buffer(1)]],
                           constant SwarmParams& SP [[buffer(3)]],
@@ -159,6 +162,10 @@ fragment float4 fs_chitin(CreatureOut in [[stage_in]],
     SwarmType T = SP.types[type];
     bool gland = (vf & IHV_GLAND) != 0u, eyeF = (vf & IHV_EYE) != 0u, sac = (vf & IHV_SAC) != 0u, edge = (vf & IHV_EDGE) != 0u;
     float3 albedo = float3(in.albedo);
+    // polish: the living shell one value step up per type (runner / spitter shells were near-black at 0.01–0.02 linear,
+    // so from the game camera a runner read as a row of pink pores with no body: a «dotted line», not a bug); the
+    // pores and eyes keep their own colour, the dead fall back into their band below
+    if (!(gland || eyeF)) albedo *= kBodyLift[type];
     // value band of the dead: darker and desaturated, so the living swarm reads on top of its own corpses
     float lum = dot(albedo, float3(0.2126, 0.7152, 0.0722));
     albedo = mix(albedo, float3(lum * 0.8, lum * 0.72, lum * 0.7), dead * 0.7) * (1.0 - 0.38 * dead);
@@ -182,10 +189,21 @@ fragment float4 fs_chitin(CreatureOut in [[stage_in]],
         float3 H = normalize(K + V);
         c += float3(0.6, 0.7, 0.85) * 0.35 * pow(saturate(dot(N, H)), 40.0) * (1.0 - dead * 0.7);
     }
-    // the type's cold Fresnel rim: outlines the silhouette against the dark deck (crisp's readability), dimmed on the dead
-    float rim = pow(1.0 - NoV, 3.0);
+    // the type's cold Fresnel rim: outlines the silhouette against the dark deck (crisp's readability), dimmed on the dead.
+    // Polish (crisp's bug material): on the carapace a softer, wider rim (2.2) that the light reaching the shell boosts
+    // (a bug in a beam gets a hot outline, not only a dark body on the lit deck), and a key edge from the upper left of
+    // the VIEW — the same side on every bug, so a crowd reads as bodies outside the beams; the legs keep the thin
+    // cold rim (a dense crowd with lit legs turns into rim noise)
+    float rim = pow(1.0 - NoV, edge ? 2.2 : 3.0);
     float3 rimC = (inst & CI_QUEEN) != 0u ? SP.queen.rgb : T.rim.rgb;
-    if (!gland && !eyeF) c += rimC * (T.rim.w * float(in.rimK) * rim * (1.0 - 0.8 * dead) * (1.0 - 0.6 * frz) * (1.0 - 0.5 * burn));
+    float rimLive = float(in.rimK) * (1.0 - 0.8 * dead) * (1.0 - 0.6 * frz) * (1.0 - 0.5 * burn);
+    if (!gland && !eyeF) c += rimC * (T.rim.w * rimLive * rim);
+    if (edge && !sac) {
+        float2 ns = float2(dot(N, F.camRight.xyz), dot(N, F.camUp.xyz));
+        float keyEdge = smoothstep(0.1, 0.9, dot(ns, float2(-0.552, 0.834))) * pow(1.0 - NoV, 1.2);
+        c += rimC * (T.rim.w * rimLive * keyEdge * 1.6);
+        c += albedo * (rim * min(lightIn, 3.0) * 1.2 * (1.0 - 0.75 * dead));
+    }
     c += float3(0.08, 0.22, 0.38) * (frz * (0.05 + 0.6 * rim));
     // pores: HDR from the glow table (they pulse, flare on the attack, fade through the death clip)
     float glow = float(in.glow);

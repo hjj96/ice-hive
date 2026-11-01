@@ -268,7 +268,9 @@ fragment float4 fs_telegraph(FloorOut in [[stage_in]],
         float rim = 1.0 - smoothstep(0.0, 1.4 * px + 0.006, abs(r - 0.95));
         float cr = 0.95 * (1.0 - u);
         float count = (1.0 - smoothstep(0.0, 1.4 * px + 0.006, abs(r - cr))) * step(0.03, cr);
-        k = (pool + rim * (0.14 + 0.3 * u * u) + count * (0.1 + 0.5 * u * u) * blink) * (1.0 - smoothstep(0.97, 1.0, r));
+        // (polish: the rim and the countdown fade in over the first quarter of the flight — the glob is still high up)
+        float early = smoothstep(0.05, 0.3, u);
+        k = (pool + (rim * (0.14 + 0.3 * u * u) + count * (0.1 + 0.5 * u * u) * blink) * early) * (1.0 - smoothstep(0.97, 1.0, r));
     } else {
         // brute lane: two DASHED border lines whose dashes run with the chevrons toward +y (the charge direction), over a
         // faint continuous edge — a hazard marking on the deck; two solid HDR lines across the platform read as laser
