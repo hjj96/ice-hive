@@ -37,6 +37,17 @@ import IceHiveCore
 //                   steps, 600 bugs around it, the player aiming up-left and firing for 1.6 s,
 //                   then time almost frozen (×0.02) for the screenshot — the renderer A/B
 //                   against store/screenshots/6.3/2-swarm.png
+//  WP7 «Режиссура» (look-dev, cinematics, device capture):
+//    -demo stress1400  the device capture: 1400 live bugs around the squad (-bugs N), «высокая» (High), kept topped up —
+//                   `hb gpu` per-pass lines on a device; A/B with -noSwarmDraw / -noStation / -fxSim off / -nocones
+//    -demo bugsheet  every bug type × clip around the camera focus (WorldSwarm's sheet; -bugsheet [scale],
+//                   -bugsheetGame, -bugsheetT s, -bugstrip <type> [scale] as on `-demo calm`), director off
+//    -demo punchin  the squad in beacon «Альфа»'s ring with a crowd; 1.5 s after «scene ready» the beacon comes on →
+//                   Cinematics' punch-in (push-in at the game yaw, ×0.3 time for ≈ 0.45 s, 2.4 s); at 4.6 s it plays
+//                   again and holds at its peak (0.95 s in) with the world nearly frozen, for the screenshot
+//    -demo extract-cine  the hold on the lift with a crowd; at 1.5 s the lift leaves → the extraction shot from the
+//                   shaft wall; the lift pinned 2.8 s into its rise for the screenshot
+//  Every demo drives Cinematics (mood, shot EV, dilation) until GameScene does; `-cine off` keeps the game camera.
 // ================================================================
 final class DemoScript {
     let name: String
@@ -67,8 +78,9 @@ final class DemoScript {
         case "combat", "smoke", "default": return DemoScript(name: d == "default" ? "combat" : d, options: options, bugs: options.bugs)
         case "beacon": return DemoScript(name: d, options: options, bugs: options.bugs)
         case "title", "calm", "probe", "hold", "holdhint", "extract", "queen", "queenlock", "coach", "pressure", "report", "levelup", "pause", "end",
-             "swarmshot", "layout":
+             "swarmshot", "layout", "bugsheet", "punchin", "extract-cine":
             return DemoScript(name: d, options: options)
+        case "stress1400": return DemoScript(name: d, options: options, bugs: options.bugs ?? 1400)
         default:
             AppLog.error("unknown demo \(d), using combat")
             return DemoScript(name: "combat", options: options)
@@ -87,25 +99,35 @@ final class DemoScript {
     /// Class the demo plays unless `-class` says otherwise (the store shot is the gunner's).
     var preferredClass: String? { name == "swarmshot" ? "gunner" : nil }
 
-    /// Graphics tier the demo forces without touching the saved setting (the store shots are taken on «высокая»).
-    var preferredQuality: String? { name == "swarmshot" ? "high" : nil }
+    /// Graphics tier the demo forces without touching the saved setting (the store shots and the WP7 cinematics are
+    /// taken on «высокая»; stress1400 is the plan's High budget run).
+    var preferredQuality: String? {
+        ["swarmshot", "stress1400", "punchin", "extract-cine"].contains(name) ? "high" : nil
+    }
 
-    /// World time scale the scene applies on top of hit-stop (swarmshot: ~frozen after the staging).
-    private(set) var timeScale: Float = 1
+    /// World time scale the scene applies on top of hit-stop: the demo's freeze (swarmshot, coach, the held punch-in:
+    /// ×0.02) × the punch-in's time dilation while the demo drives Cinematics.
+    var timeScale: Float {
+        let c = Cinematics.shared
+        return freeze * (c.drivenByScene ? 1 : c.timeScale)
+    }
+    private var freeze: Float = 1
     private var shotStage = 0
+    private var cineStep = 0
 
     /// Called right after the mission starts.
     func begin(game: Game) {
         game.godMode = true
         game.autopilot = true
         game.autoPickUpgrades = true
+        Cinematics.shared.reset()
         switch name {
-        case "calm", "layout":
+        case "calm", "layout", "bugsheet":
             game.autopilot = false
             game.directorEnabled = false
             target = 0
             AppLog.info("demo \(name): director off, squad idle")
-        case "hold", "holdhint", "extract", "queen", "queenlock":
+        case "hold", "holdhint", "extract", "queen", "queenlock", "extract-cine":
             var guardN = 0
             while game.stage == .beacons && guardN < 6 { game.debugSkip(); guardN += 1 }
             if game.stage == .toLift { game.debugSkip() }
@@ -138,6 +160,16 @@ final class DemoScript {
             target = 300
             let n = game.debugSpawn(target, type: nil, minRadius: 6, maxRadius: 24)
             AppLog.info("demo \(name): spawned \(n) bugs")
+        case "stress1400":
+            target = override ?? 1400
+            let n = game.debugSpawn(target, type: nil, minRadius: 6, maxRadius: 30)
+            AppLog.info("demo stress1400: spawned \(n) bugs (target \(target), cap \(game.bugCap)), quality high — device capture: hb gpu per-pass lines")
+        case "punchin":
+            // inside beacon «Альфа»'s ring (the squad charges it; the demo then completes it)
+            if let b = game.beacons.first { game.debugTeleport(b.x + 1.5, b.z - 1.5) }
+            target = 300
+            let n = game.debugSpawn(target, type: nil, minRadius: 8, maxRadius: 24)
+            AppLog.info("demo punchin: squad in beacon \(game.beacons.first?.name ?? "?")'s ring, spawned \(n) bugs")
         case "beacon":
             if let b = game.beacons.first {
                 game.debugTeleport(b.x + 3, b.z - 3.5)
@@ -166,6 +198,9 @@ final class DemoScript {
     /// Per frame while the mission runs: keep the swarm at `target` (the squad kills ~100 bugs a second, so
     /// replacements arrive twice a second from 12–30 m away and walk in).
     func frame(game: Game, dt: Float) {
+        Cinematics.shared.update(game: game, dt: dt, by: .demo)
+        if name == "punchin" { punchIn(game) }
+        if name == "extract-cine" { extractCine(game) }
         if name == "swarmshot" { swarmShot(game); return }
         if name == "layout" {
             request = nil
@@ -241,8 +276,8 @@ final class DemoScript {
                 game.debugCoachStep(options.coachStep ?? (game.coach.step + 1))
                 AppLog.info(String(format: "demo coach: step %d at td=%.2f", game.coach.step, sinceReady))
             }
-            if timeScale == 1 && coachStepped && sinceReady >= 2.5 {
-                timeScale = 0.02
+            if freeze == 1 && coachStepped && sinceReady >= 2.5 {
+                freeze = 0.02
                 AppLog.info(String(format: "demo coach: frozen at t=%.1f step %d", game.time, game.coach.step))
             }
         } else {
@@ -271,12 +306,54 @@ final class DemoScript {
             let n = game.debugSpawn(600, type: nil, minRadius: 6, maxRadius: 26)
             game.setPlayerInput(move: Vec2(0, 0), aim: aim, fire: true, ability: false, dash: false, assist: 0.75)
             game.fastForward(seconds: 1.6)
-            timeScale = 0.02
+            freeze = 0.02
             shotStage = 2
             AppLog.info("demo swarmshot: spawned \(n), alive \(game.bugsAlive), kills \(game.kills), player at (\(game.player.x), \(game.player.z))")
         default:
             // keep the trigger down (the scene sets the empty touch command before this every frame)
             game.setPlayerInput(move: Vec2(0, 0), aim: aim, fire: true, ability: false, dash: false, assist: 0.75)
         }
+    }
+
+    // ---------------------------------------------------------------- WP7 cinematics
+    /// punchin: the beacon comes on 1.5 s after «scene ready» (the punch-in plays out inside the measured window), at
+    /// 4.6 s the shot plays again and holds 0.95 s in (past the dilation, at its peak), the world frozen ×0.02 from 5.3 s.
+    private func punchIn(_ game: Game) {
+        let c = Cinematics.shared
+        switch cineStep {
+        case 0 where sinceReady >= 1.5:
+            cineStep = 1
+            if game.stage == .beacons { game.debugSkip() }
+            AppLog.info(String(format: "demo punchin: beacon on at td=%.2f (beacons done %d)", sinceReady, game.beaconsDone))
+        case 1 where c.kind == .punchIn:
+            cineStep = 2
+            AppLog.info(String(format: "demo punchin: shot started td=%.2f", sinceReady))
+        case 2 where sinceReady >= 4.6:
+            cineStep = 3
+            c.replayPunchIn()
+            AppLog.info(String(format: "demo punchin: replay + hold td=%.2f", sinceReady))
+        case 3 where sinceReady >= 5.55:
+            cineStep = 4
+            c.hold(at: 0.95)
+            freeze = 0.02
+            AppLog.info(String(format: "demo punchin: held at 0.95 s, world frozen td=%.2f", sinceReady))
+        default: break
+        }
+    }
+
+    /// extract-cine: the lift leaves 1.5 s after «scene ready» (begin() left the stage at hold), runs 2.8 s into its
+    /// rise and is pinned there for the screenshot.
+    private func extractCine(_ game: Game) {
+        switch cineStep {
+        case 0 where sinceReady >= 1.5:
+            cineStep = 1
+            if game.stage == .hold { game.debugSkip() }
+            AppLog.info(String(format: "demo extract-cine: lift leaves td=%.2f stage %d", sinceReady, game.stage.rawValue))
+        case 1 where game.stage == .extract && game.extractT >= 2.8:
+            cineStep = 2
+            AppLog.info(String(format: "demo extract-cine: pinned at %.2f s td=%.2f", game.extractT, sinceReady))
+        default: break
+        }
+        if cineStep == 2 { game.debugPinExtract(2.8) }
     }
 }
