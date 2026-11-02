@@ -677,8 +677,11 @@ jobs:
           need combat 'particles: compute ready .* with the pipelines'
           # Metal API validation runs: alive, no debug-layer report
           for d in validate-stress validate-fxpeak validate-extract; do
-            if grep -q -i -E 'MTLDebug|validation|failed assertion' "results/app-$d-stderr.log" 2>/dev/null || grep -q 'MTLDebug' "results/app-$d.log" 2>/dev/null; then
-              fail "$d: Metal validation: $(cat "results/app-$d-stderr.log" "results/app-$d.log" 2>/dev/null | grep -m 3 -i -E 'MTLDebug|validation|failed assertion' | tr '\n' ' ')"
+            # (the layer's own banner «Metal API Validation Enabled» is the one line a clean run writes)
+            grep -q 'Metal API Validation Enabled' "results/app-$d-stderr.log" 2>/dev/null || fail "$d: the Metal debug layer did not come on"
+            if grep -v 'Metal API Validation Enabled' "results/app-$d-stderr.log" 2>/dev/null | grep -q -i -E 'MTLDebug|validation|failed assertion|-\[MTL' \
+                || grep -q 'MTLDebug' "results/app-$d.log" 2>/dev/null; then
+              fail "$d: Metal validation: $(cat "results/app-$d-stderr.log" "results/app-$d.log" 2>/dev/null | grep -v 'Metal API Validation Enabled' | grep -m 3 -i -E 'MTLDebug|validation|failed assertion|-\[MTL' | tr '\n' ' ')"
             fi
             grep -q "^$d alive" results/alive.txt || fail "$d: the app did not survive the Metal validation run"
           done
