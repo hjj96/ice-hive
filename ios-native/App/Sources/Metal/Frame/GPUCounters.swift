@@ -18,8 +18,15 @@ import QuartzCore
 //  `final≈` = frame − the measured passes.
 //  MetalWorld logs one `hb gpu` line per second (diagnostics):
 //    hb gpu frame=… ema=… max=… shadow=… world=… bloom=… final≈… (ms)
+//  Only with the diagnostics (`-demo` / `-debugHUD` / DEBUG — the CI
+//  runs and the device capture, `-demo stress1400`) or `-gpuCounters`:
+//  a shipping launch creates no sample buffers and resolves nothing;
+//  its frames report only the command buffer's own GPU time to the
+//  dynamic resolution (RenderQuality.reportGPU).
 // ================================================================
 final class GPUCounters {
+    /// Sampling and the per-frame totals are on (diagnostics or `-gpuCounters`).
+    static let enabled = AppLog.diagnostics || LaunchOptions.current.unknown.contains("-gpuCounters")
     /// Passes with their own slot pair in the sample buffer.
     enum Pass: Int, CaseIterable { case shadow = 0, world, bloom, final }
     static let passNames = ["shadow", "world", "bloom", "final"]
@@ -50,7 +57,7 @@ final class GPUCounters {
     init(device: MTLDevice) {
         self.device = device
         var ok = false
-        if device.supportsCounterSampling(.atStageBoundary),
+        if GPUCounters.enabled && device.supportsCounterSampling(.atStageBoundary),
            let set = device.counterSets?.first(where: { $0.name == MTLCommonCounterSet.timestamp.rawValue }) {
             for k in 0..<MetalRenderer.arenaSlots {
                 let d = MTLCounterSampleBufferDescriptor()
@@ -108,6 +115,11 @@ final class GPUCounters {
 
     /// The frame's command buffer: resolve the samples and add the totals when it completes.
     func track(_ cb: MTLCommandBuffer, quality: RenderQuality) {
+        guard GPUCounters.enabled else {
+            // a shipping frame: the command buffer's GPU time for the dynamic resolution, nothing else
+            cb.addCompletedHandler { c in quality.reportGPU(ms: (c.gpuEndTime - c.gpuStartTime) * 1000) }
+            return
+        }
         let s = slot, rec = records[slot]
         let buf: MTLCounterSampleBuffer? = perPass && s < buffers.count ? buffers[s] : nil
         let spt = secondsPerTick

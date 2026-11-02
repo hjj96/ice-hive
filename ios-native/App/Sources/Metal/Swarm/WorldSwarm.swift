@@ -84,6 +84,11 @@ final class WorldSwarm {
     static let triBudget = (high: 250 * 1400, efficient: 170 * 1400)
     /// LOD0 only at ≥ this body length on screen (drawable px); LOD1 not below this.
     static let lod0MinPx: Float = 64, lod1MinPx: Float = 9
+    /// Efficient: the few largest live brutes (≥ 96 px, at most 8) still get LOD0 — on the 450 / 150-triangle meshes the
+    /// dozer shield, spikes and pores were gone and brutes read as grey / teal faceted domes (CI combat 6 s, queen 3 s);
+    /// their triangles come out of the LOD1 room of the rest.
+    static let bruteLod0Efficient = (cap: 8, minPx: Float(96))
+    static let bruteType = 2
     static let shadowProxyMax = (high: 600, efficient: 300)
 
     /// The look of each type (linear radiance): cold Fresnel rim, eyes, sac, pores, shadow proxy (half size, centre
@@ -128,6 +133,8 @@ final class WorldSwarm {
     private var slots: [UnsafeMutablePointer<Int32>] = []
     private var liveN = [Int](repeating: 0, count: 4), allN = [Int](repeating: 0, count: 4)
     private var hist = [Int32](repeating: 0, count: 160)
+    /// Efficient: screen sizes of the live brutes big enough for LOD0 (scratch).
+    private var brutePx: [Float] = []
     /// This frame's draws: [type][lod], the glint block (live bugs by type), the proxies.
     private var regions = [[Region]](repeating: [Region](repeating: Region(), count: 3), count: 4)
     private var glintRegion = Region()
@@ -528,9 +535,28 @@ final class WorldSwarm {
             var bb = hist.count - 1
             while bb >= 0 && Float(bb) * 2 >= th0 { n0 += Int(hist[bb]); bb -= 1 }
         }
+        // Efficient: LOD0 for the largest live brutes (WorldSwarm.bruteLod0Efficient)
+        let BT = WorldSwarm.bruteType, BE = WorldSwarm.bruteLod0Efficient
+        var thB: Float = .greatestFiniteMagnitude
+        var nB = 0
+        if !high && forcedLOD == nil && sheet == nil {
+            brutePx.removeAll(keepingCapacity: true)
+            for k in 0..<allN[BT] where slots[BT][k] >= 0 {
+                let px = pxs[BT][k]
+                // (one that has it keeps it down to 88 % of the threshold: no flicker at the edge)
+                if px >= BE.minPx || (lodHint[BT][k] == 0 && px >= BE.minPx * 0.88) { brutePx.append(px) }
+            }
+            if !brutePx.isEmpty {
+                brutePx.sort(by: >)
+                nB = min(brutePx.count, BE.cap)
+                thB = brutePx[nB - 1]
+            }
+        }
+        let LB = lib.types[BT].lods
+        let dB = Float(LB[0].triangles - LB[min(2, LB.count - 1)].triangles)
         // LOD1: as many as the cap and the triangle budget allow
         let budget = high ? WorldSwarm.triBudget.high : WorldSwarm.triBudget.efficient
-        let room = Float(budget - t2sum - held) - Float(n0) * avgD0
+        let room = Float(budget - t2sum - held) - Float(n0) * avgD0 - Float(nB) * dB
         let cap1 = min(high ? WorldSwarm.lod1Cap.high : WorldSwarm.lod1Cap.efficient, max(0, Int(room / avgD1)))
         var acc = 0
         var b = high ? min(hist.count - 1, Int(th0 * 0.5) - 1) : hist.count - 1
@@ -543,11 +569,12 @@ final class WorldSwarm {
         let th1 = max(WorldSwarm.lod1MinPx, Float(b + 1) * 2)
         // pass 1: the thresholds (corpses keep the LOD they died with, then LOD2), counted
         let cap0 = high ? WorldSwarm.lod0Cap : 0
-        var c0 = 0, c1 = 0
+        var c0 = 0, c1 = 0, cB = 0
         for t in 0..<4 {
             for k in 0..<allN[t] {
                 let px = pxs[t][k]
                 var l: UInt8 = px >= th0 ? 0 : (px >= th1 ? 1 : 2)
+                if t == BT && nB > 0 && cB < nB && slots[t][k] >= 0 && px >= thB { l = 0; cB += 1 }
                 let prev = lodHint[t][k]
                 if slots[t][k] < 0 && prev <= 2 { l = (prev == 0 && !high) ? 1 : prev }
                 if l == 0 { c0 += 1 } else if l == 1 { c1 += 1 }

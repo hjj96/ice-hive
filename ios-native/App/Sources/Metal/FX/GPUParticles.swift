@@ -215,7 +215,8 @@ final class GPUParticles {
         fallbackLight = dev.makeBuffer(length: LightingHub.blockBytes, options: .storageModeShared)
         if let f = fallbackLight { memset(f.contents(), 0, f.length) }
         buildGround(dev)
-        if dev.supportsCounterSampling(.atStageBoundary),
+        // (the compute pass's own timestamps only with the diagnostics — GPUCounters.enabled: `hb fx gpusim=`)
+        if GPUCounters.enabled && dev.supportsCounterSampling(.atStageBoundary),
            let set = dev.counterSets?.first(where: { $0.name == MTLCommonCounterSet.timestamp.rawValue }) {
             for k in 0..<MetalRenderer.arenaSlots {
                 let d = MTLCounterSampleBufferDescriptor()
@@ -234,32 +235,57 @@ final class GPUParticles {
         r.register(.transparent, order: 500, "particles alpha") { [unowned self] enc in self.draw(enc, alpha: true) }
         r.register(.transparent, order: 510, "particles add") { [unowned self] enc in self.draw(enc, alpha: false) }
         let t0 = FrameTimer.now()
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let lib = dev.makeDefaultLibrary() else {
-                AppLog.error("particles: no default library")
-                return
-            }
-            func compute(_ name: String) -> MTLComputePipelineState? {
-                guard let f = lib.makeFunction(name: name) else { AppLog.error("particles: missing \(name)"); return nil }
-                do { return try dev.makeComputePipelineState(function: f) } catch {
-                    AppLog.error("particles: \(name): \(error.localizedDescription)")
-                    return nil
-                }
-            }
-            let e = compute("fx_emit"), s = compute("fx_sim")
-            let tex = GPUParticles.atlasNames.map { FXTextures.load($0, device: dev) }
-            DispatchQueue.main.async {
-                guard let self = self else { return }
-                self.psEmit = e
-                self.psSim = s
-                self.atlases = tex.map { $0 ?? FXTextures.flat(dev, [150, 255, 0, 255]) }
-                self.ready = e != nil && s != nil && self.particles != nil && self.lists != nil && self.args != nil
-                AppLog.info(String(format: "particles: compute %@ in %.0f ms, %d slots (%.1f MB), flipbooks %@", self.ready ? "ready" : "FAILED",
-                                   (FrameTimer.now() - t0) * 1000, self.capacity, Double(self.capacity * 96) / 1048576,
-                                   zip(GPUParticles.atlasNames, tex).map { $0.0 + ($0.1 == nil ? " (missing)" : "") }.joined(separator: " "))
-                            + (self.simOff ? " | -fxSim off" : ""))
+        if let p = GPUParticles.prepared, p.device === dev {
+            // built in MetalWorld.prepare beside the render pipelines: the cover's warm-up goes through the GPU path
+            GPUParticles.prepared = nil
+            finish(p, t0: t0, dev: dev, early: true)
+        } else {
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                let p = GPUParticles.build(device: dev)
+                DispatchQueue.main.async { self?.finish(p, t0: t0, dev: dev, early: false) }
             }
         }
+    }
+
+    /// The compute pipelines (fx_emit, fx_sim) and the flipbook atlases, built off the main thread.
+    struct Prepared {
+        let device: MTLDevice
+        let emit: MTLComputePipelineState?
+        let sim: MTLComputePipelineState?
+        let atlases: [MTLTexture?]
+        let ms: Double
+    }
+    /// Set by MetalWorld.prepare (off the main thread, before the world exists), taken by attach().
+    static var prepared: Prepared?
+
+    static func build(device dev: MTLDevice) -> Prepared {
+        let t0 = FrameTimer.now()
+        guard let lib = dev.makeDefaultLibrary() else {
+            AppLog.error("particles: no default library")
+            return Prepared(device: dev, emit: nil, sim: nil, atlases: [], ms: 0)
+        }
+        func compute(_ name: String) -> MTLComputePipelineState? {
+            guard let f = lib.makeFunction(name: name) else { AppLog.error("particles: missing \(name)"); return nil }
+            do { return try dev.makeComputePipelineState(function: f) } catch {
+                AppLog.error("particles: \(name): \(error.localizedDescription)")
+                return nil
+            }
+        }
+        let e = compute("fx_emit"), s = compute("fx_sim")
+        let tex = GPUParticles.atlasNames.map { FXTextures.load($0, device: dev) }
+        return Prepared(device: dev, emit: e, sim: s, atlases: tex, ms: (FrameTimer.now() - t0) * 1000)
+    }
+
+    private func finish(_ p: Prepared, t0: Double, dev: MTLDevice, early: Bool) {
+        psEmit = p.emit
+        psSim = p.sim
+        atlases = p.atlases.map { $0 ?? FXTextures.flat(dev, [150, 255, 0, 255]) }
+        ready = p.emit != nil && p.sim != nil && particles != nil && lists != nil && args != nil
+        AppLog.info(String(format: "particles: compute %@ in %.0f ms (built in %.0f ms%@), %d slots (%.1f MB), flipbooks %@", ready ? "ready" : "FAILED",
+                           (FrameTimer.now() - t0) * 1000, p.ms, early ? " with the pipelines" : " after the world",
+                           capacity, Double(capacity * 96) / 1048576,
+                           zip(GPUParticles.atlasNames, p.atlases).map { $0.0 + ($0.1 == nil ? " (missing)" : "") }.joined(separator: " "))
+                    + (simOff ? " | -fxSim off" : ""))
     }
 
     /// The level's deck heights per 1 m cell (x = height at the cell centre, y = slope along z; abyss = −1e9).

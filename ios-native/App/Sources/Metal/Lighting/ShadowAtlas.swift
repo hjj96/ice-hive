@@ -24,7 +24,10 @@ import Metal
 //  through its tile on High (Atmosphere.metal fs_cone).
 //  Format: depth32Float, the format MetalRenderer compiles depth-only
 //  pipelines for (8 MB; D16 = 4 MB once the depth-only specs take
-//  ShadowAtlas.format — handoff to the frame-graph owner).
+//  ShadowAtlas.format and the bias / PCF are checked for acne on a
+//  device — deferred). The pass covers only the tiles in use: the
+//  player's tile alone (Efficient) clears and stores the left 1024²
+//  (renderTargetWidth), not the whole atlas.
 //  `-noatlas`: the squad tiles stay off on High (device A/B timing).
 // ================================================================
 final class ShadowAtlas {
@@ -123,6 +126,10 @@ final class ShadowAtlas {
         r.passTextures[TextureIndex.shadow] = dummy
         guard activeTiles != 0, let t = tex else { return }
         pass.depthAttachment.texture = t
+        // only the tiles in use are cleared and stored: the player's alone (Efficient, «авто») is the left 1024², not the
+        // whole 2048 × 1024 atlas (8 MB written back every frame)
+        pass.renderTargetWidth = activeTiles == 1 ? ShadowAtlas.tiles[0].2 : ShadowAtlas.width
+        pass.renderTargetHeight = ShadowAtlas.height
         r.counters.attach(to: pass, pass: .shadow)
         guard let enc = cb.makeRenderCommandEncoder(descriptor: pass) else { return }
         enc.label = "shadow atlas"

@@ -218,6 +218,13 @@ final class LightGrid {
     private var pointPos = [F4](repeating: .zero, count: 3), pointCol = [F4](repeating: .zero, count: 3)
     /// `-nolight` or `-demo nolight` (look check: without the flashlights the weather must vanish).
     private let noLight = LaunchOptions.current.unknown.contains("-nolight") || LaunchOptions.current.demo == "nolight"
+    /// The effects' lights (muzzle pops, hits, blasts, flames, the cryo beam, napalm, the pooled light) during the punch-in:
+    /// × (1 − 0.6 × the shot's weight). At its ~10 m a flamer or the rotary firing near the lens lit the deck and the bugs
+    /// around it white and the whole frame grey — CI punch-in medians 27 / 27 / 49 / 73 on one tree depending on who fired
+    /// near the camera at the shot (native-vx-fix-look e955418; `-nolight` 9.5, `-nocones` 34, `-nobloom` 35: the lights,
+    /// not the cones or the bloom). The flashlights, the squad fill and the lamps stay.
+    static let punchInFxLightCut: Float = 0.6
+    private var fxLightK: Float = 1
     private let gridOff: Bool = {
         let a = LaunchOptions.current.unknown
         return a.firstIndex(of: "-lights").map { $0 + 1 < a.count && a[$0 + 1] == "off" } ?? false
@@ -264,6 +271,8 @@ final class LightGrid {
     /// Fill the light block of `F` and the hub's LightBlock for this frame.
     func fill(_ F: inout FrameUniforms, game: Game, time: Float, poses: [MetalEffects.MarinePose], fx: MetalEffects) {
         let invPi: Float = 1 / Float.pi
+        let cine = Cinematics.shared
+        fxLightK = cine.kind == .punchIn ? 1 - LightGrid.punchInFxLightCut * cine.weight : 1
         let level = game.level
         hub.level = level
         // ambient: faint cold moonlight
@@ -306,7 +315,7 @@ final class LightGrid {
             let l = fx.lights[0]
             if l.intensity > 0.01 {
                 pointPos[0] = F4(l.pos.x, l.pos.y, l.pos.z, 18)
-                let c = l.color * (l.intensity * invPi)
+                let c = l.color * (l.intensity * fxLightK * invPi)
                 pointCol[0] = F4(c.x, c.y, c.z, 0)
             }
             if squadN > 0 {
@@ -353,25 +362,34 @@ final class LightGrid {
         lightsFromLevel(game.level)
         let emitted = hub.takeEmitted()
         guard !noLight && !gridOff else { hub.lights.removeAll(keepingCapacity: true); strongestOther = nil; return }
-        candidates.append(contentsOf: emitted)
+        if fxLightK < 1 {
+            for (gl, pr) in emitted {
+                var g = gl
+                g.color = F4(gl.color.x * fxLightK, gl.color.y * fxLightK, gl.color.z * fxLightK, gl.color.w)
+                candidates.append((g, pr))
+            }
+        } else {
+            candidates.append(contentsOf: emitted)
+        }
+        let fk = fxLightK
         // the squad fill (also the frame-only point light 1)
         add(fillAt, LightGrid.fillColor, intensity: LightGrid.fillIntensity, range: LightGrid.fillRange, spec: false, priority: 50)
         // the effects' pooled light (flame / napalm / the player's muzzle; also the frame-only point light 0)
         let l0 = fx.lights[0]
-        if l0.intensity > 0.01 { add(l0.pos, l0.color, intensity: l0.intensity, range: 18, priority: 40) }
+        if l0.intensity > 0.01 { add(l0.pos, l0.color, intensity: l0.intensity * fk, range: 18, priority: 40) }
         // flames and the cryo beam of the AI marines (every round's muzzle light is MetalEffects' own short grid light)
         for (k, m) in game.marines.enumerated() where k < 4 && k < poses.count && !m.downed {
             let p = poses[k]
             if m.firing && m.cls == .pyro && !m.isPlayer {
-                add(F3(p.x + m.ax * 3.5, p.y + 1.4, p.z + m.az * 3.5), linearRGB(0xff7a28), intensity: 62 * (0.8 + 0.2 * sinf(time * 37 + Float(k))), range: 13, priority: 12)
+                add(F3(p.x + m.ax * 3.5, p.y + 1.4, p.z + m.az * 3.5), linearRGB(0xff7a28), intensity: 62 * fk * (0.8 + 0.2 * sinf(time * 37 + Float(k))), range: 13, priority: 12)
             }
             if m.firing && m.cls == .cryo {
-                add(F3(p.x + m.ax * m.beamLen * 0.5, p.y + 1.2, p.z + m.az * m.beamLen * 0.5), linearRGB(0x60c8ff), intensity: 40, range: 12, priority: 10)
+                add(F3(p.x + m.ax * m.beamLen * 0.5, p.y + 1.2, p.z + m.az * m.beamLen * 0.5), linearRGB(0x60c8ff), intensity: 40 * fk, range: 12, priority: 10)
             }
         }
         // napalm fires
         for nap in game.napalms where nap.active {
-            add(F3(nap.x, game.level.groundY(nap.x, nap.z) + 1.5, nap.z), linearRGB(0xff6a20), intensity: 110 * (0.8 + 0.2 * sinf(time * 29 + nap.x)), range: 16, priority: 20)
+            add(F3(nap.x, game.level.groundY(nap.x, nap.z) + 1.5, nap.z), linearRGB(0xff6a20), intensity: 110 * fk * (0.8 + 0.2 * sinf(time * 29 + nap.x)), range: 16, priority: 20)
         }
         // beacon lamps: amber while charging, teal when lit
         for (k, b) in game.beacons.enumerated() where b.state >= 1 {

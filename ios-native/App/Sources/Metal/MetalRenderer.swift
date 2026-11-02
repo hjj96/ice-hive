@@ -266,6 +266,9 @@ final class MetalRenderer {
     private var transparentItems: [DrawItem] = []
     private var casterItems: [DrawItem] = []
     private var distortionItems: [DrawItem] = []
+    /// Something draws into the distortion target this frame (MetalEffects sets it per frame from its heat sprites):
+    /// without it the ¼-res pass is skipped and the composite takes no distortion tap.
+    var distortionWanted = false
     private var prePasses: [PrePass] = []
 
     /// Pipeline / texture last bound by use() / bindMain() in the world encoder (redundant state changes are skipped).
@@ -588,7 +591,7 @@ final class MetalRenderer {
         enc.endEncoding()
         // R3 heat distortion (High, only while something draws into it)
         distortionOn = false
-        if tier == .high, !distortionItems.isEmpty, let dt = targets.distortion {
+        if tier == .high, distortionWanted, !distortionItems.isEmpty, let dt = targets.distortion {
             distortionPass.colorAttachments[0].texture = dt
             counters.detach(distortionPass)
             if let de = cb.makeRenderCommandEncoder(descriptor: distortionPass) {

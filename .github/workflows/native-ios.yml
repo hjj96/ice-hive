@@ -317,8 +317,8 @@ jobs:
     env:
       # every frame-gated demo, all landscape (the app is landscape-only); `layout` (the four-phone layout check)
       # runs as well but builds ~40 screens in one go, so it is not gated
-      # TEST BRANCH ONLY (native-vx-fix-look, not for merge): the punch-in veil A/B and the combat / queen look shots
-      DEMOS: combat queen punchin-nohud punchin-b punchin-c punchin-nocones punchin-noweather punchin-nobloom punchin-nolight punchin-nocw
+      # TEST BRANCH ONLY (native-vx-fix-look, not for merge): the look shots of the fix pass
+      DEMOS: combat queen beacon-nohud swarmshot-nohud punchin-nohud punchin-b punchin-c extract-cine-nohud title-nohud
       MENUS: levelup,pause,pause-nm,end,report-first,report-win,report-loss,report-chip
     steps:
       - uses: actions/checkout@v4
@@ -369,11 +369,13 @@ jobs:
           # simulator's GPU while it runs, so it must not overlap the measurement. Offsets count from "demo done".
           run_demo() {
             local label=$1 secs=$2 args=$3; shift 3
-            # TEST BRANCH ONLY (native-vx-fix-look, not for merge): a short run of the demos listed in DEMOS
-            case " $DEMOS " in
+            # TEST BRANCH ONLY (native-vx-fix-look, not for merge): a short run of the demos listed in DEMOS (+ the combat burst)
+            case " $DEMOS burst-combat " in
               *" $label "*) ;;
               *) return 0;;
             esac
+            # (the launch of every label, for the frame gate's single re-run of a failed demo)
+            printf '%s|%s|%s\n' "$label" "$secs" "$args" >> results/demo-specs.txt
             local side="-orient right"
             case "$args" in *-orient*) side="";; esac
             # shellcheck disable=SC2086
@@ -489,14 +491,9 @@ jobs:
           run_demo calm-nohud 8 "-demo calm -hideHUD" 0
           run_demo calm-deckmask 8 "-demo calm -hideHUD -deckMask -nocones -noweather" 0
           run_demo calm-bright-nohud 6 "-demo calm -brightness 1.3 -hideHUD" 0
-          # TEST BRANCH ONLY: the punch-in veil A/B (three plain runs for the spread, then one ingredient off at a time)
+          # TEST BRANCH ONLY: two more plain punch-in runs for the spread
           run_demo punchin-b 7 "-demo punchin -seed 7 -hideHUD" 0
           run_demo punchin-c 7 "-demo punchin -seed 7 -hideHUD" 0
-          run_demo punchin-nocones 7 "-demo punchin -seed 7 -hideHUD -nocones" 0
-          run_demo punchin-noweather 7 "-demo punchin -seed 7 -hideHUD -noweather" 0
-          run_demo punchin-nobloom 7 "-demo punchin -seed 7 -hideHUD -nobloom" 0
-          run_demo punchin-nolight 7 "-demo punchin -seed 7 -hideHUD -nolight" 0
-          run_demo punchin-nocw 7 "-demo punchin -seed 7 -hideHUD -nocones -noweather" 0
           run_demo title 6 "-demo title" 0
           # v1.1 title: a fresh profile (НОВОБРАНЕЦ selected, premise, no profile line) and a returning one (ВЕТЕРАН,
           # profile line, rank chips + medal pips); -layoutCheck logs overlaps / off-screen / small taps
@@ -538,6 +535,16 @@ jobs:
           run_demo report-win 4 "-demo report -report win -seed 5 -layoutCheck" 0
           run_demo report-loss 4 "-demo report -report loss -seed 5 -layoutCheck" 0
           run_demo report-chip 4 "-demo report -report chip -seed 5 -layoutCheck" 0
+          # Metal API validation (the debug layer; errors assert, so a buffer overrun or a format mismatch in any pass kills the
+          # run): the 1400-bug High stress run, the scripted effects peak on High and the extraction shot — not frame-gated
+          # (the layer costs CPU). Verify fails on a dead run or any MTLDebug / validation line in their stderr.
+          export SIMCTL_CHILD_MTL_DEBUG_LAYER=1 SIMCTL_CHILD_MTL_DEBUG_LAYER_ERROR_MODE=assert
+          run_demo validate-stress 8 "-demo stress1400 -seed 7" 0
+          run_demo validate-fxpeak 6 "-demo calm -fxPeak -fxHigh"
+          run_demo validate-extract 8 "-demo extract-cine -seed 3"
+          unset SIMCTL_CHILD_MTL_DEBUG_LAYER SIMCTL_CHILD_MTL_DEBUG_LAYER_ERROR_MODE
+          # app lifecycle in a mission (-lifecycleProbe): the background / foreground notifications and a memory warning
+          run_demo lifecycle 8 "-demo combat -seed 7 -lifecycleProbe"
           # Metal unusable (-failMetal): a readable message instead of an endless loading screen
           xcrun simctl launch --terminate-running-process \
             --stdout="$PWD/results/app-failmetal.log" --stderr="$PWD/results/app-failmetal-stderr.log" \
@@ -567,6 +574,29 @@ jobs:
           sleep 2
           run_demo release-combat 10 "-demo combat -seed 7" 0
           xcrun simctl spawn "$UDID" launchctl list | grep -i icehive | tee results/launchctl.txt || true
+          # The frame gate fails on single host-side seconds of the simulator at random (a different demo each run). A demo
+          # that fails it is measured once more, here in the same job; the gate (next steps) reads the second run, so the job
+          # fails only when the same demo fails twice. The first run's log stays as app-<label>-run1.log, the verdicts in
+          # gate-reruns.txt. Not re-run: the cold first launch (a second launch is warm).
+          : > results/gate-reruns.txt
+          python3 ios-native/ci/frame_metrics.py --gate --cold firstlaunch --cold-max-ms 150 --menus "$MENUS" results $DEMOS > results/gate-run1.txt 2>&1 || true
+          failed=$(sed -n 's/^  \([a-z0-9-]*\): .*/\1/p' results/gate-run1.txt | sort -u | grep -v -x firstlaunch || true)
+          if [ -n "$failed" ]; then
+            installed=release
+            for d in $failed; do
+              spec=$(grep -m 1 "^$d|" results/demo-specs.txt) || continue
+              want=debug; [ "$d" = release-combat ] && want=release
+              if [ "$want" != "$installed" ]; then
+                if [ "$want" = release ]; then xcrun simctl install "$UDID" release-sim/IceHive.app; else xcrun simctl install "$UDID" IceHive.app; fi
+                installed=$want
+              fi
+              { echo "== $d re-run (first run: $(grep -m 1 "^  $d: " results/gate-run1.txt | sed 's/^  //'))"; } >> results/gate-reruns.txt
+              mv "results/app-$d.log" "results/app-$d-run1.log"
+              rest=${spec#*|}; secs=${rest%%|*}; args=${rest#*|}
+              run_demo "$d" "$secs" "$args"
+            done
+            cat results/gate-reruns.txt
+          fi
           demos="$DEMOS"
           for d in $demos; do
             f=results/app-$d.log
@@ -601,7 +631,9 @@ jobs:
             grep -q 'rend=metal' "results/app-$d.log" || { fail "$d: no Metal heartbeat lines"; }
             if grep -q 'ERROR' "results/app-$d.log"; then fail "$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; fi
           done
-          for d in title-fresh title-return title-nm layout holdhint queenlock coach coach3 pressure pressure-amber pause-nm report-first report-win report-loss report-chip stress1400 punchin extract-cine bugsheet calm-bright; do
+          for d in title-fresh title-return title-nm layout holdhint queenlock coach coach3 pressure pressure-amber pause-nm report-first report-win report-loss report-chip stress1400 punchin extract-cine bugsheet calm-bright \
+                   swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud calm-deckmask calm-bright-nohud \
+                   burst-fire burst-tight burst-combat burst-anim burst-bugs validate-stress validate-fxpeak validate-extract lifecycle; do
             grep -q 'scene ready' "results/app-$d.log" || { fail "$d: no 'scene ready'"; }
             if grep -q 'ERROR' "results/app-$d.log"; then fail "$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; fi
           done
@@ -637,6 +669,30 @@ jobs:
           need extract-cine 'cine extraction start'
           need extract-cine 'demo extract-cine: pinned at'
           need bugsheet 'demo bugsheet: director off'
+          # the burst captures wrote every frame they asked for
+          need burst-fire 'burst fire written \(12 frames\)'
+          need burst-tight 'burst tight written \(10 frames\)'
+          need burst-combat 'burst combat written \(12 frames\)'
+          need burst-anim 'burst anim written \(16 frames\)'
+          need burst-bugs 'burst bugs written \(12 frames\)'
+          # native-vx-fix: the mission's live-bug cap is the tier's under the device class's (the simulator stands in for the
+          # iPhone 12: 1400 at «высокая»); the particle compute pipelines are built with the render pipelines, so the
+          # cover's warm-up already goes through the GPU path
+          need stress1400 'cap 1400\)'
+          need combat 'bug cap 1400 \(Графика [a-z]+ 1400, device 1400\)'
+          need combat 'particles: compute ready .* with the pipelines'
+          # Metal API validation runs: alive, no debug-layer report
+          for d in validate-stress validate-fxpeak validate-extract; do
+            if grep -q -i -E 'MTLDebug|validation|failed assertion' "results/app-$d-stderr.log" 2>/dev/null || grep -q 'MTLDebug' "results/app-$d.log" 2>/dev/null; then
+              fail "$d: Metal validation: $(cat "results/app-$d-stderr.log" "results/app-$d.log" 2>/dev/null | grep -m 3 -i -E 'MTLDebug|validation|failed assertion' | tr '\n' ' ')"
+            fi
+            grep -q "^$d alive" results/alive.txt || fail "$d: the app did not survive the Metal validation run"
+          done
+          # app lifecycle: the loop stopped in the background and came back, the memory warning was handled, the app lived
+          need lifecycle 'frame loop paused \(background\)'
+          need lifecycle 'frame loop resumed'
+          need lifecycle 'memory warning: '
+          need lifecycle 'lifecycle probe: done'
           # WP4: the four skinned marines loaded (IHV1 skinned + texture arrays) and animated (rig CPU, foot slide,
           # hand-to-grip error once a second)
           for d in combat squad squadclose squadtight squadfire; do
@@ -750,14 +806,20 @@ jobs:
       # WP7 «Режиссура»: look numbers of the scenes (ci/look_metrics.py; gates in ci/golden/thresholds.json: HUD-off shots
       # are gated, HUD-on ones measured inside the HUD mask and reported) and the 2-up sheets today | concept | commit
       # (twoup-<scene>.jpg) — informational here until the HUD-off look shots run on every push (FrameLoop -hideHUD)
+      # (blocking since native-vx-fix: the results are still written and committed by the steps below, `if: always()`)
       - name: Look metrics and 2-up sheets
-        continue-on-error: true
+        id: look
         run: |
           python3 -m venv /tmp/look && /tmp/look/bin/pip install -q numpy pillow
-          /tmp/look/bin/python ios-native/ci/look_metrics.py --gate --json results/look.json results | tee results/look.txt
-          /tmp/look/bin/python ios-native/ci/twoup.py --look results/look.json --sha "$GITHUB_SHA" results
+          set -o pipefail
+          rc=0
+          /tmp/look/bin/python ios-native/ci/look_metrics.py --gate --json results/look.json results | tee results/look.txt || rc=$?
+          /tmp/look/bin/python ios-native/ci/twoup.py --look results/look.json --sha "$GITHUB_SHA" results || true
+          exit $rc
       - name: Write status.json
+        if: always()
         env:
+          R_LOOK: ${{ steps.look.outcome }}
           R_CORE: ${{ needs.core-tests.result }}
           R_BUILD: ${{ needs.build.result }}
           R_SMOKE: ${{ needs.sim-smoke.result }}
@@ -776,6 +838,7 @@ jobs:
                   "core-tests": os.environ.get("R_CORE") or "skipped",
                   "build": os.environ.get("R_BUILD") or "skipped",
                   "sim-smoke": os.environ.get("R_SMOKE") or "skipped",
+                  "look-gate": os.environ.get("R_LOOK") or "skipped",
               },
               "xcode": os.environ.get("XCODE", ""),
               "runner": os.environ.get("RUNNER_DESC", ""),
@@ -789,6 +852,7 @@ jobs:
           PY
           ls -la results
       - name: Commit to ci-results
+        if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

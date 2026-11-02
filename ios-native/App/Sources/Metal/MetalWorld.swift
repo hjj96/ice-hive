@@ -87,14 +87,29 @@ final class MetalWorld: HUDProjection {
     private var lastTarget = (0, 0)
     private var lastRise: Float = -1
 
+    /// The «Графика» effect scale (GameScene: 0.4 / 0.7 / 1.0). The effects, corpses and the flashlight shadow get it
+    /// capped by the thermal ladder (RenderQuality.fxCap: serious 0.7, critical 0.4), re-applied each tick the cap moves —
+    /// with the ladder's 30 s hysteresis on the way back up.
     var fxK: Float {
-        get { fx.fxK }
+        get { chosenFxK }
         set {
-            fx.setQuality(fxK: newValue)
-            corpses.setQuality(fxK: newValue)
-            shadows = newValue >= 0.85
+            chosenFxK = newValue
             renderer.quality.setChosen(fxK: newValue)
+            applyFxCap()
         }
+    }
+    private var chosenFxK: Float = 0.7
+    private var appliedFxK: Float = -1
+    private func applyFxCap() {
+        let k = min(chosenFxK, renderer.quality.fxCap)
+        if k == appliedFxK { return }
+        if appliedFxK >= 0 {
+            AppLog.info(String(format: "quality: effects fxK %.1f (setting %.1f, thermal %@)", k, chosenFxK, "\(renderer.quality.ladder)"))
+        }
+        appliedFxK = k
+        fx.setQuality(fxK: k)
+        corpses.setQuality(fxK: k)
+        shadows = k >= 0.85
     }
     /// The fog / abyss: the display value it should show at exposure 0 EV before the grade (deep blue-black), as the
     /// linear radiance the materials mix in (Common.h encodeColor) and the world pass clears to.
@@ -144,6 +159,8 @@ final class MetalWorld: HUDProjection {
         let group = DispatchGroup()
         var loaded = ""
         DispatchQueue.global(qos: .userInitiated).async(group: group) { loaded = store.loadAll() }
+        // the particle compute pipelines and flipbooks beside the render pipelines (taken by GPUParticles.attach)
+        DispatchQueue.global(qos: .userInitiated).async(group: group) { GPUParticles.prepared = GPUParticles.build(device: device) }
         let built = r.compilePipelines(MetalWorld.pipelineSpecs)
         group.wait()
         let post = r.bindResources()
@@ -201,6 +218,7 @@ final class MetalWorld: HUDProjection {
         timer.begin()
         // this tick's tier, thermal step and dynamic-resolution viewport (before anything reads the target size)
         renderer.prepareViewport(points: viewSize, hz: dt0 > 0 && dt0 < 0.012 ? 120 : 60)
+        applyFxCap()
         heartbeat()
         let tw = renderer.targetWidth, th = renderer.targetHeight
         camera.resize(width: Float(viewSize.width), height: Float(viewSize.height), drawableHeight: Float(max(1, th)))
@@ -209,6 +227,10 @@ final class MetalWorld: HUDProjection {
                       title: game.attract, time: time, extract: ex, zoom: cam.zoom)
         // look-dev close-ups of the squad (WP4: -squadSheet -closeup)
         if let cu = squad.closeUpCamera() { camera.lookAt(eye: cu.0, target: cu.1, fovDeg: cu.2) }
+        // the core's visible area (aim assist: GameAI.isVisible) from the game camera — before a cinematic shot takes the
+        // camera (a 2.4 s punch-in at ~10 m from the mast, the extraction's shaft wall) — not from the shot
+        game.setVisibleQuad(camera.ground(ndcX: -1, ndcY: -1, height: cam.ty), camera.ground(ndcX: 1, ndcY: -1, height: cam.ty),
+                            camera.ground(ndcX: 1, ndcY: 1, height: cam.ty), camera.ground(ndcX: -1, ndcY: 1, height: cam.ty))
         // WP7 cinematics: the scripted shot over the game camera (punch-in, extraction, title), the grade mood, the shot EV
         let cine = Cinematics.shared
         if let c = cine.camera(base: Cinematics.Pose(eye: camera.eye, target: camera.focus, fovDeg: camera.fov),
@@ -217,8 +239,6 @@ final class MetalWorld: HUDProjection {
         }
         renderer.post.setMood(cine.mood)
         renderer.post.shotEV = cine.shotEV
-        game.setVisibleQuad(camera.ground(ndcX: -1, ndcY: -1, height: cam.ty), camera.ground(ndcX: 1, ndcY: -1, height: cam.ty),
-                            camera.ground(ndcX: 1, ndcY: 1, height: cam.ty), camera.ground(ndcX: -1, ndcY: 1, height: cam.ty))
         timer.mark()
         let rise = game.liftRise
         // no free frame slot (the GPU is behind): nothing to build; the effects catch up on the next drawn frame
