@@ -52,7 +52,8 @@ import IceHiveCore
 //  a screenshot, every one on «высокая»: punchin — the beacon comes on at `-punchAt` s (9) and the shot plays once;
 //  extract-cine — the lift leaves at `-liftAt` s (1.5) and rises to the end; queen — the finale: the Матка climbs up
 //  at `-queenAt` s (7) with `-queenHp` (1100), dies by the squad's guns (or at `-queenKillBy` s (9) after she came),
-//  and the lift leaves `-liftDelay` s (2.5) after her death.
+//  and the lift leaves `-liftDelay` s (2.5) after her death; combat / stress1400 with `-videoAt k`: the squad starts at
+//  beacon k (0 Альфа, 1 Бета, 2 Гамма) instead of the landing pad.
 // ================================================================
 final class DemoScript {
     let name: String
@@ -72,6 +73,7 @@ final class DemoScript {
     /// `-video`: the film timings (see the header).
     private let video: Bool
     private let punchAt: Double, liftAt: Double, queenAt: Double, queenKillBy: Double, liftDelay: Double
+    private let videoAt: Int
 
     private init(name: String, options: LaunchOptions, bugs: Int? = nil) {
         self.name = name
@@ -88,6 +90,7 @@ final class DemoScript {
         queenAt = num("-queenAt", 7)
         queenKillBy = num("-queenKillBy", 9)
         liftDelay = num("-liftDelay", 2.5)
+        videoAt = Int(num("-videoAt", -1))
         reportFixture = name == "report" ? DemoFixtures.report(options.report) : nil
         if name == "report" && reportFixture == nil { AppLog.error("unknown -report \(options.report ?? "?")") }
     }
@@ -141,6 +144,11 @@ final class DemoScript {
         game.autopilot = true
         game.autoPickUpgrades = true
         Cinematics.shared.reset()
+        if video && (name == "combat" || name == "stress1400") && videoAt >= 0 && videoAt < game.beacons.count {
+            let b = game.beacons[videoAt]
+            game.debugTeleport(b.x + 3, b.z - 3.5)
+            AppLog.info("demo \(name) (video): squad at beacon \(b.name)")
+        }
         switch name {
         case "calm", "layout", "bugsheet":
             game.autopilot = false
