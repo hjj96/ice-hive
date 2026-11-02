@@ -93,4 +93,21 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertNil(d.object(forKey: "ledulei.thing"))
         XCTAssertNil(d.object(forKey: "other.thing"))
     }
+
+    /// «Яркость» (pause menu): 1 → 1.15 → 1.3 → 1, remembered under "bright"; an odd stored value snaps to the nearest step.
+    func testBrightnessCycleAndPersistence() {
+        let d = freshDefaults()
+        let s = SettingsStore(defaults: d)
+        XCTAssertEqual(s.brightness, 1, accuracy: 1e-6)
+        XCTAssertEqual(s.cycleBrightness(), 1.15, accuracy: 1e-6)
+        XCTAssertEqual(s.cycleBrightness(), 1.3, accuracy: 1e-6)
+        XCTAssertEqual(SettingsStore(defaults: d).brightness, 1.3, accuracy: 1e-6)
+        XCTAssertEqual(s.cycleBrightness(), 1, accuracy: 1e-6)
+        XCTAssertEqual(SettingsStore(defaults: d).brightness, 1, accuracy: 1e-6)
+        for (stored, want) in [("1.2", Float(1.15)), ("1.27", 1.3), ("9", 1.3), ("0.2", 1), ("\"x\"", 1)] {
+            let e = freshDefaults()
+            e.set(stored, forKey: "ledulei.bright")
+            XCTAssertEqual(SettingsStore(defaults: e).brightness, want, accuracy: 1e-6, "stored \(stored)")
+        }
+    }
 }
