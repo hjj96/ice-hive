@@ -301,7 +301,7 @@ final class MenuScreen {
         func push(_ b0: Block) { var b = b0; b.texts = texts; texts = []; out.append(b) }
         let tagN = SKNode()
         let tag = Label(L10n.upper(L10n.string(r.tag)), font: Fonts.mono, size: 12, color: UIPalette.inkDim, kern: 2.4, align: .left)
-        MenuScreen.fit(tag, colW)
+        MenuScreen.fit(tag, colW, minSize: 7)
         texts.append(("text.tag", tag.width, colW))
         tag.node.position = CGPoint(x: 0, y: -6)
         tagN.addChild(tag.node)
@@ -329,7 +329,7 @@ final class MenuScreen {
             let l = Label(L10n.upper(L10n.string(it.label)), font: Fonts.medium, size: d.strip < 18 ? 9 : 10, color: it.on ? onColor : UIPalette.inkFaint,
                           kern: 0.6)
             // (a stage name wider than its segment shrinks: SE's segments are ~35 pt)
-            MenuScreen.fit(l, w - 2, minSize: 6)
+            MenuScreen.fit(l, w - 2, minSize: 5.5)
             texts.append(("text.strip\(k)", l.width, w - 2))
             l.node.position = CGPoint(x: x + w / 2, y: -3 - (d.strip - 3) / 2)
             stN.addChild(l.node)
@@ -518,11 +518,28 @@ final class MenuScreen {
         return out
     }
 
-    /// A one-line label wider than `w` gets a smaller font (one step, the same font; the tightest phones), not below
-    /// `minSize`.
+    /// A one-line label wider than `w` gets a smaller font (the same font; the tightest phones, longer languages), not
+    /// below `minSize`. Letter spacing does not shrink with the font, so the size is solved for the glyphs alone and
+    /// checked again; a label still too wide at `minSize` loses its letter spacing.
     static func fit(_ l: Label, _ w: CGFloat, minSize: CGFloat = 9) {
-        let lw = l.width
-        if lw > w && w > 20 { l.size = max(minSize, (l.size * w / lw * 10).rounded(.down) / 10) }
+        guard w > 20 else { return }
+        var lw = l.width
+        var tries = 0
+        while lw > w + 0.25 && tries < 4 {
+            tries += 1
+            if l.size > minSize {
+                let k = l.kern * CGFloat(l.text.count)
+                let glyphs = max(1, lw - k)
+                let target = (l.size * max(1, w - k) / glyphs * 10).rounded(.down) / 10
+                l.size = max(minSize, min(l.size - 0.1, target))
+            } else if l.kern > 0 {
+                l.kern = 0
+                l.set(l.text, force: true)
+            } else {
+                break
+            }
+            lw = l.width
+        }
     }
 
     private static func action(_ b: ReportButton) -> Action {
