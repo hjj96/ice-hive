@@ -1,0 +1,6 @@
+combat         load 3.81 s | loop avg 59.9 min 58.0 worst 38 ms hitches 0 host-stalls 1 (38 ms) | gpu drawn avg 43.4 min 21.0 gap 341 ms stall-s 18 cbmax 467 ms | gpu ema 0.21 ms allocs 1 tier efficient scale 1.40/1.45/1.50/1.55/1.60 | ok
+punchin-nohud  load 2.64 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 59.1 min 58.0 gap 49 ms stall-s 0 cbmax 47 ms | gpu ema 0.17 ms allocs 1 tier high scale 2.00 | ok
+
+GPU side (gated only in release-combat, swarm3x, floor 55.0): drawn avg < 55/s in combat 43.4
+
+GATE: passed
