@@ -571,16 +571,23 @@ jobs:
           # The frame gate fails on single host-side seconds of the simulator at random (a different demo each run). A demo
           # that fails it is measured once more, here in the same job; the gate (next steps) reads the second run, so the job
           # fails only when the same demo fails twice. The first run's log stays as app-<label>-run1.log, the verdicts in
-          # gate-reruns.txt. Not re-run: the cold first launch (a second launch is warm).
+          # gate-reruns.txt. The cold first launch is re-run cold — the app uninstalled and installed again (its container
+          # and Metal shader cache go with it) — and last, so no other re-run starts on a cold cache (native-metal 9c47b72:
+          # 5.09 s with a 1.1 s host command buffer in the cover, renderer wait 0.00 s).
           : > results/gate-reruns.txt
           python3 ios-native/ci/frame_metrics.py --gate --cold firstlaunch --cold-max-ms 150 --menus "$MENUS" results $DEMOS > results/gate-run1.txt 2>&1 || true
           failed=$(sed -n 's/^  \([a-z0-9-]*\): .*/\1/p' results/gate-run1.txt | sort -u | grep -v -x firstlaunch || true)
-          if [ -n "$failed" ]; then
+          if grep -q '^  firstlaunch: ' results/gate-run1.txt; then failed="$failed firstlaunch"; fi
+          if [ -n "${failed// /}" ]; then
             installed=release
             for d in $failed; do
               spec=$(grep -m 1 "^$d|" results/demo-specs.txt) || continue
               want=debug; [ "$d" = release-combat ] && want=release
-              if [ "$want" != "$installed" ]; then
+              if [ "$d" = firstlaunch ]; then
+                xcrun simctl uninstall "$UDID" "$BUNDLE_ID" || true
+                xcrun simctl install "$UDID" IceHive.app
+                installed=debug
+              elif [ "$want" != "$installed" ]; then
                 if [ "$want" = release ]; then xcrun simctl install "$UDID" release-sim/IceHive.app; else xcrun simctl install "$UDID" IceHive.app; fi
                 installed=$want
               fi
