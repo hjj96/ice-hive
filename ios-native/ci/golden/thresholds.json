@@ -22,8 +22,8 @@
     },
     "punchin": {
       "shots": ["punchin-nohud-0s.png", "punchin-0s.png"],
-      "gates": {"clip": [null, 1.5], "dark": [null, 35]},
-      "_median_note": "a close-up: its median follows the framing (the lit deck around the squad fills the frame), so it is reported, not gated; the shot EV keeps the deck from going milky",
+      "gates": {"clip": [null, 1.5], "dark": [12, 35], "p95_p50": [3.6, null]},
+      "_median_note": "a close-up: its median follows the framing (the lit deck around the squad fills the frame), so it is reported, not gated; the shot EV keeps the deck from going milky. native-vx-fix: contrast gated (p95/p50 ≥ 3.6, near-black ≥ 12 %) — native-metal 2d38dfd passed at median 66.7, p95/p50 3.31, dark 9.6 % under a grey veil (the effects' lights of a weapon firing near the lens; LightGrid.punchInFxLightCut)",
       "today": "today-beacon.jpg",
       "concept": "concept-punchin.jpg",
       "concept_label": "Иней · наезд на маяк · Кристалл · маяк"
