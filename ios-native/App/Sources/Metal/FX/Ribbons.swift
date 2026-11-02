@@ -105,8 +105,10 @@ final class Ribbons {
 
     /// The cryo beam from `from` along the aim (unit xz) over `len`: 8 segments sagging toward the deck and wobbling.
     /// `soft` 0…1: a frost stream rather than a bright line (the game camera: a dimmer core, a stronger frost sheath).
+    /// `coreEnd`: the fraction of the length after which the white core is gone (FX.metal BM_CRYO: softness 2), the sheath
+    /// and crackle going on — the core stops at the first bug it meets at the game camera.
     func cryoBeam(from o: F3, ax: Float, az: Float, len: Float, time: Float, seed: Float, intensity: Float = 1, widthK: Float = 1,
-                  soft: Float = 0) {
+                  soft: Float = 0, coreEnd: Float = 1) {
         let n = 8
         func pt(_ u: Float) -> F3 {
             let along = u * len
@@ -118,7 +120,9 @@ final class Ribbons {
             let u0 = Float(s) / Float(n), u1 = Float(s + 1) / Float(n)
             // the sheath widens with the distance from the emitter (m), not with the fraction of a short beam
             let w = min(0.42, 0.13 + 0.045 * (u0 + u1) * 0.5 * len) * widthK
-            add(pt(u0), pt(u1), width: w, mode: .cryo, color: F3(1, 1, 1), intensity: flick, u0: u0, u1: u1, seed: seed, head: soft)
+            let cut = coreEnd < 1 ? smooth01f(((u0 + u1) * 0.5 - coreEnd) / 0.12 + 0.3) : 0
+            add(pt(u0), pt(u1), width: w, mode: .cryo, color: F3(1, 1, 1), intensity: flick, u0: u0, u1: u1, seed: seed,
+                head: soft + (2 - soft) * cut)
         }
         // a wide cold halo along the whole beam
         add(pt(0), pt(1), width: min(0.9, 0.35 + 0.06 * len) * widthK, mode: .halo, color: F3(0.1, 0.3, 0.75), intensity: 0.55 * intensity)

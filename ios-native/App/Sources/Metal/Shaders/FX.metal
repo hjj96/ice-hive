@@ -161,6 +161,7 @@ struct FloorOut {
     float2 q;        // -1 … 1 over the disc / lane (x across a lane, y along it)
     float aspect;    // lane: half length / half width
     float depth;
+    float3 hole;     // acid target (fill): xy the player in the disc's units, z the HP arc's radius in them (0: none)
 };
 
 #define FM_GLOW 0
@@ -199,6 +200,7 @@ vertex FloorOut vs_floorfx(uint vid [[vertex_id]], uint iid [[instance_id]],
     o.q = q;
     o.aspect = aspect;
     o.depth = -(F.view * float4(w, 1.0)).z;
+    o.hole = mode == FM_FILL ? f.axis.xyz : float3(0.0);
     return o;
 }
 
@@ -271,6 +273,8 @@ fragment float4 fs_telegraph(FloorOut in [[stage_in]],
         // (polish: the rim and the countdown fade in over the first quarter of the flight — the glob is still high up)
         float early = smoothstep(0.05, 0.3, u);
         k = (pool + (rim * (0.09 + 0.3 * u * u) + count * (0.08 + 0.5 * u * u) * blink) * early) * (1.0 - smoothstep(0.97, 1.0, r));
+        // (inside the player's HP arc the strokes drop to 30 %: the marine under a target stays readable)
+        if (in.hole.z > 0.0) k *= mix(0.3, 1.0, smoothstep(in.hole.z * 0.8, in.hole.z * 1.05, length(q - in.hole.xy)));
     } else {
         // brute lane: two DASHED border lines whose dashes run with the chevrons toward +y (the charge direction), over a
         // faint continuous edge — a hazard marking on the deck; two solid HDR lines across the platform read as laser
@@ -371,11 +375,12 @@ fragment float4 fs_beam(BeamOut in [[stage_in]],
         float n2 = noise.sample(repeatSampler, float2(u * 5.1 - time * 6.3, y * 0.6 - in.params.z)).r;
         // params.w = softness (native-vx-squad: from the game camera the white core read as a laser line — there it
         // dims and the turbulent frost sheath and crackle carry the stream)
-        float soft = in.params.w;
-        float core = pow(saturate(across), 14.0) * 1.15 * (1.0 - 0.55 * soft);
-        float inner = pow(saturate(across), 4.0) * 0.5 * (1.0 - 0.2 * soft);
-        float sheath = saturate(across) * (0.2 + 0.8 * n) * 0.32 * (1.0 + 0.6 * soft);
-        float crackle = smoothstep(0.66, 0.82, n2) * pow(saturate(across), 2.0) * 0.9 * (1.0 + 0.4 * soft);
+        // (2: past the first bug it meets at the game camera the core is gone, the frost sheath goes on)
+        float soft = in.params.w, s1 = min(soft, 1.0);
+        float core = pow(saturate(across), 14.0) * 1.15 * saturate(1.0 - 0.55 * soft);
+        float inner = pow(saturate(across), 4.0) * 0.5 * saturate(1.0 - 0.2 * soft);
+        float sheath = saturate(across) * (0.2 + 0.8 * n) * 0.32 * (1.0 + 0.6 * s1);
+        float crackle = smoothstep(0.66, 0.82, n2) * pow(saturate(across), 2.0) * 0.9 * (1.0 + 0.4 * s1);
         float fade = smoothstep(0.0, 0.06, u) * (1.0 - smoothstep(0.85, 1.0, u));
         c = (float3(0.72, 0.93, 1.0) * core + float3(0.35, 0.78, 1.0) * inner + float3(0.16, 0.5, 1.0) * (sheath + crackle)) * fade;
         c *= in.color.rgb;

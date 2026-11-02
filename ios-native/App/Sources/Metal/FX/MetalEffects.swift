@@ -108,7 +108,9 @@ final class MetalEffects {
     /// This frame's acid targets after clustering: several spitters on one marine land within a metre of each other, and
     /// each drew its own rim and countdown ring (CI 0e0ce1a combat: 8–10 stacked lime loops per marine read as a
     /// scribble). Targets closer than 0.8 × the larger radius draw as one — the one closest to landing.
-    private var acidPick: [(x: Float, z: Float, r: Float, u: Float, col: F3, n: Int)] = []
+    private var acidPick: [(x: Float, z: Float, r: Float, u: Float, col: F3, n: Int, w: Float)] = []
+    /// Acid targets drawn at most (the ones closest to landing): heavy spitter focus stacked 5–8 lime rings on the player.
+    static let acidTargetsMax = 3
     private var heat: [HeatInstance] = []
 
     // light pool (LightGrid reads it): [0] follows flames / napalm / the player's muzzle, [1], [2] unused
@@ -212,6 +214,8 @@ final class MetalEffects {
         blasts.removeAll(keepingCapacity: true)
         for k in 0..<3 { lights[k].intensity = 0 }
         for k in 0..<sightLevel.count { sightLevel[k] = 0 }
+        for k in 0..<beamEnv.count { beamEnv[k] = 0; beamLen[k] = 0 }
+        lookBolts.removeAll(keepingCapacity: true)
         turretSight = 0
         look.restart()
     }
@@ -372,11 +376,19 @@ final class MetalEffects {
                   gravity: 12)
         gpu.burst(.debris, num(big ? 10 : 3), at: p, sphere: 5, upper: true, life: (0.9, 1.6), size: (0.1 * s, 0.08 * s),
                   color: MetalEffects.chitin, gravity: 14, drag: 0.25, spin: 9)
-        // the pores' pink-white flecks: a few, short (a swarm dies by the dozen: more read as pink confetti)
-        gpu.burst(.ember, num(big ? 6 : 2), at: p, sphere: 2.6, upper: true, life: (0.3, 0.6), size: (0.045, 0.02),
-                  color: F4(2.4, 0.75, 1.45, 1), gravity: 4, drag: 1.5)
-        gpu.burst(.steam, 1, at: p, vel: F3(0, 0.5, 0), life: (0.45, 0.7), size: (0.45 * s, 1.2 * s),
-                  color: F4(ich.x * 0.35 + 0.08, ich.y * 0.35 + 0.06, ich.z * 0.35 + 0.07, 0.4), drag: 1.5)
+        // the pores' pink-white flecks: a few, short (a swarm dies by the dozen: more read as pink confetti), and a wet puff —
+        // both within the area's budget (hitCell: 2 deaths per 2 m cell per 100 ms; a brute always), else the tan puffs
+        // of a dozen runners stacked into smoke balls over the walkway (CI combat 6 s)
+        let ci = hitCell(x, z)
+        if big || hitCells[ci].deaths < MetalEffects.hitDeaths {
+            hitCells[ci].deaths += 1
+            gpu.burst(.ember, num(big ? 6 : 2), at: p, sphere: 2.6, upper: true, life: (0.3, 0.6), size: (0.045, 0.02),
+                      color: F4(2.4, 0.75, 1.45, 1), gravity: 4, drag: 1.5)
+            gpu.burst(.steam, 1, at: p, vel: F3(0, 0.5, 0), life: (0.45, 0.7), size: (0.45 * s, 1.2 * s),
+                      color: F4(ich.x * 0.35 + 0.08, ich.y * 0.35 + 0.06, ich.z * 0.35 + 0.07, 0.4), drag: 1.5)
+        } else {
+            hitsCut += 1
+        }
         decals.add(x, z, size: s * rr(1.0, 1.45), cell: rnd() < 0.5 ? .splat : .streak, kind: .ichor, tint: ich, flecks: 1)
         if type != .boomer {
             corpses?.add(x, z, hd, sc, type, rnd: { [unowned self] in self.rnd() })
@@ -384,6 +396,34 @@ final class MetalEffects {
             decals.add(x, z, size: 2.0, cell: .acid, kind: .acid, tint: F3(0.42, 0.6, 0.06))
         }
         if big { flash(p, F3(1.0, 0.35, 0.55), peak: 40, dur: 0.15, range: 5, priority: 8) }
+    }
+
+    // ---------------------------------------------------------------- hit budget per area
+    /// Hit and kill effects per 2 m cell of the deck per 100 ms of world time. CI combat 6 s (native-metal 2d38dfd): the
+    /// gunner and the squad poured every hit's flash and sparks (+ 13 per kill) into one walkway — hundreds of spark
+    /// streaks and chips over the swarm, no runner readable under them. Per cell and window: 2 hit flashes, 4 sparks, 2
+    /// full sprays (ichor, chips, splat), 2 death puffs / flecks; past that a hit keeps only the bug's own recoil
+    /// (WorldSwarm.noteHit) and a kill its body, stain and ichor.
+    private struct HitCell {
+        var key: Int32 = .min, win: Int32 = -1
+        var flashes: UInt8 = 0, sparks: UInt8 = 0, full: UInt8 = 0, deaths: UInt8 = 0
+    }
+    private var hitCells = [HitCell](repeating: HitCell(), count: 256)
+    static let hitFlashes: UInt8 = 2, hitSparks: UInt8 = 4, hitFull: UInt8 = 2, hitDeaths: UInt8 = 2
+    /// Over-budget hits / kills since the last heartbeat (`hb fx … hitcut=`).
+    private var hitsCut = 0
+
+    private func hitCell(_ x: Float, _ z: Float) -> Int {
+        let key = Int32((x * 0.5).rounded(.down)) &* 4099 &+ Int32((z * 0.5).rounded(.down))
+        let win = Int32(frameTime * 10)
+        var h = Int((UInt32(bitPattern: key) &* 2654435761) >> 24)
+        for _ in 0..<8 {
+            let c = hitCells[h]
+            if c.win != win { hitCells[h] = HitCell(key: key, win: win); return h }
+            if c.key == key { return h }
+            h = (h + 1) & 255
+        }
+        return h
     }
 
     /// One projectile hit at (x, z) along (dx, dz): sparks off the chitin, a hit flash, the bug's ichor, chips of shell, a
@@ -417,18 +457,37 @@ final class MetalEffects {
         let l = max(1e-4, (n * n).sum().squareRoot())
         n /= l
         let d = F3(dx, 0, dz)
+        // the area's budget (hitCell): a crowd of hits in one spot shares 2 flashes and 4 sparks per 100 ms
+        let ci = hitCell(x, z)
+        var cell = hitCells[ci]
+        defer { hitCells[ci] = cell }
+        if cell.flashes >= MetalEffects.hitFlashes && cell.sparks >= MetalEffects.hitSparks { hitsCut += 1; return }
+        // from the game camera the sparks are shorter-lived and the chips smaller (at phone size a spray of 0.45 s streaks
+        // and 5 cm chips per hit read as confetti); the close-ups keep them (squad camera distance: WorldSquad.gameK)
+        let gk = squad?.gameK ?? 1
         // hot sparks off the chitin (bounce on the deck, cool white → orange), a four-ray hit flash
-        let ns = full ? (killed ? 13 : 7) * (armoured ? 2 : 1) : 2   // polish: hits throw more sparks (owner: shooting more epic)
-        gpu.burst(.spark, full ? num(Float(ns)) : ns, at: p, vel: n * (armoured ? 5.5 : 4.5) + d * 1.5, velJitter: F3(2.4, 2.0, 2.4), sphere: 2.5,
-                  life: (0.18, 0.45), size: (0.045, 0.03), color: F4(1.25, 1.05, 0.85, 1), gravity: 14, drag: 1.2)
-        gpu.burst(.flash, 1, at: p + n * 0.08, life: (0.06, 0.09), size: (killed ? 1.2 : (armoured ? 0.95 : 0.8), killed ? 1.4 : 1.0),
-                  color: F4(6.5, 4.4, 2.6, 1), sizeJitter: 0.2)
-        if !full { return }
-        // the bug's ichor: droplets along the shot that stick to the deck; chips of shell
+        let want = full ? num(Float((killed ? 13 : 7) * (armoured ? 2 : 1))) : 2   // polish: hits throw more sparks (owner: shooting more epic)
+        let ns = min(want, Int(MetalEffects.hitSparks - min(MetalEffects.hitSparks, cell.sparks)))
+        if ns > 0 {
+            cell.sparks += UInt8(ns)
+            gpu.burst(.spark, ns, at: p, vel: n * (armoured ? 5.5 : 4.5) + d * 1.5, velJitter: F3(2.4, 2.0, 2.4), sphere: 2.5,
+                      life: (0.18 * (1 - 0.35 * gk), 0.45 * (1 - 0.4 * gk)), size: (0.045, 0.03), color: F4(1.25, 1.05, 0.85, 1), gravity: 14, drag: 1.2)
+        }
+        if cell.flashes < MetalEffects.hitFlashes {
+            cell.flashes += 1
+            gpu.burst(.flash, 1, at: p + n * 0.08, life: (0.06, 0.09), size: (killed ? 1.2 : (armoured ? 0.95 : 0.8), killed ? 1.4 : 1.0),
+                      color: F4(6.5, 4.4, 2.6, 1), sizeJitter: 0.2)
+        }
+        if !full || cell.full >= MetalEffects.hitFull { return }
+        cell.full += 1
+        // the bug's ichor: droplets along the shot that stick to the deck; chips of shell (Efficient: on kills only)
         gpu.burst(.ichor, num(Float(killed ? 6 : (armoured ? 1 : 3))), at: p, vel: d * 2.4 + F3(0, 1.4, 0), velJitter: F3(1.6, 1.2, 1.6),
                   life: (0.5, 0.9), size: (0.07, 0.05), color: F4(ich.x * 0.55, ich.y * 0.55, ich.z * 0.55, 1), gravity: 12)
-        gpu.burst(.debris, killed ? 2 : 1, at: p, vel: n * 2.5 + F3(0, 1.5, 0), velJitter: F3(1.4, 1, 1.4), life: (0.5, 0.8),
-                  size: (0.05, 0.04), color: MetalEffects.chitin, gravity: 14, drag: 0.4, spin: 12)
+        if killed || renderer?.frameTier == .high {
+            let cs = 1 - 0.3 * gk
+            gpu.burst(.debris, killed ? 2 : 1, at: p, vel: n * 2.5 + F3(0, 1.5, 0), velJitter: F3(1.4, 1, 1.4), life: (0.5, 0.8),
+                      size: (0.05 * cs, 0.04 * cs), color: MetalEffects.chitin, gravity: 14, drag: 0.4, spin: 12)
+        }
         if killed || rnd() < 0.18 {
             decals.add(x + dx * 0.5, z + dz * 0.5, size: rr(0.45, 0.8), cell: .small, kind: .ichor, tint: ich, opacity: 0.9, flecks: 0.6,
                        roll: atan2f(dx, dz))
@@ -530,12 +589,14 @@ final class MetalEffects {
     }
 
     /// The cryo beam from `o` over `len`: the ribbon, ice glints along it, frost mist and rime where it ends.
-    private func cryoStream(_ o: F3, ax: Float, az: Float, len: Float, dt: Float, k: Int, env: Float = 1) {
+    private func cryoStream(_ o: F3, ax: Float, az: Float, len: Float, dt: Float, k: Int, env: Float = 1, hitU: Float = 1) {
         let d = F3(ax, 0, az)
-        // a frost stream, not a laser line, from the game camera: a wider sheath there (native-vx-squad)
+        // a frost stream, not a laser line, from the game camera: there the sheath is twice as wide, the white core ends at
+        // the first bug it meets and frost mist puffs along the length (CI burst-combat 2d38dfd: a thin bright line ran
+        // across the whole swarm and past it); the close-ups keep the modelled beam (squad camera distance: gameK)
         let gk = squad?.gameK ?? 1
         ribbons.cryoBeam(from: o, ax: ax, az: az, len: len, time: frameTime, seed: Float(k) * 1.7, intensity: env * env * (1 - 0.15 * gk),
-                         widthK: 1 + 0.5 * gk, soft: gk)
+                         widthK: 1 + gk, soft: gk, coreEnd: 1 - gk * (1 - hitU))
         let ni = rate(&acc[k][3], 55, dt)
         if ni > 0 {
             let t = rr(0.5, len)
@@ -548,8 +609,8 @@ final class MetalEffects {
             gpu.burst(.steam, nm, at: end, jitter: F3(0.4, 0.1, 0.4), vel: F3(0, 0.5, 0), velJitter: F3(0.5, 0.3, 0.5), life: (0.8, 1.3),
                       size: (0.6, 1.7), color: F4(0.3, 0.42, 0.55, 0.3), drag: 1, spin: 0.6)
         }
-        // frost vapour shed along the beam
-        let nv = rate(&acc[k][5], 10, dt)
+        // frost vapour shed along the beam (more of it from the game camera: the stream's body)
+        let nv = rate(&acc[k][5], 10 + 14 * gk, dt)
         if nv > 0 {
             let t = rr(0.8, len)
             gpu.burst(.steam, nv, at: o + d * t - F3(0, 0.3, 0), jitter: F3(0.2, 0.1, 0.2), vel: F3(0, 0.3, 0), velJitter: F3(0.3, 0.2, 0.3),
@@ -838,7 +899,9 @@ final class MetalEffects {
         look.step(self, game: game, focus: focus, time: time)
         if let sq = squad, sq.lookDev.fire { squadFireLook(sq, game: game, dt: dt) }
         // the weapons' continuous effects
-        for (k, m) in game.marines.enumerated() where !m.downed && k < 4 {
+        for (k, m) in game.marines.enumerated() where k < 4 {
+            // a downed marine's beam is gone at once (no fading full-length ghost beam on the revive)
+            if m.downed { beamEnv[k] = 0; beamLen[k] = 0; continue }
             if m.firing && m.cls == .pyro && dt > 0 {
                 flameJet(muzzle(m, k), ax: m.ax, az: m.az, vel: F3(m.vx, 0, m.vz), dt: dt, k: k)
             }
@@ -849,7 +912,12 @@ final class MetalEffects {
                 if m.firing { beamLen[k] = m.beamLen }
                 beamEnv[k] = m.firing ? min(1, beamEnv[k] + dt / 0.06) : max(0, beamEnv[k] - dt / 0.16)
                 if beamEnv[k] > 0 && beamLen[k] > 0.3 {
-                    cryoStream(muzzle(m, k), ax: m.ax, az: m.az, len: beamLen[k], dt: m.firing ? dt : 0, k: k, env: beamEnv[k])
+                    let o = muzzle(m, k)
+                    // where the beam meets the first bug body: the white core ends there at the game camera (the frost
+                    // sheath goes on — the core's damage pierces); without a bug the whole length
+                    let hit = game.raycastBugs(origin: Vec2(o.x, o.z), dir: Vec2(m.ax, m.az), maxDistance: beamLen[k])
+                    let hitU: Float = hit.bug >= 0 ? max(0.15, min(1, hit.distance / beamLen[k])) : 1
+                    cryoStream(o, ax: m.ax, az: m.az, len: beamLen[k], dt: m.firing ? dt : 0, k: k, env: beamEnv[k], hitU: hitU)
                 }
             }
         }
@@ -920,8 +988,8 @@ final class MetalEffects {
         let blink = 0.6 + 0.4 * sinf(time * 18)
         acidPick.removeAll(keepingCapacity: true)
         // polish: the acid targets are for the player to dodge — globs coming down far from the player's marine (aimed at
-        // the AI squad, who dodge on their own) draw no target; 6–7 lime rings across the beacon platform read as noise
-        // over the squad and the swarm in CI combat. The glob in flight and its splash still show.
+        // the AI squad, who dodge on their own) fade out with the distance (3.5 m + r → 7 m + r: a ring the player runs
+        // toward fades in over the run, it does not pop in at full strength); the glob in flight and its splash still show
         let me = game.marines.first { $0.isPlayer && !$0.downed }
         for e in game.telegraphs where e.active {
             if floorMax.count + acidPick.count >= 96 { break }
@@ -938,22 +1006,28 @@ final class MetalEffects {
                 floorMax.append(FloorFx(center: F4(cx, (y0 + y1) * 0.5 + 0.06, cz, e.w / 2), color: F4(col.x, col.y, col.z, inten),
                                         params: F4(FloorMode.lane.rawValue, u, 0, 1), axis: F4(e.dx, e.dz, e.len / 2, (y1 - y0) / max(0.01, e.len))))
             case .fill:
+                var w: Float = 1
                 if let me = me {
-                    let dx = e.x - me.x, dz = e.z - me.z, near = 3.5 + e.r0
-                    if dx * dx + dz * dz > near * near { continue }
+                    let dx = e.x - me.x, dz = e.z - me.z
+                    let d = (dx * dx + dz * dz).squareRoot()
+                    w = 1 - smooth01f((d - 3.5 - e.r0) / 3.5)
+                    if w <= 0.02 { continue }
                 }
                 var merged = false
                 for j in acidPick.indices {
                     let p = acidPick[j]
                     let dx = p.x - e.x, dz = p.z - e.z, m = max(2.0 * max(p.r, e.r0), 2.5)   // polish: any two that overlap (0.8 left 5–6 rings round the squad, CI 8902b6e)
                     if dx * dx + dz * dz < m * m {
-                        if u > p.u { acidPick[j] = (e.x, e.z, e.r0, u, col, p.n + 1) } else { acidPick[j].n += 1 }
+                        if u > p.u { acidPick[j] = (e.x, e.z, e.r0, u, col, p.n + 1, max(p.w, w)) } else { acidPick[j].n += 1; acidPick[j].w = max(p.w, w) }
                         merged = true
                         break
                     }
                 }
-                if !merged { acidPick.append((e.x, e.z, e.r0, u, col, 1)) }
+                if !merged { acidPick.append((e.x, e.z, e.r0, u, col, 1, w)) }
             case .ring:
+                // an acid glob's target is drawn once, as its merged fill below (rim + countdown); the core's pulsing lime
+                // ring of the same target (24 ticks) added one more ring per glob — 8–9 stacked over the player in CI combat
+                if e.cause == .acidTarget || e.cause == .queenVolley { continue }
                 let y = gy(e.x, e.z) + 0.05
                 if e.pulse {
                     let inten = max(0, blink * min(1, u * 4 + 0.3))
@@ -966,13 +1040,23 @@ final class MetalEffects {
                 }
             }
         }
-        // the merged acid targets: one rim + countdown per landing spot; a spot several globs head for is a touch
-        // stronger (≤ +30 %), not several rings
+        // the merged acid targets, the few closest to landing: one rim + countdown per landing spot; a spot several globs
+        // head for is a touch stronger (≤ +30 %), not several rings. Inside the player's HP arc the strokes drop to 30 %
+        // (FX.metal fs_telegraph: axis = the player in the disc's units), so the marine under a target stays readable
+        if acidPick.count > MetalEffects.acidTargetsMax {
+            acidPick.sort { $0.u > $1.u }
+            acidPick.removeLast(acidPick.count - MetalEffects.acidTargetsMax)
+        }
         for p in acidPick where floorMax.count < 96 {
             let y = gy(p.x, p.z) + 0.055
-            let k: Float = 1 + 0.1 * Float(min(3, p.n - 1))
+            let k: Float = (1 + 0.1 * Float(min(3, p.n - 1))) * p.w
+            var hole = F4(0, 0, 0, 0)
+            if let me = me {
+                let rr = max(0.1, p.r)
+                hole = F4((me.x - p.x) / rr, (me.z - p.z) / rr, 0.86 / rr, 0)
+            }
             floorMax.append(FloorFx(center: F4(p.x, y, p.z, p.r), color: F4(p.col.x, p.col.y, p.col.z, k),
-                                    params: F4(FloorMode.fill.rawValue, p.u, 0, p.u > 0.75 ? blink : 1), axis: .zero))
+                                    params: F4(FloorMode.fill.rawValue, p.u, 0, p.u > 0.75 ? blink : 1), axis: hole))
         }
     }
 
@@ -1137,6 +1221,8 @@ final class MetalEffects {
         rFloor = r.upload(floorAdd)
         rTele = r.upload(floorMax)
         rHeat = r.upload(heat)
+        // the ¼-res distortion pass and the composite's distortion tap only in frames with heat sprites
+        r.distortionWanted = rHeat.count > 0
         ribbons.upload(r)
         gpu.upload(r, dt: lastDt, time: frameTime, rise: liftRiseNow)
         let upWall = (FrameTimer.now() - c0) * 1000
@@ -1183,13 +1269,14 @@ final class MetalEffects {
         AppLog.info("hb fx parts=\(gpu.liveCount)/\(gpu.ringCap) peak=\(peak) fire=\(gpu.liveFlames)/\(gpu.flameCap) peak=\(fpeak)"
                     + " expl=\(blasts.count)/\(blastCap) peak=\(blastsPeak) reduced=\(blastsReduced) throttled=\(flameThrottled) spawn=\(sp)/s rec=\(rec)/s"
                     + " decals=\(decals.items.count)/\(decals.ring) beams=\(ribbons.beams.count) tracers=\(tn) tracer=" + String(format: "%.1fm", tl)
-                    + " lights=\(flashLights.count) floor=\(floorAdd.count)+\(floorMax.count) acid=\(acidPick.count)/\(acidPick.reduce(0) { $0 + $1.n }) heat=\(heat.count)"
+                    + " lights=\(flashLights.count) floor=\(floorAdd.count)+\(floorMax.count) acid=\(acidPick.count)/\(acidPick.reduce(0) { $0 + $1.n }) heat=\(heat.count) hitcut=\(hitsCut)"
                     + String(format: " cpu=%.3fms", cpu) + " sim=" + (gpu.simOff ? "off" : "on")
                     + (simMs.map { String(format: " gpusim=%.3fms", $0) } ?? " gpusim=-")
                     + " tier=" + ((renderer?.frameTier ?? .efficient) == .high ? "high" : "efficient") + (look.mode.isEmpty ? "" : " look=" + look.mode))
         blastsPeak = blasts.count
         blastsReduced = 0
         flameThrottled = 0
+        hitsCut = 0
     }
 
     // ================================================================ look-dev hooks (FXLookDev)
