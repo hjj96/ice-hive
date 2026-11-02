@@ -48,6 +48,11 @@ import IceHiveCore
 //    -demo extract-cine  the hold on the lift with a crowd; at 1.5 s the lift leaves → the extraction shot from the
 //                   shaft wall; the lift pinned 2.8 s into its rise for the screenshot
 //  Every demo drives Cinematics (mood, shot EV, dilation) until GameScene does; `-cine off` keeps the game camera.
+//  `-video` (test branch native-vx-video, FilmCapture): the demos play out for a gameplay film instead of stopping for
+//  a screenshot, every one on «высокая»: punchin — the beacon comes on at `-punchAt` s (9) and the shot plays once;
+//  extract-cine — the lift leaves at `-liftAt` s (1.5) and rises to the end; queen — the finale: the Матка climbs up
+//  at `-queenAt` s (7) with `-queenHp` (1100), dies by the squad's guns (or at `-queenKillBy` s (9) after she came),
+//  and the lift leaves `-liftDelay` s (2.5) after her death.
 // ================================================================
 final class DemoScript {
     let name: String
@@ -64,10 +69,25 @@ final class DemoScript {
     /// `-demo report`: the fixture whose outcome the mission gets.
     let reportFixture: DemoFixtures.Report?
 
+    /// `-video`: the film timings (see the header).
+    private let video: Bool
+    private let punchAt: Double, liftAt: Double, queenAt: Double, queenKillBy: Double, liftDelay: Double
+
     private init(name: String, options: LaunchOptions, bugs: Int? = nil) {
         self.name = name
         self.options = options
         override = bugs
+        let u = options.unknown
+        func num(_ k: String, _ d: Double) -> Double {
+            guard let i = u.firstIndex(of: k), i + 1 < u.count, let v = Double(u[i + 1]) else { return d }
+            return v
+        }
+        video = u.contains("-video")
+        punchAt = num("-punchAt", 9)
+        liftAt = num("-liftAt", 1.5)
+        queenAt = num("-queenAt", 7)
+        queenKillBy = num("-queenKillBy", 9)
+        liftDelay = num("-liftDelay", 2.5)
         reportFixture = name == "report" ? DemoFixtures.report(options.report) : nil
         if name == "report" && reportFixture == nil { AppLog.error("unknown -report \(options.report ?? "?")") }
     }
@@ -102,7 +122,7 @@ final class DemoScript {
     /// Graphics tier the demo forces without touching the saved setting (the store shots and the WP7 cinematics are
     /// taken on «высокая»; stress1400 is the plan's High budget run).
     var preferredQuality: String? {
-        ["swarmshot", "stress1400", "punchin", "extract-cine"].contains(name) ? "high" : nil
+        video || ["swarmshot", "stress1400", "punchin", "extract-cine"].contains(name) ? "high" : nil
     }
 
     /// World time scale the scene applies on top of hit-stop: the demo's freeze (swarmshot, coach, the held punch-in:
@@ -224,12 +244,14 @@ final class DemoScript {
             default: break
             }
         }
-        if (name == "queen" || name == "queenlock") && !queenSet && sinceReady >= 2 {
+        if (name == "queen" || name == "queenlock") && !queenSet && sinceReady >= (video ? queenAt : 2) {
             queenSet = true
             // (the scene logs «v11 queen spawn …» from her event)
-            let uid = game.debugQueen(hp: options.queenHp ?? 1_000_000)
+            let uid = game.debugQueen(hp: options.queenHp ?? (video ? 1100 : 1_000_000))
             if uid == 0 { AppLog.info("demo \(name): the Матка did not come (stage \(game.stage.rawValue))") }
+            if video { AppLog.info(String(format: "demo queen (video): the Матка climbs up td=%.2f uid=%d", sinceReady, Int(uid))) }
         }
+        if video && name == "queen" && queenSet { finale(game) }
         if name == "queenlock" && !lockSet && queenSet && sinceReady >= 3.5 {
             lockSet = true
             game.debugSetLiftTime(0.01)
@@ -321,14 +343,14 @@ final class DemoScript {
     private func punchIn(_ game: Game) {
         let c = Cinematics.shared
         switch cineStep {
-        case 0 where sinceReady >= 1.5:
+        case 0 where sinceReady >= (video ? punchAt : 1.5):
             cineStep = 1
             if game.stage == .beacons { game.debugSkip() }
             AppLog.info(String(format: "demo punchin: beacon on at td=%.2f (beacons done %d)", sinceReady, game.beaconsDone))
         case 1 where c.kind == .punchIn:
             cineStep = 2
             AppLog.info(String(format: "demo punchin: shot started td=%.2f", sinceReady))
-        case 2 where sinceReady >= 4.6:
+        case 2 where sinceReady >= 4.6 && !video:
             cineStep = 3
             c.replayPunchIn()
             AppLog.info(String(format: "demo punchin: replay + hold td=%.2f", sinceReady))
@@ -345,7 +367,7 @@ final class DemoScript {
     /// rise and is pinned there for the screenshot.
     private func extractCine(_ game: Game) {
         switch cineStep {
-        case 0 where sinceReady >= 1.5:
+        case 0 where sinceReady >= (video ? liftAt : 1.5):
             cineStep = 1
             if game.stage == .hold { game.debugSkip() }
             AppLog.info(String(format: "demo extract-cine: lift leaves td=%.2f stage %d", sinceReady, game.stage.rawValue))
@@ -354,6 +376,30 @@ final class DemoScript {
             AppLog.info(String(format: "demo extract-cine: pinned at %.2f s td=%.2f", game.extractT, sinceReady))
         default: break
         }
-        if cineStep == 2 { game.debugPinExtract(2.8) }
+        if cineStep == 2 && !video { game.debugPinExtract(2.8) }
+    }
+
+    /// `-video` queen: once the Матка is dead (shot down, or killed at queenAt + queenKillBy), the lift leaves
+    /// `liftDelay` s later (the squad stands on it: the extraction shot follows, then the mission is won).
+    private var queenDeadAt: Double = -1
+    private var liftSent = false
+    private func finale(_ game: Game) {
+        if queenDeadAt < 0 {
+            if game.queen.spawned && !game.queen.alive {
+                queenDeadAt = sinceReady
+                AppLog.info(String(format: "demo queen (video): the Матка died td=%.2f (lived %.1f s)", sinceReady, game.queen.killT))
+            } else if game.queen.alive && sinceReady >= queenAt + queenKillBy {
+                game.debugKillQueen()
+                queenDeadAt = sinceReady
+                AppLog.info(String(format: "demo queen (video): the Матка killed by the script td=%.2f", sinceReady))
+            } else if !game.queen.spawned && sinceReady >= queenAt + 1 {
+                queenDeadAt = sinceReady
+                AppLog.info("demo queen (video): no Матка (stage \(game.stage.rawValue)), the lift goes anyway")
+            }
+        } else if !liftSent && sinceReady >= queenDeadAt + liftDelay {
+            liftSent = true
+            game.debugSetLiftTime(0.01)
+            AppLog.info(String(format: "demo queen (video): the lift leaves td=%.2f stage %d", sinceReady, game.stage.rawValue))
+        }
     }
 }
