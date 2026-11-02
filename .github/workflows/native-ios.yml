@@ -318,7 +318,7 @@ jobs:
       # every frame-gated demo, all landscape (the app is landscape-only); `layout` (the four-phone layout check)
       # runs as well but builds ~40 screens in one go, so it is not gated
       # TEST BRANCH ONLY (native-vx-fix-look, not for merge): the look shots of the fix pass
-      DEMOS: combat queen beacon-nohud swarmshot-nohud punchin-nohud punchin-b punchin-c extract-cine-nohud title-nohud
+      DEMOS: combat punchin-nohud
       MENUS: levelup,pause,pause-nm,end,report-first,report-win,report-loss,report-chip
     steps:
       - uses: actions/checkout@v4
@@ -370,7 +370,7 @@ jobs:
           run_demo() {
             local label=$1 secs=$2 args=$3; shift 3
             # TEST BRANCH ONLY (native-vx-fix-look, not for merge): a short run of the demos listed in DEMOS (+ the combat burst)
-            case " $DEMOS burst-combat " in
+            case " $DEMOS validate-stress validate-fxpeak validate-extract lifecycle " in
               *" $label "*) ;;
               *) return 0;;
             esac
