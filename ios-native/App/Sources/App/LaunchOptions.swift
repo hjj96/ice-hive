@@ -52,6 +52,8 @@ struct LaunchOptions {
     var station: UInt32?
     /// Log the rects of every title / report / pause element and any overlap or off-screen element (`-layoutCheck`).
     var layoutCheck: Bool = false
+    /// `-holdBanner` (CI shots): the latest banner of the game stays on screen at full strength instead of fading.
+    var holdBanner: Bool = false
     /// `-pseudoLoc <factor>` (e.g. 1.35): pseudo-localised text — accents, padding to factor × length, brackets (L10n).
     var pseudoLoc: Double?
     /// Arguments that were not recognised (kept for logging).
@@ -101,6 +103,7 @@ struct LaunchOptions {
             case "-pressure", "--pressure": result.pressure = value()
             case "-station", "--station": if let v = value(), let n = UInt32(v) { result.station = n }
             case "-layoutCheck", "--layoutCheck": result.layoutCheck = flag()
+            case "-holdBanner", "--holdBanner": result.holdBanner = flag()
             case "-pseudoLoc", "--pseudoLoc": if let v = value(), let n = Double(v), n >= 1, n <= 3 { result.pseudoLoc = n }
             default: result.unknown.append(arg)
             }
@@ -133,6 +136,7 @@ struct LaunchOptions {
         if let s = station { parts.append("station=\(s)") }
         if layoutCheck { parts.append("layoutCheck") }
         if let p = pseudoLoc { parts.append("pseudoLoc=\(p)") }
+        if holdBanner { parts.append("holdBanner") }
         return parts.joined(separator: " ")
     }
 }

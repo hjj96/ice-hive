@@ -520,6 +520,11 @@ jobs:
           run_demo coach3-pseudo 6 "-demo coach -coachStep 2 -seed 7 -pseudoLoc 1.35 -layoutCheck" 0
           run_demo levelup-pseudo 4 "-demo levelup -seed 5 -pseudoLoc 1.35 -layoutCheck" 0
           run_demo report-pseudo 4 "-demo report -report first -seed 5 -pseudoLoc 1.35 -layoutCheck" 0
+          # banners fade in 2.4 s: -holdBanner keeps the game's latest one on screen for the shot (the beacon defence,
+          # the Queen with the longest subtitle, and the beacon defence pseudo-localised)
+          run_demo banner-beacon 8 "-demo beacon -seed 7 -holdBanner" 0
+          run_demo banner-queen 10 "-demo queen -tier 1 -seed 3 -holdBanner" 0
+          run_demo banner-pseudo 8 "-demo beacon -seed 7 -holdBanner -pseudoLoc 1.35" 0
           # horde ingredients one by one (overlay, banner, shake, sounds, haptic, horde) every 4 s: hitch attribution
           run_demo probe 26 "-demo probe -seed 7"
           # lift: holding out on the platform, then the extraction pinned at +2 s (gore rides up with the deck)
@@ -658,7 +663,7 @@ jobs:
             if grep -q 'ERROR' "results/app-$d.log"; then fail "$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; fi
           done
           for d in title-fresh title-return title-nm layout holdhint queenlock coach coach3 pressure pressure-amber pause-nm report-first report-win report-loss report-chip stress1400 punchin extract-cine bugsheet calm-bright \
-                   layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo \
+                   layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo banner-beacon banner-queen banner-pseudo \
                    swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud calm-deckmask calm-bright-nohud \
                    burst-fire burst-tight burst-combat burst-anim burst-bugs validate-stress validate-fxpeak validate-extract lifecycle; do
             grep -q 'scene ready' "results/app-$d.log" || { fail "$d: no 'scene ready'"; }
@@ -782,11 +787,11 @@ jobs:
             dev=$(xcrun simctl create "layout $tag" "$dt" "$rt" 2>/dev/null) || { echo "== $tag: not available on $rt" | tee -a results/other-phones.txt; continue; }
             xcrun simctl boot "$dev" && xcrun simctl bootstatus "$dev" -b
             xcrun simctl install "$dev" IceHive.app
-            # (L10n: the beacon defence for its toast, hint and objective line, every report variant, and on the SE the
+            # (L10n: the beacon defence for its banner (held), toast, hint and objective line, every report variant, and on the SE the
             # pseudo-localised title: every screen and moment in English on every phone)
             runs=("title-return|3|-demo title -profile veteran" "holdhint|8|-demo holdhint -seed 3" "coach3|6|-demo coach -coachStep 2 -seed 7"
                   "pause|3|-demo pause -seed 5" "levelup|3|-demo levelup -seed 5" "report-win|3|-demo report -report win -seed 5"
-                  "beacon|8|-demo beacon -seed 7" "report-loss|3|-demo report -report loss -seed 5" "report-first|3|-demo report -report first -seed 5")
+                  "beacon|8|-demo beacon -seed 7 -holdBanner" "report-loss|3|-demo report -report loss -seed 5" "report-first|3|-demo report -report first -seed 5")
             if [ "$tag" = se ]; then runs+=("title-pseudo|3|-demo title -profile veteran -pseudoLoc 1.35"); fi
             for d in "${runs[@]}"; do
               label="other-$tag-${d%%|*}"; rest="${d#*|}"; secs="${rest%%|*}"; args="${rest#*|}"

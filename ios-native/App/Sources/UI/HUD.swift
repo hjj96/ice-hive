@@ -678,6 +678,16 @@ final class HUD {
         if toasts.count > 4 && !warming { toasts[0].discard(); toasts.removeFirst() }
     }
 
+    /// `-holdBanner` (CI shots): the latest banner of the game, kept on screen (the warm-up's banner never is).
+    var holdBanner = false
+    private var pinnedBanner: (String, String, Bool)? = nil
+
+    /// A banner of the game (GameScene's event drain): shown, and pinned with `-holdBanner`.
+    func gameBanner(title: String, subtitle: String, teal: Bool) {
+        showBanner(title: title, subtitle: subtitle, teal: teal)
+        if holdBanner { pinnedBanner = (title, subtitle, teal) }
+    }
+
     func showBanner(title: String, subtitle: String, teal: Bool) {
         bannerTitle.color = teal ? UIPalette.teal : UIPalette.red
         bannerTitle.set(L10n.upper(title))
@@ -1125,6 +1135,11 @@ final class HUD {
         }
         // banner (2.4 s, 3.4 s with Reduce Motion)
         bannerT += dt
+        if let p = pinnedBanner, !warming {
+            // (re-shown when the cover's warm-up banner replaced it), held at full strength
+            if bannerTitle.text != L10n.upper(p.0) || bannerSub.text != L10n.upper(p.1) { showBanner(title: p.0, subtitle: p.1, teal: p.2) }
+            bannerT = 0.6
+        }
         let bannerDur: Float = reducedMotion ? 3.4 : 2.4
         if bannerT < bannerDur {
             let u = bannerT / bannerDur

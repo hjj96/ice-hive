@@ -198,6 +198,7 @@ final class GameScene: SKScene {
         hud.visible = false
         titleScreen.root.isHidden = true
         hud.showDebug = options.debugHUD && !options.storeShot
+        hud.holdBanner = options.holdBanner
         input.hitAbility = { [weak self] p in
             guard let s = self else { return false }
             return s.hud.abilityButton.contains(hudPoint: s.hud.hp(p.x, p.y))
@@ -890,7 +891,7 @@ final class GameScene: SKScene {
                 if inMission { hud.toast(L10n.string(text), kind: kind) }
                 noteFirst(1, "toast")
             case .banner(let title, let sub, let teal):
-                if inMission { hud.showBanner(title: L10n.string(title), subtitle: L10n.string(sub), teal: teal) }
+                if inMission { hud.gameBanner(title: L10n.string(title), subtitle: L10n.string(sub), teal: teal) }
                 noteFirst(2, "banner")
             case .haptic(let k):
                 if inMission { haptics.play(k) }
