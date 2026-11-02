@@ -1,0 +1,14 @@
+combat             load 3.46 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 57.0 min 37.0 gap 242 ms stall-s 4 cbmax 312 ms | gpu ema 0.15 ms allocs 1 tier efficient scale 1.60 | ok
+queen              load 2.55 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 56.0 min 44.0 gap 63 ms stall-s 2 cbmax 76 ms | gpu ema 0.19 ms allocs 1 tier efficient scale 1.60 | ok
+punchin-nohud      load 2.57 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 48.0 min 19.0 gap 480 ms stall-s 6 cbmax 486 ms | gpu ema 0.22 ms allocs 1 tier high scale 2.00 | ok
+punchin-b          load 2.80 s | loop avg 59.9 min 59.0 worst 36 ms hitches 0 host-stalls 1 (36 ms) | gpu drawn avg 56.4 min 52.0 gap 61 ms stall-s 4 cbmax 87 ms | gpu ema 0.19 ms allocs 1 tier high scale 2.00 | ok
+punchin-c          load 3.02 s | loop avg 59.3 min 58.0 worst 51 ms hitches 0 host-stalls 3 (51 ms) | gpu drawn avg 34.0 min 24.0 gap 105 ms stall-s 7 cbmax 166 ms | gpu ema 0.23 ms allocs 1 tier high scale 2.00 | ok (loop fps 59.8 avg / 59 min without 2 host-stall second(s))
+punchin-nocones    load 3.50 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 45.9 min 37.0 gap 84 ms stall-s 4 cbmax 118 ms | gpu ema 0.22 ms allocs 1 tier high scale 1.85/1.90/2.00 | ok
+punchin-noweather  load 2.91 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 57.5 min 55.0 gap 78 ms stall-s 3 cbmax 85 ms | gpu ema 0.19 ms allocs 1 tier high scale 2.00 | ok
+punchin-nobloom    load 2.09 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 56.9 min 55.0 gap 63 ms stall-s 3 cbmax 85 ms | gpu ema 0.20 ms allocs 1 tier high scale 2.00 | ok
+punchin-nolight    load 2.72 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 55.9 min 50.0 gap 118 ms stall-s 4 cbmax 111 ms | gpu ema 0.21 ms allocs 1 tier high scale 2.00 | ok
+punchin-nocw       load 2.96 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 48.3 min 42.0 gap 125 ms stall-s 6 cbmax 118 ms | gpu ema 0.26 ms allocs 1 tier high scale 2.00 | ok
+
+GPU side (gated only in release-combat, swarm3x, floor 55.0): drawn avg < 55/s in punchin-nohud 48.0, punchin-c 34.0, punchin-nocones 45.9, punchin-nocw 48.3
+
+GATE: passed
