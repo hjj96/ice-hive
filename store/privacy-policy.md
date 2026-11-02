@@ -1,64 +1,92 @@
-# Политика конфиденциальности — «Ледяной Улей»
+# Privacy Policy — ICE HIVE
 
-Дата вступления в силу: [ДАТА ПУБЛИКАЦИИ]
-Разработчик: [ИМЯ РАЗРАБОТЧИКА]
-Контакт: zviaginzevandrew@gmail.com
+Effective date: [OWNER: EFFECTIVE DATE, e.g. 1 December 2026]
+Developer: [OWNER: DEVELOPER NAME, as the seller name in Apple Developer]
+Contact: zviaginzevandrew@gmail.com
 
-## Коротко
+This policy covers the iPhone game ICE HIVE, version 2.0 and later.
 
-«Ледяной Улей» не собирает, не хранит на серверах и не передаёт никаких персональных данных. В игре нет аккаунтов, аналитики, рекламы и отслеживания, и она не подключается к интернету.
+## In short
 
-## Какие данные мы собираем
+ICE HIVE does not collect, upload or share any personal data. The game has no accounts, no analytics, no advertising
+and no tracking, and it never connects to the internet. What it remembers — your settings, your profile and your
+records — stays on your iPhone.
 
-Никаких. Приложение не запрашивает имя, e-mail, номер телефона, местоположение, контакты, фотографии, доступ к камере или микрофону. Оно не использует рекламный идентификатор (IDFA) и не отслеживает вас в других приложениях и на сайтах.
+## Data we collect
 
-## Что хранится на вашем устройстве
+None. The app does not ask for your name, e-mail address, phone number, location, contacts, photos, camera or
+microphone. It does not use the advertising identifier (IDFA) and does not track you across other apps or websites.
+It shows no App Tracking Transparency prompt because it has nothing to track.
 
-Чтобы игра запоминала ваш выбор, на iPhone сохраняются только игровые настройки:
+## What the game stores on your iPhone
 
-- выбранный класс бойца;
-- звук включён или выключен и уровень громкости;
-- качество графики;
-- вибрация включена или выключена;
-- рекорд: число убитых жуков и лучшее время эвакуации.
+So that the game remembers your choices and progress, it keeps the following on your device, in the app's own storage
+(iOS `UserDefaults`). The storage key is given for each item.
 
-Эти данные хранятся только внутри приложения на вашем устройстве. Мы их не получаем, они никуда не отправляются. Если удалить приложение, они удалятся вместе с ним. Если в iOS включено резервное копирование, они могут попасть в копию iCloud или на компьютер — так же, как данные любого другого приложения. Этим управляет Apple по вашим настройкам iOS.
+Settings:
 
-## Сеть, аналитика и реклама
+- the class you picked last — `ledulei.cls`;
+- sound on or off — `ledulei.muted`, and the volume level — `ledulei.vol`;
+- haptics (vibration) on or off — `ledulei.haptics`;
+- graphics quality — `ledulei.quality`;
+- brightness — `ledulei.bright`;
+- the difficulty you picked on the title screen — `ledulei.diff`;
+- other options you change in the game's settings, stored the same way.
 
-- Игра полностью работает без интернета. Весь код, графика, шрифты и звуки встроены в приложение.
-- Нет аналитики, счётчиков, систем сбора сбоев от третьих лиц и рекламных SDK.
-- Нет встроенных покупок, регистрации и входа в аккаунт.
-- Нет чатов, общения с другими игроками и пользовательского контента.
+Progress:
 
-## Данные, которые собирает Apple
+- your best result: the most kills in one mission and your fastest extraction time — `ledulei.best`;
+- your profile — `ledulei.profile`: the number of missions and extractions, the total score earned, and for each class
+  its service points (which give its rank), missions, extractions, best score, fastest extraction, the badges earned on
+  each difficulty, the length of its last mission and a count of early losses (used to suggest an easier difficulty);
+  plus a counter of how often that suggestion was shown.
 
-Если вы разрешили в настройках iOS отправлять разработчикам аналитику и отчёты о сбоях, Apple может передавать разработчику обезличенную статистику через App Store Connect. Это регулируется политикой конфиденциальности Apple и вашими настройками iOS («Настройки» → «Конфиденциальность и безопасность» → «Аналитика и улучшения»). Мы не используем эти сведения для того, чтобы установить вашу личность.
+Tutorial and hints:
 
-## Дети
+- whether you have seen the first-mission tutorial — `ledulei.tut`;
+- how many seconds (up to six) you have used the thumb sticks, so the on-screen stick hints can fade out —
+  `ledulei.sticks`;
+- the station number for your next mission, only when the game builds a new station layout for you — `ledulei.seed`.
 
-Игра не собирает данных ни о ком, в том числе о детях.
+If you played an earlier version of the game on this iPhone, the new version copies your old settings and record on
+first launch, on the device, so an update keeps them.
 
-## Изменения политики
+None of this contains personal information, and none of it leaves your device through the game. Deleting the app
+deletes all of it. If iCloud Backup or a computer backup is turned on in iOS, these items are included in your own
+backups like the data of any other app; Apple handles those backups under your iOS settings.
 
-Если политика изменится, новая версия появится на этой странице с новой датой вступления в силу.
+## Network, analytics and third parties
 
-## Контакты
+- The game works fully offline. All code, 3D models, sounds and fonts are inside the app; it downloads nothing.
+- There are no third-party analytics, advertising, crash-reporting or tracking tools in the app.
+- There are no in-app purchases, no sign-in and no account.
+- There is no chat, no contact with other players and no user-generated content.
 
-Вопросы о конфиденциальности: zviaginzevandrew@gmail.com
+## Data Apple may provide
 
----
+If you chose in iOS to share analytics with app developers (Settings → Privacy & Security → Analytics &
+Improvements), Apple may give the developer anonymous usage statistics and crash reports through App Store Connect.
+That is governed by Apple's privacy policy and your iOS settings. We use it only to find and fix problems, never to
+identify you.
 
-# Privacy Policy — Ice Hive («Ледяной Улей»)
+## If you write to us
 
-Effective date: [DATE OF PUBLICATION]. Developer: [DEVELOPER NAME]. Contact: zviaginzevandrew@gmail.com
+If you e-mail us, we receive your e-mail address and whatever you write. We use it only to answer you and delete the
+conversation when it is no longer needed. We never share it.
 
-**Ice Hive does not collect, store on servers or share any personal data.** The game has no accounts, no analytics, no advertising and no tracking, and it does not connect to the internet.
+## Children
 
-- **Data collected:** none. The app does not ask for your name, e-mail, location, contacts, photos, camera or microphone, and does not use the advertising identifier (IDFA).
-- **Stored on your device only:** game settings — selected class, sound on/off and volume, graphics quality, vibration on/off, and your best result. They never leave the device and are deleted when you delete the app. They may be included in your own iCloud or computer backups, as with any app.
-- **No network, no third parties:** all game code and assets are bundled in the app. There are no third-party analytics, crash-reporting or advertising SDKs, no in-app purchases, no sign-in and no chat.
-- **Apple:** if you opted in to share analytics with app developers in iOS settings, Apple may provide anonymised statistics under Apple's own privacy policy.
-- **Children:** no data is collected from anyone, including children.
-- **Changes:** updates will be posted on this page with a new effective date.
-- **Contact:** zviaginzevandrew@gmail.com
+The game collects no data from anyone, including children.
+
+## Your choices
+
+Because we hold no data about you, there is nothing for us to access, correct or delete on your behalf. To erase
+everything the game has stored, delete the app from your iPhone.
+
+## Changes to this policy
+
+If this policy changes, the new version will be posted on this page with a new effective date.
+
+## Contact
+
+Questions about privacy: zviaginzevandrew@gmail.com
