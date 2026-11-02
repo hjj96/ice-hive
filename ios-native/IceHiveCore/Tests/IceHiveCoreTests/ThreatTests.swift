@@ -19,10 +19,10 @@ final class TuningTests: XCTestCase {
         let r = Difficulty.recruit, v = Difficulty.veteran, n = Difficulty.nightmare
         XCTAssertEqual([r.index, v.index, n.index], [0, 1, 2])
         XCTAssertEqual([r.id, v.id, n.id], ["rec", "vet", "nm"])
-        XCTAssertEqual([r.name, v.name, n.name], ["Новобранец", "Ветеран", "Кошмар"])
-        XCTAssertEqual(r.line, "Рой мягче, отряд сильнее — для первого знакомства")
-        XCTAssertEqual(v.line, "Как задумано: падения случаются, Матка опасна")
-        XCTAssertEqual(n.line, "Рой беспощаден, союзники слабее — Матку переживают единицы")
+        // names and lines live in the catalog under the tier ids
+        XCTAssertEqual([NameRef.tier(r.index).key, NameRef.tier(v.index).key, NameRef.tier(n.index).key], ["tier.rec.name", "tier.vet.name", "tier.nm.name"])
+        XCTAssertEqual([NameRef.tierLine(0).key, NameRef.tierLine(1).key, NameRef.tierLine(2).key], ["tier.rec.line", "tier.vet.line", "tier.nm.line"])
+        XCTAssertEqual(NameRef.tier(Difficulty.legacyV10.index).key, "tier.v10.name")
         func row(_ d: Difficulty) -> [Float] {
             [d.scoreMul, d.hp, d.dmg, d.trickle, d.horde, d.beaconHordeStep, d.specials, d.specialCap, d.botDamage / BOT_DMG, d.botGrow,
              d.regen, d.regenDelay, d.regenCap, d.beaconHeal, d.reviveHp, d.medkitChance, d.trickleMinDist, d.pulseDamage, d.pulseInterval,
@@ -278,16 +278,16 @@ final class PressureTests: XCTestCase {
     func testVeteranIdleEscalation() {
         let g = idle(.veteran, seconds: 14)
         XCTAssertEqual(g.threatState, .calm)
-        XCTAssertEqual(g.objectiveText, "Запустите маяки 0/3")
+        XCTAssertEqual(g.objective, GameText(.objLightBeacons, [.int(0), .int(3)]))
         _ = idle(.veteran, seconds: 15.5, g)
         XCTAssertEqual(g.threatState, .waking)
         XCTAssertEqual(g.objectiveStyle, .waking)
-        XCTAssertEqual(g.objectiveText, "Улей просыпается — к маяку")
+        XCTAssertEqual(g.objective, GameText(.objWakingBeacon))
         XCTAssertEqual(g.objectiveProgress, g.pressure / 25, accuracy: 1e-4)
         XCTAssertFalse(g.markerUrgent)
         _ = idle(.veteran, seconds: 25.5, g)
         XCTAssertEqual(g.threatState, .converging)
-        XCTAssertEqual(g.objectiveText, "Рой стягивается — к маяку!")
+        XCTAssertEqual(g.objective, GameText(.objConvergeBeacon))
         XCTAssertTrue(g.markerUrgent)
         XCTAssertEqual(g.objectiveProgress, 1)
         XCTAssertFalse(g.huntPressure)
@@ -330,11 +330,11 @@ final class PressureTests: XCTestCase {
         let g = tierGame(.veteran, seed: 23, god: true)
         g.debugSkip(); g.debugSkip(); g.debugSkip()
         XCTAssertEqual(g.stage, .toLift)
-        XCTAssertEqual(g.objectiveText, "Лифт вызван — к платформе")
+        XCTAssertEqual(g.objective, GameText(.objLiftCalled))
         g.debugSetPressure(16)
-        XCTAssertEqual(g.objectiveText, "Улей просыпается — к лифту!")
+        XCTAssertEqual(g.objective, GameText(.objWakingLift))
         g.debugSetPressure(26)
-        XCTAssertEqual(g.objectiveText, "Рой стягивается — к лифту!")
+        XCTAssertEqual(g.objective, GameText(.objConvergeLift))
         var c = GameConfig(); c.attract = true
         let a = Game(seed: 3, playerClass: .assault, config: c)
         a.step(60 * 40)
@@ -371,7 +371,7 @@ final class PressureTests: XCTestCase {
         XCTAssertEqual(h.pressure, 14, accuracy: 0.1)
         h.step(120)
         XCTAssertEqual(h.threatState, .waking)
-        XCTAssertEqual(h.objectiveText, "Улей просыпается — к лифту!")
+        XCTAssertEqual(h.objective, GameText(.objWakingLift))
         // the allowance is measured again on every mission (resetDirector)
         h.resetWorld()
         XCTAssertEqual(h.liftAllowance, -1)

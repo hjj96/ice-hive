@@ -90,7 +90,7 @@ final class CalibrationTests: XCTestCase {
         for _ in 0..<10 { var r = synth(1, "auto", won: true); r.q = "low"; r.tag = "vet-qlow"; lowRows.append(r) }
         let lg = Calibration.gate(lowRows)
         XCTAssertTrue(lg.passed)
-        XCTAssertTrue(lg.lines.contains { !$0.gated && !$0.ok && $0.text.hasPrefix("vet/auto wins on «Графика: низкая» 100.0%") },
+        XCTAssertTrue(lg.lines.contains { !$0.gated && !$0.ok && $0.text.hasPrefix("vet/auto wins on low graphics 100.0%") },
                       lg.lines.map { $0.text }.joined(separator: "; "))
         // Ветеран too easy → the gate fails with a CALIB: FAILED line
         for k in 20..<40 where k % 5 == 0 { rows[k].result = "won" }

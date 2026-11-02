@@ -112,7 +112,8 @@ extension Game {
         queue.append(Burst(edge: e, n: n, rate: rate, acc: 0, vent: vent))
     }
 
-    func startHorde(_ size00: Int, _ title: String? = nil, _ sub: String? = nil, _ rate: Float = 40) {
+    /// `title` / `sub` (nil = the default horde banner) are only evaluated when the game shows text (not `simOnly`).
+    func startHorde(_ size00: Int, _ title: @autoclosure () -> GameText? = nil, _ sub: @autoclosure () -> GameText? = nil, _ rate: Float = 40) {
         // every horde is scaled by the tier here (web startHorde's first line; callers already rounded once)
         let size0 = attract ? size00 : Int((Float(size00) * difficulty.horde).rounded())
         var size = Float(size0)
@@ -131,7 +132,7 @@ extension Game {
         }
         hordes += 1
         if !simOnly && !attract {
-            let t = title ?? "Орда!", s = sub ?? "Рой прорывается из бездны"
+            let t = title() ?? .hordeTitle, s = sub() ?? .hordeSubtitle
             emit(.hordeStarted(size: size0, title: t, subtitle: s))
             banner(t, s, false)
             emit(.hordeFlash)
@@ -184,8 +185,8 @@ extension Game {
                         let b = beacons[k]
                         if b.state == 0 && standingIn(b.x, b.z, BEACON_R) > 0 {
                             beacons[k].state = 1; activeBeacon = k; waveT = 2
-                            startHorde(Int(((270 + D.beaconHordeStep * Float(beaconsDone)) * hordeScale() * beaconHordeMul).rounded()), "Защищайте маяк",
-                                       "Маяк «" + b.name + "» запускается — держите кольцо")
+                            startHorde(Int(((270 + D.beaconHordeStep * Float(beaconsDone)) * hordeScale() * beaconHordeMul).rounded()),
+                                       GameText(.bannerDefend), GameText(.bannerDefendSub, [.name(b.name)]))
                             beaconHordeMul = 1
                             if !simOnly { emit(.beaconStarted(index: k)); events.append(.sound(.beacon, pos: nil, loud: nil)) }
                             break
@@ -244,7 +245,7 @@ extension Game {
                         stage = .extract; extractT = 0; queue.removeAll()
                         if !simOnly {
                             emit(.extractStarted)
-                            banner("Эвакуация", "Лифт поднимается", true)
+                            banner(GameText(.bannerExtract), GameText(.bannerExtractSub), true)
                             events.append(.sound(.lift, pos: nil, loud: nil))
                         }
                     }
@@ -303,7 +304,7 @@ extension Game {
             if hordeT <= 0 {
                 if stage == .hold {
                     hordeT = 13 + rng.next() * 4
-                    startHorde(Int(((360 + rng.next() * 160) * hordeScale()).rounded()), "Орда!", "Они лезут на платформу", 55)
+                    startHorde(Int(((360 + rng.next() * 160) * hordeScale()).rounded()), .hordeTitle, GameText(.bannerHordeLiftSub), 55)
                 } else {
                     hordeT = 45 + rng.next() * 15
                     startHorde(Int((min(520, 120 + 55 * Float(beaconsDone) + 25 * minutes) * hordeScale()).rounded()))
@@ -327,9 +328,9 @@ extension Game {
         }
         if beaconsDone >= beacons.count {
             stage = .toLift
-            if !simOnly { emit(.liftCalled); banner("Лифт вызван", "Все к грузовой платформе", true) }
+            if !simOnly { emit(.liftCalled); banner(GameText(.bannerLiftCalled), GameText(.bannerLiftCalledSub), true) }
         } else if !simOnly {
-            banner("Маяк запущен", "\(beaconsDone) из \(beacons.count) · ищите следующий", true)
+            banner(GameText(.bannerBeaconOnline), GameText(.bannerBeaconOnlineSub, [.int(beaconsDone), .int(beacons.count)]), true)
         }
     }
 
@@ -345,13 +346,12 @@ extension Game {
 
     func startHold() {
         stage = .hold; liftT = LIFT_TIME; hordeT = 3; pulseT = 4
-        let sub = "Лифт прибудет через \(Int(LIFT_TIME)) секунд"
         if !simOnly {
             emit(.holdStarted)
-            banner("Держитесь", sub, false)
+            banner(GameText(.bannerHold), GameText(.bannerHoldSub, [.int(Int(LIFT_TIME))]), false)
             events.append(.sound(.beacon, pos: nil, loud: nil))
         }
-        startHorde(Int((480 * hordeScale()).rounded()), "Держитесь", sub, 70)
+        startHorde(Int((480 * hordeScale()).rounded()), GameText(.bannerHold), GameText(.bannerHoldSub, [.int(Int(LIFT_TIME))]), 70)
     }
 
     func endGame(_ won: Bool) {
@@ -416,7 +416,7 @@ extension Game {
         let u = offer[index]
         applyUpgrade(u.id)
         pendingLevels -= 1
-        toast(u.name, .gold)
+        toast(GameText(.toastUpgrade, [.name(u.name)]), .gold)
         offer = []
         if pendingLevels > 0 && !autoPickUpgrades { rollUpgrades() }
         return u

@@ -39,6 +39,6 @@ extension Game {
     /// The objective marker pulses red (the swarm converges).
     public var markerUrgent: Bool { threatState == .converging }
 
-    /// Station name of this mission («Кельвин-9», «Сектор Д-17»).
-    public var stationName: String { level.layout.name }
+    /// Station of this mission (KELVIN-9, or SECTOR D-17 for a generated one).
+    public var stationName: NameRef { level.layout.name }
 }

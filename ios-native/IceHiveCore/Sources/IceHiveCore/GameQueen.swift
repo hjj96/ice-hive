@@ -64,7 +64,7 @@ extension Game {
         qWarn = -1; qSlot = i
         qBrood = 4; qVolley = 3; qRam = 6; qMeleeCd = 0; qArmed = false
         if !simOnly {
-            banner("Матка", "Поднимается из бездны — лифт не уйдёт, пока она жива", false)
+            banner(GameText(.bannerQueen), GameText(.bannerQueenSub), false)
             events.append(.sound(.siren, pos: nil, loud: nil))
             events.append(.sound(.queen, pos: nil, loud: nil))
             shake(0.4)
@@ -111,7 +111,7 @@ extension Game {
             queen.enraged = true
             S.spd[qi] = D.queen.speed * 1.35
             // (the web passes '' as the subtitle, which falls back to the horde line: nil here)
-            startHorde(Int((D.queen.horde * hordeScale()).rounded()), "Матка в ярости", nil, 50)
+            startHorde(Int((D.queen.horde * hordeScale()).rounded()), GameText(.bannerQueenRage), nil, 50)
             emit(.queenEnraged(pos: queen.position))
         }
         let en = queen.enraged
@@ -157,7 +157,7 @@ extension Game {
         if !simOnly {
             emit(.queenKilled(pos: Vec2(x, z)))
             hitStop(0.2, 0.15)
-            banner("Матка убита", "Лифт свободен", true)
+            banner(GameText(.bannerQueenDead), GameText(.bannerQueenDeadSub), true)
             haptic(.success)
         }
     }

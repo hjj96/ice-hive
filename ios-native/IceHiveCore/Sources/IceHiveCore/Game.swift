@@ -29,7 +29,7 @@ public enum GamePhase: Int {
 }
 
 public struct BeaconState {
-    public let name: String
+    public let name: NameRef
     public let x: Float, z: Float
     /// 0 idle, 1 charging, 2 done.
     public internal(set) var state: Int = 0
@@ -57,7 +57,7 @@ public struct GameConfig {
     public var god: Bool = false
     /// Run the first-run coach «Учебная высадка» (the app: the first mission ever, or the pause «Обучение»).
     public var coach: Bool = false
-    /// The revive line («Кекс ранен — встаньте рядом, чтобы поднять») may show once in this mission (app: profile.runs < 3).
+    /// The revive line (coach.revive) may show once in this mission (app: profile.runs < 3).
     public var reviveLineArmed: Bool = false
     /// Debug: seconds of counted hold before the Матка's warning (overrides `difficulty.queen.at`; `-queen` → 0).
     public var queenAt: Float? = nil
@@ -96,8 +96,8 @@ public struct CoachState {
     public internal(set) var stepTime: Float = 0
     /// The control the card points at (nil = no card).
     public var target: CoachTarget? { active ? CoachTarget(rawValue: step) : nil }
-    /// «{name} ранен — встаньте рядом, чтобы поднять» for `reviveTime` s after the first bot went down (once per run).
-    public internal(set) var reviveLine: String? = nil
+    /// coach.revive («{call-sign} is down — …») for `reviveTime` s after the first bot went down (once per run).
+    public internal(set) var reviveLine: GameText? = nil
     public internal(set) var reviveTime: Float = 0
     public init() {}
 }
@@ -240,7 +240,6 @@ public final class Game {
     /// The tier of this mission (fixed for the mission).
     public let difficulty: Difficulty
     /// The lift-pulse hint of this tier (built once).
-    let holdHintLine: HintLine
     /// Gameplay cap on live bugs (only an explicit quality choice changes it).
     public internal(set) var bugCap: Int
     var rng: SeededRNG
@@ -404,7 +403,6 @@ public final class Game {
         self.config = config
         self.level = level ?? Level(source: config.levelSource, seed: seed)
         self.difficulty = config.difficulty
-        self.holdHintLine = HintLine(text: Game.holdHintText(config.difficulty), urgent: false)
         self.bugCap = config.bugCap ?? config.quality.bugCap
         self.rng = SeededRNG(seed: seed == 0 ? 0x9E37_79B9 : seed)
         self.attract = config.attract
@@ -457,15 +455,18 @@ public final class Game {
             }
         }
         coachBegin()
-        if !attract && !coach.active { emit(.banner(title: "Высадка", subtitle: stationName + " · запустите три маяка", teal: true)) }
+        if !attract && !coach.active && !simOnly {
+            emit(.banner(title: GameText(.bannerDrop), subtitle: GameText(.bannerDropSub, [.name(stationName)]), teal: true))
+        }
     }
 
     func setupSquad() {
         marines.removeAll()
         let others = MarineClass.allCases.filter { $0 != playerClass }
-        marines.append(Marine(index: 0, cls: playerClass, name: PLAYER_NAME, isPlayer: true, botDamage: difficulty.botDamage))
+        marines.append(Marine(index: 0, cls: playerClass, name: .player, isPlayer: true, botDamage: difficulty.botDamage))
+        // a squadmate's call-sign belongs to its class (Assault CUPCAKE, Pyro DONUT, Cryo SHADOW, Gunner MUFFIN)
         for (k, c) in others.enumerated() {
-            let b = Marine(index: k + 1, cls: c, name: BOT_NAMES[k], isPlayer: false, botDamage: difficulty.botDamage)
+            let b = Marine(index: k + 1, cls: c, name: .callsign(c), isPlayer: false, botDamage: difficulty.botDamage)
             b.hp = 120; b.maxHp = 120
             marines.append(b)
         }
@@ -522,8 +523,11 @@ public final class Game {
         if !simOnly { events.append(.sound(id, pos: Vec2(x, z), loud: loud)) }
     }
     @inline(__always) func haptic(_ k: HapticKind) { if !simOnly && !benchCombat && !attract { events.append(.haptic(k)) } }
-    func toast(_ text: String, _ kind: ToastKind) { if !simOnly && !attract { events.append(.toast(text: text, kind: kind)) } }
-    func banner(_ title: String, _ sub: String, _ teal: Bool) { if !simOnly { events.append(.banner(title: title, subtitle: sub, teal: teal)) } }
+    /// Text is only built when the game is not `simOnly` (calibration never makes any).
+    func toast(_ text: @autoclosure () -> GameText, _ kind: ToastKind) { if !simOnly && !attract { events.append(.toast(text: text(), kind: kind)) } }
+    func banner(_ title: @autoclosure () -> GameText, _ sub: @autoclosure () -> GameText, _ teal: Bool) {
+        if !simOnly { events.append(.banner(title: title(), subtitle: sub(), teal: teal)) }
+    }
     func hitStop(_ dur: Float, _ k: Float) { if !attract && !simOnly { events.append(.hitStop(duration: dur, scale: k)) } }
     func shake(_ a: Float) { if !simOnly && a > 0 { events.append(.shake(amount: a)) } }
 

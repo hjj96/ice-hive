@@ -604,8 +604,8 @@ public enum Calibration {
                               text: "\(name) \(fmt(best))–\(worst.isFinite ? fmt(worst) : "never") s (every run) band …\(fmt(lim)) s"))
         }
         if let g = grp(1, "passive") { band("vet/passive wins", g.winPct, nil, 40, gated: false, unit: "%") }
-        if let g = grp(1, "auto", q: "low") { band("vet/auto wins on «Графика: низкая»", g.winPct, 70, 85, gated: false, unit: "%") }
-        if let g = grp(2, "auto", q: "low") { band("nm/auto wins on «Графика: низкая»", g.winPct, nil, 30, gated: false, unit: "%") }
+        if let g = grp(1, "auto", q: "low") { band("vet/auto wins on low graphics", g.winPct, 70, 85, gated: false, unit: "%") }
+        if let g = grp(2, "auto", q: "low") { band("nm/auto wins on low graphics", g.winPct, nil, 30, gated: false, unit: "%") }
         if let g = grp(-1, "auto") {
             band("v10/auto wins (legacy port check)", g.winPct, nil, nil, gated: false, unit: "%")
             band("v10/auto downs/run", g.downsPerRun, nil, nil, gated: false)

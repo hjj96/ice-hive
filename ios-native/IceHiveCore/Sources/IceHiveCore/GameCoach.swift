@@ -13,25 +13,25 @@ import Foundation
 /// Step timeouts (s); the beacon step has none.
 let COACH_MAX: [Float] = [7, 12, 9, 8, .infinity]
 
-/// Card texts of the coach (the app picks the variant by its input mode; the core pins the strings).
+/// Card texts of the coach (the app picks the variant by its input mode; the core pins the keys).
 public enum CoachText {
     public static let steps = 5
-    /// Touch: «Левый палец — бег» …; keyboard (WASD / IJKL / Q / пробел): «WASD — бег» ….
-    public static func text(step: Int, abilityShort: String, keyboard: Bool) -> String {
+    /// Touch (coach.move …) or keyboard (WASD / IJKL / Q / Space: coach.move.keys …); step 2 names `cls`'s ability.
+    public static func text(step: Int, cls: MarineClass, keyboard: Bool) -> GameText {
         switch step {
-        case 0: return keyboard ? "WASD — бег" : "Левый палец — бег"
-        case 1: return keyboard ? "IJKL — прицел и огонь" : "Правый палец — прицел, огонь сам"
-        case 2: return abilityShort + " — по толпе" + (keyboard ? " (Q)" : "")
-        case 3: return "Рывок — из окружения" + (keyboard ? " (пробел)" : "")
-        default: return "Маяк — встаньте в кольцо"
+        case 0: return GameText(keyboard ? .coachMoveKeys : .coachMove)
+        case 1: return GameText(keyboard ? .coachAimKeys : .coachAim)
+        case 2: return GameText(keyboard ? .coachAbilityKeys : .coachAbility, [.name(.abilityShort(cls))])
+        case 3: return GameText(keyboard ? .coachDashKeys : .coachDash)
+        default: return GameText(.coachBeacon)
         }
     }
     /// «N/5».
-    public static func counter(step: Int) -> String { "\(step + 1)/\(steps)" }
-    public static let skip = "Пропустить"
-    /// Every revive line the coach can show (warm-up).
-    public static let reviveLines: [String] = BOT_NAMES.map { reviveLine($0) }
-    static func reviveLine(_ name: String) -> String { name + " ранен — встаньте рядом, чтобы поднять" }
+    public static func counter(step: Int) -> GameText { GameText(.coachCounter, [.int(step + 1), .int(steps)]) }
+    public static let skip = GameText(.coachSkip)
+    /// Every revive line the coach can show (warm-up): one per call-sign.
+    public static var reviveLines: [GameText] { MarineClass.allCases.map { reviveLine(.callsign($0)) } }
+    public static func reviveLine(_ name: NameRef) -> GameText { GameText(.coachRevive, [.name(name)]) }
 }
 
 extension Game {
@@ -115,7 +115,7 @@ extension Game {
                 if marines[k].downed {
                     coachReviveArmed = false
                     coach.reviveTime = 6
-                    coach.reviveLine = CoachText.reviveLine(marines[k].name)
+                    if !simOnly { coach.reviveLine = CoachText.reviveLine(marines[k].name) }
                     break
                 }
                 k += 1

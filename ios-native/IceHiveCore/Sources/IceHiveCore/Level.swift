@@ -70,8 +70,9 @@ public struct CrateSpec {
 
 public struct BeaconSite {
     public var x: Float, z: Float
-    public var name: String
-    public init(x: Float, z: Float, name: String) { self.x = x; self.z = z; self.name = name }
+    /// .beacon(k): ALPHA / BETA / GAMMA in placement order.
+    public var name: NameRef
+    public init(x: Float, z: Float, name: NameRef) { self.x = x; self.z = z; self.name = name }
 }
 
 public struct LiftSpec {
@@ -87,7 +88,8 @@ public struct PipeRun {
 
 /// Everything that defines a station. Pure data: the renderer builds its geometry from the same values.
 public struct LevelLayout {
-    public var name: String
+    /// .kelvin or .sector(letter:number:).
+    public var name: NameRef
     public var seed: UInt32
     public var rects: [FloorRect]
     public var crates: [CrateSpec]
@@ -106,7 +108,7 @@ public struct LevelLayout {
     /// Built by the seeded station generator (v1.1).
     public var isGenerated: Bool = false
 
-    public init(name: String, seed: UInt32, rects: [FloorRect], crates: [CrateSpec], pillars: [Vec2], start: Vec2, lift: LiftSpec,
+    public init(name: NameRef, seed: UInt32, rects: [FloorRect], crates: [CrateSpec], pillars: [Vec2], start: Vec2, lift: LiftSpec,
                 beacons: [BeaconSite], vents: [Vec2], pipes: [PipeRun]) {
         self.name = name; self.seed = seed; self.rects = rects; self.crates = crates; self.pillars = pillars; self.start = start
         self.lift = lift; self.beacons = beacons; self.vents = vents; self.pipes = pipes
@@ -158,9 +160,9 @@ public struct KelvinStation: LevelSource {
         let pipes: [PipeRun] = [PipeRun(-8, 38.3, 6, 38.3, 0), PipeRun(-12, -12.3, -6, -12.3, -3), PipeRun(22, -16.3, 38, -16.3, -3),
                                 PipeRun(-42, -18.3, -26, -18.3, -3), PipeRun(38.3, 22, 38.3, 38, 0)]
         return LevelLayout(
-            name: "Кельвин-9", seed: seed, rects: rects, crates: crates, pillars: pillars,
+            name: .kelvin, seed: seed, rects: rects, crates: crates, pillars: pillars,
             start: Vec2(30, 30), lift: LiftSpec(x: -3, z: -42, r: 10, y: LY),
-            beacons: [BeaconSite(x: -32, z: 27, name: "Альфа"), BeaconSite(x: 30, z: -8, name: "Бета"), BeaconSite(x: -34, z: -9, name: "Гамма")],
+            beacons: [BeaconSite(x: -32, z: 27, name: .beacon(0)), BeaconSite(x: 30, z: -8, name: .beacon(1)), BeaconSite(x: -34, z: -9, name: .beacon(2))],
             vents: vents, pipes: pipes)
     }
 }

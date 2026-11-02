@@ -50,7 +50,7 @@ public struct GenPipe: Equatable {
 
 public struct GenBeacon: Equatable {
     public var x, z: Double
-    public var name: String
+    public var name: NameRef
 }
 
 /// Result of genCheck.
@@ -90,7 +90,7 @@ public struct GeneratedStation {
     public var check: StationCheck? = nil
 
     /// The simulation / renderer layout (Floats).
-    public func layout(name: String) -> LevelLayout {
+    public func layout(name: NameRef) -> LevelLayout {
         let rs: [FloorRect] = rects.map { r in
             let h: FloorHeight
             switch r.height {
@@ -130,11 +130,11 @@ public enum Stations {
     static let TOUR_MIN = 190, TOUR_MAX = 320
     static let REACH: Double = 0.97
 
-    /// «Кельвин-9» for 0, else «Сектор {АБВГДЕЖИКЛМН[s % 12]}-{1 + (s >> 4) % 99}».
-    public static func name(seed: UInt32) -> String {
-        if seed == 0 { return "Кельвин-9" }
-        let letters = Array("АБВГДЕЖИКЛМН")
-        return "Сектор " + String(letters[Int(seed % 12)]) + "-\(1 + (seed >> 4) % 99)"
+    /// .kelvin for 0, else .sector(letter: s % 12, number: 1 + (s >> 4) % 99) — «SECTOR {letter}-{n}», the twelve
+    /// letters are the catalog's `name.sector.letters`.
+    public static func name(seed: UInt32) -> NameRef {
+        if seed == 0 { return .kelvin }
+        return .sector(letter: Int(seed % 12), number: Int(1 + (seed >> 4) % 99))
     }
 
     /// A stored seed: floor; 0 < v < 0x40000000 ? v : 0 (web stationSeedOf).
@@ -388,13 +388,12 @@ public enum Stations {
             }
         }
         // ---- 9. objective and prop placement ----
-        let names = ["Альфа", "Бета", "Гамма"]
-        var beacons: [(x: Double, z: Double, name: String, node: Int)] = []
+        var beacons: [(x: Double, z: Double, name: NameRef, node: Int)] = []
         for (k, n) in beac.enumerated() {
             guard let nd = N[n] else { return nil }
             let x = nd.cx + ri(-1, 1)
             let z = nd.cz + ri(-1, 1)
-            beacons.append((x, z, names[k], n))
+            beacons.append((x, z, .beacon(k), n))
         }
         guard let sN = N[start] else { return nil }
         func near(_ x: Double, _ z: Double, _ list: [(x: Double, z: Double)], _ r: Double) -> Bool {

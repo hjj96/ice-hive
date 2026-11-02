@@ -11,8 +11,8 @@ func runSummary(_ cls: MarineClass = .assault, won: Bool, surrendered: Bool = fa
     let d = Difficulty.tier(tier)
     return RunSummary(cls: cls, won: won, surrendered: surrendered, time: time, playerKills: kills, beaconsDone: beacons,
                       queenSpawned: queen != nil, queenDone: queen ?? false, downs: downs, downBy: downBy, tierIndex: tier,
-                      tierMul: d.scoreMul, tierName: d.name, stage: stage ?? (won ? .extract : .beacons), pressureLoss: pressureLoss,
-                      shots: 1000, hits: 640, accuracy: 64, bestCombo: 37, level: 12, station: "Кельвин-9")
+                      tierMul: d.scoreMul, stage: stage ?? (won ? .extract : .beacons), pressureLoss: pressureLoss,
+                      shots: 1000, hits: 640, accuracy: 64, bestCombo: 37, level: 12, station: .kelvin)
 }
 
 func missionStats(_ r: RunSummary) -> MissionStats {
@@ -77,15 +77,16 @@ final class ProfileTests: XCTestCase {
 final class ScoreRankTests: XCTestCase {
     func testScoreParts() {
         let w = RunScore.make(runSummary(won: true, time: 405, kills: 1214, beacons: 3, queen: true, tier: 0))
-        XCTAssertEqual(w.parts.map { $0.label }, ["Ваши убийства", "Маяки 3/3", "Матка убита", "Эвакуация", "Скорость · 6:45", "Без падений"])
+        XCTAssertEqual(w.parts.map { $0.label }, [GameText(.scoreKills), GameText(.scoreBeacons, [.int(3), .int(3)]), GameText(.scoreQueen),
+                                                  GameText(.scoreExtract), GameText(.scoreSpeed, [.clock(405)]), GameText(.scoreNoDowns)])
         XCTAssertEqual(w.parts.map { $0.value }, [1214, 1500, 1000, 1500, 375, 500])
         XCTAssertEqual(w.raw, 6089)
         XCTAssertEqual(w.total, 4871, "×0,8 rounded half up")
         let l = RunScore.make(runSummary(won: false, time: 252, kills: 900, beacons: 3, queen: false, downs: 2, tier: 1))
-        XCTAssertEqual(l.parts.map { $0.label }, ["Ваши убийства", "Маяки 3/3"])
+        XCTAssertEqual(l.parts.map { $0.label }, [GameText(.scoreKills), GameText(.scoreBeacons, [.int(3), .int(3)])])
         XCTAssertEqual(l.total, 2400)
         let n = RunScore.make(runSummary(won: true, time: 600, kills: 101, beacons: 3, queen: true, downs: 1, tier: 2))
-        XCTAssertEqual(n.parts.last?.label, "Скорость · 10:00")
+        XCTAssertEqual(n.parts.last?.label, GameText(.scoreSpeed, [.clock(600)]))
         XCTAssertEqual(n.parts.last?.value, 0, "never negative")
         XCTAssertEqual(n.total, Int((Double(n.raw) * 1.5 + 0.5).rounded(.down)))
         // half-up rounding of ×0,8: 1 + 500 = 501 → 400.8 → 401; 3 → 2.4 → 2
@@ -95,15 +96,12 @@ final class ScoreRankTests: XCTestCase {
 
     func testRanksAndFormatting() {
         XCTAssertEqual(Ranks.thresholds, [0, 300, 900, 1800, 3000, 4600, 6600, 9200, 12500, 16500])
-        XCTAssertEqual(Ranks.names.first, "Рядовой"); XCTAssertEqual(Ranks.names.last, "Майор")
+        XCTAssertEqual(Ranks.name(0).key, "rank.1"); XCTAssertEqual(Ranks.name(9).key, "rank.10")
         XCTAssertEqual(Ranks.rankOf(0), 0); XCTAssertEqual(Ranks.rankOf(299), 0); XCTAssertEqual(Ranks.rankOf(300), 1)
         XCTAssertEqual(Ranks.rankOf(2300), 3); XCTAssertEqual(Ranks.rankOf(1_000_000), 9)
         XCTAssertEqual(Ranks.fill(xp: 1050), 0.166_666, accuracy: 1e-4)
         XCTAssertEqual(Ranks.fill(xp: 20_000), 1)
-        XCTAssertEqual(MetaText.fmtN(9120), "9\u{00A0}120")
-        XCTAssertEqual(MetaText.fmtN(1_234_567), "1\u{00A0}234\u{00A0}567")
-        XCTAssertEqual(MetaText.fmtN(999), "999")
-        XCTAssertEqual(MetaText.fmtMul(0.8), "×0,8"); XCTAssertEqual(MetaText.fmtMul(1), "×1,0"); XCTAssertEqual(MetaText.fmtMul(1.5), "×1,5")
+        // (numbers are formatted by the app: 6,228 · ×0.8; the core hands over Int / tenths)
     }
 
     func testCommitRules() {
@@ -147,7 +145,7 @@ final class ScoreRankTests: XCTestCase {
         let plain = runSummary(won: false, time: 100, kills: 10, beacons: 1, downBy: .spitter, tier: 1)
         var q = Profile()
         let rq = q.commit(plain, diffPicked: false)
-        XCTAssertEqual(MetaText.lossTip(run: plain, result: rq), "Плевун: уходите из светящихся кругов кислоты")
+        XCTAssertEqual(MetaText.lossTip(run: plain, result: rq), GameText(.tipLossSpitter, [.name(.bug(.spitter))]))
         for (src, tip) in zip([DamageSource.runner, .brute, .boomer, .queen], [0, 2, 3, 4]) {
             let r = runSummary(won: false, time: 100, kills: 10, beacons: 1, downBy: src, tier: 1)
             var x = Profile()
@@ -162,31 +160,32 @@ final class ScoreRankTests: XCTestCase {
         // goals
         var g = Profile()
         let rg = g.commit(runSummary(.cryo, won: false, time: 100, kills: 10, beacons: 1, tier: 1), diffPicked: false)
-        XCTAssertEqual(MetaText.nextGoal(profile: g, cls: .cryo, result: rg), "Цель: эвакуироваться криотехником (+1\u{00A0}500 очков)")
+        XCTAssertEqual(MetaText.nextGoal(profile: g, cls: .cryo, result: rg), GameText(.goalFirstWinCryo, [.num(1500)]))
         var v = veteranProfile()
         var a = v.record(.assault); a.xp = 1750; a.best = 6000; a.ev = [1, 0, 0]; v.cls[.assault] = a
         let rw = v.commit(runSummary(won: true, time: 402, kills: 1838, beacons: 3, queen: true, downs: 1, tier: 1), diffPicked: false)
-        XCTAssertEqual(MetaText.nextGoal(profile: v, cls: .assault, result: rw), "До звания «Ст. сержант» — 627 выслуги")
+        XCTAssertEqual(MetaText.nextGoal(profile: v, cls: .assault, result: rw), GameText(.goalRank, [.name(.rank(4)), .num(627)]))
         // the next rank is still > 2 runs away: the medal of the next tier comes first
         var m = veteranProfile()
         var y = m.record(.pyro); y.xp = 3100; m.cls[.pyro] = y
         let rm = m.commit(runSummary(.pyro, won: true, time: 402, kills: 10, beacons: 3, queen: true, tier: 0), diffPicked: false)
-        XCTAssertEqual(MetaText.nextGoal(profile: m, cls: .pyro, result: rm), "Нашивка: эвакуируйтесь огнемётчиком на «Ветеране»")
+        XCTAssertEqual(MetaText.nextGoal(profile: m, cls: .pyro, result: rm), GameText(.goalMedalPyro, [.name(.tier(1))]))
         var near = veteranProfile()
         let rn = near.commit(runSummary(.pyro, won: true, time: 402, kills: 10, beacons: 3, queen: true, tier: 0), diffPicked: false)
-        XCTAssertEqual(MetaText.nextGoal(profile: near, cls: .pyro, result: rn), "До звания «Мл. сержант» — 108 выслуги")
+        XCTAssertEqual(MetaText.nextGoal(profile: near, cls: .pyro, result: rn), GameText(.goalRank, [.name(.rank(2)), .num(108)]))
         var top = Profile()
         var t = ClassRecord(); t.xp = 20_000; t.wins = 9; t.runs = 9; t.best = 12_345; t.ev = [1, 1, 1]; top.cls[.gunner] = t
         let rt = top.commit(runSummary(.gunner, won: false, time: 100, kills: 10, beacons: 1, tier: 2), diffPicked: false)
-        XCTAssertEqual(MetaText.nextGoal(profile: top, cls: .gunner, result: rt), "Побейте свой рекорд: 12\u{00A0}345")
+        XCTAssertEqual(MetaText.nextGoal(profile: top, cls: .gunner, result: rt), GameText(.goalBest, [.num(12_345)]))
     }
 
     func testTitleLines() {
         XCTAssertNil(MetaText.titleProfileLine(profile: Profile(), cls: .assault))
         let v = veteranProfile()
-        XCTAssertEqual(MetaText.titleProfileLine(profile: v, cls: .assault), "Штурмовик · Сержант · рекорд 9\u{00A0}120")
-        XCTAssertEqual(MetaText.titleProfileLine(profile: v, cls: .gunner), "Вылетов: 6 · эвакуаций: 3")
-        XCTAssertEqual(MetaText.rankChip(profile: v, cls: .assault), "ЗВ. 4")
+        XCTAssertEqual(MetaText.titleProfileLine(profile: v, cls: .assault), GameText(.titleProfile, [.name(.cls(.assault)), .name(.rank(3)), .num(9120)]))
+        XCTAssertEqual(MetaText.titleProfileLine(profile: v, cls: .gunner),
+                       GameText(.titleProfileRuns, [.text(GameText(.titleRuns, [.int(6)])), .text(GameText(.titleWins, [.int(3)]))]))
+        XCTAssertEqual(MetaText.rankChip(profile: v, cls: .assault), GameText(.titleRankChip, [.int(4)]))
         XCTAssertNil(MetaText.rankChip(profile: v, cls: .cryo))
     }
 }
@@ -200,62 +199,67 @@ final class ReportModelTests: XCTestCase {
     func testFirstEvacuationOnRecruit() {
         var p = Profile()
         let r = report(&p, runSummary(won: true, time: 405, kills: 1214, beacons: 3, queen: true, tier: 0))
-        XCTAssertEqual(r.tag, "Отчёт миссии · Кельвин-9")
-        XCTAssertEqual(r.title, "Эвакуация успешна")
-        XCTAssertEqual(r.subtitle, "Отряд поднялся над бездной. Кельвин-9 остаётся рою — но вы живы.")
-        XCTAssertEqual(r.strip.map { $0.label }, ["Маяк", "Маяк", "Маяк", "Лифт", "Матка", "Эвакуация"])
+        XCTAssertEqual(r.tag, GameText(.reportTag, [.name(.kelvin)]))
+        XCTAssertEqual(r.title, GameText(.reportTitleWon))
+        XCTAssertEqual(r.subtitle, GameText(.reportSubWon, [.name(.kelvin)]))
+        let beacon = GameText(.reportStripBeacon)
+        XCTAssertEqual(r.strip.map { $0.label }, [beacon, beacon, beacon, GameText(.reportStripLift), GameText(.reportStripQueen), GameText(.reportStripExtract)])
         XCTAssertTrue(r.strip.allSatisfy { $0.on })
-        XCTAssertEqual(r.scoreTotal, "4\u{00A0}871")
+        XCTAssertEqual(r.scoreLabel, GameText(.reportScore))
+        XCTAssertEqual(r.scoreTotal, 4871)
         XCTAssertNil(r.scoreNote, "first run of the class")
-        XCTAssertTrue(r.parts.contains(ReportLine(label: "Маяки 3/3", value: "+1\u{00A0}500")))
-        XCTAssertTrue(r.parts.contains(ReportLine(label: "Эвакуация", value: "+1\u{00A0}500")))
-        XCTAssertEqual(r.tierLine, "Новобранец · ×0,8 очков")
-        XCTAssertEqual(r.tierDelta, "\u{2212}1\u{00A0}218")
-        XCTAssertEqual(r.rankTitle, "Штурмовик · Ефрейтор")
-        XCTAssertEqual(r.xpLine, "+487 выслуги")
-        XCTAssertEqual(r.rankUp, "Новое звание: Ефрейтор")
-        XCTAssertEqual(r.medal, "Новая нашивка: Штурмовик · Новобранец")
+        XCTAssertTrue(r.parts.contains(ReportLine(label: GameText(.scoreBeacons, [.int(3), .int(3)]), value: GameText(.fmtPlus, [.num(1500)]))))
+        XCTAssertTrue(r.parts.contains(ReportLine(label: GameText(.scoreExtract), value: GameText(.fmtPlus, [.num(1500)]))))
+        XCTAssertEqual(r.tierLine, GameText(.reportTierLine, [.name(.tier(0)), .text(GameText(.fmtMul, [.tenths(8)]))]))
+        XCTAssertEqual(r.tierDelta, GameText(.fmtMinus, [.num(1218)]))
+        XCTAssertEqual(r.rankTitle, GameText(.reportRankTitle, [.name(.cls(.assault)), .name(.rank(1))]))
+        XCTAssertEqual(r.xpLine, GameText(.reportXP, [.num(487)]))
+        XCTAssertEqual(r.rankUp, GameText(.reportRankUp, [.name(.rank(1))]))
+        XCTAssertEqual(r.medal, GameText(.reportMedal, [.name(.cls(.assault)), .name(.tier(0))]))
         XCTAssertEqual(r.tips, [ReportTip(text: MetaText.promo, good: true)])
         XCTAssertNil(r.chip)
         XCTAssertEqual(r.buttons, [.again, .changeClass])
         XCTAssertEqual(r.primary, .again)
-        XCTAssertEqual(r.mini.map { $0.label }, ["Время", "Комбо", "Точность", "Уровень"])
-        XCTAssertEqual(r.mini.map { $0.value }, ["6:45", "×37", "64%", "12"])
+        XCTAssertEqual(r.mini.map { $0.label }, [GameText(.reportMiniTime), GameText(.reportMiniCombo), GameText(.reportMiniAccuracy), GameText(.reportMiniLevel)])
+        XCTAssertEqual(r.mini.map { $0.value }, [GameText(.fmtClock, [.clock(405)]), GameText(.fmtCombo, [.int(37)]), GameText(.fmtPercent, [.int(64)]),
+                                                 GameText(.fmtInt, [.int(12)])])
     }
 
     func testVeteranWinRecordAndRankUp() {
         var p = veteranProfile()
         var a = p.record(.assault); a.xp = 1750; a.best = 6000; a.ev = [1, 0, 0]; p.cls[.assault] = a
         let r = report(&p, runSummary(won: true, time: 402, kills: 1838, beacons: 3, queen: true, downs: 1, tier: 1))
-        XCTAssertEqual(r.scoreTotal, "6\u{00A0}228")
-        XCTAssertTrue(r.record); XCTAssertEqual(r.scoreNote, "Новый рекорд")
-        XCTAssertEqual(r.tierDelta, "")
-        XCTAssertEqual(r.rankUp, "Новое звание: Сержант")
-        XCTAssertEqual(r.medal, "Новая нашивка: Штурмовик · Ветеран")
-        XCTAssertEqual(r.goal, "До звания «Ст. сержант» — 627 выслуги")
-        XCTAssertFalse(r.parts.contains { $0.label == "Без падений" })
+        XCTAssertEqual(r.scoreTotal, 6228)
+        XCTAssertTrue(r.record); XCTAssertEqual(r.scoreNote, GameText(.reportRecord))
+        XCTAssertNil(r.tierDelta, "×1.0 changes nothing")
+        XCTAssertEqual(r.tierLine, GameText(.reportTierLine, [.name(.tier(1)), .text(GameText(.fmtMul, [.tenths(10)]))]))
+        XCTAssertEqual(r.rankUp, GameText(.reportRankUp, [.name(.rank(3))]))
+        XCTAssertEqual(r.medal, GameText(.reportMedal, [.name(.cls(.assault)), .name(.tier(1))]))
+        XCTAssertEqual(r.goal, GameText(.goalRank, [.name(.rank(4)), .num(627)]))
+        XCTAssertFalse(r.parts.contains { $0.label == GameText(.scoreNoDowns) })
         // the stations flag: «Новая станция» is the primary button on a win
         var q = veteranProfile()
         let s = report(&q, runSummary(won: true, time: 402, kills: 100, beacons: 3, queen: true, tier: 1), newStation: true)
         XCTAssertEqual(s.buttons, [.again, .newStation, .changeClass]); XCTAssertEqual(s.primary, .newStation)
-        XCTAssertEqual(s.scoreNote, "рекорд 9\u{00A0}120")
+        XCTAssertEqual(s.scoreNote, GameText(.reportBest, [.num(9120)]))
+        XCTAssertEqual(s.buttons.map { $0.title }, [GameText(.reportAgain), GameText(.reportNewStation), GameText(.reportChangeClass)])
     }
 
     func testVeteranQueenLossAndLongerLine() {
         var p = veteranProfile()
         var a = p.record(.assault); a.lastT = 190; p.cls[.assault] = a
         let r = report(&p, runSummary(won: false, time: 252, kills: 700, beacons: 3, queen: false, downBy: .queen, tier: 1, stage: .hold))
-        XCTAssertEqual(r.title, "Рой победил")
-        XCTAssertEqual(r.subtitle, "Последний фонарь погас. Связь с отрядом потеряна.")
+        XCTAssertEqual(r.title, GameText(.reportTitleLost))
+        XCTAssertEqual(r.subtitle, GameText(.reportSubLost))
         XCTAssertEqual(r.strip.map { $0.on }, [true, true, true, true, false, false])
         XCTAssertEqual(r.tips, [ReportTip(text: MetaText.lossTips[4], good: false),
-                                ReportTip(text: "Продержались на 1:02 дольше прошлой попытки", good: true)])
+                                ReportTip(text: GameText(.tipLonger, [.clock(62)]), good: true)])
         // a second, shorter loss: no «дольше»
         let r2 = report(&p, runSummary(won: false, time: 200, kills: 500, beacons: 2, downBy: .runner, tier: 1))
         XCTAssertEqual(r2.tips.map { $0.text }, [MetaText.lossTips[0]])
         // a surrender: own subtitle, no tips
         let s = report(&p, runSummary(won: false, surrendered: true, time: 400, kills: 500, beacons: 2, downBy: .runner, tier: 1))
-        XCTAssertEqual(s.subtitle, "Отряд отозван. Маяки погасли один за другим.")
+        XCTAssertEqual(s.subtitle, GameText(.reportSubRecalled))
         XCTAssertTrue(s.tips.isEmpty)
     }
 
@@ -263,7 +267,7 @@ final class ReportModelTests: XCTestCase {
         var p = veteranProfile()
         var a = p.record(.assault); a.lossEarly = 1; p.cls[.assault] = a
         let r = report(&p, runSummary(won: false, time: 95, kills: 300, beacons: 1, downBy: .runner, tier: 1, pressureLoss: true))
-        XCTAssertEqual(r.chip, "Попробуйте «Новобранец»")
+        XCTAssertEqual(r.chip, GameText(.reportChip, [.name(.tier(0))]))
         XCTAssertEqual(r.tips.first?.text, MetaText.pressTip)
         XCTAssertEqual(p.recTip, 1)
     }

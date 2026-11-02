@@ -46,7 +46,8 @@ public final class Marine {
     public let index: Int
     public let cls: MarineClass
     public let spec: ClassSpec
-    public let name: String
+    /// The player (.player) or the squadmate's call-sign, which belongs to its class (.callsign(cls)).
+    public let name: NameRef
     public let isPlayer: Bool
     public internal(set) var mods: Mods
 
@@ -97,7 +98,7 @@ public final class Marine {
     var bite: Float = 3
     var ai = BotAI()
 
-    init(index: Int, cls: MarineClass, name: String, isPlayer: Bool, botDamage: Float) {
+    init(index: Int, cls: MarineClass, name: NameRef, isPlayer: Bool, botDamage: Float) {
         self.index = index
         self.cls = cls
         self.spec = cls.spec

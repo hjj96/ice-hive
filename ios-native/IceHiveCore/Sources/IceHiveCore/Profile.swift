@@ -2,9 +2,10 @@ import Foundation
 
 // ================================================================
 //  META — fighter profile, run score, ranks per class, tier medals and the
-//  mission report model (v1.1 «Ставки», web 11c-meta.js). Pure data and texts:
-//  the app persists the profile (SettingsStore key `profile`) and lays the
-//  report out; every string the player reads is built here so tests pin it.
+//  mission report model (v1.1 «Ставки», web 11c-meta.js). Pure data and typed
+//  text: the app persists the profile (SettingsStore key `profile`), resolves
+//  the GameText / NameRef values through its string catalog and lays the
+//  report out; what the player reads is decided here so tests pin it.
 // ================================================================
 
 /// JS Math.round (half up, also for negatives).
@@ -27,7 +28,6 @@ public struct RunSummary {
     /// 0 Новобранец, 1 Ветеран, 2 Кошмар (-1 the legacy row).
     public var tierIndex: Int
     public var tierMul: Float
-    public var tierName: String
     public var stage: MissionStage
     /// The swarm was converging (pressure past its grace) when the squad fell.
     public var pressureLoss: Bool
@@ -36,14 +36,14 @@ public struct RunSummary {
     public var accuracy: Int
     public var bestCombo: Int
     public var level: Int
-    public var station: String
+    public var station: NameRef
 
     public init(cls: MarineClass, won: Bool, surrendered: Bool, time: Float, playerKills: Int, beaconsDone: Int, queenSpawned: Bool, queenDone: Bool,
-                downs: Int, downBy: DamageSource, tierIndex: Int, tierMul: Float, tierName: String, stage: MissionStage, pressureLoss: Bool,
-                shots: Int, hits: Int, accuracy: Int, bestCombo: Int, level: Int, station: String) {
+                downs: Int, downBy: DamageSource, tierIndex: Int, tierMul: Float, stage: MissionStage, pressureLoss: Bool,
+                shots: Int, hits: Int, accuracy: Int, bestCombo: Int, level: Int, station: NameRef) {
         self.cls = cls; self.won = won; self.surrendered = surrendered; self.time = time; self.playerKills = playerKills
         self.beaconsDone = beaconsDone; self.queenSpawned = queenSpawned; self.queenDone = queenDone; self.downs = downs; self.downBy = downBy
-        self.tierIndex = tierIndex; self.tierMul = tierMul; self.tierName = tierName; self.stage = stage; self.pressureLoss = pressureLoss
+        self.tierIndex = tierIndex; self.tierMul = tierMul; self.stage = stage; self.pressureLoss = pressureLoss
         self.shots = shots; self.hits = hits; self.accuracy = accuracy; self.bestCombo = bestCombo; self.level = level; self.station = station
     }
 }
@@ -51,7 +51,8 @@ public struct RunSummary {
 // ---------- ranks (выслуга = score / 10, cumulative per class, never down) ----------
 public enum Ranks {
     public static let thresholds: [Int] = [0, 300, 900, 1800, 3000, 4600, 6600, 9200, 12500, 16500]
-    public static let names: [String] = ["Рядовой", "Ефрейтор", "Мл. сержант", "Сержант", "Ст. сержант", "Старшина", "Прапорщик", "Лейтенант", "Капитан", "Майор"]
+    /// Rank `r`'s name (catalog rank.1 … rank.10).
+    public static func name(_ r: Int) -> NameRef { .rank(r) }
     public static func rankOf(_ xp: Int) -> Int {
         var r = 0
         while r + 1 < thresholds.count && xp >= thresholds[r + 1] { r += 1 }
@@ -192,7 +193,7 @@ public func effectiveTier(diffPick: Int?, profile: Profile) -> Int {
 
 // ---------- score: only what the player controls (never squad kills or idle time) ----------
 public struct ScorePart: Equatable {
-    public let label: String
+    public let label: GameText
     public let value: Int
 }
 
@@ -203,13 +204,13 @@ public struct RunScore: Equatable {
     public let total: Int
 
     public static func make(_ run: RunSummary) -> RunScore {
-        var parts = [ScorePart(label: "Ваши убийства", value: run.playerKills),
-                     ScorePart(label: "Маяки \(run.beaconsDone)/3", value: run.beaconsDone * 500)]
-        if run.queenSpawned && run.queenDone { parts.append(ScorePart(label: "Матка убита", value: 1000)) }
+        var parts = [ScorePart(label: GameText(.scoreKills), value: run.playerKills),
+                     ScorePart(label: GameText(.scoreBeacons, [.int(run.beaconsDone), .int(3)]), value: run.beaconsDone * 500)]
+        if run.queenSpawned && run.queenDone { parts.append(ScorePart(label: GameText(.scoreQueen), value: 1000)) }
         if run.won {
-            parts.append(ScorePart(label: "Эвакуация", value: 1500))
-            parts.append(ScorePart(label: "Скорость · " + formatTime(run.time), value: max(0, Int(jsRound((480 - Double(run.time)) * 5)))))
-            if run.downs == 0 { parts.append(ScorePart(label: "Без падений", value: 500)) }
+            parts.append(ScorePart(label: GameText(.scoreExtract), value: 1500))
+            parts.append(ScorePart(label: GameText(.scoreSpeed, [.time(run.time)]), value: max(0, Int(jsRound((480 - Double(run.time)) * 5)))))
+            if run.downs == 0 { parts.append(ScorePart(label: GameText(.scoreNoDowns), value: 500)) }
         }
         var raw = 0
         for p in parts { raw += p.value }
@@ -244,64 +245,60 @@ public struct RunResult {
 
 // ---------- texts ----------
 public enum MetaText {
-    /// Thousands grouped with U+00A0 (web fmtN).
-    public static func fmtN(_ v: Int) -> String {
-        let neg = v < 0
-        var digits = String(neg ? -v : v)
-        var out = ""
-        while digits.count > 3 {
-            out = "\u{00A0}" + digits.suffix(3) + out
-            digits.removeLast(3)
-        }
-        return (neg ? "-" : "") + digits + out
-    }
-    /// «×0,8» / «×1,0» / «×1,5».
-    public static func fmtMul(_ m: Float) -> String {
-        let t = Int(jsRound(Double(m) * 10))
-        return "×\(t / 10),\(t % 10)"
-    }
-    public static let lossTips: [String] = [
-        "Бегуны берут числом — держитесь у союзников и стреляйте на ходу",
-        "Плевун: уходите из светящихся кругов кислоты",
-        "Громила: красная полоса — его таран, уходите рывком вбок",
-        "Взрывун: убивайте издалека, не давайте раздуться рядом",
-        "Матка: уходите с полосы тарана и из кислоты, сначала бейте выводок",
+    /// Loss causes by DamageSource (runner, spitter, brute, boomer, the Queen).
+    public static let lossTips: [GameText] = [
+        GameText(.tipLossRunner),
+        GameText(.tipLossSpitter, [.name(.bug(.spitter))]),
+        GameText(.tipLossBrute, [.name(.bug(.brute))]),
+        GameText(.tipLossBoomer, [.name(.bug(.boomer))]),
+        GameText(.tipLossQueen, [.name(.queen)]),
     ]
-    public static let pressTip = "Пока маяк не запущен, улей стягивает рой — не задерживайтесь"
-    public static let promo = "Дальше — «Ветеран»: так задумано. Сложность меняется на главном экране"
-    public static let chip = "Попробуйте «Новобранец»"
-    public static let goalPrefix = "▸ "
-    public static let tierAbbr = ["Н", "В", "К"]
-    /// «на «Ветеране»».
-    public static let tierLoc = ["Новобранце", "Ветеране", "Кошмаре"]
-    /// «эвакуироваться штурмовиком».
-    public static func insCase(_ c: MarineClass) -> String {
-        switch c {
-        case .assault: return "штурмовиком"
-        case .pyro: return "огнемётчиком"
-        case .cryo: return "криотехником"
-        case .gunner: return "пулемётчиком"
-        }
-    }
+    public static let pressTip = GameText(.tipPressure)
+    /// After the first evacuation on Recruit: the next mission is Veteran, as designed.
+    public static let promo = GameText(.tipPromo, [.name(.tier(1))])
+    /// The one-time chip that sets the tier to Recruit.
+    public static let chip = GameText(.reportChip, [.name(.tier(0))])
+    /// Medal pips on the class cards (one letter per tier).
+    public static let tierAbbr: [NameRef] = [.tierAbbr(0), .tierAbbr(1), .tierAbbr(2)]
 
     /// Why it went wrong (nil on a win, a surrender, or a hit from nowhere).
-    public static func lossTip(run: RunSummary, result: RunResult) -> String? {
+    public static func lossTip(run: RunSummary, result: RunResult) -> GameText? {
         if result.won || result.surrendered { return nil }
         if result.pressureLoss { return pressTip }
         let k = run.downBy.rawValue
         return k >= 0 && k < lossTips.count ? lossTips[k] : nil
     }
 
-    /// «Продержались на m:ss дольше прошлой попытки» (a loss longer than the previous loss by more than 5 s).
-    public static func longerLine(run: RunSummary, result: RunResult) -> String? {
+    /// tip.longer: lasted m:ss longer than the last attempt (a loss longer than the previous loss by more than 5 s).
+    public static func longerLine(run: RunSummary, result: RunResult) -> GameText? {
         if run.won || run.surrendered || result.prev.lastT <= 0 || run.time <= Float(result.prev.lastT) + 5 { return nil }
-        return "Продержались на " + formatTime(run.time - Float(result.prev.lastT)) + " дольше прошлой попытки"
+        return GameText(.tipLonger, [.time(run.time - Float(result.prev.lastT))])
+    }
+
+    /// First evacuation of a class: «extract as {class}» (one key per class: other languages decline the class name).
+    public static func firstWinGoal(_ c: MarineClass) -> TextID {
+        switch c {
+        case .assault: return .goalFirstWinAssault
+        case .pyro: return .goalFirstWinPyro
+        case .cryo: return .goalFirstWinCryo
+        case .gunner: return .goalFirstWinGunner
+        }
+    }
+
+    /// A tier medal of a class: «extract as {class} on {tier}» (one key per class).
+    public static func medalGoal(_ c: MarineClass) -> TextID {
+        switch c {
+        case .assault: return .goalMedalAssault
+        case .pyro: return .goalMedalPyro
+        case .cryo: return .goalMedalCryo
+        case .gunner: return .goalMedalGunner
+        }
     }
 
     /// The one goal under the report: the nearest thing the player has not reached yet (`profile` after the commit).
-    public static func nextGoal(profile: Profile, cls: MarineClass, result: RunResult) -> String {
-        let c = profile.record(cls), r = Ranks.rankOf(c.xp), ins = insCase(cls)
-        if c.wins == 0 { return "Цель: эвакуироваться " + ins + " (+1\u{00A0}500 очков)" }
+    public static func nextGoal(profile: Profile, cls: MarineClass, result: RunResult) -> GameText {
+        let c = profile.record(cls), r = Ranks.rankOf(c.xp)
+        if c.wins == 0 { return GameText(firstWinGoal(cls), [.num(1500)]) }
         let T = Ranks.thresholds
         let left = r + 1 < T.count ? T[r + 1] - c.xp : 0
         let n = left > 0 ? max(1, Int((Double(left) / Double(max(150, result.xp))).rounded(.up))) : 0
@@ -309,105 +306,108 @@ public enum MetaText {
         // a medal on this tier first, then the next tier when the next rank is still far away
         var mt = -1
         if c.ev[t] == 0 { mt = t } else if t < 2 && c.ev[t + 1] == 0 && (left == 0 || n > 2) { mt = t + 1 }
-        if mt >= 0 { return "Нашивка: эвакуируйтесь " + ins + " на «" + tierLoc[mt] + "»" }
-        if left > 0 { return "До звания «" + Ranks.names[r + 1] + "» — " + fmtN(left) + " выслуги" }
-        return "Побейте свой рекорд: " + fmtN(c.best)
+        if mt >= 0 { return GameText(medalGoal(cls), [.name(.tier(mt))]) }
+        if left > 0 { return GameText(.goalRank, [.name(.rank(r + 1)), .num(left)]) }
+        return GameText(.goalBest, [.num(c.best)])
     }
 
-    /// Title line: «Штурмовик · Сержант · рекорд 9 120», else «Вылетов: N · эвакуаций: M», nil on a fresh profile.
-    public static func titleProfileLine(profile: Profile, cls: MarineClass) -> String? {
+    /// Title line: class · rank · best score, else «N sorties · M extractions», nil on a fresh profile.
+    public static func titleProfileLine(profile: Profile, cls: MarineClass) -> GameText? {
         let c = profile.record(cls)
-        if c.runs > 0 { return cls.spec.name + " · " + Ranks.names[Ranks.rankOf(c.xp)] + " · рекорд " + fmtN(c.best) }
-        if profile.runs > 0 { return "Вылетов: \(profile.runs) · эвакуаций: \(profile.wins)" }
+        if c.runs > 0 { return GameText(.titleProfile, [.name(.cls(cls)), .name(.rank(Ranks.rankOf(c.xp))), .num(c.best)]) }
+        if profile.runs > 0 {
+            return GameText(.titleProfileRuns, [.text(GameText(.titleRuns, [.int(profile.runs)])), .text(GameText(.titleWins, [.int(profile.wins)]))])
+        }
         return nil
     }
 
-    /// Class card chip «ЗВ. N» (nil until the class has a run).
-    public static func rankChip(profile: Profile, cls: MarineClass) -> String? {
+    /// Class card rank chip (rank number 1…10; nil until the class has a run).
+    public static func rankChip(profile: Profile, cls: MarineClass) -> GameText? {
         let c = profile.record(cls)
-        return c.runs > 0 ? "ЗВ. \(Ranks.rankOf(c.xp) + 1)" : nil
+        return c.runs > 0 ? GameText(.titleRankChip, [.int(Ranks.rankOf(c.xp) + 1)]) : nil
     }
 
     /// Report subtitles (won / surrendered / lost).
-    public static func subtitle(won: Bool, surrendered: Bool, station: String) -> String {
-        if won { return "Отряд поднялся над бездной. " + station + " остаётся рою — но вы живы." }
-        return surrendered ? "Отряд отозван. Маяки погасли один за другим." : "Последний фонарь погас. Связь с отрядом потеряна."
+    public static func subtitle(won: Bool, surrendered: Bool, station: NameRef) -> GameText {
+        if won { return GameText(.reportSubWon, [.name(station)]) }
+        return GameText(surrendered ? .reportSubRecalled : .reportSubLost)
     }
 }
 
 // ---------- mission report model (web buildReport; the app lays it out) ----------
 public struct ReportLine: Equatable {
-    public let label: String
-    public let value: String
+    public let label: GameText
+    public let value: GameText
 }
 
 public struct ReportStripItem: Equatable {
-    public let label: String
+    public let label: GameText
     public let on: Bool
 }
 
 public struct ReportTip: Equatable {
-    public let text: String
+    public let text: GameText
     /// Green («дольше», promo) vs red (loss cause).
     public let good: Bool
 }
 
 public enum ReportButton: Int {
-    /// «Ещё раз» (same class, same station, tier re-evaluated).
+    /// Same class, same station, tier re-evaluated.
     case again
-    /// «Новая станция» (only with the stations flag).
+    /// Only with the stations flag.
     case newStation
-    /// «Сменить класс» (title).
+    /// Back to the title.
     case changeClass
 
-    public var title: String {
+    public var title: GameText {
         switch self {
-        case .again: return "Ещё раз"
-        case .newStation: return "Новая станция"
-        case .changeClass: return "Сменить класс"
+        case .again: return GameText(.reportAgain)
+        case .newStation: return GameText(.reportNewStation)
+        case .changeClass: return GameText(.reportChangeClass)
         }
     }
 }
 
 public struct MissionReport {
     // column A
-    /// «Отчёт миссии · Кельвин-9».
-    public let tag: String
-    /// «Эвакуация успешна» (teal) / «Рой победил» (red).
-    public let title: String
+    /// report.tag: «Mission report · {station}».
+    public let tag: GameText
+    /// report.title.won (teal) / report.title.lost (red).
+    public let title: GameText
     public let won: Bool
     public let surrendered: Bool
-    public let subtitle: String
-    /// МАЯК · МАЯК · МАЯК · ЛИФТ · МАТКА · ЭВАКУАЦИЯ (on = teal on a win, amber on a loss).
+    public let subtitle: GameText
+    /// BEACON · BEACON · BEACON · LIFT · QUEEN · EXTRACTION (on = teal on a win, amber on a loss).
     public let strip: [ReportStripItem]
-    public let scoreLabel: String
-    public let scoreTotal: String
-    /// «Новый рекорд» (amber chip) when `record`, else «рекорд N» (nil on the first run of the class).
-    public let scoreNote: String?
+    public let scoreLabel: GameText
+    /// The run's score (the app groups the digits).
+    public let scoreTotal: Int
+    /// report.record (amber chip) when `record`, else report.best (nil on the first run of the class).
+    public let scoreNote: GameText?
     public let record: Bool
-    /// «{label}» + «+N».
+    /// Label + «+N».
     public let parts: [ReportLine]
-    /// «Ветеран · ×1,0 очков» and its delta «+N» / «−N» / "".
-    public let tierLine: String
-    public let tierDelta: String
-    /// Время / Комбо / Точность / Уровень.
+    /// «{tier} · ×0.8 score» and its delta «+N» / «−N» (nil when the multiplier changed nothing).
+    public let tierLine: GameText
+    public let tierDelta: GameText?
+    /// Time / Combo / Accuracy / Level.
     public let mini: [ReportLine]
     // column B
-    /// «Штурмовик · Сержант» (the app uppercases).
-    public let rankTitle: String
-    /// «+487 выслуги».
-    public let xpLine: String
+    /// «{class} · {rank}» (the app uppercases).
+    public let rankTitle: GameText
+    /// «+487 service XP».
+    public let xpLine: GameText
     public let rankFill: Float
-    /// «Новое звание: Ефрейтор».
-    public let rankUp: String?
-    /// «Новая нашивка: Штурмовик · Новобранец».
-    public let medal: String?
-    /// Loss cause (red), «дольше» (green), promo (green), in this order.
+    /// «New rank: {rank}».
+    public let rankUp: GameText?
+    /// «New badge: {class} · {tier}» (the app draws the diamond before it).
+    public let medal: GameText?
+    /// Loss cause (red), «longer» (green), promo (green), in this order.
     public let tips: [ReportTip]
-    /// «Попробуйте «Новобранец»» (sets the tier to 0 and restarts the class).
-    public let chip: String?
-    /// The next goal (draw `MetaText.goalPrefix` before it in amber).
-    public let goal: String
+    /// report.chip «Try Recruit» (sets the tier to 0 and restarts the class).
+    public let chip: GameText?
+    /// The next goal (the app draws its amber pointer before it).
+    public let goal: GameText
     public let buttons: [ReportButton]
     public let primary: ReportButton
 
@@ -416,15 +416,17 @@ public struct MissionReport {
         let d = run.beaconsDone
         let lift = won || run.stage == .hold || run.stage == .extract
         let on = [d > 0, d > 1, d > 2, lift, won || (run.queenSpawned && run.queenDone), won]
-        let names = ["Маяк", "Маяк", "Маяк", "Лифт", "Матка", "Эвакуация"]
-        let strip = (0..<6).map { ReportStripItem(label: names[$0], on: on[$0]) }
+        let names: [TextID] = [.reportStripBeacon, .reportStripBeacon, .reportStripBeacon, .reportStripLift, .reportStripQueen, .reportStripExtract]
+        let strip = (0..<6).map { ReportStripItem(label: GameText(names[$0]), on: on[$0]) }
         let sc = result.score
-        let note: String? = result.record ? "Новый рекорд" : (result.first ? nil : "рекорд " + MetaText.fmtN(result.prev.best))
-        let parts = sc.parts.map { ReportLine(label: $0.label, value: "+" + MetaText.fmtN($0.value)) }
+        let note: GameText? = result.record ? GameText(.reportRecord) : (result.first ? nil : GameText(.reportBest, [.num(result.prev.best)]))
+        let parts = sc.parts.map { ReportLine(label: $0.label, value: GameText(.fmtPlus, [.num($0.value)])) }
         let dt = sc.total - sc.raw
-        let delta = dt == 0 ? "" : (dt > 0 ? "+" : "\u{2212}") + MetaText.fmtN(abs(dt))
-        let mini = [ReportLine(label: "Время", value: formatTime(stats.time)), ReportLine(label: "Комбо", value: "×\(stats.bestCombo)"),
-                    ReportLine(label: "Точность", value: "\(stats.accuracy)%"), ReportLine(label: "Уровень", value: "\(stats.level)")]
+        let delta: GameText? = dt == 0 ? nil : GameText(dt > 0 ? .fmtPlus : .fmtMinus, [.num(abs(dt))])
+        let mini = [ReportLine(label: GameText(.reportMiniTime), value: GameText(.fmtClock, [.time(stats.time)])),
+                    ReportLine(label: GameText(.reportMiniCombo), value: GameText(.fmtCombo, [.int(stats.bestCombo)])),
+                    ReportLine(label: GameText(.reportMiniAccuracy), value: GameText(.fmtPercent, [.int(stats.accuracy)])),
+                    ReportLine(label: GameText(.reportMiniLevel), value: GameText(.fmtInt, [.int(stats.level)]))]
         let c = profile.record(run.cls)
         let r1 = result.rank1
         var tips: [ReportTip] = []
@@ -435,15 +437,16 @@ public struct MissionReport {
         var buttons: [ReportButton] = [.again]
         if newStationShown { buttons.append(.newStation) }
         buttons.append(.changeClass)
+        let mul = GameText(.fmtMul, [.tenths(Int(jsRound(Double(run.tierMul) * 10)))])
         return MissionReport(
-            tag: "Отчёт миссии · " + run.station,
-            title: won ? "Эвакуация успешна" : "Рой победил", won: won, surrendered: sur,
+            tag: GameText(.reportTag, [.name(run.station)]),
+            title: GameText(won ? .reportTitleWon : .reportTitleLost), won: won, surrendered: sur,
             subtitle: MetaText.subtitle(won: won, surrendered: sur, station: run.station),
-            strip: strip, scoreLabel: "Очки", scoreTotal: MetaText.fmtN(sc.total), scoreNote: note, record: result.record,
-            parts: parts, tierLine: run.tierName + " · " + MetaText.fmtMul(run.tierMul) + " очков", tierDelta: delta, mini: mini,
-            rankTitle: run.cls.spec.name + " · " + Ranks.names[r1], xpLine: "+" + MetaText.fmtN(result.xp) + " выслуги",
-            rankFill: Ranks.fill(xp: c.xp), rankUp: result.rankUp ? "Новое звание: " + Ranks.names[r1] : nil,
-            medal: result.medal ? "Новая нашивка: " + run.cls.spec.name + " · " + run.tierName : nil,
+            strip: strip, scoreLabel: GameText(.reportScore), scoreTotal: sc.total, scoreNote: note, record: result.record,
+            parts: parts, tierLine: GameText(.reportTierLine, [.name(.tier(run.tierIndex)), .text(mul)]), tierDelta: delta, mini: mini,
+            rankTitle: GameText(.reportRankTitle, [.name(.cls(run.cls)), .name(.rank(r1))]), xpLine: GameText(.reportXP, [.num(result.xp)]),
+            rankFill: Ranks.fill(xp: c.xp), rankUp: result.rankUp ? GameText(.reportRankUp, [.name(.rank(r1))]) : nil,
+            medal: result.medal ? GameText(.reportMedal, [.name(.cls(run.cls)), .name(.tier(run.tierIndex))]) : nil,
             tips: tips, chip: result.recTip ? MetaText.chip : nil,
             goal: MetaText.nextGoal(profile: profile, cls: run.cls, result: result),
             buttons: buttons, primary: newGo ? .newStation : .again)

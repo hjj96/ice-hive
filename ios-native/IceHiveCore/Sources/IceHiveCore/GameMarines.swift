@@ -123,7 +123,7 @@ extension Game {
         squadDownBy[marineLastSrc[m.index] + 1] += 1
         if !simOnly {
             emit(.downed(marine: m.index))
-            toast(m.isPlayer ? "Вы ранены — ждите помощи" : m.name + " ранен", .warn)
+            toast(.downToast(m.name), .warn)
             sound(.down, m.x, m.z)
             if m.isPlayer { hitStop(0.3, 0.2); shake(0.4); haptic(.error) }
         }
@@ -140,7 +140,7 @@ extension Game {
                 m.downed = false; m.hp = m.maxHp * difficulty.reviveHp; m.inv = 1.6; m.revive = 0
                 if !simOnly {
                     emit(.revived(marine: m.index))
-                    toast(m.isPlayer ? "Вы снова в строю" : m.name + " в строю", .gold)
+                    toast(.upToast(m.name), .gold)
                     sound(.revive, m.x, m.z)
                 }
             }

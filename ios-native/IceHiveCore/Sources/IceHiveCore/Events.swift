@@ -85,7 +85,7 @@ public enum GameEvent {
     case telegraph(index: Int, shape: TelegraphShape, cause: TelegraphCause, pos: Vec2)
 
     // --- mission flow ---
-    case hordeStarted(size: Int, title: String, subtitle: String)
+    case hordeStarted(size: Int, title: GameText, subtitle: GameText)
     case beaconStarted(index: Int)
     case beaconCompleted(index: Int)
     case liftCalled
@@ -113,9 +113,9 @@ public enum GameEvent {
     case coachEnded
 
     // --- presentation ---
-    case toast(text: String, kind: ToastKind)
+    case toast(text: GameText, kind: ToastKind)
     /// Big centred banner (teal = good news, otherwise red/amber).
-    case banner(title: String, subtitle: String, teal: Bool)
+    case banner(title: GameText, subtitle: GameText, teal: Bool)
     /// Play a sound; pos nil = non-positional. `loud` is the web sfx() 4th argument: nil = not given (full volume),
     /// true = the player's own weapon / ability, false = a bot's (played at half volume).
     case sound(SoundID, pos: Vec2?, loud: Bool?)

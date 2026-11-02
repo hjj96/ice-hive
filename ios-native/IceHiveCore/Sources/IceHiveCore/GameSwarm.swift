@@ -19,8 +19,9 @@ extension Game {
         let T = BUG_SPECS[Int(type)]
         if type != T_RUN && !seen[Int(type)] && !attract && !simOnly {
             seen[Int(type)] = true
-            toast(T.name + ": " + BUG_TIPS[Int(type)], .warn)
-            emit(.bugSeen(type: BugType(rawValue: Int(type)) ?? .runner))
+            let bt = BugType(rawValue: Int(type)) ?? .runner
+            if let tip = GameText.bugTip(bt) { toast(tip, .warn) }
+            emit(.bugSeen(type: bt))
         }
         let k = 0.88 + rng.next() * 0.24
         S.type[i] = type; S.ms[i] = T.mass; S.dead[i] = 0; S.hit[i] = 0; S.bsrc[i] = -1; S.uid[i] = S.uidSeq; S.uidSeq &+= 1
@@ -492,7 +493,7 @@ extension Game {
                 if !simOnly {
                     emit(.healed(marine: b.index, amount: 40, pos: Vec2(kx, kz)))
                     sound(.heal, kx, kz, b.isPlayer)
-                    if b.isPlayer { toast("Аптечка +40", .gold) }
+                    if b.isPlayer { toast(.medkitToast(40), .gold) }
                 }
             }
         }

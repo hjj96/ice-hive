@@ -73,9 +73,10 @@ final class StationTests: XCTestCase {
             var d = SeededRNG(seed: UInt32(truncatingIfNeeded: s))
             XCTAssertEqual(d.nextDouble(), Double(want[0]) / 4_294_967_296)
         }
-        XCTAssertEqual(Stations.name(seed: 0), "Кельвин-9")
-        XCTAssertEqual(Stations.name(seed: 7), "Сектор И-1")
-        XCTAssertEqual(Stations.name(seed: 17), "Сектор Е-2")
+        XCTAssertEqual(Stations.name(seed: 0), .kelvin)
+        // the web's «Сектор И-1» / «Сектор Е-2»: letter 7 and 5 of the generator's twelve, number 1 + (seed >> 4) % 99
+        XCTAssertEqual(Stations.name(seed: 7), .sector(letter: 7, number: 1))
+        XCTAssertEqual(Stations.name(seed: 17), .sector(letter: 5, number: 2))
         XCTAssertEqual(Stations.sanitize(12.9), 12)
         XCTAssertEqual(Stations.sanitize(0), 0)
         XCTAssertEqual(Stations.sanitize(-5), 0)
@@ -87,7 +88,7 @@ final class StationTests: XCTestCase {
 
     func testSeedZeroIsKelvin() {
         let g = StationGenerator().makeLayout(seed: 0), k = KelvinStation().makeLayout(seed: 0)
-        XCTAssertEqual(g.name, "Кельвин-9")
+        XCTAssertEqual(g.name, .kelvin)
         XCTAssertFalse(g.isGenerated)
         XCTAssertEqual(g.pad, SIMD4<Float>(22, 22, 38, 38))
         XCTAssertEqual(g.rects.count, k.rects.count); XCTAssertEqual(g.crates.count, k.crates.count)
@@ -182,7 +183,9 @@ final class StationTests: XCTestCase {
             eq((o["pad"] as? [Any])?.map { d($0) } ?? [], L.pad, "seed \(seed) pad")
             let bs = try XCTUnwrap(o["beacons"] as? [[String: Any]])
             eq(bs.flatMap { [d($0["x"]), d($0["z"])] }, L.beacons.flatMap { [$0.x, $0.z] }, "seed \(seed) beacons")
-            XCTAssertEqual(bs.map { $0["name"] as? String ?? "" }, L.beacons.map { $0.name })
+            // (the web JSON names them in its language; ours are ids in placement order)
+            XCTAssertEqual(bs.count, 3, "seed \(seed) beacon names")
+            XCTAssertEqual(L.beacons.map { $0.name }, [.beacon(0), .beacon(1), .beacon(2)])
             let meta = try XCTUnwrap(o["meta"] as? [String: Any])
             eq((meta["rowH"] as? [Any])?.map { d($0) } ?? [], L.rowH, "seed \(seed) rowH")
             XCTAssertEqual(Int(d(meta["nodes"])), L.nodes)
@@ -192,7 +195,7 @@ final class StationTests: XCTestCase {
             XCTAssertEqual(Int(d(meta["edges"])), L.edges)
             XCTAssertEqual(Int(d(o["attempts"])), L.attempts)
         }
-        XCTAssertEqual(StationGenerator().makeLayout(seed: 7).name, "Сектор И-1")
+        XCTAssertEqual(StationGenerator().makeLayout(seed: 7).name, .sector(letter: 7, number: 1))
     }
 
     func testRasterFingerprintsOfGeneratedSeeds() {

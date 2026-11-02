@@ -32,7 +32,7 @@ final class GameTests: XCTestCase {
         for _ in 0..<(60 * 20) {
             a.tick(); b.tick()
             a.drainEvents { _ in n += 1 }     // b never drains
-            _ = a.laserLength(a.player); _ = a.bugCountNear(a.player.position); _ = a.objectiveText; _ = a.contextHint
+            _ = a.laserLength(a.player); _ = a.bugCountNear(a.player.position); _ = a.objective; _ = a.contextHint
         }
         XCTAssertGreaterThan(n, 100)
         XCTAssertEqual(fingerprint(a), fingerprint(b))
@@ -42,20 +42,24 @@ final class GameTests: XCTestCase {
         let g = Game(seed: 1, playerClass: .cryo)
         XCTAssertEqual(g.marines.count, 4)
         XCTAssertEqual(g.player.cls, .cryo)
-        XCTAssertEqual(g.player.name, "ВЫ")
+        XCTAssertEqual(g.player.name, .player)
         XCTAssertEqual(g.marines.map { $0.cls }, [.cryo, .assault, .pyro, .gunner])
-        XCTAssertEqual(g.marines[1].name, "Кекс")
+        // call-signs belong to the class, not the squad slot
+        XCTAssertEqual(g.marines.map { $0.name }, [.player, .callsign(.assault), .callsign(.pyro), .callsign(.gunner)])
         XCTAssertEqual(g.marines[1].maxHp, 120)
         // default tier: Ветеран (bots at 0.85 of BOT_DMG)
         XCTAssertEqual(g.difficulty.id, "vet")
         XCTAssertEqual(g.marines[1].mods.dmg, BOT_DMG * 0.85, accuracy: 1e-6)
         XCTAssertEqual(g.player.mods.dmg, 1)
-        XCTAssertEqual(g.objectiveText, "Запустите маяки 0/3")
+        XCTAssertEqual(g.objective, GameText(.objLightBeacons, [.int(0), .int(3)]))
         XCTAssertEqual(g.stage, .beacons)
         XCTAssertEqual(g.bugCap, 1400)
         var drained: [GameEvent] = []
         g.drainEvents { drained.append($0) }
-        XCTAssertTrue(drained.contains { if case .banner(let t, let s, _) = $0 { return t == "Высадка" && s == "Кельвин-9 · запустите три маяка" }; return false })
+        XCTAssertTrue(drained.contains {
+            if case .banner(let t, let s, _) = $0 { return t == GameText(.bannerDrop) && s == GameText(.bannerDropSub, [.name(.kelvin)]) }
+            return false
+        })
         XCTAssertTrue(g.events.isEmpty)
     }
 
@@ -198,10 +202,10 @@ final class GameTests: XCTestCase {
         XCTAssertEqual(g.beaconsDone, 1)
         g.debugSkip(); g.debugSkip()
         XCTAssertEqual(g.stage, .toLift)
-        XCTAssertEqual(g.objectiveText, "Лифт вызван — к платформе")
+        XCTAssertEqual(g.objective, GameText(.objLiftCalled))
         g.debugSkip()
         XCTAssertEqual(g.stage, .hold)
-        XCTAssertTrue(g.objectiveText.hasPrefix("Держитесь на лифте · 1:40"))
+        XCTAssertEqual(g.objective, GameText(.objHoldLift, [.clock(100)]))
         g.tick()
         g.debugSkip()   // the Матка dies (or never comes) first
         XCTAssertTrue(g.queen.done)
@@ -246,7 +250,7 @@ final class GameTests: XCTestCase {
         XCTAssertGreaterThan(g.hordes, 0)
         g.step(120)
         XCTAssertGreaterThan(g.beacons[0].progress, 0.005)
-        XCTAssertTrue(g.objectiveText.contains("Альфа"))
+        XCTAssertEqual(g.objective, GameText(.objHoldBeacon, [.name(.beacon(0))]))
         XCTAssertGreaterThan(g.objectiveProgress, 0)
     }
 
@@ -256,7 +260,7 @@ final class GameTests: XCTestCase {
         XCTAssertGreaterThan(g.bugs.count, 100)
         g.step(60 * 30)
         XCTAssertEqual(g.phase, .playing)
-        XCTAssertEqual(g.objectiveText, "")
+        XCTAssertNil(g.objective)
         XCTAssertEqual(g.stage, .beacons)
         XCTAssertFalse(g.hasNonFinite())
         XCTAssertEqual(g.xpLevel, 1)

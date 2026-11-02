@@ -31,7 +31,7 @@ final class QueenTests: XCTestCase {
         let hold0 = g.time
         var warnAt: Float = -1, warnPos = Vec2(0, 0), spawnAt: Float = -1
         var ring: Telegraph? = nil
-        var banners: [String] = [], sounds: [SoundID] = [], haptics: [HapticKind] = []
+        var banners: [GameText] = [], sounds: [SoundID] = [], haptics: [HapticKind] = []
         run(g, seconds: 45, until: { g.queen.spawned }) { e in
             switch e {
             case .queenWarning(let p):
@@ -54,7 +54,7 @@ final class QueenTests: XCTestCase {
         XCTAssertLessThan(warnPos.y - g.level.lift.z, -4, "far side of the lift")
         let L = g.level.lift
         XCTAssertLessThan(hypotf2(warnPos.x - L.x, warnPos.y - L.z), L.r + 1.5)
-        XCTAssertTrue(banners.contains("Матка"))
+        XCTAssertTrue(banners.contains(GameText(.bannerQueen)))
         XCTAssertTrue(sounds.contains(.siren) && sounds.contains(.queen))
         XCTAssertTrue(haptics.contains(.heavy))
         let i = queenSlot(g)
@@ -66,7 +66,7 @@ final class QueenTests: XCTestCase {
         XCTAssertEqual(g.bugs.hpMax[i], 3500 * g.hpMul, accuracy: 0.5)
         XCTAssertEqual(g.threatState, .queen)
         XCTAssertEqual(g.objectiveStyle, .boss)
-        XCTAssertEqual(g.objectiveText, "Убейте Матку · лифт ждёт")
+        XCTAssertEqual(g.objective, GameText(.objKillQueen))
     }
 
     func testOverridesAndDebugQueen() {
@@ -190,7 +190,7 @@ final class QueenTests: XCTestCase {
         g.clearEvents()
         let i = queenSlot(g)
         g.bugs.hp[i] = 4900
-        var hordes: [(Int, String)] = [], enraged = 0
+        var hordes: [(Int, GameText)] = [], enraged = 0
         g.tick()
         g.drainEvents { e in
             if case .hordeStarted(let n, let t, _) = e { hordes.append((n, t)) }
@@ -200,7 +200,7 @@ final class QueenTests: XCTestCase {
         XCTAssertEqual(enraged, 1)
         XCTAssertEqual(g.bugs.spd[queenSlot(g)], 1.5 * 1.35, accuracy: 1e-5)
         XCTAssertEqual(hordes.count, 1)
-        XCTAssertEqual(hordes.first?.1, "Матка в ярости")
+        XCTAssertEqual(hordes.first?.1, GameText(.bannerQueenRage))
         let want = Int((Float(Int((80 * g.hordeScale()).rounded())) * Difficulty.veteran.horde).rounded())
         XCTAssertEqual(hordes.first?.0, want)
         g.step(60)
@@ -219,14 +219,14 @@ final class QueenTests: XCTestCase {
         g.tick()
         let rate = (1.8 + 0.5 * g.time / 60 + 0.5 * 3) * 3.2 * 0.4 * Difficulty.veteran.trickle
         XCTAssertEqual(g.trickle, rate * SIM_DT, accuracy: 1e-4)
-        XCTAssertEqual(g.objectiveText, "Убейте Матку · лифт ждёт")
+        XCTAssertEqual(g.objective, GameText(.objKillQueen))
         XCTAssertEqual(g.objectiveProgress, 1 - g.queen.hpFraction, accuracy: 1e-5)
         XCTAssertLessThan(g.objectiveProgress, 0.01)
         g.debugSetLiftTime(0.01)
         g.step(60 * 10)
         XCTAssertEqual(g.stage, .hold)
         XCTAssertTrue(g.liftLocked)
-        XCTAssertEqual(g.objectiveText, "Лифт заблокирован — Матка жива")
+        XCTAssertEqual(g.objective, GameText(.objLiftLocked))
         // her death releases the lift: the squad leaves 4.6 s later
         let i = queenSlot(g)
         g.killBug(i, 0)
@@ -255,7 +255,8 @@ final class QueenTests: XCTestCase {
             switch e {
             case .queenKilled: order.append("killed")
             case .hitStop: order.append("hitStop")
-            case .banner(let t, let s, let teal): if t == "Матка убита" { XCTAssertEqual(s, "Лифт свободен"); XCTAssertTrue(teal); order.append("banner") }
+            case .banner(let t, let s, let teal):
+                if t == GameText(.bannerQueenDead) { XCTAssertEqual(s, GameText(.bannerQueenDeadSub)); XCTAssertTrue(teal); order.append("banner") }
             case .haptic(.success): order.append("haptic")
             default: break
             }
@@ -318,9 +319,9 @@ final class CoachTests: XCTestCase {
         let g = coachGame()
         g.setPlayerInput(move: Vec2(0, 0), aim: nil, fire: false, ability: false, dash: false)
         var steps: [(Int, Float)] = [(0, 0)]
-        var seen = 0, banners: [String] = []
+        var seen = 0, banners: [GameText] = []
         g.drainEvents { if case .banner(let t, _, _) = $0 { banners.append(t) } }
-        XCTAssertFalse(banners.contains("Высадка"), "no drop banner when coaching")
+        XCTAssertFalse(banners.contains(GameText(.bannerDrop)), "no drop banner when coaching")
         XCTAssertEqual(g.coach.step, 0)
         XCTAssertEqual(g.coach.target, .moveStick)
         XCTAssertFalse(g.showControlHint)
@@ -462,7 +463,9 @@ final class CoachTests: XCTestCase {
         g.step(60 * 8)
         g.debugHurt(marine: 2, hp: 0)
         g.tick()
-        XCTAssertEqual(g.coach.reviveLine, "Тень ранен — встаньте рядом, чтобы поднять")
+        // the call-sign belongs to the downed squadmate's class
+        XCTAssertEqual(g.marines[2].name, .callsign(g.marines[2].cls))
+        XCTAssertEqual(g.coach.reviveLine, GameText(.coachRevive, [.name(.callsign(g.marines[2].cls))]))
         XCTAssertEqual(g.contextHint?.text, g.coach.reviveLine)
         g.step(60 * 6 + 5)
         XCTAssertNil(g.coach.reviveLine)
@@ -474,51 +477,52 @@ final class CoachTests: XCTestCase {
         u.debugHurt(marine: 1, hp: 0)
         u.tick()
         XCTAssertNil(u.coach.reviveLine, "only when armed")
-        XCTAssertEqual(CoachText.reviveLines.count, 3)
+        XCTAssertEqual(CoachText.reviveLines.count, 4, "one per call-sign (every class can be a squadmate)")
     }
 
     func testCardTexts() {
-        XCTAssertEqual(CoachText.text(step: 0, abilityShort: "Граната", keyboard: false), "Левый палец — бег")
-        XCTAssertEqual(CoachText.text(step: 1, abilityShort: "Граната", keyboard: false), "Правый палец — прицел, огонь сам")
-        XCTAssertEqual(CoachText.text(step: 2, abilityShort: "Напалм", keyboard: false), "Напалм — по толпе")
-        XCTAssertEqual(CoachText.text(step: 3, abilityShort: "", keyboard: false), "Рывок — из окружения")
-        XCTAssertEqual(CoachText.text(step: 4, abilityShort: "", keyboard: false), "Маяк — встаньте в кольцо")
-        XCTAssertEqual(CoachText.text(step: 0, abilityShort: "", keyboard: true), "WASD — бег")
-        XCTAssertEqual(CoachText.text(step: 1, abilityShort: "", keyboard: true), "IJKL — прицел и огонь")
-        XCTAssertEqual(CoachText.text(step: 2, abilityShort: "Волна", keyboard: true), "Волна — по толпе (Q)")
-        XCTAssertEqual(CoachText.text(step: 3, abilityShort: "", keyboard: true), "Рывок — из окружения (пробел)")
-        XCTAssertEqual(CoachText.counter(step: 2), "3/5")
+        XCTAssertEqual(CoachText.text(step: 0, cls: .assault, keyboard: false), GameText(.coachMove))
+        XCTAssertEqual(CoachText.text(step: 1, cls: .assault, keyboard: false), GameText(.coachAim))
+        XCTAssertEqual(CoachText.text(step: 2, cls: .pyro, keyboard: false), GameText(.coachAbility, [.name(.abilityShort(.pyro))]))
+        XCTAssertEqual(CoachText.text(step: 3, cls: .assault, keyboard: false), GameText(.coachDash))
+        XCTAssertEqual(CoachText.text(step: 4, cls: .assault, keyboard: false), GameText(.coachBeacon))
+        XCTAssertEqual(CoachText.text(step: 0, cls: .assault, keyboard: true), GameText(.coachMoveKeys))
+        XCTAssertEqual(CoachText.text(step: 1, cls: .assault, keyboard: true), GameText(.coachAimKeys))
+        XCTAssertEqual(CoachText.text(step: 2, cls: .cryo, keyboard: true), GameText(.coachAbilityKeys, [.name(.abilityShort(.cryo))]))
+        XCTAssertEqual(CoachText.text(step: 3, cls: .assault, keyboard: true), GameText(.coachDashKeys))
+        XCTAssertEqual(CoachText.counter(step: 2), GameText(.coachCounter, [.int(3), .int(5)]))
+        XCTAssertEqual(CoachText.skip, GameText(.coachSkip))
     }
 }
 
 final class HudTextTests: XCTestCase {
     func testObjectiveStatesAndHoldHints() {
         let g = tierGame(.veteran, seed: 71, god: true)
-        XCTAssertEqual(g.objectiveText, "Запустите маяки 0/3")
+        XCTAssertEqual(g.objective, GameText(.objLightBeacons, [.int(0), .int(3)]))
         XCTAssertEqual(g.objectiveProgress, -1)
         XCTAssertEqual(g.objectiveStyle, .normal)
         g.debugSkip()
-        XCTAssertEqual(g.objectiveText, "Запустите маяки 1/3")
+        XCTAssertEqual(g.objective, GameText(.objLightBeacons, [.int(1), .int(3)]))
         let b = g.beacons[g.nextBeacon()]
         g.debugTeleport(b.x + 2.5, b.z)
         g.step(30)
-        XCTAssertTrue(g.objectiveText.hasPrefix("Удерживайте маяк «"))
+        XCTAssertEqual(g.objective, GameText(.objHoldBeacon, [.name(g.beacons[g.activeBeacon].name)]))
         XCTAssertGreaterThan(g.objectiveProgress, 0)
         while g.stage != .hold { g.debugSkip() }
-        XCTAssertEqual(g.objectiveText, "Держитесь на лифте · 1:40")
+        XCTAssertEqual(g.objective, GameText(.objHoldLift, [.clock(100)]))
         XCTAssertEqual(g.objectiveProgress, 0, accuracy: 1e-4)
         XCTAssertEqual(g.objectiveStyle, .normal)
         g.debugSetLiftTime(30)
         XCTAssertEqual(g.objectiveProgress, 0.7, accuracy: 1e-4)
         g.debugSkip()
         g.step(10)
-        XCTAssertEqual(g.objectiveText, "Эвакуация!")
+        XCTAssertEqual(g.objective, GameText(.objExtract))
         var c = GameConfig(); c.attract = true
-        XCTAssertEqual(Game(seed: 1, playerClass: .assault, config: c).objectiveText, "")
-        // hold hints per tier (built once per Game)
-        XCTAssertEqual(tierGame(.recruit).holdHint, "Защитный контур лифта бьёт током каждые 5 с")
-        XCTAssertEqual(tierGame(.veteran).holdHint, "Контур бьёт каждые 6 с — у края слабее, держитесь центра")
-        XCTAssertEqual(tierGame(.nightmare).holdHint, "Контур бьёт каждые 7 с — у края слабее, держитесь центра")
+        XCTAssertNil(Game(seed: 1, playerClass: .assault, config: c).objective)
+        // hold hints per tier: the pulse interval, and the falloff variant where the rim is weaker
+        XCTAssertEqual(tierGame(.recruit).holdHint, GameText(.hintPulse, [.int(5)]))
+        XCTAssertEqual(tierGame(.veteran).holdHint, GameText(.hintPulseFalloff, [.int(6)]))
+        XCTAssertEqual(tierGame(.nightmare).holdHint, GameText(.hintPulseFalloff, [.int(7)]))
     }
 
     func testHintPriority() {
@@ -533,18 +537,18 @@ final class HudTextTests: XCTestCase {
         bot.x = P.x + 2; bot.z = P.z; bot.px = bot.x; bot.pz = bot.z
         g.debugHurt(marine: 1, hp: 0)
         g.tick()
-        XCTAssertEqual(g.contextHint?.text, "Кекс ранен — встаньте рядом, чтобы поднять")
+        XCTAssertEqual(g.contextHint?.text, CoachText.reviveLine(.callsign(bot.cls)))
         g.step(60 * 6 + 2)
         let bot2 = g.marines[1]
         if bot2.downed {
             bot2.x = P.x + 2; bot2.z = P.z
-            XCTAssertEqual(g.contextHint?.text, "Встаньте рядом с раненым, чтобы поднять его")
+            XCTAssertEqual(g.contextHint?.text, GameText(.hintReviveNear))
         }
         g.debugHurt(marine: 1, hp: 100)
         // 7. next beacon closer than 9 m
         let b = g.beacons[g.nextBeacon()]
         g.debugTeleport(b.x + 6, b.z)
-        XCTAssertEqual(g.contextHint?.text, "Встаньте в кольцо маяка")
+        XCTAssertEqual(g.contextHint?.text, GameText(.hintStepInRing))
         // 6. active beacon, nobody inside
         g.debugTeleport(b.x + 2, b.z)
         g.tick()
@@ -552,7 +556,7 @@ final class HudTextTests: XCTestCase {
         for m in g.marines { m.x = b.x + 20; m.px = m.x }
         g.tick()
         if g.activeBeacon >= 0 && g.standingIn(b.x, b.z, BEACON_R) == 0 {
-            XCTAssertEqual(g.contextHint?.text, "Вернитесь в кольцо маяка!")
+            XCTAssertEqual(g.contextHint?.text, GameText(.hintBackToRing))
             XCTAssertEqual(g.contextHint?.urgent, true)
         }
         // 8. hold, player off the lift / 9. hold hint in the first 8 s
@@ -561,11 +565,11 @@ final class HudTextTests: XCTestCase {
         XCTAssertEqual(h.contextHint?.text, h.holdHint)
         let L = h.level.lift
         h.debugTeleport(L.x + L.r + 3, L.z)
-        XCTAssertEqual(h.contextHint?.text, "На платформу! Отсчёт стоит")
+        XCTAssertEqual(h.contextHint?.text, GameText(.hintToPlatform))
         XCTAssertEqual(h.contextHint?.urgent, true)
         // 1. the player downed beats everything
         h.debugHurt(marine: 0, hp: 0)
-        XCTAssertEqual(h.contextHint?.text, "Вы ранены — союзники идут на помощь")
+        XCTAssertEqual(h.contextHint?.text, GameText(.hintPlayerDown))
         // 3. coach active → nil
         let c = tierGame(.recruit, seed: 74) { $0.coach = true }
         c.time = 20
@@ -574,14 +578,14 @@ final class HudTextTests: XCTestCase {
 
     func testDropBannerAndStationName() {
         let g = tierGame(.veteran, seed: 75)
-        var sub = ""
-        g.drainEvents { if case .banner("Высадка", let s, _) = $0 { sub = s } }
-        XCTAssertEqual(sub, "Кельвин-9 · запустите три маяка")
-        XCTAssertEqual(g.stationName, "Кельвин-9")
+        var sub: GameText? = nil
+        g.drainEvents { if case .banner(GameText(.bannerDrop), let s, _) = $0 { sub = s } }
+        XCTAssertEqual(sub, GameText(.bannerDropSub, [.name(.kelvin)]))
+        XCTAssertEqual(g.stationName, .kelvin)
         let s = Game(seed: 75, playerClass: .assault, config: GameConfig(), level: Level(source: StationGenerator(), seed: 7))
-        sub = ""
-        s.drainEvents { if case .banner("Высадка", let t, _) = $0 { sub = t } }
-        XCTAssertEqual(sub, "Сектор И-1 · запустите три маяка")
+        sub = nil
+        s.drainEvents { if case .banner(GameText(.bannerDrop), let t, _) = $0 { sub = t } }
+        XCTAssertEqual(sub, GameText(.bannerDropSub, [.name(.sector(letter: 7, number: 1))]))
     }
 
     func testRunSummaryAndStats() {
@@ -596,9 +600,9 @@ final class HudTextTests: XCTestCase {
         XCTAssertEqual(r.downs, 2)
         XCTAssertEqual(r.downBy, .brute)
         XCTAssertEqual(r.tierIndex, 1)
-        XCTAssertEqual(r.tierName, "Ветеран")
+        XCTAssertEqual(r.tierMul, Difficulty.veteran.scoreMul)
         XCTAssertEqual(r.stage, .hold)
-        XCTAssertEqual(r.station, "Кельвин-9")
+        XCTAssertEqual(r.station, .kelvin)
         XCTAssertFalse(r.pressureLoss)
         XCTAssertFalse(g.runSummary(won: true, surrendered: true).surrendered, "a win is never a surrender")
         let st = g.stats

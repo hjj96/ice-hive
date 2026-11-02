@@ -26,7 +26,7 @@ public struct DebugState: CustomStringConvertible {
     public let phase: GamePhase
     public let time: Float
     public let stage: MissionStage
-    public let objective: String
+    public let objective: GameText?
     public let bugsAlive: Int
     public let kills: Int
     public let beaconsDone: Int
@@ -39,7 +39,7 @@ public struct DebugState: CustomStringConvertible {
     // v1.1
     /// Tier id (rec / vet / nm / v10), station name.
     public let tier: String
-    public let station: String
+    public let station: NameRef
     public let threat: ThreatState
     public let pressure: Float
     public let queenSpawned: Bool
@@ -51,7 +51,7 @@ public struct DebugState: CustomStringConvertible {
         let nums = String(format: "t=%6.1f bugs=%d kills=%d beacons=%d liftT=%.1f lvl=%d hordes=%d hp=%.0f pos=(%.1f,%.1f) press=%.1f",
                           time, bugsAlive, kills, beaconsDone, liftT, level, hordes, playerHp, playerPos.x, playerPos.y, pressure)
         let q = queenSpawned ? (queenAlive ? String(format: " queen=%.0f", queenHp) : " queen=dead") : ""
-        return nums + q + " \(phase) stage=\(stage) tier=\(tier) threat=\(threat.rawValue) downed=" + downed.map { $0 ? "1" : "0" }.joined() + " obj=«" + objective + "»"
+        return nums + q + " \(phase) stage=\(stage) tier=\(tier) threat=\(threat.rawValue) downed=" + downed.map { $0 ? "1" : "0" }.joined() + " obj=" + (objective?.description ?? "-")
     }
 }
 
@@ -97,7 +97,7 @@ extension Game {
     public var debugState: DebugState {
         let P = marines[0]
         let qs = queenSlotNow()
-        return DebugState(phase: phase, time: time, stage: stage, objective: objectiveText, bugsAlive: bugs.aliveCount, kills: kills,
+        return DebugState(phase: phase, time: time, stage: stage, objective: objective, bugsAlive: bugs.aliveCount, kills: kills,
                           beaconsDone: beaconsDone, liftT: liftT, level: xpLevel, hordes: hordes, playerHp: P.hp,
                           playerPos: Vec2(P.x, P.z), downed: marines.map { $0.downed },
                           tier: difficulty.id, station: stationName, threat: threatState, pressure: pressure,

@@ -7,7 +7,7 @@ import Foundation
 
 /// Contextual hint line under the objective.
 public struct HintLine: Equatable {
-    public let text: String
+    public let text: GameText
     /// Red (urgent) styling.
     public let urgent: Bool
 }
@@ -38,22 +38,22 @@ public struct MissionStats {
 extension Game {
     public var player: Marine { marines[0] }
 
-    /// Objective line (top centre), empty in attract mode (the app uppercases it).
-    public var objectiveText: String {
-        if attract { return "" }
+    /// Objective line (top centre), nil in attract mode (the app uppercases it).
+    public var objective: GameText? {
+        if attract { return nil }
         let ts = threatState
         switch stage {
         case .beacons:
-            if activeBeacon >= 0 { return "Удерживайте маяк «" + beacons[activeBeacon].name + "»" }
-            if ts == .converging { return "Рой стягивается — к маяку!" }
-            if ts == .waking { return "Улей просыпается — к маяку" }
-            return "Запустите маяки \(beaconsDone)/\(beacons.count)"
+            if activeBeacon >= 0 { return GameText(.objHoldBeacon, [.name(beacons[activeBeacon].name)]) }
+            if ts == .converging { return GameText(.objConvergeBeacon) }
+            if ts == .waking { return GameText(.objWakingBeacon) }
+            return GameText(.objLightBeacons, [.int(beaconsDone), .int(beacons.count)])
         case .toLift:
-            return ts == .converging ? "Рой стягивается — к лифту!" : (ts == .waking ? "Улей просыпается — к лифту!" : "Лифт вызван — к платформе")
+            return GameText(ts == .converging ? .objConvergeLift : (ts == .waking ? .objWakingLift : .objLiftCalled))
         case .hold:
-            if ts == .queen { return liftT <= 0.011 ? "Лифт заблокирован — Матка жива" : "Убейте Матку · лифт ждёт" }
-            return "Держитесь на лифте · " + formatTime(liftT.rounded(.up))
-        case .extract: return "Эвакуация!"
+            if ts == .queen { return GameText(liftT <= 0.011 ? .objLiftLocked : .objKillQueen) }
+            return GameText(.objHoldLift, [.time(liftT.rounded(.up))])
+        case .extract: return GameText(.objExtract)
         }
     }
 
@@ -81,43 +81,42 @@ extension Game {
         return t
     }
 
-    /// The app's own control hint («Левый палец — бег · …») shows during the first 7 s unless the coach runs.
+    /// The app's own control hint (hud.hint.controls) shows during the first 7 s unless the coach runs.
     public var showControlHint: Bool { !attract && !coach.active && time < 7 }
 
     /// The game's own contextual hint (web updateHUD order; the control hint of the first 7 s is the app's).
     public var contextHint: HintLine? {
         let P = marines[0]
         if attract { return nil }
-        if P.downed { return HintLine(text: "Вы ранены — союзники идут на помощь", urgent: true) }
+        if P.downed { return HintLine(text: GameText(.hintPlayerDown), urgent: true) }
         if let r = coach.reviveLine, coach.reviveTime > 0 { return HintLine(text: r, urgent: false) }
         if coach.active { return nil }
         if time < 7 { return nil }
         for k in 1..<marines.count where marines[k].downed && hypotf2(marines[k].x - P.x, marines[k].z - P.z) < 6 {
-            return HintLine(text: "Встаньте рядом с раненым, чтобы поднять его", urgent: false)
+            return HintLine(text: GameText(.hintReviveNear), urgent: false)
         }
         if stage == .beacons && activeBeacon >= 0 {
             let b = beacons[activeBeacon]
-            if standingIn(b.x, b.z, BEACON_R) == 0 { return HintLine(text: "Вернитесь в кольцо маяка!", urgent: true) }
-            if b.contested { return HintLine(text: "Рой в кольце — зарядка замедлена", urgent: true) }
+            if standingIn(b.x, b.z, BEACON_R) == 0 { return HintLine(text: GameText(.hintBackToRing), urgent: true) }
+            if b.contested { return HintLine(text: GameText(.hintRingContested), urgent: true) }
             return nil
         }
         if stage == .beacons && activeBeacon < 0 {
             let b = nextBeacon()
-            if b >= 0 && hypotf2(beacons[b].x - P.x, beacons[b].z - P.z) < 9 { return HintLine(text: "Встаньте в кольцо маяка", urgent: false) }
+            if b >= 0 && hypotf2(beacons[b].x - P.x, beacons[b].z - P.z) < 9 { return HintLine(text: GameText(.hintStepInRing), urgent: false) }
             return nil
         }
-        if stage == .hold && !level.onLift(P.x, P.z) { return HintLine(text: "На платформу! Отсчёт стоит", urgent: true) }
-        if stage == .hold && liftT > LIFT_TIME - 8 { return holdHintLine }
+        if stage == .hold && !level.onLift(P.x, P.z) { return HintLine(text: GameText(.hintToPlatform), urgent: true) }
+        if stage == .hold && liftT > LIFT_TIME - 8 { return HintLine(text: holdHint, urgent: false) }
         return nil
     }
 
-    /// The lift-pulse hint of this tier («Защитный контур лифта бьёт током каждые 5 с» / «Контур бьёт каждые 6 с — …»).
-    public var holdHint: String { holdHintLine.text }
+    /// The lift-pulse hint of this tier (hint.pulse: every N s; hint.pulse_falloff: every N s, weaker at the rim).
+    public var holdHint: GameText { Game.holdHintText(difficulty) }
 
     /// The hold hint of a tier (public: the HUD warms all three).
-    public static func holdHintText(_ d: Difficulty) -> String {
-        let n = Int(d.pulseInterval)
-        return d.pulseFalloff > 0 ? "Контур бьёт каждые \(n) с — у края слабее, держитесь центра" : "Защитный контур лифта бьёт током каждые \(n) с"
+    public static func holdHintText(_ d: Difficulty) -> GameText {
+        GameText(d.pulseFalloff > 0 ? .hintPulseFalloff : .hintPulse, [.int(Int(d.pulseInterval))])
     }
 
     /// Combo counter shown from ×5.
@@ -145,7 +144,7 @@ extension Game {
     public func runSummary(won: Bool, surrendered: Bool) -> RunSummary {
         RunSummary(cls: playerClass, won: won, surrendered: surrendered && !won, time: time, playerKills: playerKills,
                    beaconsDone: beaconsDone, queenSpawned: queen.spawned, queenDone: queen.done, downs: downs, downBy: downBy,
-                   tierIndex: difficulty.index, tierMul: difficulty.scoreMul, tierName: difficulty.name, stage: stage,
+                   tierIndex: difficulty.index, tierMul: difficulty.scoreMul, stage: stage,
                    pressureLoss: pressure >= difficulty.pressureGrace && idleMul > 1,
                    shots: Int(shots.rounded()), hits: Int(hits.rounded()), accuracy: accuracy, bestCombo: bestCombo, level: xpLevel,
                    station: stationName)
