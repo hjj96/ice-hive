@@ -14,7 +14,8 @@ final class FrameTimer {
         maxMs = ms
     }
 
-    @inline(__always) static func now() -> Double { ProcessInfo.processInfo.systemUptime }
+    /// Seconds (uptime); under `-videoStep N` the video clock (FilmCapture: one fixed step per drawn frame).
+    @inline(__always) static func now() -> Double { VideoClock.on ? VideoClock.now : ProcessInfo.processInfo.systemUptime }
 
     func begin() { t0 = FrameTimer.now(); index = 0 }
 

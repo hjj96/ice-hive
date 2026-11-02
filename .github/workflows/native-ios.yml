@@ -786,9 +786,206 @@ jobs:
           path: results/
           retention-days: 7
 
+  # native-vx-video (test branch only): a gameplay film of the current build, without the debug HUD.
+  #  1. live: `simctl io recordVideo` of two demos in real time (video-live-<scene>.mp4, the simulator's own pace);
+  #  2. film: every scene again with -videoStep 60 (each drawn frame advances exactly 1/60 s, the loop waits for the GPU
+  #     instead of skipping) and -film (every 2nd presented frame written as a full-resolution JPEG by the app,
+  #     Metal/Frame/FilmCapture.swift): 30 fps, evenly spaced in game time whatever the runner's speed. The frames go
+  #     to the `videoclips` job (one .mp4 per scene); the report job commits video-* / clip-* with the other results.
+  video:
+    name: video
+    needs: build
+    if: github.ref == 'refs/heads/native-vx-video'
+    runs-on: ${{ vars.NATIVE_MACOS_RUNNER || 'macos-26' }}
+    timeout-minutes: 80
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: ios-native/ci
+      - name: Select Xcode
+        run: ios-native/ci/select_xcode.sh
+      - uses: actions/download-artifact@v4
+        with:
+          name: app
+      - name: Boot simulator
+        id: sim
+        run: |
+          python3 ios-native/ci/pick_simulator.py > sim.txt
+          cat sim.txt
+          udid=$(sed -n 1p sim.txt)
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$udid" || true
+          xcrun simctl bootstatus "$udid" -b
+          xcrun simctl list devices booted
+      - name: Live recordings and film captures
+        env:
+          UDID: ${{ steps.sim.outputs.udid }}
+        run: |
+          # (no -e: a failed launch or capture must not cost the scenes after it)
+          set +e -x
+          mkdir -p results frames
+          cp sim.txt results/video-simulator.txt
+          : > results/video-steps.txt
+          tar -xzf IceHive-app.tgz
+          xcrun simctl install "$UDID" IceHive.app
+          note() { echo "$(date -u +%H:%M:%S) $*" | tee -a results/video-steps.txt; }
+          stop_app() {
+            xcrun simctl terminate "$UDID" "$BUNDLE_ID" || true
+            for _ in 1 2 3 4 5 6 7 8 9 10; do
+              xcrun simctl spawn "$UDID" launchctl list | grep -q 'UIKitApplication:com.hjj96.icehive' || break
+              sleep 1
+            done
+            sleep 1
+          }
+          launch() {  # launch <label> <launch args...> (always landscape right, no sound, no debug HUD)
+            local label=$1; shift
+            xcrun simctl launch --terminate-running-process \
+              --stdout="$PWD/results/video-app-$label.log" --stderr="$PWD/results/video-app-$label-stderr.log" \
+              "$UDID" "$BUNDLE_ID" "$@" -orient right -mute || note "launch $label failed"
+          }
+          wait_line() {  # wait_line <file> <pattern> <max s>
+            local w=0
+            until grep -q -- "$2" "$1" 2>/dev/null; do
+              sleep 1; w=$((w + 1))
+              if [ "$w" -ge "$3" ]; then return 1; fi
+            done
+            return 0
+          }
+          # warm-up: the first launch after the install compiles the Metal shaders (cold cache)
+          launch warmup -demo combat -seed 7
+          wait_line results/video-app-warmup.log 'scene ready' 150 || note "warmup: no scene ready"
+          sleep 8
+          stop_app
+          # 1. live recordings: started once the scene is up, stopped with SIGINT, then the file is finalised
+          live() {  # live <scene> <seconds> <launch args...>
+            local label=$1 secs=$2; shift 2
+            launch "live-$label" "$@"
+            wait_line "results/video-app-live-$label.log" 'scene ready' 150 || note "live $label: no scene ready"
+            sleep 1
+            xcrun simctl io "$UDID" recordVideo --codec=h264 --force "results/video-live-$label.mp4" \
+              > "results/video-live-$label-rec.log" 2>&1 &
+            local pid=$!
+            wait_line "results/video-live-$label-rec.log" 'Recording started' 20 || note "live $label: no 'Recording started' line"
+            sleep "$secs"
+            kill -INT "$pid" 2>/dev/null || true
+            local w=0
+            while kill -0 "$pid" 2>/dev/null && [ "$w" -lt 90 ]; do sleep 1; w=$((w + 1)); done
+            wait "$pid" 2>/dev/null || true
+            note "live $label: recorder done ${w}s after SIGINT: $(ls -la "results/video-live-$label.mp4" 2>&1)"
+            # (GitHub refuses files over 100 MB: the push of the whole results folder would fail)
+            if [ "$(stat -f %z "results/video-live-$label.mp4" 2>/dev/null || echo 0)" -gt 90000000 ]; then
+              note "live $label: over 90 MB, dropped"; rm -f "results/video-live-$label.mp4"
+            fi
+            stop_app
+          }
+          live combat 12 -demo combat -seed 7 -profile veteran -video
+          live beacon 10 -demo punchin -seed 7 -profile veteran -video -punchAt 4
+          # 2. film: <count> = seconds × 30 frames (every 2nd of the 60 steps per second)
+          film() {  # film <scene> <t0> <seconds> <launch args...>
+            local label=$1 t0=$2 secs=$3; shift 3
+            local n=$((secs * 30)) t=$SECONDS log="results/video-app-film-$label.log"
+            launch "film-$label" "$@" -videoStep 60 -film "$label" "$t0" "$n" 2
+            # until all frames are written; give up when the log has not grown for 120 s (a stuck run) or after 20 min
+            local last=-1 same=0
+            while ! grep -q "film $label written" "$log" 2>/dev/null; do
+              sleep 5
+              local sz; sz=$(wc -c < "$log" 2>/dev/null || echo 0)
+              if [ "$sz" = "$last" ]; then same=$((same + 5)); else same=0; last=$sz; fi
+              if [ "$same" -ge 120 ] || [ $((SECONDS - t)) -ge 1200 ]; then note "film $label: gave up (log still for ${same}s)"; break; fi
+            done
+            sleep 2
+            local c
+            c=$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data 2>/dev/null) || c=""
+            mkdir -p "frames/$label"
+            if [ -n "$c" ] && [ -d "$c/Documents/film" ]; then
+              find "$c/Documents/film" -name "$label-*.jpg" -exec mv {} "frames/$label/" \; || true
+            fi
+            note "film $label: $(ls "frames/$label" | wc -l | tr -d ' ') of $n frames in $((SECONDS - t)) s; $(grep -h -E 'film [a-z]+ (start|written)|demo (punchin|queen|extract-cine)|cine (punchin|extraction)|queen (spawn|kill)|phase ' "$log" | tr '\n' '|')"
+            stop_app
+          }
+          film title 0.5 7 -demo title -profile veteran -video
+          film combat 6.5 16 -demo combat -seed 7 -profile veteran -video
+          film beacon 6.5 10 -demo punchin -seed 7 -profile veteran -video -punchAt 9
+          film stress 6.5 11 -demo stress1400 -seed 7 -profile veteran -video
+          film finale 6.5 20 -demo queen -tier 1 -seed 3 -profile veteran -video -queenAt 7 -queenHp 1100
+          film extract 0.5 8 -demo extract-cine -seed 3 -profile veteran -video -liftAt 2
+          du -sh frames/* || true
+          cat results/video-steps.txt
+      - name: Stop
+        if: always()
+        env:
+          UDID: ${{ steps.sim.outputs.udid }}
+        run: |
+          xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
+          ls ~/Library/Logs/DiagnosticReports/ 2>/dev/null | grep -i icehive | head -3 | while read -r f; do
+            cp ~/Library/Logs/DiagnosticReports/"$f" results/video-crash-"$f" || true
+          done
+          ls -la results
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: video-frames
+          path: frames/
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: results-video
+          path: results/
+          retention-days: 3
+
+  # the film frames → one H.264 clip per scene (30 fps, 1920 px wide, CRF 17 — re-encoded higher if a clip would pass
+  # 90 MB) + one full-resolution frame every 2.5 s
+  videoclips:
+    name: videoclips
+    needs: video
+    if: always() && github.ref == 'refs/heads/native-vx-video' && needs.video.result != 'skipped'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: video-frames
+          path: frames
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg > /dev/null
+          ffmpeg -hide_banner -version | head -1
+      - name: Assemble the clips
+        run: |
+          set +e
+          mkdir -p results
+          : > results/clips.txt
+          for d in frames/*/; do
+            [ -d "$d" ] || continue
+            n=$(basename "$d")
+            c=$(find "$d" -name '*.jpg' | wc -l)
+            if [ "$c" -eq 0 ]; then echo "$n: no frames" >> results/clips.txt; continue; fi
+            crf=17
+            while :; do
+              ffmpeg -hide_banner -loglevel error -y -framerate 30 -pattern_type glob -i "$d*.jpg" \
+                -vf "scale=1920:-2:flags=lanczos" -c:v libx264 -preset slow -crf "$crf" -pix_fmt yuv420p -g 30 \
+                -movflags +faststart "results/clip-$n.mp4" || echo "$n: ffmpeg failed (crf $crf)" >> results/clips.txt
+              sz=$(stat -c %s "results/clip-$n.mp4" 2>/dev/null || echo 0)
+              if [ "$sz" -lt 90000000 ] || [ "$crf" -ge 26 ]; then break; fi
+              crf=$((crf + 3))
+            done
+            find "$d" -name '*.jpg' | sort | awk 'NR % 75 == 1' | while read -r f; do cp "$f" "results/frame-$(basename "$f")"; done
+            echo "$n: $c frames, crf $crf, $(du -h "results/clip-$n.mp4" | cut -f1), $(ffprobe -v error -select_streams v:0 -show_entries stream=width,height,nb_frames,r_frame_rate -of csv=p=0 "results/clip-$n.mp4")" >> results/clips.txt
+          done
+          cat results/clips.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: results-videoclips
+          path: results/
+          retention-days: 3
+
   report:
     name: report
-    needs: [core-tests, build, sim-smoke]
+    needs: [core-tests, build, sim-smoke, video, videoclips]
     if: always()
     runs-on: ubuntu-latest
     # the ci-results tree grows with every run: fetching its tip and pushing ~150 MB took 7–10+ min
@@ -826,6 +1023,8 @@ jobs:
           R_CORE: ${{ needs.core-tests.result }}
           R_BUILD: ${{ needs.build.result }}
           R_SMOKE: ${{ needs.sim-smoke.result }}
+          R_VIDEO: ${{ needs.video.result }}
+          R_VCLIPS: ${{ needs.videoclips.result }}
           XCODE: ${{ needs.build.outputs.xcode }}
           RUNNER_DESC: ${{ needs.build.outputs.runner }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -842,6 +1041,8 @@ jobs:
                   "build": os.environ.get("R_BUILD") or "skipped",
                   "sim-smoke": os.environ.get("R_SMOKE") or "skipped",
                   "look-gate": os.environ.get("R_LOOK") or "skipped",
+                  "video": os.environ.get("R_VIDEO") or "skipped",
+                  "videoclips": os.environ.get("R_VCLIPS") or "skipped",
               },
               "xcode": os.environ.get("XCODE", ""),
               "runner": os.environ.get("RUNNER_DESC", ""),
