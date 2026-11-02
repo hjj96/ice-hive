@@ -87,6 +87,7 @@ enum UIArg {
     case str(String)
 }
 
+/// Main thread only (its caches are not locked; TextWarmup resolves its strings before it goes to the background).
 enum L10n {
     /// English number formatting whatever the device region says.
     static let locale = Locale(identifier: "en")

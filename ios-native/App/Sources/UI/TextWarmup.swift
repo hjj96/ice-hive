@@ -16,14 +16,16 @@ import IceHiveCore
 enum TextWarmup {
     private static var started = false
 
-    /// Main thread, once (from loadView).
+    /// Main thread, once (from loadView): the strings are resolved here (L10n is main-thread only), the layout and
+    /// drawing — the part that stalls — run on a background queue.
     static func start() {
         guard !started else { return }
         started = true
         let scale = UIScreen.main.nativeScale
+        let items = build()
         DispatchQueue.global(qos: .utility).async {
             let t0 = FrameTimer.now()
-            let n = run(scale: scale)
+            let n = draw(items, scale: scale)
             AppLog.info(String(format: "text warm-up: %d wrapped strings in %.0f ms", n, (FrameTimer.now() - t0) * 1000))
         }
     }
@@ -39,7 +41,7 @@ enum TextWarmup {
 
     /// Lay out and draw each string wrapped at the widths the HUD uses (toasts are right-aligned with letter spacing,
     /// cards and paragraphs left / centred with line spacing).
-    private static func run(scale: CGFloat) -> Int {
+    private static func build() -> [(NSAttributedString, CGFloat)] {
         var toasts = toastTexts().map { L10n.string($0) }
         toasts += UPGRADES.map { L10n.string(GameText(.toastUpgrade, [.name($0.name)])) }
         let right = NSMutableParagraphStyle()
@@ -87,6 +89,10 @@ enum TextWarmup {
         for (font, style) in [(Fonts.regular, centre), (Fonts.semibold, left)] {
             items.append((NSAttributedString(string: L10n.ui(.titlePremise), attributes: [.font: Fonts.font(font, 13), .kern: CGFloat(0.5), .paragraphStyle: style]), 300))
         }
+        return items
+    }
+
+    private static func draw(_ items: [(NSAttributedString, CGFloat)], scale: CGFloat) -> Int {
         let fmt = UIGraphicsImageRendererFormat()
         fmt.scale = scale
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: 320, height: 120), format: fmt)
