@@ -113,19 +113,24 @@ def check_resources(base, label):
                     texts.append(json.dumps(plistlib.loads(data), ensure_ascii=False, default=str))
                 except Exception:
                     texts.append(data.decode('utf-8', 'ignore'))
-            elif f.endswith(TEXT_EXT) or f.endswith('.nib'):
-                for enc in ('utf-8', 'utf-16'):
+            elif f.endswith(TEXT_EXT):
+                # text: UTF-16 with a byte-order mark (old-style .strings) or UTF-8; anything else is binary (compiled
+                # nibs, asset catalogs …) and has no player-facing words of ours
+                if data[:2] in (b'\xff\xfe', b'\xfe\xff'):
+                    texts.append(data.decode('utf-16', 'ignore'))
+                else:
                     try:
-                        texts.append(data.decode(enc)); break
+                        texts.append(data.decode('utf-8'))
                     except UnicodeDecodeError:
-                        pass
+                        continue
             else:
                 continue
             n += 1
             for t in texts:
                 m = CYR.search(t)
                 if m:
-                    err('cyrillic in %s %s: …%s…' % (label, os.path.relpath(p, base), t[max(0, m.start() - 20):m.start() + 20].replace('\n', ' ')))
+                    snippet = re.sub(r'[\x00-\x1f]', ' ', t[max(0, m.start() - 20):m.start() + 20])
+                    err('cyrillic in %s %s: …%s…' % (label, os.path.relpath(p, base), snippet))
                     break
     notes.append('%s text files scanned: %d' % (label, n))
 

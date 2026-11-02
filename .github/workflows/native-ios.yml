@@ -221,7 +221,7 @@ jobs:
           if python3 "$GITHUB_WORKSPACE/ios-native/ci/check_strings.py" --bundle "$app" > "$GITHUB_WORKSPACE/results/strings-release.txt"; then
             echo "ok   strings + bundle (ci/check_strings.py --bundle)" >> "$out"
           else
-            echo "FAIL strings + bundle: $(grep -m 3 ERROR "$GITHUB_WORKSPACE/results/strings-release.txt" | tr '\n' ' ')" >> "$out"; fail=1
+            echo "FAIL strings + bundle: $(grep -a -m 3 ERROR "$GITHUB_WORKSPACE/results/strings-release.txt" | tr '\n' ' ')" >> "$out"; fail=1
           fi
           check CFBundleIdentifier "$(plutil -extract CFBundleIdentifier raw "$pl")" "$BUNDLE_ID"
           check ITSAppUsesNonExemptEncryption "$(plutil -extract ITSAppUsesNonExemptEncryption raw "$pl")" false
