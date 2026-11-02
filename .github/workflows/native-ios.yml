@@ -1,6 +1,6 @@
 name: native-ios
 
-# Native build of «Ледяной Улей» 2.0 (ios-native/): Swift, the world drawn with Metal, HUD / menus as a SpriteKit
+# Native build of Ice Hive 2.0 (ios-native/): Swift, the world drawn with Metal, HUD / menus as a SpriteKit
 # scene in the same Metal pass. Results of every run are committed to branch `ci-results` under <branch>/<short-sha>/:
 #   status.json, core-tests.log, core-perf.log, calib.txt / calib.jsonl (v1.1 balance gate), build.log, release-check.txt,
 #   metrics.txt, fps.txt, hitches.txt, <demo>-<s>s.png (upright landscape: the app is landscape-only), other-phones.txt,
@@ -125,6 +125,12 @@ jobs:
           echo "runner=${ImageOS:-unknown} ${ImageVersion:-} $(uname -m) macOS $(sw_vers -productVersion)" >> "$GITHUB_OUTPUT"
           xcrun simctl list runtimes
           xcrun simctl list devices available | grep -E 'iPhone|-- iOS' || true
+      # L10n gate (no simulator): no Cyrillic in shipped Swift literals / resources, every TextID, UIText and name key
+      # in Localizable.xcstrings with an English value, format specifiers matching the argument kinds, Info.plist en
+      - name: String table check
+        run: |
+          mkdir -p results
+          python3 ios-native/ci/check_strings.py | tee results/strings.txt
       - name: Install XcodeGen
         run: brew install xcodegen && xcodegen --version
       - name: Generate project
@@ -207,7 +213,16 @@ jobs:
           check() { if [ "$2" = "$3" ]; then echo "ok   $1 = $2" >> "$out"; else echo "FAIL $1 = '$2' (want '$3')" >> "$out"; fail=1; fi; }
           pl="$app/Info.plist"
           check CFBundleShortVersionString "$(plutil -extract CFBundleShortVersionString raw "$pl")" 2.0.0
-          check CFBundleDisplayName "$(plutil -extract CFBundleDisplayName raw "$pl")" "Ледяной Улей"
+          check CFBundleDisplayName "$(plutil -extract CFBundleDisplayName raw "$pl")" "Ice Hive"
+          check CFBundleDevelopmentRegion "$(plutil -extract CFBundleDevelopmentRegion raw "$pl")" en
+          check CFBundleLocalizations "$(plutil -extract CFBundleLocalizations json -o - "$pl" | tr -d ' \n')" '["en"]'
+          check en.lproj "$(test -f "$app/en.lproj/Localizable.strings" && test -f "$app/en.lproj/Localizable.stringsdict" && echo compiled)" compiled
+          # the bundle's text resources carry no Cyrillic (fonts excepted) and the catalog was compiled, not copied
+          if python3 "$GITHUB_WORKSPACE/ios-native/ci/check_strings.py" --bundle "$app" > "$GITHUB_WORKSPACE/results/strings-release.txt"; then
+            echo "ok   strings + bundle (ci/check_strings.py --bundle)" >> "$out"
+          else
+            echo "FAIL strings + bundle: $(grep -m 3 ERROR "$GITHUB_WORKSPACE/results/strings-release.txt" | tr '\n' ' ')" >> "$out"; fail=1
+          fi
           check CFBundleIdentifier "$(plutil -extract CFBundleIdentifier raw "$pl")" "$BUNDLE_ID"
           check ITSAppUsesNonExemptEncryption "$(plutil -extract ITSAppUsesNonExemptEncryption raw "$pl")" false
           check UIRequiredDeviceCapabilities "$(plutil -extract UIRequiredDeviceCapabilities json -o - "$pl" | tr -d ' \n')" '["arm64"]'
@@ -495,8 +510,16 @@ jobs:
           # the other landscape side (Dynamic Island on the right): the screenshot turns the other way
           run_demo title-left 5 "-demo title -profile veteran -orient left -layoutCheck" 0
           # LAND: every screen laid out on the four landscape phones (874x402, 932x430, 844x390, 667x375) with their
-          # safe areas, «layout sizes: N ok, 0 FAIL» (not a frame-gate demo: it builds ~40 screens in one go)
+          # safe areas, «layout sizes: N ok, 0 FAIL» (not a frame-gate demo: it builds ~44 screens in one go), with the
+          # text-fits-container checks; then the same pseudo-localised (L10n: accents, +35 % length, brackets), and a few
+          # pseudo-localised screens to look at (title, HUD with the hold hint, coach card, level-up, report)
           run_demo layout 3 "-demo layout -seed 7" 0
+          run_demo layout-pseudo 3 "-demo layout -seed 7 -pseudoLoc 1.35" 0
+          run_demo title-pseudo 5 "-demo title -profile veteran -pseudoLoc 1.35 -layoutCheck" 0
+          run_demo holdhint-pseudo 8 "-demo holdhint -seed 3 -pseudoLoc 1.35 -layoutCheck" 0
+          run_demo coach3-pseudo 6 "-demo coach -coachStep 2 -seed 7 -pseudoLoc 1.35 -layoutCheck" 0
+          run_demo levelup-pseudo 4 "-demo levelup -seed 5 -pseudoLoc 1.35 -layoutCheck" 0
+          run_demo report-pseudo 4 "-demo report -report first -seed 5 -pseudoLoc 1.35 -layoutCheck" 0
           # horde ingredients one by one (overlay, banner, shake, sounds, haptic, horde) every 4 s: hitch attribution
           run_demo probe 26 "-demo probe -seed 7"
           # lift: holding out on the platform, then the extraction pinned at +2 s (gore rides up with the deck)
@@ -610,7 +633,9 @@ jobs:
           for d in $demos; do grep -H -E 'hb t=.* gap=([5-9][0-9]|[0-9]{3,})ms' "results/app-$d.log" | sed -E 's/ (mode|bugs|vis|parts|stage|hp|kills|mem|avail|demo|rend|cpu|main|dc|inst|tris)=[^ ]*//g' >> results/hitches.txt || true; done
           python3 ios-native/ci/frame_metrics.py --cold firstlaunch --cold-max-ms 150 --menus "$MENUS" results $demos > results/metrics.txt || true
           # v1.1 lines (start, title, threat, queen, lift lock, coach, run) and the layout checks (+ the four-phone run)
-          for d in $demos layout; do grep -H -E 'v11 |layout (ok|FAIL)|layout sizes|report: tightest|hint 2 lines' "results/app-$d.log" >> results/v11.txt || true; done
+          for d in $demos layout layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo; do
+            grep -H -E 'v11 |layout (ok|FAIL)|layout sizes|report: tightest|hint 2 lines|l10n ' "results/app-$d.log" >> results/v11.txt || true
+          done
           cat results/alive.txt results/loading.txt results/fps.txt results/shots.txt results/hitches.txt results/metrics.txt results/v11.txt
       - name: Verify app is alive and rendered
         run: |
@@ -633,6 +658,7 @@ jobs:
             if grep -q 'ERROR' "results/app-$d.log"; then fail "$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; fi
           done
           for d in title-fresh title-return title-nm layout holdhint queenlock coach coach3 pressure pressure-amber pause-nm report-first report-win report-loss report-chip stress1400 punchin extract-cine bugsheet calm-bright \
+                   layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo \
                    swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud calm-deckmask calm-bright-nohud \
                    burst-fire burst-tight burst-combat burst-anim burst-bugs validate-stress validate-fxpeak validate-extract lifecycle; do
             grep -q 'scene ready' "results/app-$d.log" || { fail "$d: no 'scene ready'"; }
@@ -656,7 +682,7 @@ jobs:
           need queen 'v11 queen spawn .*uid=[1-9][0-9]* hp='
           need queen 'v11 threat 3'
           need queenlock 'v11 lift locked'
-          need holdhint 'hint 2 lines .*КОНТУР БЬЁТ КАЖДЫЕ 6 С —'
+          need holdhint 'hint 2 lines .*GRID HITS EVERY 6 SEC —'
           need report-first 'v11 run tier=rec won=1 .*medal=1'
           need report-win 'v11 run tier=vet won=1 .*rank=2→3'
           need report-loss 'v11 run tier=vet won=0 .*downBy=4'
@@ -680,7 +706,7 @@ jobs:
           # iPhone 12: 1400 at «высокая»); the particle compute pipelines are built with the render pipelines, so the
           # cover's warm-up already goes through the GPU path
           need stress1400 'cap 1400\)'
-          need combat 'bug cap 1400 \(Графика [a-z]+ 1400, device 1400\)'
+          need combat 'bug cap 1400 \(graphics [a-z]+ 1400, device 1400\)'
           need combat 'particles: compute ready .* with the pipelines'
           # Metal API validation runs: alive, no debug-layer report
           for d in validate-stress validate-fxpeak validate-extract; do
@@ -709,12 +735,21 @@ jobs:
             need "$d" 'scene presented size=[0-9]+x[0-9]+ iface=landscape'
             if grep -q -E 'iface=portrait' "results/app-$d.log"; then fail "$d: portrait interface"; fi
           done
-          for d in title-fresh title-return title-nm title-left holdhint coach coach3 levelup pause pause-nm report-first report-win report-loss report-chip layout; do
+          for d in title-fresh title-return title-nm title-left holdhint coach coach3 levelup pause pause-nm report-first report-win report-loss report-chip layout \
+                   layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo; do
             need "$d" 'layout (ok|FAIL)'
             if grep -q 'layout FAIL' "results/app-$d.log"; then fail "$d: $(grep -m 2 'layout FAIL' "results/app-$d.log" | tr '\n' ' ')"; fi
           done
-          # the four landscape phones (LayoutSizes): 4 × (3 titles + HUD + pause + level-up + 4 reports) = 40 checks
-          need layout 'layout sizes: 40 ok, 0 FAIL on 4 phones'
+          # the four landscape phones (LayoutSizes): 4 × (3 titles + HUD + pause + 2 level-ups + 4 reports) = 44 checks, in
+          # English and pseudo-localised (+35 %)
+          need layout 'layout sizes: 44 ok, 0 FAIL on 4 phones'
+          need layout-pseudo 'layout sizes: 44 ok, 0 FAIL on 4 phones'
+          # L10n: every key resolved (the audit of the layout demos), and no run ever looked up a key the catalog lacks
+          need layout 'l10n audit: [0-9]+ keys, 0 missing'
+          need layout-pseudo 'l10n audit: [0-9]+ keys, 0 missing'
+          if grep -l 'l10n missing' results/app-*.log > /dev/null 2>&1; then
+            fail "l10n missing: $(grep -h -m 1 'l10n missing' results/app-*.log | sort -u | head -5 | tr '\n' ' ')"
+          fi
           grep -q 'failure screen shown' results/app-failmetal.log || { fail "-failMetal: no failure screen"; }
           if [ -s results/app-release-quiet.log ]; then fail "plain Release launch wrote to stdout: $(head -3 results/app-release-quiet.log)"; fi
           cat results/verify.txt
@@ -747,8 +782,13 @@ jobs:
             dev=$(xcrun simctl create "layout $tag" "$dt" "$rt" 2>/dev/null) || { echo "== $tag: not available on $rt" | tee -a results/other-phones.txt; continue; }
             xcrun simctl boot "$dev" && xcrun simctl bootstatus "$dev" -b
             xcrun simctl install "$dev" IceHive.app
-            for d in "title-return|3|-demo title -profile veteran" "holdhint|8|-demo holdhint -seed 3" "coach3|6|-demo coach -coachStep 2 -seed 7" \
-                     "pause|3|-demo pause -seed 5" "levelup|3|-demo levelup -seed 5" "report-win|3|-demo report -report win -seed 5"; do
+            # (L10n: the beacon defence for its toast, hint and objective line, every report variant, and on the SE the
+            # pseudo-localised title: every screen and moment in English on every phone)
+            runs=("title-return|3|-demo title -profile veteran" "holdhint|8|-demo holdhint -seed 3" "coach3|6|-demo coach -coachStep 2 -seed 7"
+                  "pause|3|-demo pause -seed 5" "levelup|3|-demo levelup -seed 5" "report-win|3|-demo report -report win -seed 5"
+                  "beacon|8|-demo beacon -seed 7" "report-loss|3|-demo report -report loss -seed 5" "report-first|3|-demo report -report first -seed 5")
+            if [ "$tag" = se ]; then runs+=("title-pseudo|3|-demo title -profile veteran -pseudoLoc 1.35"); fi
+            for d in "${runs[@]}"; do
               label="other-$tag-${d%%|*}"; rest="${d#*|}"; secs="${rest%%|*}"; args="${rest#*|}"
               # shellcheck disable=SC2086
               xcrun simctl launch --terminate-running-process --stdout="$PWD/results/app-$label.log" --stderr="$PWD/results/app-$label-stderr.log" \
@@ -765,6 +805,7 @@ jobs:
           done
           cat results/other-phones.txt
           if grep -q 'layout FAIL' results/other-phones.txt; then echo "::error::layout FAIL on another phone: $(grep -m 3 'layout FAIL' results/other-phones.txt | tr '\n' ' ')"; exit 1; fi
+          if grep -h 'l10n missing' results/app-other-*.log 2>/dev/null | head -3 | grep -q .; then echo "::error::l10n missing on another phone"; exit 1; fi
       - name: Collect crash logs and stop
         if: always()
         env:
