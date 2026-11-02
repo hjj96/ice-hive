@@ -3,14 +3,14 @@ import UIKit
 import IceHiveCore
 
 // ================================================================
-//  TITLE — the attract-mode station runs behind; class choice + «В бой».
+//  TITLE — the attract-mode station runs behind; class choice + «Deploy».
 //  v1.1 (web D layout): the fighter's profile line instead of the old
-//  record, a rank chip «ЗВ. N» and Н·В·К medal pips on every class card
-//  that has a run, and the one-tap tier row СЛОЖНОСТЬ (НОВОБРАНЕЦ ·
-//  ВЕТЕРАН · КОШМАР, ≥ 44 pt) with the chosen tier's line beside it. The
+//  record, a rank chip «RANK N» and R·V·N medal pips on every class card
+//  that has a run, and the one-tap tier row DIFFICULTY (RECRUIT ·
+//  VETERAN · NIGHTMARE, ≥ 44 pt) with the chosen tier's line beside it. The
 //  premise paragraph hides after the first mission. Landscape-only
 //  (LAND): logo across the top, the four class cards in a row, the tier
-//  row, the hint + profile line left of «Звук» / «В бой»; the attract
+//  row, the hint + profile line left of «Sound» / «Deploy»; the attract
 //  camera puts the squad in the free space right of the logo. On a short
 //  screen the layout drops the control hint, then the premise, then
 //  tightens.
@@ -22,15 +22,15 @@ final class TitleScreen {
         let profile: Profile
         /// The tier the next mission plays (`effectiveTier`): the selected segment.
         let tier: Int
-        let station: String
+        let station: NameRef
     }
     let root = SKNode()
     private let shade = SKSpriteNode(color: UIPalette.rgba(5, 7, 10, 0.5), size: CGSize(width: 10, height: 10))
     private var content = SKNode()
     private var cards: [(MarineClass, CGRect, SKSpriteNode)] = []
     private var tierRects: [CGRect] = []
-    private let go = MenuButton("В бой", style: .go)
-    private let sound = MenuButton("Звук: вкл", style: .ghost)
+    private let go = MenuButton(L10n.ui(.titleGo), style: .go)
+    private let sound = MenuButton(MenuScreen.onOff(.menuSound, true), style: .ghost)
     private(set) var selected: MarineClass = .assault
 
     init() {
@@ -88,8 +88,9 @@ final class TitleScreen {
         content.addChild(hz)
         check.add("hazard", CGRect(x: left, y: y - 6, width: cw, height: 6))
         y -= 18
-        let opMeta = Label("ОПЕРАЦИЯ «ХОЛОДНЫЙ СВЕТ»", font: Fonts.mono, size: 11, color: UIPalette.teal, kern: 1.3, align: .left)
-        let stMeta = Label(meta.station.uppercased() + " · −94 °C", font: Fonts.mono, size: 11, color: UIPalette.inkDim, kern: 1.3, align: .right)
+        let opMeta = Label(L10n.upper(L10n.ui(.titleOperation)), font: Fonts.mono, size: 11, color: UIPalette.teal, kern: 1.3, align: .left)
+        let stMeta = Label(L10n.upper(L10n.ui(.titleStation, .str(L10n.name(meta.station)))), font: Fonts.mono, size: 11, color: UIPalette.inkDim,
+                           kern: 1.3, align: .right)
         // narrow phones (375 pt): both meta labels a little smaller rather than touching
         let metaW = opMeta.width + stMeta.width
         if metaW + 12 > cw {
@@ -106,21 +107,21 @@ final class TitleScreen {
         if compact { ts *= 0.84 }
         // the logo's line box is ≈ 1.26 × its size (Oswald), centred on y: its top 3 pt under the meta row
         y -= max(compact ? 30 : 36, 11 + 0.63 * ts)
-        let t1 = Label("ЛЕДЯНОЙ", font: Fonts.bold, size: ts, color: UIPalette.ink, kern: 1, align: .left)
+        let logo2 = L10n.upper(L10n.ui(.titleLogo2))
+        let t1 = Label(L10n.upper(L10n.ui(.titleLogo1)), font: Fonts.bold, size: ts, color: UIPalette.ink, kern: 1, align: .left)
         t1.node.position = CGPoint(x: left, y: y)
         content.addChild(t1.node)
         check.add("title#1", node: t1.node)
-        let t2 = Label("УЛЕЙ", font: Fonts.bold, size: ts, color: UIPalette.amber, kern: 1, align: .left)
+        let t2 = Label(logo2, font: Fonts.bold, size: ts, color: UIPalette.amber, kern: 1, align: .left)
         t2.stroke = UIPalette.amber
-        t2.set("УЛЕЙ", force: true)
+        t2.set(logo2, force: true)
         t2.node.position = CGPoint(x: left + t1.width + ts * 0.25, y: y)
         content.addChild(t2.node)
         check.add("title#2", node: t2.node)
         y -= ts * 0.55 + 6
         // the story paragraph: for a new player only (web: hidden on phones after the first run)
         if prof.runs == 0 && level < 2 {
-            let premise = paragraph("Станция замолчала шесть часов назад. Под решётками шевелится рой. Запустите три маяка, вызовите грузовой лифт и продержитесь до эвакуации.",
-                                    font: Fonts.regular, size: 13, color: UIPalette.inkDim, width: cw, align: .left)
+            let premise = paragraph(L10n.ui(.titlePremise), font: Fonts.regular, size: 13, color: UIPalette.inkDim, width: cw, align: .left)
             premise.horizontalAlignmentMode = .left
             premise.position = CGPoint(x: left, y: y)
             content.addChild(premise)
@@ -130,7 +131,7 @@ final class TitleScreen {
             y -= 2
         }
         y -= (extra * 0.4).rounded()
-        let lab = Label("ВЫБЕРИТЕ КЛАСС", font: Fonts.medium, size: 12, color: UIPalette.amber, kern: 3.1, align: .left)
+        let lab = Label(L10n.upper(L10n.ui(.titleChooseClass)), font: Fonts.medium, size: 12, color: UIPalette.amber, kern: 3.1, align: .left)
         lab.node.position = CGPoint(x: left, y: y - 6)
         content.addChild(lab.node)
         check.add("classLabel", node: lab.node)
@@ -172,8 +173,10 @@ final class TitleScreen {
                 mx = tx + idx.width + 6
             }
             if hasMeta, let rk = MetaText.rankChip(profile: prof, cls: c) {
-                // «ЗВ. N»: teal, a thin teal-dim outline (web .cc-rk)
-                let chipL = Label(rk, font: Fonts.monoBold, size: 11, color: UIPalette.teal, align: .left)
+                // «RANK N»: teal, a thin teal-dim outline (web .cc-rk)
+                let chipL = Label(L10n.upper(L10n.string(rk)), font: Fonts.monoBold, size: 11, color: UIPalette.teal, align: .left)
+                MenuScreen.fit(chipL, max(24, cardW * 0.32), minSize: 7)
+                check.text("text.rankchip." + c.id, width: chipL.width, room: max(24, cardW * 0.32))
                 let cwid = chipL.width + 8
                 let box = Shapes.panel(width: cwid, height: 16, cut: 0, fill: .clear, stroke: UIPalette.tealDim)
                 box.position = CGPoint(x: mx, y: rowY + 8)
@@ -182,14 +185,15 @@ final class TitleScreen {
                 chipL.node.position = CGPoint(x: mx + 4, y: rowY)
                 content.addChild(chipL.node)
                 mx += cwid + 6
-                // Н · В · К: amber when that tier was evacuated with this class (web .cc-ev)
+                // R · V · N: amber when that tier was evacuated with this class (web .cc-ev)
                 for i in 0..<3 {
                     let on = rec.ev[i] > 0
                     let pip = Shapes.panel(width: 13, height: 15, cut: 0, fill: on ? UIPalette.amber : .clear, stroke: on ? nil : UIPalette.line)
                     pip.position = CGPoint(x: mx, y: rowY + 7.5)
                     pip.zPosition = -0.5   // the letter stays on top of an amber pip
                     content.addChild(pip)
-                    let pl = Label(MetaText.tierAbbr[i], font: Fonts.monoBold, size: 10, color: on ? UIPalette.bg : UIPalette.inkFaint)
+                    let pl = Label(L10n.upper(L10n.name(MetaText.tierAbbr[i])), font: Fonts.monoBold, size: 10, color: on ? UIPalette.bg : UIPalette.inkFaint)
+                    TextFit.scale(pl, 11)
                     pl.node.position = CGPoint(x: mx + 6.5, y: rowY)
                     content.addChild(pl.node)
                     mx += 15
@@ -200,16 +204,25 @@ final class TitleScreen {
             ln.anchorPoint = CGPoint(x: 1, y: 0.5)
             ln.position = CGPoint(x: x + cardW - 12, y: rowY)
             content.addChild(ln)
-            let name = Label(c.spec.name.uppercased(), font: Fonts.bold, size: 15, color: sel ? UIPalette.white : UIPalette.ink, kern: 0.7, align: .left)
+            let name = Label(L10n.upper(L10n.name(.cls(c))), font: Fonts.bold, size: 15, color: sel ? UIPalette.white : UIPalette.ink, kern: 0.7, align: .left)
             MenuScreen.fit(name, cardW - 20)
+            check.text("text.class." + c.id, width: name.width, room: cardW - 20)
             name.node.position = CGPoint(x: tx, y: top - (compact ? 26 : 28))
             content.addChild(name.node)
-            let weapon = Label(c.spec.weapon, font: Fonts.regular, size: 12, color: UIPalette.inkDim, align: .left)
+            let weapon = Label(L10n.name(.weapon(c)), font: Fonts.regular, size: 12, color: UIPalette.inkDim, align: .left)
+            MenuScreen.fit(weapon, cardW - 20, minSize: 8)
+            check.text("text.weapon." + c.id, width: weapon.width, room: cardW - 20)
             weapon.node.position = CGPoint(x: tx, y: top - (compact ? 41 : 45))
             content.addChild(weapon.node)
-            let ab = Label("◆ " + c.spec.ability, font: Fonts.medium, size: 12, color: UIPalette.amber, kern: 0.3, align: .left)
-            MenuScreen.fit(ab, cardW - 20)
-            ab.node.position = CGPoint(x: tx, y: top - (compact ? 55 : 62))
+            // the diamond from JetBrains Mono (Oswald has no ◆), then the ability
+            let dia = Label(Glyphs.diamond, font: Fonts.monoBold, size: 10, color: UIPalette.amber, align: .left)
+            dia.node.position = CGPoint(x: tx, y: top - (compact ? 55 : 62))
+            content.addChild(dia.node)
+            let abx = dia.width + 5
+            let ab = Label(L10n.name(.ability(c)), font: Fonts.medium, size: 12, color: UIPalette.amber, kern: 0.3, align: .left)
+            MenuScreen.fit(ab, cardW - 20 - abx, minSize: 8)
+            check.text("text.ability." + c.id, width: ab.width, room: cardW - 20 - abx)
+            ab.node.position = CGPoint(x: tx + abx, y: top - (compact ? 55 : 62))
             content.addChild(ab.node)
             let r = CGRect(x: x, y: top - cardH, width: cardW, height: cardH)
             cards.append((c, r, panel))
@@ -219,17 +232,21 @@ final class TitleScreen {
         let rows = (MarineClass.allCases.count + perRow - 1) / perRow
         y -= CGFloat(rows) * (cardH + gap) + 6
 
-        // tier row (web .t-tier): СЛОЖНОСТЬ + rule, three segments, the chosen tier's line
+        // tier row (web .t-tier): DIFFICULTY + rule, three segments, the chosen tier's line
         y -= (extra * 0.3).rounded()
         y = tierRow(left: left, cw: cw, y: y, compact: compact, tier: meta.tier, narrow: W <= 700, check: &check)
         y -= (extra * 0.3).rounded()
 
-        // «В бой» + «Звук» (web .t-actions), then the control hint and the profile line
-        sound.setText("Звук: " + (soundOn ? "вкл" : "выкл"))
-        let profLine = MetaText.titleProfileLine(profile: prof, cls: selected)
+        // «Deploy» + «Sound» (web .t-actions), then the control hint and the profile line
+        sound.setText(MenuScreen.onOff(.menuSound, soundOn))
+        let profLine = MetaText.titleProfileLine(profile: prof, cls: selected).map { L10n.string($0) }
         let bh: CGFloat = compact ? 44 : 48
         var bottom = y
         let goW = min(240, cw * 0.3), sw: CGFloat = min(170, cw * 0.2)
+        MenuScreen.fit(go.label, goW - 16, minSize: 10)
+        MenuScreen.fit(sound.label, sw - 12, minSize: 8)
+        check.text("text.go", width: go.label.width, room: goW - 16)
+        check.text("text.sound", width: sound.label.width, room: sw - 12)
         go.layout(center: CGPoint(x: right - goW / 2, y: y - bh / 2), size: CGSize(width: goW, height: bh))
         sound.layout(center: CGPoint(x: right - goW - 10 - sw / 2, y: y - bh / 2), size: CGSize(width: sw, height: bh - 4))
         bottom = y - bh
@@ -245,7 +262,8 @@ final class TitleScreen {
         }
         if let p = profLine {
             let best = Label(p, font: Fonts.mono, size: 12, color: UIPalette.teal, kern: 0.7, align: .left)
-            MenuScreen.fit(best, hw)
+            MenuScreen.fit(best, hw, minSize: 8)
+            check.text("text.profile", width: best.width, room: hw)
             best.node.position = CGPoint(x: left, y: ly - 8)
             content.addChild(best.node)
             check.add("profile", node: best.node)
@@ -263,11 +281,12 @@ final class TitleScreen {
     private func tierRow(left: CGFloat, cw: CGFloat, y y0: CGFloat, compact: Bool, tier: Int, narrow: Bool,
                          check: inout LayoutCheck) -> CGFloat {
         let y = y0
-        let head = Label("СЛОЖНОСТЬ", font: Fonts.medium, size: compact ? 11 : 12, color: UIPalette.amber, kern: compact ? 2.2 : 3.1, align: .left)
+        let head = Label(L10n.upper(L10n.ui(.titleDifficulty)), font: Fonts.medium, size: compact ? 11 : 12, color: UIPalette.amber,
+                         kern: compact ? 2.2 : 3.1, align: .left)
         let segH: CGFloat = compact ? 40 : 44
         let fs: CGFloat = narrow ? 12 : 13
-        let names = Difficulty.tiers.map { $0.name.uppercased() }
-        let line = Difficulty.tier(tier).line
+        let names = Difficulty.tiers.map { L10n.upper(L10n.name(.tier($0.index))) }
+        let line = L10n.name(.tierLine(Difficulty.tier(tier).index))
         let mid = y - segH / 2
         head.node.position = CGPoint(x: left, y: mid)
         content.addChild(head.node)
@@ -294,7 +313,7 @@ final class TitleScreen {
         return y - segH - 8
     }
 
-    /// One segment (web .tt-b): panel, 1 pt line; the chosen one card-sel with a 2 pt teal ring (red for Кошмар).
+    /// One segment (web .tt-b): panel, 1 pt line; the chosen one card-sel with a 2 pt teal ring (red for Nightmare).
     private func segment(x: CGFloat, top: CGFloat, w: CGFloat, h: CGFloat, label: Label, on: Bool, red: Bool) {
         let p = Shapes.panel(width: w, height: h, cut: 5, fill: on ? UIPalette.cardSel : UIPalette.panel,
                              stroke: on ? (red ? UIPalette.red : UIPalette.teal) : UIPalette.line, lineWidth: on ? 2 : 1)

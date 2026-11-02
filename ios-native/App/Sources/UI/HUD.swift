@@ -23,6 +23,7 @@ final class RoundButton {
         cooldown.size = CGSize(width: (radius - 1) * 2, height: (radius - 1) * 2)
         cooldown.isHidden = true
         label = Label(text, font: Fonts.semibold, size: 12, color: UIPalette.ink, kern: 0.5)
+        TextFit.scale(label, labelRoom(radius))
         node.addChild(discIdle)
         node.addChild(discReady)
         node.addChild(cooldown)
@@ -72,6 +73,15 @@ final class RoundButton {
         let dx = p.x - node.position.x, dy = p.y - node.position.y
         let r = radius + 10
         return dx * dx + dy * dy <= r * r
+    }
+
+    /// The label's widest inside the disc (a chord 6 pt in from the rim on each side).
+    func labelRoom(_ r: CGFloat) -> CGFloat { 2 * r - 12 }
+
+    /// A new label (the player's ability), scaled down to fit the disc.
+    func setLabel(_ t: String) {
+        label.set(t)
+        TextFit.scale(label, labelRoom(radius))
     }
 }
 
@@ -130,12 +140,14 @@ final class HUD {
 
     // top row
     private var statsPanel = SKSpriteNode(texture: nil)
-    private let killsCap = Label("УБИТО", font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 1.4, align: .left)
-    private let timeCap = Label("ВРЕМЯ", font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 1.4, align: .left)
+    private let killsCap = Label(L10n.upper(L10n.ui(.hudKills)), font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 1.4, align: .left)
+    private let timeCap = Label(L10n.upper(L10n.ui(.hudTime)), font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 1.4, align: .left)
     // numbers that change every few frames: glyph-atlas labels (no text texture per new value)
     private let killsVal = GlyphLabel("0", font: Fonts.monoBold, size: 17, color: UIPalette.ink, charset: GlyphLabel.digits, align: .left)
     private let timeVal = GlyphLabel("0:00", font: Fonts.monoBold, size: 17, color: UIPalette.ink, charset: GlyphLabel.digits + ":", align: .left)
-    private let comboVal = GlyphLabel("", font: Fonts.monoBold, size: 16, color: UIPalette.amber, charset: GlyphLabel.digits + "×", align: .left)
+    /// The combo counter's characters: digits + whatever hud.combo («×%lld») adds.
+    private static let comboCharset = L10n.charset([L10n.ui(.hudCombo, .int(0))])
+    private let comboVal = GlyphLabel("", font: Fonts.monoBold, size: 16, color: UIPalette.amber, charset: HUD.comboCharset, align: .left)
     private var comboLast = 0
     private var comboBumpT: Double = 0
     private var tealEdge = SKSpriteNode(color: UIPalette.teal, size: CGSize(width: 3, height: 44))
@@ -144,7 +156,7 @@ final class HUD {
     private var pauseRect = CGRect.zero
     // objective
     private var objPanel = SKSpriteNode(texture: nil)
-    private let objCap = Label("ЗАДАЧА", font: Fonts.medium, size: 12, color: UIPalette.amber, kern: 2.4)
+    private let objCap = Label(L10n.upper(L10n.ui(.hudObjective)), font: Fonts.medium, size: 12, color: UIPalette.amber, kern: 2.4)
     private let objText = Label("—", font: Fonts.semibold, size: 16, color: UIPalette.ink, kern: 0.6)
     private let objBar = Bar(width: 200, height: 4, fill: UIPalette.teal, track: UIPalette.tealTrack)
     private var objBottom: CGFloat = 0
@@ -209,7 +221,7 @@ final class HUD {
             label.preferredMaxLayoutWidth = maxWidth
             label.horizontalAlignmentMode = .right
             label.verticalAlignmentMode = .top
-            label.attributedText = NSAttributedString(string: text.uppercased(), attributes: [
+            label.attributedText = NSAttributedString(string: L10n.upper(text), attributes: [
                 .font: Fonts.font(Fonts.medium, 12), .foregroundColor: UIPalette.ink, .kern: CGFloat(1.0), .paragraphStyle: style])
             LabelStats.textsSet += 1
             return label
@@ -243,16 +255,19 @@ final class HUD {
     private var bannerT: Float = 99
     private var textT: Float = 0
     // bottom
-    private let hpCap = Label("БРОНЯ", font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 1.4, align: .left)
+    private let hpCap = Label(L10n.upper(L10n.ui(.hudArmor)), font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 1.4, align: .left)
     private let hpVal = GlyphLabel("100", font: Fonts.monoBold, size: 13, color: UIPalette.ink, charset: GlyphLabel.digits, align: .right)
     private let hpBar = Bar(width: 228, height: 9, fill: UIPalette.hp, track: UIPalette.hpBg, topLine: UIPalette.teal, topHeight: 2)
-    private let lvl = GlyphLabel("УР 1", font: Fonts.monoBold, size: 12, color: UIPalette.amber, charset: GlyphLabel.digits + "УР", align: .left)
+    /// The level label's characters: digits + the letters of hud.level («LVL %lld») — the atlas follows the catalog.
+    private static let levelCharset = L10n.charset([L10n.upper(L10n.ui(.hudLevel, .int(0)))])
+    private let lvl = GlyphLabel(L10n.upper(L10n.ui(.hudLevel, .int(1))), font: Fonts.monoBold, size: 12, color: UIPalette.amber,
+                                 charset: HUD.levelCharset, align: .left)
     private let xpBar = Bar(width: 190, height: 3, fill: UIPalette.amber, track: UIPalette.amberTrack)
     // touch controls
-    let abilityButton = RoundButton(radius: 39, text: "ГРАНАТА")
-    let dashButton = RoundButton(radius: 31, text: "РЫВОК")
-    let stickL = StickView(fire: false, caption: "ДВИЖЕНИЕ")
-    let stickR = StickView(fire: true, caption: "ОГОНЬ")
+    let abilityButton = RoundButton(radius: 39, text: L10n.upper(L10n.name(.abilityShort(.assault))))
+    let dashButton = RoundButton(radius: 31, text: L10n.upper(L10n.ui(.hudDash)))
+    let stickL = StickView(fire: false, caption: L10n.upper(L10n.ui(.hudMove)))
+    let stickR = StickView(fire: true, caption: L10n.upper(L10n.ui(.hudFire)))
     private(set) var stickRestL = CGPoint.zero
     private(set) var stickRestR = CGPoint.zero
     // overlays
@@ -267,7 +282,9 @@ final class HUD {
     let plates = Nameplates()
     private let marker = SKNode()
     private let markerArrow = SKSpriteNode(texture: Shapes.chevron(color: UIPalette.amber))
-    private let markerLabel = GlyphLabel("", font: Fonts.monoBold, size: 12, color: UIPalette.amber, charset: GlyphLabel.digits + "м")
+    /// The marker distance's characters: digits + hud.distance («%lld m»).
+    private static let markerCharset = L10n.charset([L10n.ui(.hudDistance, .int(0))])
+    private let markerLabel = GlyphLabel("", font: Fonts.monoBold, size: 12, color: UIPalette.amber, charset: HUD.markerCharset)
     private static let chevronAmber = Shapes.chevron(color: UIPalette.amber)
     private static let chevronRed = Shapes.chevron(color: UIPalette.red)
     /// The swarm converges: red marker throbbing 1 ↔ 1.3 (web #marker.urge).
@@ -283,7 +300,9 @@ final class HUD {
     private var overlays: [SKSpriteNode] = []
     // per-frame text only rebuilt when its source changes (every new string renders a label texture)
     private var objKey = Int.min
-    private var hintRaw = "\u{1}"
+    /// What the hint shows (a core line, the app's control hint, or nothing): resolved only when it changes.
+    private enum HintSource: Equatable { case none, controls, text(GameText) }
+    private var hintSource = HintSource.text(GameText(.coachSkip))
     private var timeSec = -1
     private var levelShown = -1
 
@@ -361,7 +380,8 @@ final class HUD {
     func setSquad(_ marines: [Marine]) {
         for r in squad { r.node.removeFromParent() }
         squad = marines.map { m in
-            let r = SquadRow(name: m.isPlayer ? "ВЫ" : m.name)
+            let r = SquadRow(name: L10n.upper(L10n.name(m.name)))
+            TextFit.scale(r.name, HUD.squadNameRoom)
             r.node.isHidden = true   // VX-5: shown only while that squadmate needs attention
             r.chip.color = UIPalette.classColors[m.cls.rawValue]
             r.node.addChild(r.panel); r.node.addChild(r.chip); r.node.addChild(r.name.node); r.node.addChild(r.bar.node)
@@ -369,7 +389,7 @@ final class HUD {
             return r
         }
         if let p = marines.first {
-            abilityButton.label.set(p.spec.abilityShort.uppercased())
+            abilityButton.setLabel(L10n.upper(L10n.name(.abilityShort(p.cls))))
         }
         plates.setSquad(marines)
         layout(size: size, insets: insets)
@@ -390,6 +410,12 @@ final class HUD {
         /// Squad alert rows (left column under the stats), toasts (right column under the band).
         static let rowW: CGFloat = 117, rowH: CGFloat = 22, rowStep: CGFloat = 26
     }
+
+    /// A squad row's name ends 4 pt before its armour bar (9 pt in from the row's left, the bar 46 pt from its right).
+    static let squadNameRoom: CGFloat = Geo.rowW - 9 - 46 - 4
+    /// The objective text's widest (12 pt in from the box on each side) and how far it may shrink to fit.
+    private var objTextRoom: CGFloat { objRect.width - 24 }
+    static let objMinScale: CGFloat = 0.62
 
     func layout(size: CGSize, insets: UIEdgeInsets) {
         self.size = size
@@ -559,10 +585,11 @@ final class HUD {
         placeBand()
     }
 
-    /// The objective text under its «ЗАДАЧА» caption.
+    /// The objective text under its caption, scaled down when it is wider than the box.
     private func placeObjText() {
         let r = objRect
         objText.node.position = hp(r.midX, r.minY + 27)
+        TextFit.scale(objText, objTextRoom, minScale: HUD.objMinScale)
     }
 
     /// Panel texture of the current style (the converging box is filled dark red; one texture per height).
@@ -650,8 +677,11 @@ final class HUD {
 
     func showBanner(title: String, subtitle: String, teal: Bool) {
         bannerTitle.color = teal ? UIPalette.teal : UIPalette.red
-        bannerTitle.set(title.uppercased())
-        bannerSub.set(subtitle.uppercased())
+        bannerTitle.set(L10n.upper(title))
+        bannerSub.set(L10n.upper(subtitle))
+        // a longer title / subtitle than the screen holds scales down (pseudo-localisation, later languages)
+        TextFit.scale(bannerTitle, size.width - 32)
+        TextFit.scale(bannerSub, size.width - 32)
         bannerBand.color = teal ? UIPalette.bannerTeal : UIPalette.bannerRed
         bannerT = 0
     }
@@ -684,15 +714,15 @@ final class HUD {
         // one label per new font / size / colour of the objective box (every text texture is new anyway: what is warmed
         // is the style; few labels, so the warm-up creates and frees as few text textures as possible)
         let objStyles: [(String, CGFloat, SKColor)] = [
-            ("Улей просыпается — к маяку", objText.size, UIPalette.amber), ("Рой стягивается — к маяку!", objText.size, UIPalette.red)]
+            (L10n.string(GameText(.objWakingBeacon)), objText.size, UIPalette.amber), (L10n.string(GameText(.objConvergeBeacon)), objText.size, UIPalette.red)]
         for (t, sz, c) in objStyles {
-            let l = Label(t.uppercased(), font: Fonts.semibold, size: sz, color: c, kern: 0.6)
+            let l = Label(L10n.upper(t), font: Fonts.semibold, size: sz, color: c, kern: 0.6)
             l.node.position = CGPoint(x: 0, y: y)
             n.addChild(l.node)
             y -= 18
         }
         for cap in [UIPalette.red, UIPalette.queen] {
-            let l = Label("ЗАДАЧА", font: Fonts.medium, size: 12, color: cap, kern: 2.4)
+            let l = Label(L10n.upper(L10n.ui(.hudObjective)), font: Fonts.medium, size: 12, color: cap, kern: 2.4)
             l.node.position = CGPoint(x: -W / 4, y: y); n.addChild(l.node); y -= 16
         }
         for (fill, edge) in [(UIPalette.panel, UIPalette.amber), (UIPalette.redPanel, UIPalette.red), (UIPalette.panel, UIPalette.queen)] {
@@ -713,7 +743,7 @@ final class HUD {
         root.addChild(n)
         warmNode = n
         // the card with a two-line text, the thumb, the rings, the red marker
-        coachCard.show(step: 1, text: CoachText.text(step: 1, abilityShort: "Граната", keyboard: false).uppercased(), centerX: 0,
+        coachCard.show(step: 1, text: L10n.upper(L10n.string(CoachText.text(step: 1, cls: .assault, keyboard: false))), centerX: 0,
                        top: hp(0, objBottom + 2).y, maxWidth: coachMaxWidth)
         ghost.set(.drag, at: stickRestL)
         abilityRing.isHidden = false; dashRing.isHidden = false; markerRing.isHidden = false
@@ -727,16 +757,15 @@ final class HUD {
         if on {
             // every glyph atlas drawn once (an atlas texture is uploaded on its first draw; these two start empty)
             warmTexts = (comboVal.text, markerLabel.text)
-            comboVal.set("×" + GlyphLabel.digits)
-            markerLabel.set(GlyphLabel.digits + " м")
+            comboVal.set(HUD.comboCharset)
+            markerLabel.set(HUD.markerCharset)
+            lvl.set(HUD.levelCharset)
             screenFlash(0.6); damageFlash(0.8); hordeFlash()
-            showBanner(title: "ОРДА!", subtitle: "РОЙ ПРОРЫВАЕТСЯ ИЗ БЕЗДНЫ", teal: false)
-            toast("Связь установлена", kind: .info)
-            // every wrapped toast of a mission, so its label exists before the mission needs it
-            for (k, spec) in BUG_SPECS.enumerated() where k < BUG_TIPS.count && !BUG_TIPS[k].isEmpty {
-                toast(spec.name + ": " + BUG_TIPS[k], kind: .warn)
-            }
-            toast("Вы ранены — ждите помощи", kind: .warn)
+            showBanner(title: L10n.string(.hordeTitle), subtitle: L10n.string(.hordeSubtitle), teal: false)
+            toast(L10n.string(GameText(.toastUpgrade, [.name(.upgrade(.dmg))])), kind: .info)
+            // every wrapped toast of a mission (the catalog's: bug tips, the squad's down / up lines, the medkit), so its
+            // label exists before the mission needs it (single-line ones are cheap and not kept)
+            for t in TextWarmup.toastTexts() { toast(L10n.string(t), kind: .warn) }
             abilityButton.update(ready: false, fraction: 0.5)
             dashButton.update(ready: false, fraction: 0.5)
             abilityButton.warmPies(true)
@@ -751,6 +780,7 @@ final class HUD {
             toasts.removeAll()
             comboVal.set(warmTexts.0)
             markerLabel.set(warmTexts.1)
+            levelShown = -1
             abilityButton.update(ready: true, fraction: 0)
             dashButton.update(ready: true, fraction: 0)
             abilityButton.warmPies(false)
@@ -797,7 +827,85 @@ final class HUD {
             check.add(name, CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r))
             check.tap(name, CGRect(x: c.x - r - 10, y: c.y - r - 10, width: 2 * r + 20, height: 2 * r + 20))
         }
+        checkTexts(&check)
         check.report(size: size, insets: insets)
+    }
+
+    /// L10n: every text the HUD can show, at its widest arguments, against its container after the fitting the HUD
+    /// applies — objective lines, coach card lines (every step, touch and keyboard, every class's ability), hints
+    /// (split in two, then scaled), banners, squad names, round-button labels.
+    private func checkTexts(_ check: inout LayoutCheck) {
+        func w(_ s: String, _ font: String, _ size: CGFloat, _ kern: CGFloat) -> CGFloat { TextFit.width(s, font: font, size: size, kern: kern) }
+        for t in HUD.objectiveSamples {
+            check.text("text.objective." + t.id.rawValue, width: w(L10n.upper(L10n.string(t)), Fonts.semibold, objText.size, 0.6),
+                       room: objTextRoom, minScale: HUD.objMinScale)
+        }
+        let cw = coachMaxWidth
+        for step in 0..<CoachText.steps {
+            for kb in [false, true] {
+                for c in MarineClass.allCases where step == 2 || c == .assault {
+                    let s = L10n.upper(L10n.string(CoachText.text(step: step, cls: c, keyboard: kb)))
+                    let L = CoachCard.lines(s, maxWidth: cw, counterW: coachCard.counterWidth, skipW: coachCard.skipWidth)
+                    check.text("text.coach.\(step)\(kb ? "k" : "")." + c.id, width: L.widest, room: L.avail, minScale: CoachCard.lineMinScale)
+                }
+            }
+        }
+        for (k, t) in HUD.hintSamples.enumerated() {
+            let s = L10n.upper(t)
+            var widest = HUD.hintWidth(s)
+            if widest > hintMaxW {
+                let (a, b) = HUD.splitHint(s)
+                widest = b.isEmpty ? widest : max(HUD.hintWidth(a), HUD.hintWidth(b))
+            }
+            check.text("text.hint.\(k)", width: widest, room: hintMaxW, minScale: 0.6)
+        }
+        for (t, s) in HUD.bannerSamples {
+            check.text("text.banner." + t.id.rawValue, width: w(L10n.upper(L10n.string(t)), Fonts.bold, bannerTitle.size, 4), room: size.width - 32, minScale: 0.5)
+            check.text("text.banner." + s.id.rawValue, width: w(L10n.upper(L10n.string(s)), Fonts.medium, 12, 3.6), room: size.width - 32, minScale: 0.5)
+        }
+        for n in [NameRef.player] + MarineClass.allCases.map({ NameRef.callsign($0) }) {
+            check.text("text.squad." + n.key, width: w(L10n.upper(L10n.name(n)), Fonts.medium, 12, 1.0), room: HUD.squadNameRoom, minScale: 0.5)
+        }
+        for c in MarineClass.allCases {
+            check.text("text.ability." + c.id, width: w(L10n.upper(L10n.name(.abilityShort(c))), Fonts.semibold, 12, 0.5),
+                       room: abilityButton.labelRoom(abilityButton.radius), minScale: 0.5)
+        }
+        check.text("text.dash", width: w(L10n.upper(L10n.ui(.hudDash)), Fonts.semibold, 12, 0.5), room: dashButton.labelRoom(dashButton.radius), minScale: 0.5)
+    }
+
+    /// Every objective line at its widest arguments.
+    static var objectiveSamples: [GameText] {
+        var out: [GameText] = (0..<3).map { GameText(.objHoldBeacon, [.name(.beacon($0))]) }
+        out.append(GameText(.objLightBeacons, [.int(3), .int(3)]))
+        out.append(GameText(.objHoldLift, [.clock(100)]))
+        for id in [TextID.objConvergeBeacon, .objWakingBeacon, .objConvergeLift, .objWakingLift, .objLiftCalled, .objLiftLocked, .objKillQueen, .objExtract] {
+            out.append(GameText(id))
+        }
+        return out
+    }
+
+    /// Every hint line (core hints, the three tiers' hold hints, the revive lines, the app's control hint), resolved.
+    static var hintSamples: [String] {
+        var out = [TextID.hintPlayerDown, .hintReviveNear, .hintBackToRing, .hintRingContested, .hintStepInRing, .hintToPlatform].map { L10n.string(GameText($0)) }
+        out += Difficulty.tiers.map { L10n.string(Game.holdHintText($0)) }
+        out += CoachText.reviveLines.map { L10n.string($0) }
+        out.append(L10n.ui(.hudControlHint))
+        return out
+    }
+
+    /// Every banner the core raises (title, subtitle) at its widest arguments.
+    static var bannerSamples: [(GameText, GameText)] {
+        [(GameText(.bannerDrop), GameText(.bannerDropSub, [.name(.sector(letter: 11, number: 88))])),
+         (.hordeTitle, .hordeSubtitle),
+         (GameText(.bannerDefend), GameText(.bannerDefendSub, [.name(.beacon(2))])),
+         (.hordeTitle, GameText(.bannerHordeLiftSub)),
+         (GameText(.bannerLiftCalled), GameText(.bannerLiftCalledSub)),
+         (GameText(.bannerBeaconOnline), GameText(.bannerBeaconOnlineSub, [.int(2), .int(3)])),
+         (GameText(.bannerHold), GameText(.bannerHoldSub, [.int(100)])),
+         (GameText(.bannerExtract), GameText(.bannerExtractSub)),
+         (GameText(.bannerQueen), GameText(.bannerQueenSub)),
+         (GameText(.bannerQueenRage), .hordeSubtitle),
+         (GameText(.bannerQueenDead), GameText(.bannerQueenDeadSub))]
     }
 
     func damageFlash(_ a: Float) { damageA = min(1, damageA + a) }
@@ -844,12 +952,12 @@ final class HUD {
     }
 
     /// Width of one hint line (the hint label's font, size and letter spacing).
-    private static func hintWidth(_ t: String) -> CGFloat {
+    static func hintWidth(_ t: String) -> CGFloat {
         NSAttributedString(string: t, attributes: [.font: Fonts.font(Fonts.semibold, 14), .kern: CGFloat(1.1)]).size().width
     }
 
     /// Two lines of a long hint: at « · » (dropped) or « — » (kept at the end of the first line), whichever leaves the
-    /// shorter longer line; else at the space nearest the middle. «КОНТУР БЬЁТ КАЖДЫЕ 6 С —» / «У КРАЯ СЛАБЕЕ, …».
+    /// shorter longer line; else at the space nearest the middle. «GRID HITS EVERY 6 SEC —» / «WEAKER AT THE EDGE, …».
     static func splitHint(_ t: String) -> (String, String) {
         let c = Array(t), n = c.count
         var best = (score: Int.max, end: -1, start: -1)
@@ -882,7 +990,7 @@ final class HUD {
             hpVal.set("\(Int(max(0, P.hp).rounded(.up)))")
             let combo = game.comboShown
             if combo != comboLast {
-                comboVal.set(combo > 0 ? "×\(combo)" : "")
+                comboVal.set(combo > 0 ? L10n.ui(.hudCombo, .int(combo)) : "")
                 // web .combo.hot (≥ 25) / .blaze (≥ 60), and a short scale bump per new combo kill
                 comboVal.color = combo >= 60 ? UIPalette.white : (combo >= 25 ? UIPalette.red : UIPalette.amber)
                 let now = FrameTimer.now()
@@ -906,7 +1014,8 @@ final class HUD {
             objKey = ok
             let st = game.objectiveStyle
             if st != objStyle { applyObjStyle(st) }
-            objText.set(game.objectiveText.uppercased())
+            objText.set(L10n.upper(game.objective.map { L10n.string($0) } ?? ""))
+            TextFit.scale(objText, objTextRoom, minScale: HUD.objMinScale)
         }
         let prog = game.objectiveProgress
         if (prog >= 0) != objBarShown { objBarShown = prog >= 0; placeObjText() }
@@ -918,10 +1027,18 @@ final class HUD {
         }
         updateCoach(game, keyboard: keyboard)
         // contextual hint (the control hint during the first 7 s is the app's job, not while the coach runs)
-        var h = ""
+        var src = HintSource.none
         var urgent = false
-        if let c = game.contextHint { h = c.text; urgent = c.urgent } else if game.showControlHint && !P.downed { h = "Левый палец — бег · правый — прицел и огонь" }
-        if h != hintRaw { hintRaw = h; hintText = h.uppercased(); fitHint() }
+        if let c = game.contextHint { src = .text(c.text); urgent = c.urgent } else if game.showControlHint && !P.downed { src = .controls }
+        if src != hintSource {
+            hintSource = src
+            switch src {
+            case .none: hintText = ""
+            case .controls: hintText = L10n.upper(L10n.ui(.hudControlHint))
+            case .text(let t): hintText = L10n.upper(L10n.string(t))
+            }
+            fitHint()
+        }
         if urgent != hintUrgent {
             hintUrgent = urgent
             hint.color = urgent ? UIPalette.red : UIPalette.amber
@@ -965,7 +1082,7 @@ final class HUD {
             }
         }
         hpBar.set(CGFloat(P.hp / max(1, P.maxHp)))
-        if game.xpLevel != levelShown { levelShown = game.xpLevel; lvl.set("УР \(game.xpLevel)") }
+        if game.xpLevel != levelShown { levelShown = game.xpLevel; lvl.set(L10n.upper(L10n.ui(.hudLevel, .int(game.xpLevel)))) }
         xpBar.set(CGFloat(Float(game.xp) / Float(max(1, game.xpNext))))
 
         abilityButton.update(ready: P.abilityReady, fraction: CGFloat(P.abilityCooldownFraction))
@@ -1064,7 +1181,7 @@ final class HUD {
             // the card text is built only when the step, the input mode or the layout changes (no per-frame strings)
             if step != cardStep || keyboard != cardKeyboard || layoutGen != cardLayoutGen || !coachCard.visible {
                 cardStep = step; cardKeyboard = keyboard; cardLayoutGen = layoutGen
-                let text = CoachText.text(step: step, abilityShort: game.player.spec.abilityShort, keyboard: keyboard).uppercased()
+                let text = L10n.upper(L10n.string(CoachText.text(step: step, cls: game.player.cls, keyboard: keyboard)))
                 coachCard.show(step: step, text: text, centerX: 0, top: hp(0, top).y, maxWidth: coachMaxWidth)
             }
             coachCard.update(top: hp(0, top).y)
@@ -1127,9 +1244,9 @@ final class HUD {
         let P = game.player
         let dist = hypotf(t.x - P.x, t.y - P.z)
         let dm = Int(dist.rounded())
-        if dm != markerDist { markerDist = dm; markerLabel.set("\(dm) м") }
+        if dm != markerDist { markerDist = dm; markerLabel.set(L10n.ui(.hudDistance, .int(dm))) }
         let mx = size.width / 2 - 40, myTop = size.height / 2 - bandBottom - 30, myBot = -size.height / 2 + 150
-        // VX-5: the block holding РЫВОК and the ability button (+ 20 pt): an on-screen marker there counts as off screen,
+        // VX-5: the block holding the dash and the ability button (+ 20 pt): an on-screen marker there counts as off screen,
         // an edge arrow that would land in it stops where its ray enters it (web mkBlockX / mkBlockY)
         let ar = abilityButton.radius, dr = dashButton.radius
         let blockX = min(abilityButton.node.position.x - ar, dashButton.node.position.x - dr) - 20
@@ -1221,7 +1338,7 @@ final class Nameplates {
         shownUntil = [Float](repeating: 0, count: max(4, marines.count))
         lastHp = [Float](repeating: -1, count: max(4, marines.count))
         plates = marines.map { m in
-            let p = Plate(name: m.isPlayer ? "ВЫ" : m.name, player: m.isPlayer)
+            let p = Plate(name: L10n.upper(L10n.name(m.name)), player: m.isPlayer)
             root.addChild(p.node)
             return p
         }

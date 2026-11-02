@@ -118,12 +118,11 @@ final class GlyphLabel {
     var color: SKColor { didSet { if !color.isEqual(oldValue) { for s in sprites { s.color = color } } } }
 
     static let digits = "0123456789"
-    /// The debug panel: ASCII and Cyrillic.
+    /// The debug panel (CI only, English, terse): printable ASCII.
     static let debugCharset: String = {
         var s = ""
         for u in 33...126 { s.unicodeScalars.append(Unicode.Scalar(u)!) }
-        for u in 0x410...0x44f { s.unicodeScalars.append(Unicode.Scalar(u)!) }
-        return s + "ёЁ×·"
+        return s
     }()
 
     init(_ text: String, font: String, size: CGFloat, color: SKColor, charset: String,

@@ -22,14 +22,14 @@ final class MenuButton {
         case .chip: color = UIPalette.amber
         }
         let size = fontSize ?? (style == .go ? 20 : (style == .chip ? 14 : 15))
-        label = Label(text.uppercased(), font: style == .go ? Fonts.bold : Fonts.semibold, size: size, color: color,
+        label = Label(L10n.upper(text), font: style == .go ? Fonts.bold : Fonts.semibold, size: size, color: color,
                       kern: style == .go ? 4 : (style == .chip ? 1.4 : 2))
         node.addChild(panel)
         node.addChild(label.node)
         label.node.zPosition = 1
     }
 
-    func setText(_ t: String) { label.set(t.uppercased()) }
+    func setText(_ t: String) { label.set(L10n.upper(t)) }
 
     /// Centre + size in HUD coordinates.
     func layout(center c: CGPoint, size s: CGSize) {
@@ -84,8 +84,8 @@ func paragraph(_ text: String, font: String, size: CGFloat, color: SKColor, widt
     return l
 }
 
-/// Paragraph with bold-ink runs (web `<b>` in .t-hint / .m-hint): parts alternate plain / bold, starting bold.
-func richParagraph(_ parts: [String], size: CGFloat, width: CGFloat, align: NSTextAlignment) -> SKLabelNode {
+/// Paragraph with bold-ink runs (web `<b>` in .t-hint / .m-hint): `L10n.runs` of a catalog value marked with **bold**.
+func richParagraph(_ parts: [(String, Bool)], size: CGFloat, width: CGFloat, align: NSTextAlignment) -> SKLabelNode {
     let l = SKLabelNode()
     l.numberOfLines = 0
     l.preferredMaxLayoutWidth = width
@@ -95,8 +95,7 @@ func richParagraph(_ parts: [String], size: CGFloat, width: CGFloat, align: NSTe
     style.alignment = align
     style.lineSpacing = 2
     let s = NSMutableAttributedString(string: "")
-    for (k, p) in parts.enumerated() {
-        let bold = k % 2 == 0
+    for (p, bold) in parts {
         s.append(NSAttributedString(string: p, attributes: [
             .font: Fonts.font(bold ? Fonts.semibold : Fonts.regular, size),
             .foregroundColor: bold ? UIPalette.ink : UIPalette.inkDim,
@@ -107,10 +106,10 @@ func richParagraph(_ parts: [String], size: CGFloat, width: CGFloat, align: NSTe
     return l
 }
 
-/// Touch control hint of the web title / pause screens (controlHint(), touch mode).
-let touchHintParts = ["Левый палец", " — движение · ", "правый палец", " — прицел и автоогонь · кнопки справа — способность и рывок"]
-/// The same, shorter: two lines under the pause menu's mission column.
-let pauseHintParts = ["Левый палец", " — бег · ", "правый", " — прицел и огонь · ", "справа", " — способность и рывок"]
+/// Touch control hint of the web title / pause screens (controlHint(), touch mode): title.controls with its **bold** runs.
+var touchHintParts: [(String, Bool)] { L10n.runs(L10n.ui(.titleControls)) }
+/// The same, shorter: two lines under the pause menu's mission column (pause.controls).
+var pauseHintParts: [(String, Bool)] { L10n.runs(L10n.ui(.pauseControls)) }
 
 /// Amber / black hazard band (web .hz: 8 px, right end cut at 45°), top-left anchored.
 func hazardBand(width: CGFloat, height: CGFloat) -> SKSpriteNode {
@@ -171,13 +170,13 @@ final class LevelUpScreen {
             d.preferredMaxLayoutWidth = cardW - 28
             d.horizontalAlignmentMode = .left
             d.verticalAlignmentMode = .top
-            d.attributedText = NSAttributedString(string: u.desc, attributes: [.font: Fonts.font(Fonts.regular, 13), .foregroundColor: UIPalette.inkDim])
+            d.attributedText = NSAttributedString(string: L10n.string(u.desc), attributes: [.font: Fonts.font(Fonts.regular, 13), .foregroundColor: UIPalette.inkDim])
             LabelStats.textsSet += 1
             descs.append(d)
             descH = max(descH, d.frame.height)
         }
         let cardH = max(128, 52 + descH + 34)
-        // web .lv-head: «НОВЫЙ УРОВЕНЬ» + the number, centred together
+        // web .lv-head: «LEVEL UP» + the number, centred together
         let hs = max(26, min(36, H * 0.085))
         let blockH = hs + 22 + 24 + cardH
         let safeTop = H / 2 - insets.top - 10, safeBottom = -H / 2 + insets.bottom + 10
@@ -185,7 +184,7 @@ final class LevelUpScreen {
         top = min(top, safeTop)
         var check = LayoutCheck("levelup")
         var y = top - hs / 2
-        let tag = Label("НОВЫЙ УРОВЕНЬ", font: Fonts.bold, size: hs, color: UIPalette.amber, kern: hs * 0.12, align: .left)
+        let tag = Label(L10n.upper(L10n.ui(.levelupTitle)), font: Fonts.bold, size: hs, color: UIPalette.amber, kern: hs * 0.12, align: .left)
         let num = Label("\(level)", font: Fonts.monoBold, size: hs, color: UIPalette.ink, align: .left)
         let x0 = -(tag.width + 12 + num.width) / 2
         tag.node.position = CGPoint(x: x0, y: y)
@@ -195,7 +194,8 @@ final class LevelUpScreen {
         check.add("head#1", node: tag.node)
         check.add("head#2", node: num.node)
         y -= hs / 2 + 22
-        let sub = Label("ВЫБЕРИТЕ УЛУЧШЕНИЕ", font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 3.6)
+        let sub = Label(L10n.upper(L10n.ui(.levelupSub)), font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 3.6)
+        MenuScreen.fit(sub, cw)
         sub.node.position = CGPoint(x: 0, y: y)
         content.addChild(sub.node)
         check.add("sub", node: sub.node)
@@ -208,20 +208,25 @@ final class LevelUpScreen {
             panel.position = CGPoint(x: x, y: top)
             panel.zPosition = -1
             cardsNode.addChild(panel)
-            let t = Label((classCard ? "Класс · " + cls.spec.name : "Снаряжение").uppercased(), font: Fonts.medium, size: 11,
-                          color: classCard ? UIPalette.amber : UIPalette.teal, kern: 2, align: .left)
+            let cat = classCard ? L10n.ui(.levelupClass, .str(L10n.name(.cls(cls)))) : L10n.ui(.levelupGear)
+            let t = Label(L10n.upper(cat), font: Fonts.medium, size: 11, color: classCard ? UIPalette.amber : UIPalette.teal, kern: 2, align: .left)
             MenuScreen.fit(t, cardW - 28)
+            check.text("text.card\(k).category", width: t.width, room: cardW - 28)
             t.node.position = CGPoint(x: x + 14, y: top - 16)
             cardsNode.addChild(t.node)
-            let name = Label(u.name.uppercased(), font: Fonts.bold, size: 19, color: UIPalette.ink, kern: 0.8, align: .left)
+            let name = Label(L10n.upper(L10n.name(u.name)), font: Fonts.bold, size: 19, color: UIPalette.ink, kern: 0.8, align: .left)
             MenuScreen.fit(name, cardW - 28)
+            check.text("text.card\(k).name", width: name.width, room: cardW - 28)
             name.node.position = CGPoint(x: x + 14, y: top - 38)
             cardsNode.addChild(name.node)
             let d = descs[k]
             d.position = CGPoint(x: x + 14, y: top - 52)
             cardsNode.addChild(d)
             let taken = counts[u.id] ?? 0
-            let st = Label(taken > 0 ? "Взято: \(taken)" : "Новое", font: Fonts.monoBold, size: 12, color: UIPalette.ink, align: .left)
+            let st = Label(L10n.upper(taken > 0 ? L10n.ui(.levelupTaken, .int(taken)) : L10n.ui(.levelupNew)), font: Fonts.monoBold, size: 12,
+                           color: UIPalette.ink, align: .left)
+            MenuScreen.fit(st, cardW - 28)
+            check.text("text.card\(k).taken", width: st.width, room: cardW - 28)
             st.node.position = CGPoint(x: x + 14, y: top - cardH + 14)
             cardsNode.addChild(st.node)
             let r = CGRect(x: x, y: top - cardH, width: cardW, height: cardH)

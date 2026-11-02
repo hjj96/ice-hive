@@ -36,7 +36,7 @@ enum DemoFixtures {
         let time: Float
         let playerKills: Int
         let beacons: Int
-        /// The Матка: nil = never came, true = killed, false = still alive at the end.
+        /// The Queen: nil = never came, true = killed, false = still alive at the end.
         let queenKilled: Bool?
         let stage: MissionStage
         let downs: Int
@@ -91,19 +91,19 @@ enum DemoFixtures {
 
     /// The report pre-built behind the loading cover: a first evacuation (strip, breakdown, rank-up, medal, the promo
     /// tip, the goal). `stats` (the mini row) comes from the game on screen (MissionStats has no public initialiser).
-    static func warmReport(cls: MarineClass, stats: MissionStats, station: String) -> MissionReport {
+    static func warmReport(cls: MarineClass, stats: MissionStats, station: NameRef) -> MissionReport {
         guard let r = report("first") else { fatalError("report fixture") }
         return makeReport(r, cls: cls, stats: stats, station: station)
     }
 
     /// The report a fixture's run would give (without running a mission: the layout check of `-demo layout`, the
     /// warm-up); shots / hits / combo / level are typical numbers.
-    static func makeReport(_ r: Report, cls: MarineClass, stats: MissionStats, station: String) -> MissionReport {
+    static func makeReport(_ r: Report, cls: MarineClass, stats: MissionStats, station: NameRef) -> MissionReport {
         var p = r.meta.profile
         let d = Difficulty.tier(r.tier)
         let run = RunSummary(cls: cls, won: r.won, surrendered: false, time: r.time, playerKills: r.playerKills, beaconsDone: r.beacons,
                              queenSpawned: r.queenKilled != nil, queenDone: r.queenKilled ?? false, downs: r.downs, downBy: r.downBy,
-                             tierIndex: d.index, tierMul: d.scoreMul, tierName: d.name, stage: r.stage, pressureLoss: r.pressure != nil,
+                             tierIndex: d.index, tierMul: d.scoreMul, stage: r.stage, pressureLoss: r.pressure != nil,
                              shots: 2000, hits: 1500, accuracy: 75, bestCombo: 48, level: 9, station: station)
         let res = p.commit(run, diffPicked: false)
         return MissionReport.make(run: run, result: res, profile: p, stats: stats, newStationShown: AppFeatures.generatedStations)

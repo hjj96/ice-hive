@@ -23,7 +23,7 @@ final class GameViewController: UIViewController {
     private var metalPreload: MetalPreload?
 
     /// «Не удалось запустить графику (Metal)» — shown instead of the game when Metal is unusable.
-    static let metalFailureText = "Не удалось запустить графику (Metal).\nПерезапустите игру."
+    static var metalFailureText: String { L10n.ui(.appMetalFailure) }
 
     override func loadView() {
         let bounds = UIScreen.main.bounds

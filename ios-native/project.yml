@@ -1,4 +1,4 @@
-# XcodeGen spec for the native «Ледяной Улей» v2.0: Swift, the world drawn with Metal, HUD / menus as a SpriteKit
+# XcodeGen spec for the native Ice Hive v2.0: Swift, the world drawn with Metal, HUD / menus as a SpriteKit
 # scene rendered into the same Metal pass (SKRenderer).
 # Generate the project:  brew install xcodegen && xcodegen generate
 # Signing: put `DEVELOPMENT_TEAM = <your team id>` into ios-native/Local.xcconfig (gitignored, read through
@@ -7,7 +7,7 @@ name: IceHive
 
 options:
   bundleIdPrefix: com.hjj96
-  developmentLanguage: ru
+  developmentLanguage: en
   deploymentTarget:
     iOS: "16.0"
   createIntermediateGroups: true
@@ -63,7 +63,9 @@ targets:
         ENABLE_PREVIEWS: NO
         # Meshes/*.png are decoded by ImageIO into straight-alpha RGBA: keep them standard PNGs, no pngcrush
         COMPRESS_PNG_FILES: NO
-        LOCALIZATION_PREFERS_STRING_CATALOGS: NO
+        # every player-facing string is in App/Resources/Localizable.xcstrings (source language en), compiled into
+        # en.lproj/Localizable.strings + .stringsdict (ci/check_strings.py checks keys and the bundle)
+        LOCALIZATION_PREFERS_STRING_CATALOGS: YES
     scheme:
       gatherCoverageData: false
       commandLineArguments:

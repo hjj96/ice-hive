@@ -118,6 +118,30 @@ final class Label {
     var width: CGFloat { node.frame.width }
 }
 
+/// Text that must fit its container (L10n: English today, longer languages and the pseudo-localisation run later).
+enum TextFit {
+    /// Width of one line of `s` in `font` at `size` with letter spacing `kern` (a Label of that style is as wide).
+    static func width(_ s: String, font: String, size: CGFloat, kern: CGFloat = 0) -> CGFloat {
+        if s.isEmpty { return 0 }
+        return NSAttributedString(string: s, attributes: [.font: Fonts.font(font, size), .kern: kern]).size().width
+    }
+
+    /// A one-line label wider than `maxW` is scaled down (node scale: no new text texture), never below `minScale`;
+    /// one that fits is shown at full size again.
+    static func scale(_ l: Label, _ maxW: CGFloat, minScale: CGFloat = 0.5) {
+        let s0 = max(0.0001, l.node.xScale)
+        let raw = l.node.frame.width / s0
+        let s = raw > maxW && maxW > 1 ? max(minScale, maxW / raw) : 1
+        if abs(s - s0) > 0.001 { l.node.setScale(s) }
+    }
+
+    /// The scale `scale(_:_:minScale:)` would pick for a line `w` wide, and whether the line then fits.
+    static func fitted(_ w: CGFloat, _ maxW: CGFloat, minScale: CGFloat = 0.5) -> (scale: CGFloat, fits: Bool) {
+        let s = w > maxW && maxW > 1 ? max(minScale, maxW / w) : 1
+        return (s, w * s <= maxW + 0.5)
+    }
+}
+
 /// Horizontal bar: track + fill (+ optional top line), anchored at its left-centre.
 final class Bar {
     let node = SKNode()

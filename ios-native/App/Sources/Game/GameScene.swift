@@ -157,10 +157,10 @@ final class GameScene: SKScene {
         camera = cameraCtl.node
         cover.zPosition = ZBand.hud + 900
         cameraCtl.node.addChild(cover)
-        let title = Label("ЛЕДЯНОЙ УЛЕЙ", font: Fonts.bold, size: 30, color: UIPalette.ink, kern: 4)
+        let title = Label(L10n.upper(L10n.ui(.loadTitle)), font: Fonts.bold, size: 30, color: UIPalette.ink, kern: 4)
         title.node.zPosition = ZBand.hud + 901
         cameraCtl.node.addChild(title.node)
-        let sub = Label("ПРОГРЕВ РЕАКТОРОВ…", font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 2.5)
+        let sub = Label(L10n.upper(L10n.ui(.loadSub)), font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 2.5)
         sub.node.position = CGPoint(x: 0, y: -30)
         sub.node.zPosition = ZBand.hud + 901
         cameraCtl.node.addChild(sub.node)
@@ -231,9 +231,9 @@ final class GameScene: SKScene {
         metalFailed = true
         AppLog.error("metal: \(why)")
         loadingSub?.color = UIPalette.amber
-        loadingSub?.set("НЕ УДАЛОСЬ ЗАПУСТИТЬ ГРАФИКУ (METAL)")
+        loadingSub?.set(L10n.upper(L10n.ui(.loadFail)))
         loadingSub?.node.alpha = 1
-        let hint = Label("ПЕРЕЗАПУСТИТЕ ИГРУ", font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 2.5)
+        let hint = Label(L10n.upper(L10n.ui(.loadFailHint)), font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 2.5)
         hint.node.position = CGPoint(x: 0, y: -50)
         hint.node.zPosition = ZBand.hud + 901
         cameraCtl.node.addChild(hint.node)
@@ -341,8 +341,8 @@ final class GameScene: SKScene {
     /// `-layoutCheck`: the HUD of the mission was checked.
     private var hudChecked = false
 
-    /// Station of the title and the missions («Кельвин-9» while generated stations are off).
-    private var stationName: String { level?.layout.name ?? "Кельвин-9" }
+    /// Station of the title and the missions (KELVIN-9 while generated stations are off).
+    private var stationName: NameRef { level?.layout.name ?? .kelvin }
 
     /// The title (v1.1): profile line instead of the record, rank chips + medal pips on the class cards, the tier row.
     private func layoutTitle() {
@@ -454,8 +454,8 @@ final class GameScene: SKScene {
         applyFrameRate()
         demo?.begin(game: g)
         AppLog.info("mode playing class=\(cls.id) seed=\(g.seed) demo=\(demo?.name ?? "-")")
-        AppLog.info("v11 start tier=\(g.difficulty.id) coach=\(g.coach.active ? 1 : 0) station=\(g.stationName) seed=\(g.seed)")
-        AppLog.info("bug cap \(g.bugCap) (Графика \(qualityName) \((QualityTier(rawValue: qualityName) ?? .med).bugCap), device \(world?.renderer.quality.deviceBugCap ?? 0))")
+        AppLog.info("v11 start tier=\(g.difficulty.id) coach=\(g.coach.active ? 1 : 0) station=\(g.stationName.logID) seed=\(g.seed)")
+        AppLog.info("bug cap \(g.bugCap) (graphics \(qualityName) \((QualityTier(rawValue: qualityName) ?? .med).bugCap), device \(world?.renderer.quality.deviceBugCap ?? 0))")
     }
 
     /// Thumbs held through a level-up or the pause menu keep steering afterwards (web showScreen): the sticks stay,
@@ -486,7 +486,7 @@ final class GameScene: SKScene {
 
     private var pauseState: MenuScreen.PauseState {
         MenuScreen.PauseState(soundOn: !settings.muted, volume: settings.vol, quality: settings.quality, hapticsOn: settings.haptics,
-                              brightness: settings.brightness, tierName: game?.difficulty.name ?? Difficulty.veteran.name)
+                              brightness: settings.brightness, tier: game?.difficulty.index ?? Difficulty.veteran.index)
     }
 
     private func pause() {
@@ -842,9 +842,9 @@ final class GameScene: SKScene {
         if hud.showDebug && currentTime - lastDebugText >= 0.25 {
             lastDebugText = currentTime
             let st = r.stats
-            hud.setDebug(String(format: "fps %.0f sim %.1f мир %.1f enc %.1f gpu %.1f ms ", fps, simMs, renderMs, st.encodeMs,
+            hud.setDebug(String(format: "fps %.0f sim %.1f world %.1f enc %.1f gpu %.1f ms ", fps, simMs, renderMs, st.encodeMs,
                                 host?.timeline.gpuEmaMs ?? 0) + mode.rawValue
-                         + String(format: "\nжуки %d/%d част %d вызовы %d инст %d тр %dk", g.bugsAlive, st.visibleBugs,
+                         + String(format: "\nbugs %d/%d parts %d draws %d inst %d tris %dk", g.bugsAlive, st.visibleBugs,
                                   st.particles, st.drawCalls, st.instances, st.triangles / 1000))
         }
         heartbeat(currentTime)
@@ -887,10 +887,10 @@ final class GameScene: SKScene {
             case .hordeFlash:
                 if inMission { hud.hordeFlash() }
             case .toast(let text, let kind):
-                if inMission { hud.toast(text, kind: kind) }
+                if inMission { hud.toast(L10n.string(text), kind: kind) }
                 noteFirst(1, "toast")
             case .banner(let title, let sub, let teal):
-                if inMission { hud.showBanner(title: title, subtitle: sub, teal: teal) }
+                if inMission { hud.showBanner(title: L10n.string(title), subtitle: L10n.string(sub), teal: teal) }
                 noteFirst(2, "banner")
             case .haptic(let k):
                 if inMission { haptics.play(k) }
@@ -971,7 +971,7 @@ final class GameScene: SKScene {
         AppLog.info("probe " + p.rawValue + String(format: " td=%.2f wall=%.3f", td, Date().timeIntervalSince1970))
         switch p {
         case .overlay: hud.hordeFlash()
-        case .banner: hud.showBanner(title: "ОРДА!", subtitle: "РОЙ ПРОРЫВАЕТСЯ ИЗ БЕЗДНЫ", teal: false)
+        case .banner: hud.showBanner(title: L10n.string(.hordeTitle), subtitle: L10n.string(.hordeSubtitle), teal: false)
         case .shake: cameraCtl.addShake(0.25)
         case .sounds:
             audio?.play(.siren, pos: nil, listener: listener())

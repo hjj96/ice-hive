@@ -4,11 +4,11 @@ import IceHiveCore
 
 // ================================================================
 //  PAUSE / END — boxes with buttons (web .m-box with the hazard band).
-//  Pause (v1.1): «ПАУЗА · ВЕТЕРАН» and «Обучение» after «Графика».
+//  Pause (v1.1): «PAUSE · VETERAN» and «Tutorial» after «Graphics».
 //  End (v1.1, web D report): the core's MissionReport laid out in two
 //  columns — A: tag, title, the stage strip, the score with its
 //  breakdown and the tier line, the mini numbers; B: the class rank card,
-//  a new medal, tips (loss cause, «дольше», promo), the «Новобранец» chip,
+//  a new medal, tips (loss cause, «longer», promo), the «Try Recruit» chip,
 //  the next goal and the buttons, side by side (landscape-only: LAND),
 //  the buttons above the fold. When the screen is short the layout
 //  tightens, then drops the second tip.
@@ -20,10 +20,10 @@ final class MenuScreen {
         var volume: Float
         var quality: String
         var hapticsOn: Bool
-        /// «Яркость» gamma (SettingsStore.brightnessSteps).
+        /// Brightness gamma (SettingsStore.brightnessSteps).
         var brightness: Float = 1
-        /// The mission's tier («Ветеран»), shown after «ПАУЗА».
-        var tierName: String = Difficulty.veteran.name
+        /// The mission's tier (index), its name shown after the title.
+        var tier: Int = Difficulty.veteran.index
     }
     let root = SKNode()
     private let shade = SKSpriteNode(color: UIPalette.rgba(5, 7, 10, 0.7), size: CGSize(width: 10, height: 10))
@@ -49,16 +49,19 @@ final class MenuScreen {
     }
 
 
-    /// Web qualityLabel(): «Графика: авто (средняя)» / «Графика: низкая» …
+    /// Web qualityLabel(): «Graphics: auto (medium)» / «Graphics: low» …
     static func qualityLabel(_ q: String) -> String {
-        if q == "auto" { return "Графика: авто (" + QualityTier.med.label.lowercased() + ")" }
-        return "Графика: " + (QualityTier(rawValue: q) ?? .med).label.lowercased()
+        if q == "auto" { return L10n.ui(.menuGraphicsAuto, .str(L10n.name(.quality(.med)))) }
+        return L10n.ui(.menuGraphics, .str(L10n.name(.quality(QualityTier(rawValue: q) ?? .med))))
     }
 
-    /// «Яркость: обычная / выше / максимум».
+    /// «Brightness: normal / high / max».
     static func brightnessLabel(_ g: Float) -> String {
-        "Яркость: " + (g >= 1.25 ? "максимум" : (g > 1.05 ? "выше" : "обычная"))
+        L10n.ui(.menuBrightness, .str(L10n.ui(g >= 1.25 ? .menuBrightnessMax : (g > 1.05 ? .menuBrightnessHigh : .menuBrightnessNormal))))
     }
+
+    /// «Sound: on» / «Vibration: off».
+    static func onOff(_ k: UIText, _ on: Bool) -> String { L10n.ui(k, .str(L10n.ui(on ? .menuOn : .menuOff))) }
 
     /// Box background + hazard band, top-left at (x, top).
     private func box(x: CGFloat, top: CGFloat, width: CGFloat, height: CGFloat, edge: SKColor? = nil) {
@@ -73,9 +76,9 @@ final class MenuScreen {
     }
 
     // ---------------------------------------------------------------- pause
-    /// The pause box for a landscape phone (LAND): «ПАУЗА · ВЕТЕРАН» across the top, two columns of 44-pt buttons —
-    /// left the mission (Продолжить, Обучение, Сдаться) with the control hint under them, right the settings (Звук,
-    /// Громкость, Графика, Вибрация). A short screen (< 390 pt) packs the rows 6 pt tighter.
+    /// The pause box for a landscape phone (LAND): «PAUSE · VETERAN» across the top, two columns of 44-pt buttons —
+    /// left the mission (Resume, Tutorial, Abort) with the control hint under them, right the settings (Sound,
+    /// Volume, Graphics, Brightness, Vibration). A short screen (< 390 pt) packs the rows 6 pt tighter.
     func showPause(size: CGSize, state: PauseState, layoutCheck: Bool = false, insets: UIEdgeInsets = .zero) {
         reset(size: size)
         let sl = max(16, insets.left), sr = max(16, insets.right)
@@ -85,15 +88,15 @@ final class MenuScreen {
         let w = 2 * colW + colGap
         let bh: CGFloat = 44, step: CGFloat = short ? 50 : 54
         let mission: [(String, MenuButton.Style, Action)] = [
-            ("Продолжить", .normal, .resume),
-            ("Обучение", .ghost, .tutorial),
-            ("Сдаться", .danger, .quit)]
+            (L10n.ui(.pauseResume), .normal, .resume),
+            (L10n.ui(.pauseTutorial), .ghost, .tutorial),
+            (L10n.ui(.pauseQuit), .danger, .quit)]
         let settings: [(String, MenuButton.Style, Action)] = [
-            ("Звук: " + (state.soundOn ? "вкл" : "выкл"), .ghost, .sound),
-            ("Громкость: \(Int((state.volume * 100).rounded()))%", .ghost, .volume),
+            (MenuScreen.onOff(.menuSound, state.soundOn), .ghost, .sound),
+            (L10n.ui(.menuVolume, .int(Int((state.volume * 100).rounded()))), .ghost, .volume),
             (MenuScreen.qualityLabel(state.quality), .ghost, .quality),
             (MenuScreen.brightnessLabel(state.brightness), .ghost, .brightness),
-            ("Вибрация: " + (state.hapticsOn ? "вкл" : "выкл"), .ghost, .haptics)]
+            (MenuScreen.onOff(.menuHaptics, state.hapticsOn), .ghost, .haptics)]
         let titleH: CGFloat = short ? 48 : 56
         let rowsH = CGFloat(settings.count) * step - (step - bh)
         let boxH = 8 + titleH + rowsH + (short ? 16 : 20)
@@ -105,14 +108,15 @@ final class MenuScreen {
         box(x: -bw / 2, top: top, width: bw, height: boxH)
         var check = LayoutCheck("pause")
         check.add("box", CGRect(x: -bw / 2, y: top - boxH, width: bw, height: boxH))
-        // «ПАУЗА · ВЕТЕРАН» (web .p-tier: half size, ink-dim)
+        // «PAUSE · VETERAN» (web .p-tier: half size, ink-dim)
         let ts: CGFloat = short ? 28 : 32
         let x0 = -w / 2
-        let title = Label("ПАУЗА", font: Fonts.bold, size: ts, color: UIPalette.ink, kern: 4, align: .left)
+        let title = Label(L10n.upper(L10n.ui(.pauseTitle)), font: Fonts.bold, size: ts, color: UIPalette.ink, kern: 4, align: .left)
         title.node.position = CGPoint(x: x0, y: top - 8 - titleH / 2)
         content.addChild(title.node)
         check.add("title", node: title.node)
-        let tier = Label("· " + state.tierName.uppercased(), font: Fonts.semibold, size: ts * 0.5, color: UIPalette.inkDim, kern: ts * 0.06, align: .left)
+        let tier = Label("· " + L10n.upper(L10n.name(.tier(state.tier))), font: Fonts.semibold, size: ts * 0.5, color: UIPalette.inkDim,
+                         kern: ts * 0.06, align: .left)
         tier.node.position = CGPoint(x: x0 + title.width + ts * 0.4, y: top - 8 - titleH / 2)
         content.addChild(tier.node)
         check.add("tier", node: tier.node)
@@ -123,6 +127,7 @@ final class MenuScreen {
             for it in items {
                 let b = MenuButton(it.0, style: it.1, fontSize: 15)
                 MenuScreen.fit(b.label, colW - 16)
+                check.text("text.btn." + String(describing: it.2), width: b.label.width, room: colW - 16)
                 b.layout(center: CGPoint(x: cx, y: y), size: CGSize(width: colW, height: bh))
                 content.addChild(b.node)
                 buttons.append((b, it.2))
@@ -157,6 +162,8 @@ final class MenuScreen {
         var gapAbove: CGFloat
         /// Rects of tappable children (relative to the block origin) and their actions.
         var taps: [(MenuButton, Action)] = []
+        /// Texts in it that must fit their room (name, width as drawn, room): the layout check.
+        var texts: [(String, CGFloat, CGFloat)] = []
     }
 
     /// Fonts and spacing of one density step (web media queries for short / narrow screens).
@@ -271,6 +278,7 @@ final class MenuScreen {
             b.node.position = CGPoint(x: x, y: y)
             content.addChild(b.node)
             check.add(b.name, CGRect(x: x, y: y - b.height, width: b.node.calculateAccumulatedFrame().width, height: b.height))
+            for (n, w, room) in b.texts { check.text(n, width: w, room: room) }
             for (btn, act) in b.taps {
                 // the button rects become screen rects (block origin + the button's own rect)
                 btn.offset(by: CGPoint(x: x, y: y))
@@ -289,18 +297,23 @@ final class MenuScreen {
     /// Column A: tag, title, strip, score, breakdown + tier line, mini numbers (no subtitle: web landscape phones).
     private func columnA(report r: MissionReport, d: Density, colW: CGFloat) -> [Block] {
         var out: [Block] = []
+        var texts: [(String, CGFloat, CGFloat)] = []
+        func push(_ b0: Block) { var b = b0; b.texts = texts; texts = []; out.append(b) }
         let tagN = SKNode()
-        let tag = Label(r.tag.uppercased(), font: Fonts.mono, size: 12, color: UIPalette.inkDim, kern: 2.4, align: .left)
+        let tag = Label(L10n.upper(L10n.string(r.tag)), font: Fonts.mono, size: 12, color: UIPalette.inkDim, kern: 2.4, align: .left)
         MenuScreen.fit(tag, colW)
+        texts.append(("text.tag", tag.width, colW))
         tag.node.position = CGPoint(x: 0, y: -6)
         tagN.addChild(tag.node)
-        out.append(Block(name: "tag", node: tagN, height: 12, gapAbove: 0))
+        push(Block(name: "tag", node: tagN, height: 12, gapAbove: 0))
         let tN = SKNode()
-        let title = Label(r.title.uppercased(), font: Fonts.bold, size: d.title, color: r.won ? UIPalette.teal : UIPalette.red, kern: d.title * 0.1, align: .left)
+        let title = Label(L10n.upper(L10n.string(r.title)), font: Fonts.bold, size: d.title, color: r.won ? UIPalette.teal : UIPalette.red,
+                          kern: d.title * 0.1, align: .left)
         MenuScreen.fit(title, colW)
+        texts.append(("text.title", title.width, colW))
         title.node.position = CGPoint(x: 0, y: -d.title * 0.5)
         tN.addChild(title.node)
-        out.append(Block(name: "title", node: tN, height: d.title, gapAbove: 6))
+        push(Block(name: "title", node: tN, height: d.title, gapAbove: 6))
         // the stage strip (web .r-strip: 4 × 1fr, 1.2fr, 1.75fr; 3 pt top border; teal on a win, amber on a loss)
         let stN = SKNode()
         let fr: [CGFloat] = [1, 1, 1, 1, 1.2, 1.75]
@@ -313,25 +326,32 @@ final class MenuScreen {
             bar.anchorPoint = CGPoint(x: 0, y: 1)
             bar.position = CGPoint(x: x, y: 0)
             stN.addChild(bar)
-            let l = Label(it.label.uppercased(), font: Fonts.medium, size: d.strip < 18 ? 9 : 10, color: it.on ? onColor : UIPalette.inkFaint, kern: 0.6)
+            let l = Label(L10n.upper(L10n.string(it.label)), font: Fonts.medium, size: d.strip < 18 ? 9 : 10, color: it.on ? onColor : UIPalette.inkFaint,
+                          kern: 0.6)
+            // (a stage name wider than its segment shrinks: SE's segments are ~35 pt)
+            MenuScreen.fit(l, w - 2, minSize: 6)
+            texts.append(("text.strip\(k)", l.width, w - 2))
             l.node.position = CGPoint(x: x + w / 2, y: -3 - (d.strip - 3) / 2)
             stN.addChild(l.node)
             x += w + 3
         }
-        out.append(Block(name: "strip", node: stN, height: d.strip, gapAbove: d.gap))
-        // ОЧКИ 6 228 + «НОВЫЙ РЕКОРД» / «рекорд N»
+        push(Block(name: "strip", node: stN, height: d.strip, gapAbove: d.gap))
+        // SCORE 6,228 + «NEW RECORD» / «best N»
         let scN = SKNode()
         let base = -d.total * 0.86
-        let lab = Label(r.scoreLabel.uppercased(), font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 2.4, align: .left, valign: .baseline)
+        let lab = Label(L10n.upper(L10n.string(r.scoreLabel)), font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 2.4, align: .left, valign: .baseline)
         lab.node.position = CGPoint(x: 0, y: base)
         scN.addChild(lab.node)
-        let tot = Label(r.scoreTotal, font: Fonts.monoBold, size: d.total, color: UIPalette.ink, align: .left, valign: .baseline)
+        let tot = Label(L10n.num(r.scoreTotal), font: Fonts.monoBold, size: d.total, color: UIPalette.ink, align: .left, valign: .baseline)
         tot.node.position = CGPoint(x: lab.width + 10, y: base)
         scN.addChild(tot.node)
-        if let note = r.scoreNote {
+        if let noteText = r.scoreNote {
+            let note = L10n.string(noteText)
             let nx = lab.width + 10 + tot.width + 10
             if r.record {
-                let nl = Label(note.uppercased(), font: Fonts.bold, size: 11, color: UIPalette.bg, kern: 1.5, align: .left)
+                let nl = Label(L10n.upper(note), font: Fonts.bold, size: 11, color: UIPalette.bg, kern: 1.5, align: .left)
+                MenuScreen.fit(nl, max(20, colW - nx - 14), minSize: 7)
+                texts.append(("text.record", nl.width + 14, colW - nx))
                 let bwid = nl.width + 14
                 let chip = Shapes.panel(width: bwid, height: 21, cut: 0, fill: UIPalette.amber)
                 chip.position = CGPoint(x: nx, y: -d.total * 0.5 + 10.5)
@@ -341,19 +361,23 @@ final class MenuScreen {
                 scN.addChild(nl.node)
             } else {
                 let nl = Label(note, font: Fonts.mono, size: 12, color: UIPalette.inkFaint, align: .left, valign: .baseline)
+                MenuScreen.fit(nl, max(20, colW - nx), minSize: 7)
+                texts.append(("text.best", nl.width, colW - nx))
                 nl.node.position = CGPoint(x: nx, y: base)
                 scN.addChild(nl.node)
             }
         }
-        out.append(Block(name: "score", node: scN, height: d.total, gapAbove: d.gap - 1))
+        push(Block(name: "score", node: scN, height: d.total, gapAbove: d.gap - 1))
         // breakdown (web .r-lines): 2 pt rule on the left, label left, «+N» right; the tier line in amber
         let lnN = SKNode()
         var ly: CGFloat = 0
-        let rows = r.parts.map { ($0.label, $0.value, false) } + [(r.tierLine, r.tierDelta, true)]
+        let rows = r.parts.map { (L10n.string($0.label), L10n.string($0.value), false) }
+            + [(L10n.string(r.tierLine), r.tierDelta.map { L10n.string($0) } ?? "", true)]
         for (lbl, val, amber) in rows {
             let cy = ly - d.lineH / 2
             let a = Label(lbl, font: Fonts.regular, size: d.line, color: amber ? UIPalette.amber : UIPalette.inkDim, kern: 0.2, align: .left)
-            MenuScreen.fit(a, colW - 12 - 70)
+            MenuScreen.fit(a, colW - 12 - 70, minSize: 7)
+            texts.append(("text.line." + String(lbl.prefix(12)), a.width, colW - 12 - 70))
             a.node.position = CGPoint(x: 12, y: cy)
             lnN.addChild(a.node)
             if !val.isEmpty {
@@ -366,8 +390,8 @@ final class MenuScreen {
         let rule = SKSpriteNode(color: UIPalette.line, size: CGSize(width: 2, height: -ly - 1))
         rule.anchorPoint = CGPoint(x: 0, y: 1)
         lnN.addChild(rule)
-        out.append(Block(name: "lines", node: lnN, height: -ly - 1, gapAbove: d.gap - 1))
-        // mini numbers (web .stats.mini): Время / Комбо / Точность / Уровень
+        push(Block(name: "lines", node: lnN, height: -ly - 1, gapAbove: d.gap - 1))
+        // mini numbers (web .stats.mini): Time / Combo / Accuracy / Level
         let mN = SKNode()
         let cellW = colW / 4
         for (k, m) in r.mini.enumerated() {
@@ -376,30 +400,36 @@ final class MenuScreen {
             cell.position = CGPoint(x: cx, y: 0)
             cell.zPosition = -1
             mN.addChild(cell)
-            let a = Label(m.label.uppercased(), font: Fonts.medium, size: 10, color: UIPalette.inkDim, kern: 0.6, align: .left)
+            let a = Label(L10n.upper(L10n.string(m.label)), font: Fonts.medium, size: 10, color: UIPalette.inkDim, kern: 0.6, align: .left)
+            MenuScreen.fit(a, cellW - 14, minSize: 6)
+            texts.append(("text.mini\(k)", a.width, cellW - 14))
             a.node.position = CGPoint(x: cx + 8, y: -d.miniH * 0.3)
             mN.addChild(a.node)
-            let v = Label(m.value, font: Fonts.monoBold, size: d.mini, color: UIPalette.ink, align: .left)
+            let v = Label(L10n.string(m.value), font: Fonts.monoBold, size: d.mini, color: UIPalette.ink, align: .left)
             v.node.position = CGPoint(x: cx + 8, y: -d.miniH * 0.68)
             mN.addChild(v.node)
         }
-        out.append(Block(name: "mini", node: mN, height: d.miniH, gapAbove: d.gap))
+        push(Block(name: "mini", node: mN, height: d.miniH, gapAbove: d.gap))
         return out
     }
 
     /// Column B: rank card, medal, tips, chip, goal, buttons.
     private func columnB(report r: MissionReport, d: Density, colW: CGFloat) -> [Block] {
         var out: [Block] = []
-        // rank card (web .r-rank): «ШТУРМОВИК · СЕРЖАНТ» + «+623 выслуги», teal bar, «НОВОЕ ЗВАНИЕ: …»
+        var texts: [(String, CGFloat, CGFloat)] = []
+        func push(_ b0: Block) { var b = b0; b.texts = texts; texts = []; out.append(b) }
+        // rank card (web .r-rank): «ASSAULT · SERGEANT» + «+623 service XP», teal bar, «NEW RANK: …»
         let rkN = SKNode()
         let padT: CGFloat = d.gap >= 9 ? 9 : 7
-        let rt = Label(r.rankTitle.uppercased(), font: Fonts.semibold, size: d.line, color: UIPalette.ink, kern: 1, align: .left)
+        let rt = Label(L10n.upper(L10n.string(r.rankTitle)), font: Fonts.semibold, size: d.line, color: UIPalette.ink, kern: 1, align: .left)
         rt.node.position = CGPoint(x: 10, y: -padT - 7)
         rkN.addChild(rt.node)
-        let xp = Label(r.xpLine, font: Fonts.mono, size: 12, color: UIPalette.teal, align: .right)
+        let xp = Label(L10n.string(r.xpLine), font: Fonts.mono, size: 12, color: UIPalette.teal, align: .right)
+        MenuScreen.fit(xp, colW * 0.45, minSize: 8)
         xp.node.position = CGPoint(x: colW - 10, y: -padT - 7)
         rkN.addChild(xp.node)
-        MenuScreen.fit(rt, colW - 20 - xp.width - 10)
+        MenuScreen.fit(rt, colW - 20 - xp.width - 10, minSize: 7)
+        texts.append(("text.rank", rt.width, colW - 20 - xp.width - 10))
         var ry = -padT - 14 - (d.gap >= 9 ? 8 : 6)
         let bar = Bar(width: colW - 20, height: 6, fill: UIPalette.teal, track: UIPalette.tealTrack)
         bar.set(CGFloat(r.rankFill))
@@ -408,8 +438,9 @@ final class MenuScreen {
         ry -= 6
         if let up = r.rankUp {
             ry -= d.gap >= 9 ? 7 : 5
-            let u = Label(up.uppercased(), font: Fonts.bold, size: d.line, color: UIPalette.amber, kern: 1.5, align: .left)
-            MenuScreen.fit(u, colW - 20)
+            let u = Label(L10n.upper(L10n.string(up)), font: Fonts.bold, size: d.line, color: UIPalette.amber, kern: 1.5, align: .left)
+            MenuScreen.fit(u, colW - 20, minSize: 7)
+            texts.append(("text.rankUp", u.width, colW - 20))
             u.node.position = CGPoint(x: 10, y: ry - d.line * 0.5)
             rkN.addChild(u.node)
             ry -= d.line
@@ -418,20 +449,26 @@ final class MenuScreen {
         let card = Shapes.panel(width: colW, height: rkH, cut: 0, fill: UIPalette.panel, stroke: UIPalette.line)
         card.zPosition = -1
         rkN.addChild(card)
-        out.append(Block(name: "rank", node: rkN, height: rkH, gapAbove: 0))
+        push(Block(name: "rank", node: rkN, height: rkH, gapAbove: 0))
         if let m = r.medal {
             let mN = SKNode()
-            let l = Label("◆ " + m.uppercased(), font: Fonts.semibold, size: d.line, color: UIPalette.amber, kern: 0.8, align: .left)
-            MenuScreen.fit(l, colW)
-            l.node.position = CGPoint(x: 0, y: -d.line * 0.6)
+            // the diamond comes from JetBrains Mono (Oswald has no ◆: no system-font fallback)
+            let dia = Label(Glyphs.diamond, font: Fonts.monoBold, size: d.line, color: UIPalette.amber, align: .left)
+            dia.node.position = CGPoint(x: 0, y: -d.line * 0.6)
+            mN.addChild(dia.node)
+            let lx = dia.width + d.line * 0.4
+            let l = Label(L10n.upper(L10n.string(m)), font: Fonts.semibold, size: d.line, color: UIPalette.amber, kern: 0.8, align: .left)
+            MenuScreen.fit(l, colW - lx, minSize: 7)
+            texts.append(("text.medal", l.width, colW - lx))
+            l.node.position = CGPoint(x: lx, y: -d.line * 0.6)
             mN.addChild(l.node)
-            out.append(Block(name: "medal", node: mN, height: d.line * 1.25, gapAbove: d.gap))
+            push(Block(name: "medal", node: mN, height: d.line * 1.25, gapAbove: d.gap))
         }
-        // tips: the loss cause on red-dim, «дольше» / promo on teal-dim (wrapped; TextWarmup lays them out at launch)
+        // tips: the loss cause on red-dim, «longer» / promo on teal-dim (wrapped; TextWarmup lays them out at launch)
         for (k, t) in r.tips.enumerated() {
             let tN = SKNode()
             let padY: CGFloat = d.gap >= 9 ? 7 : 5
-            let p = paragraph(t.text, font: Fonts.regular, size: d.tip, color: UIPalette.ink, width: colW - 18, align: .left)
+            let p = paragraph(L10n.string(t.text), font: Fonts.regular, size: d.tip, color: UIPalette.ink, width: colW - 18, align: .left)
             p.horizontalAlignmentMode = .left
             p.position = CGPoint(x: 9, y: -padY)
             tN.addChild(p)
@@ -440,45 +477,52 @@ final class MenuScreen {
             bg.anchorPoint = CGPoint(x: 0, y: 1)
             bg.zPosition = -1
             tN.addChild(bg)
-            out.append(Block(name: "tip\(k)", node: tN, height: h, gapAbove: d.gap))
+            push(Block(name: "tip\(k)", node: tN, height: h, gapAbove: d.gap))
         }
         if let c = r.chip {
             let cN = SKNode()
-            let b = MenuButton(c, style: .chip, fontSize: 14)
+            let b = MenuButton(L10n.string(c), style: .chip, fontSize: 14)
+            MenuScreen.fit(b.label, colW - 28, minSize: 8)
+            texts.append(("text.chip", b.label.width, colW - 28))
             let w = b.label.width + 28
             b.layout(center: CGPoint(x: w / 2, y: -d.chipH / 2), size: CGSize(width: w, height: d.chipH))
             cN.addChild(b.node)
-            out.append(Block(name: "chip", node: cN, height: d.chipH, gapAbove: d.gap, taps: [(b, .chip)]))
+            push(Block(name: "chip", node: cN, height: d.chipH, gapAbove: d.gap, taps: [(b, .chip)]))
         }
-        // the next goal: «▸ » amber + the goal in teal (one paragraph, may wrap)
+        // the next goal: «▸ » amber (JetBrains Mono: Oswald has no ▸) + the goal in teal (one paragraph, may wrap)
         let gN = SKNode()
-        let g = goalParagraph(r.goal, size: d.line, width: colW)
+        let g = goalParagraph(L10n.string(r.goal), size: d.line, width: colW)
         gN.addChild(g)
-        out.append(Block(name: "goal", node: gN, height: g.frame.height, gapAbove: d.gap))
+        push(Block(name: "goal", node: gN, height: g.frame.height, gapAbove: d.gap))
         // buttons: the primary one full width, the others side by side under it
         let bN = SKNode()
         var taps: [(MenuButton, Action)] = []
-        let prim = MenuButton(r.primary.title, style: .go, fontSize: d.btn >= 50 ? 20 : 17)
+        let prim = MenuButton(L10n.string(r.primary.title), style: .go, fontSize: d.btn >= 50 ? 20 : 17)
+        MenuScreen.fit(prim.label, colW - 16, minSize: 9)
+        texts.append(("text.btn.primary", prim.label.width, colW - 16))
         prim.layout(center: CGPoint(x: colW / 2, y: -d.btn / 2), size: CGSize(width: colW, height: d.btn))
         bN.addChild(prim.node)
         taps.append((prim, MenuScreen.action(r.primary)))
         let others = r.buttons.filter { $0 != r.primary }
         let ow = (colW - CGFloat(max(0, others.count - 1)) * 8) / CGFloat(max(1, others.count))
         for (k, o) in others.enumerated() {
-            let b = MenuButton(o.title, style: .ghost, fontSize: d.btn >= 50 ? 14 : 13)
+            let b = MenuButton(L10n.string(o.title), style: .ghost, fontSize: d.btn >= 50 ? 14 : 13)
+            MenuScreen.fit(b.label, ow - 16, minSize: 8)
+            texts.append(("text.btn.\(k)", b.label.width, ow - 16))
             b.layout(center: CGPoint(x: CGFloat(k) * (ow + 8) + ow / 2, y: -d.btn - 8 - d.btn2 / 2), size: CGSize(width: ow, height: d.btn2))
             bN.addChild(b.node)
             taps.append((b, MenuScreen.action(o)))
         }
         let bh = d.btn + (others.isEmpty ? 0 : 8 + d.btn2)
-        out.append(Block(name: "buttons", node: bN, height: bh, gapAbove: d.gap + 2, taps: taps))
+        push(Block(name: "buttons", node: bN, height: bh, gapAbove: d.gap + 2, taps: taps))
         return out
     }
 
-    /// A one-line label wider than `w` gets a smaller font (one step, the same font; the tightest phones).
-    static func fit(_ l: Label, _ w: CGFloat) {
+    /// A one-line label wider than `w` gets a smaller font (one step, the same font; the tightest phones), not below
+    /// `minSize`.
+    static func fit(_ l: Label, _ w: CGFloat, minSize: CGFloat = 9) {
         let lw = l.width
-        if lw > w && w > 20 { l.size = max(9, (l.size * w / lw * 10).rounded(.down) / 10) }
+        if lw > w && w > 20 { l.size = max(minSize, (l.size * w / lw * 10).rounded(.down) / 10) }
     }
 
     private static func action(_ b: ReportButton) -> Action {
@@ -499,8 +543,8 @@ final class MenuScreen {
         let style = NSMutableParagraphStyle()
         style.alignment = .left
         style.lineSpacing = 2
-        let s = NSMutableAttributedString(string: MetaText.goalPrefix, attributes: [
-            .font: Fonts.font(Fonts.medium, size), .foregroundColor: UIPalette.amber, .paragraphStyle: style])
+        let s = NSMutableAttributedString(string: Glyphs.pointer + " ", attributes: [
+            .font: Fonts.font(Fonts.monoBold, size), .foregroundColor: UIPalette.amber, .paragraphStyle: style])
         s.append(NSAttributedString(string: text, attributes: [.font: Fonts.font(Fonts.medium, size), .foregroundColor: UIPalette.teal,
                                                               .paragraphStyle: style]))
         l.attributedText = s

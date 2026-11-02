@@ -3,9 +3,9 @@ import UIKit
 import IceHiveCore
 
 // ================================================================
-//  COACH UI — «Учебная высадка» (v1.1, web #coach / #ghost of
-//  11b-coach.js): one card under the objective box («1/5  ЛЕВЫЙ ПАЛЕЦ —
-//  БЕГ  ПРОПУСТИТЬ») and a ghost thumb on the real control (drag loop on
+//  COACH UI — the first-run tutorial (v1.1, web #coach / #ghost of
+//  11b-coach.js): one card under the objective box («1/5  LEFT THUMB —
+//  MOVE  SKIP») and a ghost thumb on the real control (drag loop on
 //  a stick, tap loop on the ability / dash button, whose amber ring
 //  pulses; on the beacon step a ring around the objective marker).
 //  Everything animates on wall time with transforms / alpha only; a
@@ -16,11 +16,11 @@ import IceHiveCore
 final class CoachCard {
     let node = SKNode()
     private var panel = SKSpriteNode(texture: nil)
-    private let counter = Label("1/5", font: Fonts.monoBold, size: 12, color: UIPalette.amber)
+    private let counter = Label(L10n.string(CoachText.counter(step: 0)), font: Fonts.monoBold, size: 12, color: UIPalette.amber)
     private let line1 = Label("", font: Fonts.semibold, size: 15, color: UIPalette.ink, kern: 0.75, align: .left)
     private let line2 = Label("", font: Fonts.semibold, size: 15, color: UIPalette.ink, kern: 0.75, align: .left)
-    private let skip = Label(CoachText.skip.uppercased(), font: Fonts.medium, size: 11, color: UIPalette.inkFaint, kern: 1.1)
-    /// «Пропустить» hit area (HUD coordinates, ≥ 44 × 44: the card's full height at its right end).
+    private let skip = Label(L10n.upper(L10n.string(CoachText.skip)), font: Fonts.medium, size: 11, color: UIPalette.inkFaint, kern: 1.1)
+    /// Skip hit area (HUD coordinates, ≥ 44 × 44: the card's full height at its right end).
     private(set) var skipRect = CGRect.zero
     private(set) var height: CGFloat = 44
     private(set) var width: CGFloat = 0
@@ -43,30 +43,53 @@ final class CoachCard {
         skipRect = .zero
     }
 
+    /// How the card sets `text`: one line, or two split after « — » (or at the middle space) when one is wider than
+    /// the room the counter and skip leave; lines still too wide shrink (down to 0.6). Show and the layout check share it.
+    struct Lines {
+        let l1: String, l2: String
+        let avail: CGFloat
+        /// Widest line at full size and the scale it is drawn at.
+        let widest: CGFloat, scale: CGFloat
+    }
+    static let lineMinScale: CGFloat = 0.6
+    static func lines(_ text: String, maxWidth: CGFloat, counterW: CGFloat, skipW: CGFloat) -> Lines {
+        let fixed: CGFloat = 12 + counterW + 10 + 10 + skipW + 4
+        let avail = max(80, maxWidth - fixed)
+        func w(_ s: String) -> CGFloat { TextFit.width(s, font: Fonts.semibold, size: 15, kern: 0.75) }
+        var l1 = text, l2 = ""
+        var widest = w(text)
+        if widest > avail {
+            (l1, l2) = CoachCard.split(text)
+            widest = max(w(l1), w(l2))
+        }
+        return Lines(l1: l1, l2: l2, avail: avail, widest: widest, scale: TextFit.fitted(widest, avail, minScale: lineMinScale).scale)
+    }
+
+    /// The skip label's width and its tap column (≥ 44 pt).
+    var skipWidth: CGFloat { max(44, skip.width + 16) }
+    var counterWidth: CGFloat { counter.width }
+
     /// Lay the card out for `text` (as given: the HUD passes it uppercased), centred at `centerX`, top edge at `top`.
-    /// Too long for one line → split after « — » (or the middle space) into two single-line labels: no wrapped label
-    /// (the first wrapped text layout of a process can stall, TextWarmup).
+    /// Too long for one line → two single-line labels (`lines`): no wrapped label (the first wrapped text layout of a
+    /// process can stall, TextWarmup).
     func show(step: Int, text: String, centerX: CGFloat, top: CGFloat, maxWidth: CGFloat) {
         let k = "\(step)|" + text + "|\(Int(centerX))|\(Int(top))|\(Int(maxWidth))"
         if k == key && visible { return }
         let fresh = !visible || !key.hasPrefix("\(step)|" + text + "|")
         key = k
         node.isHidden = false
-        counter.set(CoachText.counter(step: step))
-        let skipW = max(44, skip.width + 16)
+        counter.set(L10n.string(CoachText.counter(step: step)))
+        let skipW = skipWidth
         let fixed: CGFloat = 12 + counter.width + 10 + 10 + skipW + 4
-        let avail = max(80, maxWidth - fixed)
-        line1.set(text)
-        var lines = 1
-        if line1.width > avail {
-            let parts = CoachCard.split(text)
-            line1.set(parts.0)
-            line2.set(parts.1)
-            lines = 2
-        }
+        let L = CoachCard.lines(text, maxWidth: maxWidth, counterW: counter.width, skipW: skipW)
+        line1.set(L.l1)
+        line2.set(L.l2)
+        line1.node.setScale(L.scale)
+        line2.node.setScale(L.scale)
+        let lines = L.l2.isEmpty ? 1 : 2
         line2.node.isHidden = lines < 2
-        let textW = lines == 2 ? max(line1.width, line2.width) : line1.width
-        let w = min(maxWidth, fixed + min(textW, avail))
+        let textW = L.widest * L.scale
+        let w = min(maxWidth, fixed + min(textW, L.avail))
         let h: CGFloat = 44
         width = w
         height = h
@@ -90,7 +113,7 @@ final class CoachCard {
         if fresh { appearT = FrameTimer.now() }
     }
 
-    /// «ПРАВЫЙ ПАЛЕЦ — ПРИЦЕЛ, ОГОНЬ САМ» → («ПРАВЫЙ ПАЛЕЦ —», «ПРИЦЕЛ, ОГОНЬ САМ»).
+    /// «RIGHT THUMB — AIM, IT FIRES ITSELF» → («RIGHT THUMB —», «AIM, IT FIRES ITSELF»).
     static func split(_ t: String) -> (String, String) {
         if let r = t.range(of: " — ") {
             return (String(t[t.startIndex..<r.lowerBound]) + " —", String(t[r.upperBound...]))

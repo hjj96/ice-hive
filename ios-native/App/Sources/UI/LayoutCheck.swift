@@ -6,7 +6,8 @@ import UIKit
 //  screen (title, HUD, pause, level-up, report) is logged with its rect, then any two
 //  that overlap (one inside the other is a container, not an overlap),
 //  any two side by side closer than 4 pt, any that leave the safe
-//  area, and any tap area under 44 × 44 pt. CI greps «layout ok».
+//  area, any tap area under 44 × 44 pt, and (L10n) any text wider than
+//  its container after the fitting the UI applies. CI greps «layout ok».
 //  Rects are HUD coordinates (origin at the view centre, y up).
 // ================================================================
 struct LayoutCheck {
@@ -20,6 +21,8 @@ struct LayoutCheck {
     private(set) var items: [(String, CGRect)] = []
     /// Tap areas (drawn rect + hit inset), checked only for Apple's 44 pt minimum.
     private(set) var taps: [(String, CGRect)] = []
+    /// Texts and their rooms: (name, width as drawn, room).
+    private(set) var texts: [(String, CGFloat, CGFloat)] = []
 
     init(_ screen: String) { self.screen = screen }
 
@@ -29,6 +32,13 @@ struct LayoutCheck {
     }
 
     mutating func tap(_ name: String, _ r: CGRect) { taps.append((name, r)) }
+
+    /// A text that must fit its container: `width` is the line at full size; the UI scales it down to `minScale` at most
+    /// (1 = no fitting), so it overflows when even that is wider than `room`.
+    mutating func text(_ name: String, width: CGFloat, room: CGFloat, minScale: CGFloat = 1) {
+        let w = width * TextFit.fitted(width, room, minScale: minScale).scale
+        texts.append((name, w, room))
+    }
 
     /// A node's frame in HUD coordinates (its parent is a direct child of the screen root at the origin).
     mutating func add(_ name: String, node: SKNode, offset: CGPoint = .zero) {
@@ -60,6 +70,9 @@ struct LayoutCheck {
         for (n, r) in taps where r.width < 43.5 || r.height < 43.5 {
             problems.append(String(format: "small tap %@ %.0fx%.0f", n, r.width, r.height))
         }
+        for (n, w, room) in texts where w > room + 0.5 {
+            problems.append(String(format: "overflow %@ %.0f>%.0f", n, w, room))
+        }
         if !LayoutCheck.quiet || !problems.isEmpty {
             for (n, r) in items {
                 AppLog.info(String(format: "layout %@ %@ x=%.0f y=%.0f w=%.0f h=%.0f", screen, n, r.minX, r.minY, r.width, r.height))
@@ -70,7 +83,7 @@ struct LayoutCheck {
             + String(format: " safe %.0f|%.0f|%.0f|%.0f", insets.left, insets.right, insets.top, insets.bottom)
         if problems.isEmpty {
             LayoutCheck.results.ok += 1
-            AppLog.info("layout ok " + tag + " (\(items.count) elements)")
+            AppLog.info("layout ok " + tag + " (\(items.count) elements, \(texts.count) texts)")
         } else {
             LayoutCheck.results.fail += 1
             AppLog.info("layout FAIL " + tag + ": " + problems.prefix(12).joined(separator: "; "))

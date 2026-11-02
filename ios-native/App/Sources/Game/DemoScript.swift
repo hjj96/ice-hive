@@ -169,14 +169,14 @@ final class DemoScript {
             if let b = game.beacons.first { game.debugTeleport(b.x + 1.5, b.z - 1.5) }
             target = 300
             let n = game.debugSpawn(target, type: nil, minRadius: 8, maxRadius: 24)
-            AppLog.info("demo punchin: squad in beacon \(game.beacons.first?.name ?? "?")'s ring, spawned \(n) bugs")
+            AppLog.info("demo punchin: squad in beacon \(game.beacons.first.map { $0.name.logID } ?? "?")'s ring, spawned \(n) bugs")
         case "beacon":
             if let b = game.beacons.first {
                 game.debugTeleport(b.x + 3, b.z - 3.5)
             }
             target = override ?? 350
             let n = game.debugSpawn(min(target, 600), type: nil, minRadius: 7, maxRadius: 24)
-            AppLog.info("demo beacon: squad at beacon \(game.beacons.first?.name ?? "?"), spawned \(n) bugs")
+            AppLog.info("demo beacon: squad at beacon \(game.beacons.first.map { $0.name.logID } ?? "?"), spawned \(n) bugs")
         default:
             target = override ?? 600
             let n = game.debugSpawn(min(target, 900), type: nil, minRadius: 6, maxRadius: 26)
@@ -228,7 +228,7 @@ final class DemoScript {
             queenSet = true
             // (the scene logs «v11 queen spawn …» from her event)
             let uid = game.debugQueen(hp: options.queenHp ?? 1_000_000)
-            if uid == 0 { AppLog.info("demo \(name): the Матка did not come (stage \(game.stage.rawValue))") }
+            if uid == 0 { AppLog.info("demo \(name): the Queen did not come (stage \(game.stage.rawValue))") }
         }
         if name == "queenlock" && !lockSet && queenSet && sinceReady >= 3.5 {
             lockSet = true

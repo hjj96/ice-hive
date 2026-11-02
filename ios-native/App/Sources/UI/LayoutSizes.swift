@@ -12,11 +12,12 @@ import IceHiveCore
 //    844 × 390  6.1" notch (iPhone 12–14, 16e)          47 | 47, bottom 20
 //    667 × 375  iPhone SE 2 / 3                          no insets
 //  (iOS reports the Dynamic Island / notch inset on both sides in
-//  landscape.) Screens: the title (fresh, returning, Кошмар), the HUD
+//  landscape.) Screens: the title (fresh, returning, Nightmare), the HUD
 //  (its fixed elements and the room the coach card, toasts and hint
 //  take), the pause, the level-up cards (the longest descriptions), the
-//  four report fixtures. CI runs it in the main simulator and fails on
-//  any FAIL line.
+//  four report fixtures — each with its text-fits-container checks
+//  (L10n). CI runs it in the main simulator, once in English and once
+//  pseudo-localised (-pseudoLoc 1.35), and fails on any FAIL line.
 // ================================================================
 enum LayoutSizes {
     struct Phone {
@@ -32,13 +33,16 @@ enum LayoutSizes {
         Phone(name: "SE", size: CGSize(width: 667, height: 375), insets: .zero)]
 
     /// Lay out and check everything on every phone; logs the totals («layout sizes: N ok, M FAIL»).
-    static func run(game: Game, station: String) {
+    static func run(game: Game, station: NameRef) {
         let t0 = FrameTimer.now()
+        L10n.audit()
         let before = LayoutCheck.results
         let title = TitleScreen(), menu = MenuScreen(), levelUp = LevelUpScreen(), hud = HUD()
         hud.setSquad(game.marines)
-        // the three upgrades with the longest descriptions (the tallest cards)
-        let longest = Array(UPGRADES.sorted { $0.desc.count > $1.desc.count }.prefix(3))
+        // the three upgrades with the longest descriptions (the tallest cards) and the three with the longest names, as
+        // the catalog has them
+        let longest = Array(UPGRADES.sorted { L10n.string($0.desc).count > L10n.string($1.desc).count }.prefix(3))
+        let longNames = Array(UPGRADES.sorted { L10n.name($0.name).count > L10n.name($1.name).count }.prefix(3))
         LayoutCheck.quiet = true
         defer { LayoutCheck.quiet = false; LayoutCheck.context = "" }
         for ph in phones {
@@ -52,9 +56,11 @@ enum LayoutSizes {
             hud.layout(size: sz, insets: ins)
             hud.checkLayout()
             menu.showPause(size: sz, state: MenuScreen.PauseState(soundOn: true, volume: 0.8, quality: "auto", hapticsOn: true,
-                                                                 tierName: Difficulty.tier(0).name),
+                                                                 tier: 2),
                            layoutCheck: true, insets: ins)
             levelUp.show(level: 12, offer: longest, counts: [:], cls: .cryo, size: sz, insets: ins, layoutCheck: true)
+            LayoutCheck.context = ph.name + " names"
+            levelUp.show(level: 12, offer: longNames, counts: [longNames[0].id: 3], cls: .gunner, size: sz, insets: ins, layoutCheck: true)
             for f in ["first", "win", "loss", "chip"] {
                 guard let r = DemoFixtures.report(f) else { continue }
                 LayoutCheck.context = ph.name + " " + f
