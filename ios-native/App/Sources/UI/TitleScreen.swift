@@ -199,7 +199,8 @@ final class TitleScreen {
                     mx += 15
                 }
             }
-            let lnW: CGFloat = hasMeta ? 28 : min(46, cardW * 0.3)
+            // (the class-colour rule ends 6 pt after the chip and the pips: longer chip words shorten it)
+            let lnW: CGFloat = hasMeta ? max(8, min(28, x + cardW - 12 - mx - 6)) : min(46, cardW * 0.3)
             let ln = SKSpriteNode(color: cc, size: CGSize(width: lnW, height: 2))
             ln.anchorPoint = CGPoint(x: 1, y: 0.5)
             ln.position = CGPoint(x: x + cardW - 12, y: rowY)

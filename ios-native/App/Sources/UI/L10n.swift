@@ -235,8 +235,9 @@ enum L10n {
 }
 
 /// Pseudo-localisation of a resolved string: Latin letters get accents the bundled fonts carry (Latin-1 and
-/// Latin Extended-A only), the text is padded with «~» to `factor` × its length and bracketed. Digits, format
-/// markers, separators and private-use markers are left alone.
+/// Latin Extended-A only), the text is padded with «~» to `factor` × its length — spread over the words in
+/// proportion to their length, so a line split at « — » / « · » grows on both sides as a longer language would —
+/// and bracketed. Digits, separators and private-use markers are left alone.
 enum Pseudo {
     private static let map: [Character: Character] = {
         let from = Array("aceinouyAEINOUYCdghjklrstwzDGHJKLRSTWZ")
@@ -248,11 +249,25 @@ enum Pseudo {
 
     static func transform(_ s: String, factor: Double) -> String {
         if s.isEmpty { return s }
-        var body = String(s.map { map[$0] ?? $0 })
-        let n = s.count
+        let chars = Array(s)
+        let n = chars.count
         let pad = max(0, Int((Double(n) * factor).rounded(.up)) - n - 2)
-        body += String(repeating: "~", count: pad)
-        return "[" + body + "]"
+        let letters = chars.filter { $0.isLetter }.count
+        var out = "["
+        var seen = 0, added = 0
+        for (i, c) in chars.enumerated() {
+            out.append(map[c] ?? c)
+            if c.isLetter {
+                seen += 1
+                let wordEnd = i + 1 == n || !chars[i + 1].isLetter
+                if wordEnd && letters > 0 {
+                    let want = Int((Double(pad) * Double(seen) / Double(letters)).rounded())
+                    if want > added { out += String(repeating: "~", count: want - added); added = want }
+                }
+            }
+        }
+        if added < pad { out += String(repeating: "~", count: pad - added) }
+        return out + "]"
     }
 }
 

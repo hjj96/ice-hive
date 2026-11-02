@@ -470,8 +470,10 @@ final class HUD {
         let bx = (W - boxW) / 2
         armourRect = CGRect(x: bx, y: bottom - Geo.armourH, width: boxW, height: Geo.armourH)
         lvl.node.position = hp(bx, bottom - 6)
-        xpBar.resize(width: boxW - 44)
-        xpBar.node.position = hp(bx + 44, bottom - 6)
+        // the XP bar starts 6 pt after the widest level label («LVL 99» in the catalog's words)
+        let lvW = max(38, (TextFit.width(L10n.upper(L10n.ui(.hudLevel, .int(99))), font: Fonts.monoBold, size: 12) + 6).rounded(.up))
+        xpBar.resize(width: boxW - lvW)
+        xpBar.node.position = hp(bx + lvW, bottom - 6)
         hpBar.resize(width: boxW)
         hpBar.node.position = hp(bx, bottom - 12 - 6 - 4.5)
         hpCap.node.position = hp(bx, bottom - 12 - 6 - 9 - 4 - 8)
@@ -537,14 +539,15 @@ final class HUD {
     /// Stats panel from the current kill-count and combo widths (web .hud-tl: kills, time, combo in one flex row;
     /// re-built only when a column moves by a 10 pt step).
     private func fitStats() {
-        let kw = max(38, (killsVal.width / 10).rounded(.up) * 10)
+        // (a column is as wide as its number or its caption, whichever is wider: longer languages)
+        let kw = max(38, (max(killsVal.width, killsCap.width) / 10).rounded(.up) * 10)
         let cwid: CGFloat = comboLast >= 5 ? max(30, (comboVal.width / 10).rounded(.up) * 10) : 0
         if kw == statsKillsW && cwid == statsComboW { return }
         statsKillsW = kw
         statsComboW = cwid
         let statsH: CGFloat = 40
         let timeX = 13 + kw + 13
-        let timeW = max(48, timeVal.width)
+        let timeW = max(48, timeVal.width, timeCap.width)
         let statsW = max(124, timeX + timeW + (cwid > 0 ? 14 + cwid : 0) + 14)
         statsRect = CGRect(x: statsLeft, y: statsTop, width: statsW, height: statsH)
         statsPanel.removeFromParent()
