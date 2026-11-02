@@ -856,7 +856,8 @@ jobs:
           wait_line results/video-app-warmup.log 'scene ready' 150 || note "warmup: no scene ready"
           sleep 8
           stop_app
-          # 1. live recordings: started once the scene is up, stopped with SIGINT, then the file is finalised
+          # 1. live recordings (`live <scene> <s> <args>`): run e932075 recorded combat and beacon live (video-live-*.mp4 there:
+          # ~60 fps but 8–10 % repeated frames, the game's own dropped frames); this run films only
           live() {  # live <scene> <seconds> <launch args...>
             local label=$1 secs=$2; shift 2
             launch "live-$label" "$@"
@@ -878,8 +879,6 @@ jobs:
             fi
             stop_app
           }
-          live combat 12 -demo combat -seed 7 -profile veteran -video
-          live beacon 10 -demo punchin -seed 7 -profile veteran -video -punchAt 4
           # 2. film: <count> = seconds × 30 frames (every 2nd of the 60 steps per second)
           film() {  # film <scene> <t0> <seconds> <launch args...>
             local label=$1 t0=$2 secs=$3; shift 3
@@ -903,12 +902,11 @@ jobs:
             note "film $label: $(ls "frames/$label" | wc -l | tr -d ' ') of $n frames in $((SECONDS - t)) s; $(grep -h -E 'film [a-z]+ (start|written)|demo (punchin|queen|extract-cine)|cine (punchin|extraction)|queen (spawn|kill)|phase ' "$log" | tr '\n' '|')"
             stop_app
           }
-          film title 0.5 7 -demo title -profile veteran -video
-          film combat 6.5 16 -demo combat -seed 7 -profile veteran -video
-          film beacon 6.5 10 -demo punchin -seed 7 -profile veteran -video -punchAt 9
-          film stress 6.5 11 -demo stress1400 -seed 7 -profile veteran -video
+          film title 0.3 8 -demo title -profile veteran -video
+          film combat 6.5 20 -demo combat -seed 7 -profile veteran -video
+          film beacon 6.5 13 -demo punchin -seed 7 -profile veteran -video -punchAt 9
+          film stress 6.5 15 -demo stress1400 -seed 11 -profile veteran -video -videoAt 2
           film finale 6.5 20 -demo queen -tier 1 -seed 3 -profile veteran -video -queenAt 7 -queenHp 1100
-          film extract 0.5 8 -demo extract-cine -seed 3 -profile veteran -video -liftAt 2
           du -sh frames/* || true
           cat results/video-steps.txt
       - name: Stop
@@ -982,6 +980,70 @@ jobs:
           name: results-videoclips
           path: results/
           retention-days: 3
+
+  # the video results go to ci-results as soon as they exist (<branch>/<sha7>/video-status.json last), without waiting
+  # for sim-smoke; the report job later writes the same folder again with everything in it
+  videoreport:
+    name: videoreport
+    needs: [video, videoclips]
+    if: always() && github.ref == 'refs/heads/native-vx-video' && needs.video.result != 'skipped'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: results-video*
+          merge-multiple: true
+          path: results
+        continue-on-error: true
+      - name: Commit the video results to ci-results
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          R_VIDEO: ${{ needs.video.result }}
+          R_VCLIPS: ${{ needs.videoclips.result }}
+        run: |
+          set -euo pipefail
+          mkdir -p results
+          printf '{"sha": "%s", "branch": "%s", "video": "%s", "videoclips": "%s"}\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" "$R_VIDEO" "$R_VCLIPS" > results/video-status.json
+          ls -la results
+          short="${GITHUB_SHA::7}"
+          src="$PWD/results"
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          # (the report job's commit step: this run's folder grafted in as <branch>/<sha7> with mktree, no checkout)
+          attempt() {
+            rm -rf ci && git init -q ci && cd ci
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git remote add origin "$remote"
+            local gd="$PWD/.git" br="${GITHUB_REF_NAME//\//-}" parent="" old="" entries=""
+            if git fetch -q --depth=1 --filter=blob:none origin ci-results 2>/dev/null; then
+              parent=$(git rev-parse FETCH_HEAD)
+            elif git ls-remote --exit-code -q origin refs/heads/ci-results >/dev/null 2>&1; then
+              cd ..; return 1
+            fi
+            GIT_INDEX_FILE="$gd/idx-results" git --git-dir="$gd" --work-tree="$src" -C "$src" add -A .
+            local rtree; rtree=$(GIT_INDEX_FILE="$gd/idx-results" git --git-dir="$gd" write-tree)
+            if [ -n "$parent" ]; then old=$(git rev-parse -q --verify "${parent}:${br}" || true); fi
+            if [ -n "$old" ]; then entries=$(git ls-tree "$old" | awk -F'\t' -v s="$short" '$2 != s'); fi
+            local btree; btree=$( { if [ -n "$entries" ]; then printf '%s\n' "$entries"; fi; printf '040000 tree %s\t%s\n' "$rtree" "$short"; } | git mktree --missing )
+            local root
+            if [ -n "$parent" ]; then
+              root=$( { git ls-tree "$parent" | awk -F'\t' -v b="$br" '$2 != b'; printf '040000 tree %s\t%s\n' "$btree" "$br"; } | git mktree --missing )
+            else
+              root=$(printf '040000 tree %s\t%s\n' "$btree" "$br" | git mktree --missing)
+            fi
+            local commit
+            if [ -n "$parent" ]; then commit=$(git commit-tree "$root" -p "$parent" -m "ci: ${GITHUB_REF_NAME}@${short} video (early)"); else commit=$(git commit-tree "$root" -m "ci: ${GITHUB_REF_NAME}@${short} video (early)"); fi
+            git push -q origin "${commit}:refs/heads/ci-results"
+            local rc=$?
+            cd ..
+            return $rc
+          }
+          for i in 1 2 3 4 5 6; do
+            if ( attempt ); then echo "pushed video results to ci-results:${GITHUB_REF_NAME}/${short}"; exit 0; fi
+            echo "push failed (attempt $i), retrying"; sleep $((i * 3))
+          done
+          echo "::error::could not push the video results"; exit 1
 
   report:
     name: report
