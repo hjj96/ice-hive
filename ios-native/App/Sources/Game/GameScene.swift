@@ -104,6 +104,8 @@ final class GameScene: SKScene {
     private let sceneTimer = FrameTimer(["sim", "ev", "cam", "world", "hud", "au"])
     private var worstDt: Double = 0
     private var lastDebugText: Double = 0
+    /// Last time the display rate was asked of RenderQuality's ladder (every 0.25 s).
+    private var lastRateCheck: Double = 0
     private var lastFrameTime: Double = 0
     private var worstMs: Double = 0
     private var hitchLogs = 0
@@ -112,7 +114,6 @@ final class GameScene: SKScene {
     /// Ticks without a free frame slot / without a drawable at the last hitch line.
     private var skipsSeen = (0, 0)
     /// Effective graphics: the tier, with the thermal fallback applied (logged when it changes).
-    private var thermalNote = ""
 
     private let metalPreload: MetalPreload?
 
@@ -262,39 +263,62 @@ final class GameScene: SKScene {
     /// The graphics tier in effect: the «Графика» setting, or the demo's own (swarmshot: high, like the store shots).
     private var qualityName: String { demo?.preferredQuality ?? settings.quality }
 
-    /// «Графика»: auto = the web phone tier (med). Effect density, flashlight shadows (high), and 120 Hz for high apply
-    /// at once; the bug cap (gameplay) is fixed per mission by newGame (GameConfig.quality), so a change from the pause
-    /// menu sizes the swarm from the next mission on. A hot device (thermal .serious / .critical) falls back to the med
-    /// effects without shadows and a 1.5x world image; .critical also caps the display at 30 Hz (applyFrameRate).
+    /// «Графика»: auto = «средняя» on every device (Efficient; RenderQuality.deviceDefaultTier — High from A14 — waits for
+    /// the iPhone 12 capture). Effect density, flashlight shadows (high), and 120 Hz for high apply at once; the bug cap
+    /// (gameplay) is fixed per mission by newGame (the tier's cap under the device class's), so a change from the pause
+    /// menu sizes the swarm from the next mission on. The thermal steps belong to RenderQuality's ladder (30 s
+    /// hysteresis): it caps the effects (MetalWorld.fxK → fxCap), the dynamic resolution and the display rate
+    /// (applyFrameRate); nothing here reads the thermal state.
     func applyQuality() {
         let q = QualityTier(rawValue: qualityName) ?? .med
-        var fxK: Float = q == .low ? 0.4 : (q == .med ? 0.7 : 1.0)
-        var scale = CGFloat(options.metalScale ?? 2)
-        let th = ProcessInfo.processInfo.thermalState
-        let hot = th == .serious || th == .critical
-        if hot {
-            fxK = min(fxK, 0.7)
-            scale = min(scale, 1.5)
-        }
-        world?.fxK = fxK
+        world?.fxK = q == .low ? 0.4 : (q == .med ? 0.7 : 1.0)
         // «Яркость» (a `-brightness G` launch option — look-dev / CI — wins)
         if !options.unknown.contains("-brightness") { world?.renderer.post.brightness = settings.brightness }
-        host?.setWorldScale(scale)
-        let note = hot ? "thermal \(th == .critical ? "critical" : "serious"): fxK \(fxK) scale \(scale)" : ""
-        if note != thermalNote { thermalNote = note; if !note.isEmpty { AppLog.info(note) } }
+        host?.setWorldScale(CGFloat(options.metalScale ?? 2))
         applyFrameRate()
     }
 
-    /// 60 Hz normally; 120 on ProMotion only with «Графика: высокая» while the device is cool and not in Low Power
-    /// Mode; 30 behind the menus (static screens over a frozen world) and when the device is critically hot.
+    /// 30 Hz behind the menus (static screens over a frozen world); otherwise what RenderQuality's ladder allows: 120 on
+    /// ProMotion with «высокая» while cool, light on the GPU and not in Low Power Mode, 60, or 30 as the critical step's
+    /// last resort. Asked on every mode change and every 0.25 s (update).
     func applyFrameRate() {
         let menuUp = mode == .paused || mode == .ended || mode == .levelUp
         var fps = 60
-        let pi = ProcessInfo.processInfo
-        let cool = pi.thermalState == .nominal || pi.thermalState == .fair
-        if qualityName == "high" && UIScreen.main.maximumFramesPerSecond >= 120 && cool && !pi.isLowPowerModeEnabled { fps = 120 }
-        if menuUp || pi.thermalState == .critical { fps = 30 }
+        if menuUp {
+            fps = 30
+        } else if let q = world?.renderer.quality {
+            fps = q.frameRate(now: FrameTimer.now(), highSetting: qualityName == "high")
+        }
         host?.setFrameRate(fps)
+    }
+
+    /// Live-bug cap of a mission: the «Графика» tier's (700 / 1400 / 2500) under the device class's
+    /// (RenderQuality.deviceBugCap: A13 and older 900, A14 1400, …; the simulator 1400).
+    private var missionBugCap: Int {
+        min((QualityTier(rawValue: qualityName) ?? .med).bugCap, world?.renderer.quality.deviceBugCap ?? 1400)
+    }
+
+    /// `-lifecycleProbe` (CI): 3 s into the mission the app goes through the background notifications and back, then a
+    /// memory warning — the paths a phone call or a home swipe takes (FrameLoop stops and restarts the loop, the pause
+    /// menu, the audio restart, the HUD-texture / particle trim). The simulator cannot be backgrounded from a demo run;
+    /// the notifications are the ones UIKit posts.
+    private var lifecycleDone = false
+    private func lifecycleProbe() {
+        guard !lifecycleDone, options.unknown.contains("-lifecycleProbe"), mode == .playing, readyTime > 0, lastTime - readyTime >= 3 else { return }
+        lifecycleDone = true
+        let nc = NotificationCenter.default
+        AppLog.info("lifecycle probe: background")
+        nc.post(name: UIApplication.willResignActiveNotification, object: nil)
+        nc.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            AppLog.info("lifecycle probe: foreground")
+            nc.post(name: UIApplication.willEnterForegroundNotification, object: nil)
+            nc.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+                self?.didReceiveMemoryWarning()
+                AppLog.info("lifecycle probe: done (mode \(self?.mode.rawValue ?? "-"))")
+            }
+        }
     }
 
     /// iOS Reduce Motion: shake and recoil kick at 35 %, longer banner (web prefers-reduced-motion).
@@ -367,6 +391,7 @@ final class GameScene: SKScene {
         guard let lv = level else { return nil }
         var cfg = GameConfig()
         cfg.quality = QualityTier(rawValue: qualityName) ?? .med
+        cfg.bugCap = missionBugCap
         cfg.attract = attract
         // v1.1: the tier is fixed for the mission; the coach and the revive line only in real missions
         cfg.difficulty = Difficulty.tier(tier)
@@ -430,6 +455,7 @@ final class GameScene: SKScene {
         demo?.begin(game: g)
         AppLog.info("mode playing class=\(cls.id) seed=\(g.seed) demo=\(demo?.name ?? "-")")
         AppLog.info("v11 start tier=\(g.difficulty.id) coach=\(g.coach.active ? 1 : 0) station=\(g.stationName) seed=\(g.seed)")
+        AppLog.info("bug cap \(g.bugCap) (Графика \(qualityName) \((QualityTier(rawValue: qualityName) ?? .med).bugCap), device \(world?.renderer.quality.deviceBugCap ?? 0))")
     }
 
     /// Thumbs held through a level-up or the pause menu keep steering afterwards (web showScreen): the sticks stay,
@@ -653,7 +679,7 @@ final class GameScene: SKScene {
             applyQuality()
             audio?.play(.click, pos: nil, listener: listener())
             menu.showPause(size: size, state: pauseState, layoutCheck: options.layoutCheck, insets: insets)
-            AppLog.info("quality \(settings.quality) bugCap=\(game?.bugCap ?? 0) next=\((QualityTier(rawValue: qualityName) ?? .med).bugCap)")
+            AppLog.info("quality \(settings.quality) bugCap=\(game?.bugCap ?? 0) next=\(missionBugCap)")
         case .brightness:
             settings.cycleBrightness()
             if !options.unknown.contains("-brightness") { world?.renderer.post.brightness = settings.brightness }
@@ -771,6 +797,7 @@ final class GameScene: SKScene {
         sceneTimer.mark()
 
         if mode == .playing { trackV11(g, dt) }
+        lifecycleProbe()
         // -layoutCheck in a mission: the HUD on this phone, once, a second into the measured window
         if options.layoutCheck && !hudChecked && mode == .playing && readyTime > 0 && lastTime - readyTime >= 1 {
             hudChecked = true
@@ -800,6 +827,7 @@ final class GameScene: SKScene {
         sceneTimer.mark()
         let t1r = FrameTimer.now()
         r.update(game: g, alpha: alpha, dt: vdt, time: renderTime, camera: cameraCtl, viewSize: size, frozen: !live)
+        if currentTime - lastRateCheck >= 0.25 { lastRateCheck = currentTime; applyFrameRate() }
         sceneTimer.mark()
         if mode != .title {
             hud.covered = mode == .paused || mode == .ended || mode == .levelUp

@@ -73,8 +73,9 @@ final class GameViewController: UIViewController {
             self?.presentedScene?.appDidBecomeActive()
         })
         observers.append(nc.addObserver(forName: ProcessInfo.thermalStateDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            // (the steps themselves are RenderQuality's ladder, read every tick; the rate is asked again at once)
             AppLog.info("thermal state \(ProcessInfo.processInfo.thermalState.rawValue)")
-            self?.presentedScene?.applyQuality()
+            self?.presentedScene?.applyFrameRate()
         })
         observers.append(nc.addObserver(forName: Notification.Name.NSProcessInfoPowerStateDidChange, object: nil, queue: .main) { [weak self] _ in
             self?.presentedScene?.applyFrameRate()
