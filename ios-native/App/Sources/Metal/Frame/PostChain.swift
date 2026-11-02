@@ -53,6 +53,8 @@ final class PostChain {
     var bloomThreshold: Float = 0.8
     var bloomKnee: Float = 0.5
     var bloomStrength: Float = 0.3
+    /// TEST BRANCH ONLY (native-vx-fix-look): `-nobloom` drops the bloom from the composite (punch-in veil A/B).
+    static let noBloom = LaunchOptions.current.unknown.contains("-nobloom")
     var bloomFireflyClamp: Float = 24
     /// Weight of each coarser bloom level on the way up (1 = the classic wide dual-Kawase sum; lower = tighter).
     var bloomFalloff: Float = 0.6
@@ -281,7 +283,7 @@ final class PostChain {
         // the bloom level sums the levels with weights 1, f, f², …: normalised so bloomStrength is the total
         var wsum: Float = 0, w: Float = 1
         for _ in 0..<max(1, t.bloom.count - bloomStart) { wsum += w; w *= bloomFalloff }
-        u.bloom = F4(bloomThreshold, bloomKnee, bloomReady ? bloomStrength / wsum : 0, bloomFireflyClamp)
+        u.bloom = F4(bloomThreshold, bloomKnee, bloomReady && !PostChain.noBloom ? bloomStrength / wsum : 0, bloomFireflyClamp)
         u.grade = F4(powf(2, exposureEV), vignette, grain, max(0.5, brightness))
         u.misc = F4(time, frameIndex, sharpen, distortionStrength)
         return u

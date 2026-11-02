@@ -317,7 +317,8 @@ jobs:
     env:
       # every frame-gated demo, all landscape (the app is landscape-only); `layout` (the four-phone layout check)
       # runs as well but builds ~40 screens in one go, so it is not gated
-      DEMOS: firstlaunch combat beacon swarmshot swarmshot-dots swarm swarm3x calm squad squadclose squadtight squadfire fxsheet fxsheet-high fxpeak stress1400 punchin extract-cine title title-fresh title-return title-nm title-left probe hold extract holdhint queen queenlock coach coach3 pressure pressure-amber levelup pause pause-nm end report-first report-win report-loss report-chip release-combat swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud
+      # TEST BRANCH ONLY (native-vx-fix-look, not for merge): the punch-in veil A/B and the combat / queen look shots
+      DEMOS: combat queen punchin-nohud punchin-b punchin-c punchin-nocones punchin-noweather punchin-nobloom punchin-nolight punchin-nocw
       MENUS: levelup,pause,pause-nm,end,report-first,report-win,report-loss,report-chip
     steps:
       - uses: actions/checkout@v4
@@ -368,6 +369,11 @@ jobs:
           # simulator's GPU while it runs, so it must not overlap the measurement. Offsets count from "demo done".
           run_demo() {
             local label=$1 secs=$2 args=$3; shift 3
+            # TEST BRANCH ONLY (native-vx-fix-look, not for merge): a short run of the demos listed in DEMOS
+            case " $DEMOS " in
+              *" $label "*) ;;
+              *) return 0;;
+            esac
             local side="-orient right"
             case "$args" in *-orient*) side="";; esac
             # shellcheck disable=SC2086
@@ -483,6 +489,14 @@ jobs:
           run_demo calm-nohud 8 "-demo calm -hideHUD" 0
           run_demo calm-deckmask 8 "-demo calm -hideHUD -deckMask -nocones -noweather" 0
           run_demo calm-bright-nohud 6 "-demo calm -brightness 1.3 -hideHUD" 0
+          # TEST BRANCH ONLY: the punch-in veil A/B (three plain runs for the spread, then one ingredient off at a time)
+          run_demo punchin-b 7 "-demo punchin -seed 7 -hideHUD" 0
+          run_demo punchin-c 7 "-demo punchin -seed 7 -hideHUD" 0
+          run_demo punchin-nocones 7 "-demo punchin -seed 7 -hideHUD -nocones" 0
+          run_demo punchin-noweather 7 "-demo punchin -seed 7 -hideHUD -noweather" 0
+          run_demo punchin-nobloom 7 "-demo punchin -seed 7 -hideHUD -nobloom" 0
+          run_demo punchin-nolight 7 "-demo punchin -seed 7 -hideHUD -nolight" 0
+          run_demo punchin-nocw 7 "-demo punchin -seed 7 -hideHUD -nocones -noweather" 0
           run_demo title 6 "-demo title" 0
           # v1.1 title: a fresh profile (НОВОБРАНЕЦ selected, premise, no profile line) and a returning one (ВЕТЕРАН,
           # profile line, rank chips + medal pips); -layoutCheck logs overlaps / off-screen / small taps
@@ -657,7 +671,8 @@ jobs:
       # landscape screenshots (other-<phone>-<demo>-0s.png), the result lines in other-phones.txt; a «layout FAIL» on
       # any of them fails the job (the virtual four-phone check of the `layout` demo covers all four sizes)
       - name: Layout check on the other landscape phones
-        if: always()
+        # TEST BRANCH ONLY: skipped
+        if: false
         env:
           UDID: ${{ steps.sim.outputs.udid }}
         run: |
