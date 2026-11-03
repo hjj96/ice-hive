@@ -80,10 +80,12 @@ final class WorldSwarm {
     static let glintsPerType = [4, 5, 6, 6]
     static let glintCap = (high: 16000, efficient: 8000)
     /// LOD caps (High: LOD0 32 largest, LOD1 600; Efficient: LOD1 300) and the triangle budget (per bug at 1400).
-    static let lod0Cap = 32, lod1Cap = (high: 600, efficient: 300)
+    /// (feel prototype: a quarter of the old swarm — LOD0 for the 64 largest at ≥ 48 px on High; Efficient fits every live
+    /// bug into LOD1 under the same triangle budgets)
+    static let lod0Cap = 64, lod1Cap = (high: 600, efficient: 300)
     static let triBudget = (high: 250 * 1400, efficient: 170 * 1400)
     /// LOD0 only at ≥ this body length on screen (drawable px); LOD1 not below this.
-    static let lod0MinPx: Float = 64, lod1MinPx: Float = 9
+    static let lod0MinPx: Float = 48, lod1MinPx: Float = 9
     /// Efficient: the few largest live brutes (≥ 96 px, at most 8) still get LOD0 — on the 450 / 150-triangle meshes the
     /// dozer shield, spikes and pores were gone and brutes read as grey / teal faceted domes (CI combat 6 s, queen 3 s);
     /// their triangles come out of the LOD1 room of the rest.
@@ -105,7 +107,22 @@ final class WorldSwarm {
     /// is authored a size larger than the v1 mesh (1.66 × 1.88 m rest body at model scale 1 against v1's 1.3 × 1.47):
     /// at BUG_SPECS 2.0 it stood 3.3 m wide over a 0.85 m collision radius and buried the squad it reached in combat;
     /// × 0.8 brings it back to the v1 footprint the game was tuned with (the Матка, a brute at 4.2, shrinks with it).
-    static let sizeK: [Float] = [1, 1, 0.8, 1]
+    /// Feel prototype: every type 15 % larger (a bug reads as a creature, not a speck) — the wave pacing has a quarter of
+    /// the old swarm on screen.
+    static let sizeK: [Float] = [1.15, 1.15, 0.92, 1.15]
+    /// Feel prototype — per-bug variety from its variation seed (the core's `vr`, which the corpse inherits): a size of
+    /// ±7 % on top of the core's ±12 % (so ±19 % in all, and the gait's tempo follows the size), and one of three shell
+    /// tints — the type's own, a cooler dusky one, a warmer rust one. (Swarm.metal adds a shell pattern and sheen by the
+    /// same seed.)
+    @inline(__always) static func variety(_ vr: Float) -> (size: Float, tint: F3) {
+        let a = vr * 61.7, b = vr * 13.37
+        let size = 0.93 + 0.14 * (a - floorf(a))
+        switch Int((b - floorf(b)) * 3) {
+        case 1: return (size, F3(0.9, 0.97, 1.15))
+        case 2: return (size, F3(1.16, 1.0, 0.86))
+        default: return (size, F3(1, 1, 1))
+        }
+    }
     /// Albedo value per type × LOD (the tint of the instances drawn at that LOD): the brute's LOD2 read 6.4–6.7 luma
     /// brighter than its LOD1 over its own pixels on the held bug sheet (CI 028fd69, gate ≤ 6) — its legs' lit edges
     /// are wider at 146 triangles. 0.9 brought it to 5.3–6.0 (CI 1a6507c, the worst brute 6.04), 0.85 only to 5.5–5.8
@@ -318,7 +335,7 @@ final class WorldSwarm {
         let X = S.xs, Z = S.zs, PX = S.prevXs, PZ = S.prevZs, Y = S.heights, HD = S.headings, SC = S.scales
         let PH = S.gaitPhases, FL = S.flashes, BU = S.burnTimers, FR = S.freezeTimers, CH = S.chills
         let ST = S.states, TT = S.stateTimers, VR = S.variations, U = S.uids
-        let swell = BugState.swell.rawValue, wind = BugState.wind.rawValue, climb = BugState.climb.rawValue
+        let swell = BugState.swell.rawValue, wind = BugState.wind.rawValue, climb = BugState.climb.rawValue, leapState = BugState.leap.rawValue
         let brute = UInt8(BugType.brute.rawValue)
         let queenUid: Int32 = game.queen.alive ? game.queen.uid : -1
         let marines = game.marines
@@ -333,7 +350,8 @@ final class WorldSwarm {
             }
             let bx = PX[i] + (X[i] - PX[i]) * alpha, bz = PZ[i] + (Z[i] - PZ[i]) * alpha
             let gy = level.groundY(bx, bz) + Y[i]
-            let sc = SC[i] * WorldSwarm.sizeK[t]
+            let vty = WorldSwarm.variety(VR[i])
+            let sc = SC[i] * WorldSwarm.sizeK[t] * vty.size
             // CPU frustum cull: a point at mid-body height (15 % margin covers the body size)
             if !camera.visible(bx, gy + 0.3 * sc, bz) { continue }
             var s = sc, sy = sc
@@ -348,6 +366,11 @@ final class WorldSwarm {
                 // nose up while scaling the wall, levelling out as it crests the edge
                 let p = max(0, min(1, (-Y[i] - 0.1) / 0.7)) * 1.4
                 sp = sinf(p); cp = cosf(p)
+            } else if st == leapState {
+                // a runner's leap: nose up off the deck, down into the landing
+                let p = max(0, min(1, 1 - TT[i] / LEAP_T))
+                let a = 0.55 * (0.45 - p)
+                sp = sinf(a); cp = cosf(a)
             }
             let vr = VR[i]
             var flash = max(0, FL[i]) / 0.6
@@ -367,7 +390,8 @@ final class WorldSwarm {
             let queen = U[i] == queenUid
             let flags: UInt32 = queen ? 1 : 0
             if st == wind && types[i] == brute { sy = s * (1 + sinf(time * 30) * 0.04) }
-            let tint = queen ? F4(0.75, 0.40, 2.6, sy) : F4(v * (1 + 0.14 * h), v, v * (1 - 0.14 * h), sy)
+            let tv = vty.tint
+            let tint = queen ? F4(0.75, 0.40, 2.6, sy) : F4(v * (1 + 0.14 * h) * tv.x, v * tv.y, v * (1 - 0.14 * h) * tv.z, sy)
             let k = allN[t]
             scratch[t][k] = CreatureInstance(
                 pos: F4(bx, gy, bz, s), rot: F4(cosf(HD[i]), sinf(HD[i]), sp, cp), tint: tint,
@@ -410,8 +434,9 @@ final class WorldSwarm {
         C.link { x, z, ty in
             guard let d = self.deadList.first(where: { $0.x == x && $0.z == z && $0.type == ty }) else { return nil }
             let v = 0.72 + d.value * 0.56
-            if let (pose, lod) = A.lastPose(uid: d.uid) { return (pose, v, lod) }
-            return (ClipSample.zero, v, 255)
+            // (the body keeps the dying bug's size, tint and pattern: its variation seed)
+            if let (pose, lod) = A.lastPose(uid: d.uid) { return (pose, v, lod, d.value) }
+            return (ClipSample.zero, v, 255, d.value)
         }
         let clockC = C.clock
         for ring in C.rings {
@@ -424,9 +449,10 @@ final class WorldSwarm {
                 let dur = A.deathDuration(type: t, variant: Int(c.variant))
                 let o = A.corpse(type: t, variant: Int(c.variant), age: age, from: c.from, hasFrom: c.hasFrom && c.from.rows != 0)
                 let dead = smoothf(0, max(0.3, dur), age)
+                let tv = WorldSwarm.variety(c.seed).tint
                 scratch[t][k] = CreatureInstance(
                     pos: F4(c.x, c.y, c.z, c.scale), rot: F4(cosf(c.heading), sinf(c.heading), c.pitchS, c.pitchC),
-                    tint: F4(c.value, c.value * 0.97, c.value * 0.95, c.scale),
+                    tint: F4(c.value * tv.x, c.value * 0.97 * tv.y, c.value * 0.95 * tv.z, c.scale),
                     anim: SIMD4(o.a.rows, o.b.rows, unorm16(o.a.frac) | unorm16(o.b.frac) << 16, unorm16(o.wB) | UInt32(t) << 16 | 2 << 24),
                     fx: SIMD4(unorm8(dead) << 24, 0, unorm16(c.seed), 0))
                 let depth = max(0.5, (F3(c.x - eye.x, c.y - eye.y, c.z - eye.z) * fwd).sum())

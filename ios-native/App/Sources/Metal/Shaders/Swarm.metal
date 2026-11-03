@@ -132,14 +132,30 @@ vertex CreatureOut vs_creature(uint vid [[vertex_id]], uint iid [[instance_id]],
     o.normal = placeNormal(b, n);
     float3 base = srgbDecode(float3(v.albedoAO.rgb) * (1.0 / 255.0));
     bool pore = (vflags & (IHV_GLAND | IHV_EYE)) != 0u;
-    o.albedo = half3(pore ? base : base * b.tint.rgb);
+    // feel prototype: per-bug shell variants by the instance seed (the core's variation, inherited by the corpse) — a
+    // third plain, a third banded across the body, a third mottled with a few pale scars; and a glossier or a duller shell
+    float seedI = float(b.fx.z & 0xffffu) * (1.0 / 65535.0);
+    float pat = 1.0;
+    if (!pore) {
+        float sel = fract(seedI * 7.31);
+        float3 q = float3(rest.xyz);
+        // (darker and lighter bands / mottles around the plain value: the swarm's mean value stays where the look gate has it)
+        if (sel > 0.64) {
+            float bands = sin(q.z * 19.0 + seedI * 40.0);
+            pat = 0.86 + 0.3 * smoothstep(-0.2, 0.6, bands);
+        } else if (sel > 0.32) {
+            float m = sin(q.x * 23.0 + seedI * 17.0) * sin(q.y * 19.0 + seedI * 29.0) * sin(q.z * 21.0 + seedI * 11.0);
+            pat = 1.04 - 0.24 * smoothstep(0.1, 0.45, m) + 0.4 * smoothstep(0.6, 0.78, m);
+        }
+    }
+    o.albedo = half3(pore ? base : base * b.tint.rgb * pat);
     o.ao = half(float(v.albedoAO.a) * (1.0 / 255.0));
     float glow = float(v.material.x) * (1.0 / 255.0);
     if (vflags & IHV_GLAND) glow *= P.g.x + P.g.y * sin(6.2831853 * (P.g.z + float(rest.w)));
     else if (vflags & IHV_EYE) glow *= P.g.w;
     float boost = float(b.fx.z >> 16) * (1.0 / 65535.0);
     o.glow = half(glow * (1.0 + 1.5 * boost));
-    o.rough = half(float(v.material.y) * (1.0 / 255.0));
+    o.rough = half(saturate(float(v.material.y) * (1.0 / 255.0) * (0.75 + 0.5 * fract(seedI * 3.7))));
     o.state = half4(unpack_unorm4x8_to_float(b.fx.x));
     o.rimK = half(1.0 - float(b.fx.w & 0xffu) * (1.0 / 255.0));
     o.depth = -(F.view * float4(w, 1.0)).z;

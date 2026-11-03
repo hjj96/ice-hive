@@ -116,7 +116,7 @@ final class SwarmAnimator {
         var lastFlash: Float = 0
         var hitT: Float = -1, atkT: Float = -1
         var leanX: Float = 0, leanZ: Float = 0, leanVX: Float = 0, leanVZ: Float = 0
-        var mode: UInt8 = 0         // 0 locomotion, 1 special (spit / wind / swell), 2 charge, 3 climb
+        var mode: UInt8 = 0         // 0 locomotion, 1 special (spit / wind / swell), 2 charge, 3 climb, 4 leap
         var lod: UInt8 = 255
         var fromRows: UInt32 = 0
         var fromFrac: Float = 0
@@ -222,6 +222,10 @@ final class SwarmAnimator {
         } else if st == BugState.swell.rawValue && cs.special >= 0 {
             mode = 1
             special = clipShot(cl[cs.special], (1 - stT / 0.8) * cl[cs.special].duration)
+        } else if st == BugState.leap.rawValue && cs.attack >= 0 {
+            // a runner's leap (wave pacing): the lunge played over the flight, legs reaching for the landing
+            mode = 4
+            special = clipShot(cl[cs.attack], max(0, min(1, 1 - stT / LEAP_T)) * cl[cs.attack].duration * 0.8)
         } else if st == BugState.charge.rawValue {
             mode = 2
             let c = cs.charge >= 0 ? cs.charge : cs.run
@@ -267,7 +271,7 @@ final class SwarmAnimator {
         var secondary = ClipSample.zero
         var wSec: Float = 0
         switch mode {
-        case 1:
+        case 1, 4:
             o.a = special
         case 2:
             o.a = clipLoop(cl[cs.charge >= 0 ? cs.charge : cs.run], e.pointee.u)
