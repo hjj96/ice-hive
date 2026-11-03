@@ -98,7 +98,10 @@ extension Game {
 
     /// Live cap of a special type: (SPECIAL_CAP + 2·done for brutes) · specCap, compared as a float (web; not rounded).
     func specialCapFor(_ ty: UInt8) -> Float {
-        Float(SPECIAL_CAP[Int(ty)] + (ty == T_BRUTE ? 2 * beaconsDone : 0)) * difficulty.specialCap
+        // wave pacing: a larger share of specials, lower live caps (a heavy fight is never a wall of brutes or a carpet
+        // of boomers on a 250–350 swarm): spitters 14, brutes 5 + 1 per beacon done, boomers 10
+        if difficulty.waves { return Float(WAVE_SPECIAL_CAP[Int(ty)] + (ty == T_BRUTE ? beaconsDone : 0)) * difficulty.specialCap }
+        return Float(SPECIAL_CAP[Int(ty)] + (ty == T_BRUTE ? 2 * beaconsDone : 0)) * difficulty.specialCap
     }
 
     /// The gameplay cap only changes with an explicit quality choice.
@@ -194,7 +197,7 @@ extension Game {
                         if b.state == 0 && standingIn(b.x, b.z, BEACON_R) > 0 {
                             beacons[k].state = 1; activeBeacon = k; waveT = D.waves ? 9 : 2; beaconPushes = 0
                             // (wave pacing: a third of the stream's opening horde, from 3–4 sides; the pushes follow the charge)
-                            let open: Float = D.waves ? 70 + 0.5 * D.beaconHordeStep * Float(beaconsDone) : 270 + D.beaconHordeStep * Float(beaconsDone)
+                            let open: Float = D.waves ? 70 + 0.3 * D.beaconHordeStep * Float(beaconsDone) : 270 + D.beaconHordeStep * Float(beaconsDone)
                             startHorde(Int((open * hordeScale() * beaconHordeMul).rounded()), "Защищайте маяк",
                                        "Маяк «" + b.name + "» запускается — держите кольцо")
                             beaconHordeMul = 1

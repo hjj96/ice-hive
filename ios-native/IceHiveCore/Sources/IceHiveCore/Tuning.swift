@@ -158,6 +158,8 @@ public let BEACON_R: Float = 4.6
 public let BOT_DMG: Float = 0.6
 /// Specials are capped so a single horde can never be a wall of brutes or a carpet of boomers.
 let SPECIAL_CAP: [Int] = [0, 30, 12, 18]
+/// The live caps of specials on the wave pacing (brutes + 1 per beacon done), × the tier's specCap.
+let WAVE_SPECIAL_CAP: [Int] = [0, 14, 5, 10]
 
 // ================================================================
 //  DIFFICULTY — the v1.1 «Ставки» tiers (web 01-core.js DIFF / TH, calibrated rows of
@@ -279,7 +281,7 @@ public struct Difficulty: Equatable {
         d.pulseDamage = 1.0; d.pulseInterval = 5; d.pulseFalloff = 0
         d.stallTime = 90; d.pressureGrace = 40; d.runnerHp = 15
         d.queen = QueenTuning(at: 35, hp: 2500, speed: 1.5, ramT: 9, volleyT: 6, broodT: 8, broodN: 6, horde: 80, trickle: 0.4)
-        d.waves = true; d.popK = 2.3; d.mix = 1.8; d.bite = 1.7; d.xpK = 1.6; d.runnerHp = 22
+        d.waves = true; d.popK = 2.3; d.mix = 1.8; d.bite = 1.8; d.xpK = 1.6; d.runnerHp = 22
         return d
     }()
     /// Ветеран — as designed; the default after the first evacuation.
@@ -292,7 +294,7 @@ public struct Difficulty: Equatable {
         d.pulseDamage = 1.0; d.pulseInterval = 6; d.pulseFalloff = 0.5
         d.stallTime = 60; d.pressureGrace = 25; d.runnerHp = 15
         d.queen = QueenTuning(at: 35, hp: 3500, speed: 1.5, ramT: 9, volleyT: 6, broodT: 8, broodN: 6, horde: 80, trickle: 0.4)
-        d.waves = true; d.popK = 2.5; d.mix = 1.8; d.bite = 2.0; d.xpK = 1.6; d.runnerHp = 22
+        d.waves = true; d.popK = 2.5; d.mix = 1.8; d.bite = 2.25; d.xpK = 1.6; d.runnerHp = 22
         return d
     }()
     /// Кошмар — the swarm is merciless, the squad weaker.
@@ -305,7 +307,7 @@ public struct Difficulty: Equatable {
         d.pulseDamage = 0.8; d.pulseInterval = 7; d.pulseFalloff = 0.6
         d.stallTime = 40; d.pressureGrace = 15; d.runnerHp = 15
         d.queen = QueenTuning(at: 30, hp: 6000, speed: 1.6, ramT: 8, volleyT: 5, broodT: 7, broodN: 8, horde: 150, trickle: 0.6)
-        d.waves = true; d.popK = 2.6; d.mix = 1.8; d.bite = 2.2; d.xpK = 1.6; d.runnerHp = 22
+        d.waves = true; d.popK = 2.6; d.mix = 1.8; d.bite = 2.5; d.xpK = 1.6; d.runnerHp = 22
         return d
     }()
     /// v1.0 exactly (hidden; calibration port check and the v1.0 regression test).

@@ -45,7 +45,7 @@ final class TuningTests: XCTestCase {
         XCTAssertFalse(Difficulty.legacyV10.waves)
         XCTAssertEqual([r.popK, v.popK, n.popK], [2.3, 2.5, 2.6])
         XCTAssertEqual([r.mix, v.mix, n.mix], [1.8, 1.8, 1.8])
-        XCTAssertEqual([r.bite, v.bite, n.bite], [1.7, 2.0, 2.2])
+        XCTAssertEqual([r.bite, v.bite, n.bite], [1.8, 2.25, 2.5])
         XCTAssertEqual([r.xpK, v.xpK, n.xpK], [1.6, 1.6, 1.6])
         for (k, d) in [r, v, n].enumerated() {
             let got = row(d)
@@ -208,11 +208,20 @@ final class DirectorTierTests: XCTestCase {
     }
 
     func testSpecialCapIsAFloatCompare() {
+        // wave pacing: spitters 14, brutes 5 + 1 per beacon done, boomers 10, × the tier's specCap
         let g = tierGame(.veteran, seed: 2)
-        XCTAssertEqual(g.specialCapFor(T_BRUTE), 12 * 1.2, accuracy: 1e-5)
-        XCTAssertEqual(g.specialCapFor(T_SPIT), 30 * 1.2, accuracy: 1e-5)
+        XCTAssertEqual(g.specialCapFor(T_BRUTE), 5 * 1.2, accuracy: 1e-5)
+        XCTAssertEqual(g.specialCapFor(T_SPIT), 14 * 1.2, accuracy: 1e-5)
+        XCTAssertEqual(g.specialCapFor(T_BOOM), 10 * 1.2, accuracy: 1e-5)
         g.beaconsDone = 2
-        XCTAssertEqual(g.specialCapFor(T_BRUTE), 16 * 1.2, accuracy: 1e-5)
+        XCTAssertEqual(g.specialCapFor(T_BRUTE), 7 * 1.2, accuracy: 1e-5)
+        // the legacy stream keeps the web caps (brutes + 2 per beacon done)
+        var lv = Difficulty.veteran; lv.waves = false
+        let l = tierGame(lv, seed: 2)
+        XCTAssertEqual(l.specialCapFor(T_BRUTE), 12 * 1.2, accuracy: 1e-5)
+        XCTAssertEqual(l.specialCapFor(T_SPIT), 30 * 1.2, accuracy: 1e-5)
+        l.beaconsDone = 2
+        XCTAssertEqual(l.specialCapFor(T_BRUTE), 16 * 1.2, accuracy: 1e-5)
         XCTAssertEqual(tierGame(.legacyV10).specialCapFor(T_BOOM), 18)
     }
 
