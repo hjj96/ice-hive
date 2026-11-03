@@ -669,9 +669,11 @@ final class MetalEffects {
         // faint glow, a light only near the player; the first film still read as a carpet of orange flashes)
         let pl = poses.first.map { F3($0.x, 0, $0.z) } ?? F3(x, 0, z)
         let nearP = (x - pl.x) * (x - pl.x) + (z - pl.z) * (z - pl.z) < 100
+        // (a big blast's light: a hard peak of 420 that is gone fast and stays local — 0.3 s over r × 2.6; at 0.42 s over
+        // r × 3.2 the CI title and combat shots caught a cream pool a sixth of the screen wide, clip 0.85 % on the title)
         if big || nearP {
-            flash(p + F3(0, 1.2, 0), boomer ? F3(1.0, 0.66, 0.24) : F3(1.0, 0.5, 0.2), peak: big ? 420 : 30, dur: big ? 0.42 : 0.12,
-                  range: r * (big ? 3.2 : 2.0), priority: big ? 30 : 6)
+            flash(p + F3(0, 1.2, 0), boomer ? F3(1.0, 0.66, 0.24) : F3(1.0, 0.5, 0.2), peak: big ? 420 : 30, dur: big ? 0.3 : 0.12,
+                  range: r * (big ? 2.6 : 2.0), priority: big ? 30 : 6)
         }
         gpu.burst(.flash, 1, at: p + F3(0, 0.3, 0), life: (0.07, 0.1), size: (big ? 3.6 : 0.6, big ? 4.4 : 0.8), color: F4(8, 6, 4, 1), sizeJitter: 0)
         gpu.burst(.glow, 1, at: p, life: (0.14, 0.18), size: (r * (big ? 1.1 : 0.7), r * (big ? 1.6 : 1.0)), color: F4(2.8, 1.55, 0.66, big ? 1 : 0.35),
