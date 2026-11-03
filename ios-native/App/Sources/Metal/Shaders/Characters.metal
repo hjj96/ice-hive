@@ -5,10 +5,12 @@
 //     rows per bone, world space, MarineRig.swift) → fs_marine on WP2's
 //     full light model: baked tangent-space normals + AO / roughness /
 //     metal / paint mask from the class texture arrays, worn steel on
-//     painted chamfers, the class hue on painted markings, the visor
-//     and trim strips glowing in the class hue (HDR, they bloom), a
-//     faint class-hue rim so the squad reads in the dark, hurt /
-//     invulnerable flashes, the downed dimming; the shooter lit by
+//     painted chamfers, the class paint on painted markings, matte field
+//     paint (M1 «no plastic»: rough ≥ 0.5, no coat, chips / soot / rime
+//     ×1.6), only the visor glowing in the class hue (HDR, it blooms)
+//     besides the helmet lamp and a blinking IFF strobe on the pack, a
+//     neutral readability key, hurt / invulnerable flashes, the downed
+//     dimming; the shooter lit by
 //     his own muzzle flash (a short-range point light at the muzzle
 //     socket) and barrels / nozzles glowing with heat under sustained
 //     fire (vertex flag bit3);
@@ -73,8 +75,9 @@ vertex ShadowOut vs_shadow_mesh(MeshIn v [[stage_in]],
 // Swift: MarineRig.swift / WorldSquad.swift. Vertex layout: tools/blender/ihv.py SKINNED_DTYPE (32 bytes).
 struct SkinVertex {
     half4 rest;       // xyz bind position (model space)
-    char4 nrm;        // snorm xyz, w = flags (bit0 class-hue visor / strip, bit1 emissive, bit2 painted armour,
-                      // bit3 heats up with sustained fire: barrels, muzzle, nozzle, emitter)
+    char4 nrm;        // snorm xyz, w = flags (bit0 class-hue visor / strobe, bit1 emissive, bit2 painted armour,
+                      // bit3 heats up with sustained fire: barrels, muzzle, nozzle, emitter; bit5 the blinking IFF
+                      // strobe on the pack)
     char4 tan;        // snorm xyz along +u, w = ±127 bitangent sign
     half2 uv;         // the class's texture layer (top-left origin)
     uchar4 albedo;    // sRGB rgb, a = glow 0…1
@@ -87,7 +90,7 @@ struct MarineDraw {
     float4 hue;       // rgb class hue (linear), w = visor glow multiplier (the clip's ctrl curve × flicker)
     float4 trim;      // rgb class paint (linear), w = texture layer (class index)
     float4 flash;     // rgb added emissive (hurt / invulnerable), w = downed dimming 0…1
-    float4 params;    // x = class rim strength, y = emissive gain, z = lamp gain, w = 1 on the High tier
+    float4 params;    // x = class rim strength (M1: 0), y = emissive gain, z = lamp gain, w = 1 on the High tier
     float4 muzzle;    // xyz the weapon's muzzle (world), w = its flash as a light on the marine (0 = none)
     float4 fx;        // rgb the flash light's colour (linear), w = barrel / nozzle heat 0…1
     float4 key;       // rgb the squad's readability key light (linear colour × intensity), w = AO cavity on the albedo
@@ -206,24 +209,26 @@ fragment float4 fs_marine(MarineOut in [[stage_in]],
     albedo = mix(albedo, float3(0.42, 0.43, 0.45), wear);
     // field wear in bind space (native-vx-squad): each plate drifts a little in value, painted plates carry chips down to
     // the dark primer (class paint) or to steel (the ceramic), scuffs vary the roughness, and the boots and greaves carry
-    // the deck's soot and slush up to the knees, with rime on the toe caps — a used power armour, not a clean toy
+    // the deck's soot and slush up to the knees, with rime on the toe caps — a used power armour, not a clean toy.
+    // M1 «no plastic» (the feel study's CHEAP column): the paint is matte (+0.22 rough, floor 0.5 — it was 0.33–0.43,
+    // injection-moulded plastic), the plate drift wider, chips, soot and rime 1.6 × stronger
     float3 mp = in.bind;
     float macro = mNoise(mp * 5.3);
     float fine = mNoise(mp * 29.0 + 7.1);
     if (painted && !emissive) {
-        albedo *= 0.88 + 0.2 * macro;
-        float chip = smoothstep(0.72, 0.78, mNoise(mp * 47.0 + 3.7)) * smoothstep(0.35, 0.75, fine) * (1.0 - wear);
+        albedo *= 0.85 + 0.3 * macro;
+        float chip = smoothstep(0.64, 0.70, mNoise(mp * 47.0 + 3.7)) * smoothstep(0.35, 0.75, fine) * (1.0 - wear);
         chip *= 0.35 + 0.65 * clsPaint;
         albedo = mix(albedo, clsPaint > 0.5 ? float3(0.035, 0.036, 0.04) : float3(0.3, 0.31, 0.33), chip);
         metal = mix(metal, clsPaint > 0.5 ? 0.0 : 0.8, chip);
-        rough = clamp(rough + (fine - 0.5) * 0.18 + chip * 0.1, 0.18, 0.9);
+        rough = clamp(rough + 0.22 + (fine - 0.5) * 0.18 + chip * 0.1, 0.5, 0.9);
     }
     if (!emissive) {
-        float grime = (1.0 - smoothstep(0.06, 0.6, mp.y)) * (0.6 + 0.4 * macro);
+        float grime = saturate(1.6 * (1.0 - smoothstep(0.06, 0.6, mp.y)) * (0.6 + 0.4 * macro));
         albedo = mix(albedo, albedo * 0.42 + float3(0.008, 0.008, 0.009), grime * 0.75);
         rough = mix(rough, 0.82, grime * 0.6);
         metal *= 1.0 - 0.5 * grime;
-        float rime = (1.0 - smoothstep(0.1, 0.2, mp.y)) * smoothstep(0.35, 0.8, N0.y) * smoothstep(0.45, 0.7, fine);
+        float rime = saturate(1.6 * (1.0 - smoothstep(0.1, 0.2, mp.y)) * smoothstep(0.35, 0.8, N0.y) * smoothstep(0.45, 0.7, fine));
         albedo = mix(albedo, float3(0.5, 0.56, 0.62), rime * 0.6);
         rough = mix(rough, 0.55, rime);
     }
@@ -235,11 +240,12 @@ fragment float4 fs_marine(MarineOut in [[stage_in]],
     albedo = mix(albedo, float3(dot(albedo, float3(0.3, 0.5, 0.2))), dim * 0.4) * (1.0 - 0.3 * dim);
     LitSurface s;
     s.P = in.world; s.N = N; s.V = V; s.albedo = albedo; s.rough = rough; s.metal = metal;
-    // a thin satin coat on the paint (it was 0.35 at 0.18 rough: a lacquered toy)
-    s.coat = painted ? 0.12 : 0.0; s.coatRough = 0.34; s.ao = ao; s.shadow = 1.0;
+    // no clear coat (it was 0.35 at 0.18 rough, then a 0.12 satin: a lacquered toy either way)
+    s.coat = 0.0; s.coatRough = 0.34; s.ao = ao; s.shadow = 1.0;
     float3 c = shadeLit(LIGHTING_ARGS, s, D.params.w > 0.5);
     // the squad's readability key: a soft light from above-left of the view (no shadow, follows the camera) so the
-    // plates, panel lines and the class paint keep their shape outside the beams and in the close-ups
+    // plates, panel lines and the class paint keep their shape outside the beams and in the close-ups (M1: neutral and
+    // weaker — the warm 0.3 lit them like a product shot)
     if (D.key.x + D.key.y + D.key.z > 0.0) {
         float3 Lk = normalize(-F.camRight.xyz * 0.55 + float3(0.0, 0.85, 0.0) + V * 0.35);
         float nlk = saturate(dot(N, Lk));
@@ -247,14 +253,18 @@ fragment float4 fs_marine(MarineOut in [[stage_in]],
         float rk = max(rough, 0.1);
         c += D.key.rgb * nlk * (albedo * (1.0 - metal) * ao + PI_F * brdfGGX(Lk, V, N, f0, rk * rk));
     }
-    // the class hue as a rim and a faint suit fill (the squad reads against the dark deck and the swarm even
-    // outside the beams: the armour never sinks into the fog colour)
-    float fr = pow(1.0 - saturate(dot(N0, V)), 3.0);
-    c += D.hue.rgb * fr * D.params.x;
+    // a class-hue Fresnel rim (M1: off, params.x = 0 — every silhouette edge glowed in the toy colour) and a faint suit
+    // fill (the armour never sinks into the fog colour outside the beams)
+    if (D.params.x > 0.0) c += D.hue.rgb * pow(1.0 - saturate(dot(N0, V)), 3.0) * D.params.x;
     c += albedo * ao * 0.035;
-    // emission: visors / strips in the class hue (× the visor curve), lamps white
+    // emission: the visor in the class hue (× the visor curve), lamps white; the IFF strobe (bit5) flashes the class hue
+    // for 70 ms every 1.6 s, each marine on its own beat (phase from the class layer)
     if ((in.flags & 2u) != 0u) {
         float e = in.glow * ((in.flags & 1u) != 0u ? D.params.y * D.hue.w : D.params.z);
+        if ((in.flags & 32u) != 0u) {
+            float ph = fract(F.camPos.w / 1.6 + D.trim.w * 0.37);
+            e *= 1.6 * (1.0 - smoothstep(0.03, 0.06, ph));
+        }
         c += in.albedo * e;
     }
     // the shooter lit by his own muzzle flash: a short-range point light at the muzzle (arms, chest, the gun)
