@@ -327,11 +327,13 @@ final class MenuScreen {
             bar.position = CGPoint(x: x, y: 0)
             stN.addChild(bar)
             let l = Label(L10n.upper(L10n.string(it.label)), font: Fonts.medium, size: d.strip < 18 ? 9 : 10, color: it.on ? onColor : UIPalette.inkFaint,
-                          kern: 0.6)
+                          kern: 0.6, valign: .baseline)
             // (a stage name wider than its segment shrinks: SE's segments are ~35 pt)
             MenuScreen.fit(l, w - 2, minSize: 5.5)
             texts.append(("text.strip\(k)", l.width, w - 2))
-            l.node.position = CGPoint(x: x + w / 2, y: -3 - (d.strip - 3) / 2)
+            // one baseline for the row, caps centred in the slot (Oswald cap height 0.81 em): «QUEEN»'s Q tail no
+            // longer lifts it above its neighbours as glyph-box centring did
+            l.node.position = CGPoint(x: x + w / 2, y: -3 - (d.strip - 3) / 2 - l.size * 0.405)
             stN.addChild(l.node)
             x += w + 3
         }
