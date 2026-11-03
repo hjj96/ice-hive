@@ -600,8 +600,10 @@ final class MetalEffects {
         // the first bug it meets and frost mist puffs along the length (CI burst-combat 2d38dfd: a thin bright line ran
         // across the whole swarm and past it); the close-ups keep the modelled beam (squad camera distance: gameK)
         let gk = squad?.gameK ?? 1
-        ribbons.cryoBeam(from: o, ax: ax, az: az, len: len, time: frameTime, seed: Float(k) * 1.7, intensity: env * env * (1 - 0.15 * gk),
-                         widthK: 1 + gk, soft: gk, coreEnd: 1 - gk * (1 - hitU))
+        // (feel prototype: a calmer stream at the game camera — a narrower, dimmer sheath; it read as a white smear across the
+        // fight in the first film)
+        ribbons.cryoBeam(from: o, ax: ax, az: az, len: len, time: frameTime, seed: Float(k) * 1.7, intensity: env * env * (1 - 0.4 * gk),
+                         widthK: 1 + 0.55 * gk, soft: gk, coreEnd: 1 - gk * (1 - hitU))
         let ni = rate(&acc[k][3], 24, dt)
         if ni > 0 {
             let t = rr(0.5, len)
@@ -609,17 +611,17 @@ final class MetalEffects {
                       life: (0.3, 0.6), size: (0.06, 0.03), color: F4(0.7, 1.0, 1.45, 1), gravity: 3, drag: 2)
         }
         let end = F3(o.x + ax * len, gy(o.x + ax * len, o.z + az * len) + 0.3, o.z + az * len)
-        let nm = rate(&acc[k][4], 8, dt)
+        let nm = rate(&acc[k][4], 5, dt)
         if nm > 0 {
             gpu.burst(.steam, nm, at: end, jitter: F3(0.4, 0.1, 0.4), vel: F3(0, 0.5, 0), velJitter: F3(0.5, 0.3, 0.5), life: (0.8, 1.3),
                       size: (0.6, 1.7), color: F4(0.3, 0.42, 0.55, 0.3), drag: 1, spin: 0.6)
         }
         // frost vapour shed along the beam (more of it from the game camera: the stream's body)
-        let nv = rate(&acc[k][5], 8 + 8 * gk, dt)
+        let nv = rate(&acc[k][5], 5 + 3 * gk, dt)
         if nv > 0 {
             let t = rr(0.8, len)
             gpu.burst(.steam, nv, at: o + d * t - F3(0, 0.3, 0), jitter: F3(0.2, 0.1, 0.2), vel: F3(0, 0.3, 0), velJitter: F3(0.3, 0.2, 0.3),
-                      life: (0.5, 0.9), size: (0.35, 0.9), color: F4(0.25, 0.38, 0.5, 0.25), drag: 1.5, spin: 0.6)
+                      life: (0.5, 0.9), size: (0.35, 0.8), color: F4(0.22, 0.33, 0.45, 0.18), drag: 1.5, spin: 0.6)
         }
         scorchT[k] -= dt
         if scorchT[k] <= 0 {
@@ -663,10 +665,17 @@ final class MetalEffects {
         // feel prototype — fewer, punchier blasts: a harder, shorter light and a fuller fireball, a handful of sparks and
         // embers instead of a fan of 70, a few heavy chunks, then a slow column of dark smoke that lingers; the small
         // blasts (explosive rounds, cluster bomblets) are a crisp pop without a fireball
-        flash(p + F3(0, 1.2, 0), boomer ? F3(1.0, 0.66, 0.24) : F3(1.0, 0.5, 0.2), peak: big ? 420 : 60, dur: big ? 0.42 : 0.18,
-              range: r * (big ? 3.2 : 2.4), priority: 30)
-        gpu.burst(.flash, 1, at: p + F3(0, 0.3, 0), life: (0.09, 0.12), size: (big ? 3.6 : 1.0, big ? 4.4 : 1.3), color: F4(8, 6, 4, 1), sizeJitter: 0)
-        gpu.burst(.glow, 1, at: p, life: (0.16, 0.2), size: (r * 1.1, r * 1.6), color: F4(2.8, 1.55, 0.66, big ? 1 : 0.6), sizeJitter: 0)
+        // (the small blasts — explosive rounds, cluster bomblets — come by the dozen in a heavy fight: a small hot pop, a
+        // faint glow, a light only near the player; the first film still read as a carpet of orange flashes)
+        let pl = poses.first.map { F3($0.x, 0, $0.z) } ?? F3(x, 0, z)
+        let nearP = (x - pl.x) * (x - pl.x) + (z - pl.z) * (z - pl.z) < 100
+        if big || nearP {
+            flash(p + F3(0, 1.2, 0), boomer ? F3(1.0, 0.66, 0.24) : F3(1.0, 0.5, 0.2), peak: big ? 420 : 30, dur: big ? 0.42 : 0.12,
+                  range: r * (big ? 3.2 : 2.0), priority: big ? 30 : 6)
+        }
+        gpu.burst(.flash, 1, at: p + F3(0, 0.3, 0), life: (0.07, 0.1), size: (big ? 3.6 : 0.6, big ? 4.4 : 0.8), color: F4(8, 6, 4, 1), sizeJitter: 0)
+        gpu.burst(.glow, 1, at: p, life: (0.14, 0.18), size: (r * (big ? 1.1 : 0.7), r * (big ? 1.6 : 1.0)), color: F4(2.8, 1.55, 0.66, big ? 1 : 0.35),
+                  sizeJitter: 0)
         if full && big {
             // the fireball and the licks of flame flung out of it
             let fb = flameBudget(8)
@@ -688,9 +697,6 @@ final class MetalEffects {
                       color: F4(2.2, 0.75, 0.16, 1), gravity: 1.2, drag: 1.4)
             gpu.burst(.debris, num(5), at: p, sphere: 9, upper: true, life: (1.2, 2.0), size: (0.15, 0.12),
                       color: boomer ? F4(0.2, 0.14, 0.04, 1) : F4(0.05, 0.045, 0.05, 1), gravity: 14, drag: 0.3, spin: 8)
-        } else {
-            gpu.burst(.ember, num(2), at: p, delay: 0.05, sphere: 3, upper: true, life: (0.6, 1.2), size: (0.05, 0.025),
-                      color: F4(2.2, 0.75, 0.16, 1), gravity: 1.2, drag: 1.4)
         }
         // dark smoke: a slow rising column that lingers and thins (chained blasts must not wash the deck out)
         gpu.burst(.smoke, num(big ? 7 : 1), at: p + F3(0, 0.6, 0), jitter: F3(r * 0.35, 0.3, r * 0.35), delay: 0.16, vel: F3(0, 1.3, 0),
@@ -703,7 +709,7 @@ final class MetalEffects {
             heatTimed(p, radius: r * 2.0, strength: 0.7, mode: 1, life: 0.4)
             heatTimed(p + F3(0, 0.6, 0), radius: r * 0.8, strength: 0.35, mode: 0, life: 1.0)
         }
-        decals.add(x, z, size: r * (big ? 1.15 : 0.85), cell: .scorch, kind: .scorch, tint: F3(0.08, 0.07, 0.07), flecks: 1)
+        decals.add(x, z, size: r * (big ? 1.15 : 0.6), cell: .scorch, kind: .scorch, tint: F3(0.08, 0.07, 0.07), flecks: big ? 1 : 0)
         if boomer {
             gpu.burst(.ichor, num(8), at: p, sphere: 7, upper: true, life: (0.6, 1.0), size: (0.1, 0.07), color: F4(0.25, 0.32, 0.03, 1),
                       gravity: 12)

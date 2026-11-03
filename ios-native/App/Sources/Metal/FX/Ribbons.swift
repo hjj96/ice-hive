@@ -128,8 +128,8 @@ final class Ribbons {
             add(pt(u0), pt(u1), width: w, mode: .cryo, color: F3(1, 1, 1), intensity: flick, u0: u0, u1: u1, seed: seed,
                 head: soft + (2 - soft) * cut)
         }
-        // a wide cold halo along the whole beam
-        add(pt(0), pt(1), width: min(0.9, 0.35 + 0.06 * len) * widthK, mode: .halo, color: F3(0.1, 0.3, 0.75), intensity: 0.55 * intensity)
+        // a wide cold halo along the whole beam (feel prototype: 0.55 → 0.32)
+        add(pt(0), pt(1), width: min(0.9, 0.35 + 0.06 * len) * widthK, mode: .halo, color: F3(0.1, 0.3, 0.75), intensity: 0.32 * intensity)
     }
 
     /// A light column (beacons): camera-facing, fading upward.

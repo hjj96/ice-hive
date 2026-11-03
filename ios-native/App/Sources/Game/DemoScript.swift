@@ -56,9 +56,10 @@ import IceHiveCore
 //  beacon k (0 Альфа, 1 Бета, 2 Гамма) instead of the landing pad.
 //  Feel prototype (native-vx-feel-proto): under `-video` the swarm is the game's own — the wave director — with no crowd
 //  spawned around the squad and no top-ups; the scenes are staged through the objective instead: combat — the defence of
-//  beacon k, charged to `-videoCharge` (0.2) so the hive's first push lands inside the film; punchin — the defence of
-//  «Альфа» until the beacon comes on; stress1400 — the third beacon (two done, mission time 200 s) charged to 0.84 (its
-//  last push from three sides on top of the opening horde) plus a horde 2.5 s in: the heaviest moment of the pacing;
+//  beacon k: its opening horde, a lull, and the hive's first push forced at `-videoPushAt` s (15: the charge set to 30 %)
+//  so the peak → lull → peak of a defence fits the film; punchin — the defence of «Альфа» until the beacon comes on;
+//  stress1400 — the third beacon (two done, mission time 200 s) charged to `-videoCharge` 0.62 (its first two pushes at
+//  once on top of the opening horde) plus a horde 2.5 s in: the heaviest moment of the pacing, at the cap of «высокая»;
 //  queen — the hold's own opening horde, then the Матка.
 // ================================================================
 final class DemoScript {
@@ -82,7 +83,9 @@ final class DemoScript {
     private let videoAt: Int
     /// `-video`: the charge the defended beacon is set to once its defence starts (combat / stress1400).
     private let videoCharge: Float
-    private var charged = false, extraHorde = false
+    /// `-video` combat: when (s after «scene ready») the defended beacon is set to 30 % — the hive's first push (−1 = never).
+    private let videoPushAt: Double
+    private var charged = false, extraHorde = false, pushed = false
 
     private init(name: String, options: LaunchOptions, bugs: Int? = nil) {
         self.name = name
@@ -100,7 +103,8 @@ final class DemoScript {
         queenKillBy = num("-queenKillBy", 9)
         liftDelay = num("-liftDelay", 2.5)
         videoAt = Int(num("-videoAt", -1))
-        videoCharge = Float(num("-videoCharge", name == "stress1400" ? 0.84 : 0.2))
+        videoCharge = Float(num("-videoCharge", name == "stress1400" ? 0.62 : 0))
+        videoPushAt = num("-videoPushAt", name == "combat" ? 15 : -1)
         reportFixture = name == "report" ? DemoFixtures.report(options.report) : nil
         if name == "report" && reportFixture == nil { AppLog.error("unknown -report \(options.report ?? "?")") }
     }
@@ -297,10 +301,16 @@ final class DemoScript {
         }
         if video {
             // the defended beacon charged so the hive's pushes land inside the film; stress: one more horde 2.5 s in
-            if !charged && game.activeBeacon >= 0 && (name == "combat" || name == "stress1400") {
+            if !charged && videoCharge > 0 && game.activeBeacon >= 0 && (name == "combat" || name == "stress1400") {
                 charged = true
                 game.debugBeaconProgress(videoCharge)
                 AppLog.info(String(format: "demo %@ (video): beacon charged to %.2f td=%.2f alive %d", name, videoCharge, sinceReady, game.bugsAlive))
+            }
+            if !pushed && videoPushAt >= 0 && sinceReady >= videoPushAt && game.activeBeacon >= 0 {
+                pushed = true
+                let b = game.beacons[game.activeBeacon]
+                if b.progress < 0.3 { game.debugBeaconProgress(0.3) }
+                AppLog.info(String(format: "demo %@ (video): the hive's first push td=%.2f alive %d", name, sinceReady, game.bugsAlive))
             }
             if !extraHorde && name == "stress1400" && sinceReady >= 2.5 {
                 extraHorde = true

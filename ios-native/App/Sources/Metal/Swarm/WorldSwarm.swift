@@ -83,6 +83,8 @@ final class WorldSwarm {
     /// (feel prototype: a quarter of the old swarm — LOD0 for the 64 largest at ≥ 48 px on High; Efficient fits every live
     /// bug into LOD1 under the same triangle budgets)
     static let lod0Cap = 64, lod1Cap = (high: 600, efficient: 300)
+    /// Seconds a corpse lies on the deck before it melts into it (feel prototype).
+    static let corpseSinkAfter: Float = 9
     static let triBudget = (high: 250 * 1400, efficient: 170 * 1400)
     /// LOD0 only at ≥ this body length on screen (drawable px); LOD1 not below this.
     static let lod0MinPx: Float = 48, lod1MinPx: Float = 9
@@ -107,9 +109,10 @@ final class WorldSwarm {
     /// is authored a size larger than the v1 mesh (1.66 × 1.88 m rest body at model scale 1 against v1's 1.3 × 1.47):
     /// at BUG_SPECS 2.0 it stood 3.3 m wide over a 0.85 m collision radius and buried the squad it reached in combat;
     /// × 0.8 brings it back to the v1 footprint the game was tuned with (the Матка, a brute at 4.2, shrinks with it).
-    /// Feel prototype: every type 15 % larger (a bug reads as a creature, not a speck) — the wave pacing has a quarter of
-    /// the old swarm on screen.
-    static let sizeK: [Float] = [1.15, 1.15, 0.92, 1.15]
+    /// Feel prototype: runners, spitters and boomers 15 % larger (a bug reads as a creature, not a speck — the wave pacing
+    /// has a quarter of the old swarm on screen); the brute only 5 % (0.8 → 0.84: at 0.92 a few of them walled the squad
+    /// off in the first film).
+    static let sizeK: [Float] = [1.15, 1.15, 0.84, 1.15]
     /// Feel prototype — per-bug variety from its variation seed (the core's `vr`, which the corpse inherits): a size of
     /// ±7 % on top of the core's ±12 % (so ±19 % in all, and the gait's tempo follows the size), and one of three shell
     /// tints — the type's own, a cooler dusky one, a warmer rust one. (Swarm.metal adds a shell pattern and sheen by the
@@ -446,12 +449,16 @@ final class WorldSwarm {
                 let k = allN[t]
                 if k >= WorldSwarm.scratchCap { continue }
                 let age = clockC - c.born
+                // feel prototype: a body melts into the deck after 9 s (0.12 m/s, gone ≈ 4 s later; its stain stays) — the
+                // first film piled a carpet of corpses around a defended beacon
+                let sink = max(0, age - WorldSwarm.corpseSinkAfter) * 0.12
+                if sink > 0.45 * c.scale + 0.05 { continue }
                 let dur = A.deathDuration(type: t, variant: Int(c.variant))
                 let o = A.corpse(type: t, variant: Int(c.variant), age: age, from: c.from, hasFrom: c.hasFrom && c.from.rows != 0)
                 let dead = smoothf(0, max(0.3, dur), age)
                 let tv = WorldSwarm.variety(c.seed).tint
                 scratch[t][k] = CreatureInstance(
-                    pos: F4(c.x, c.y, c.z, c.scale), rot: F4(cosf(c.heading), sinf(c.heading), c.pitchS, c.pitchC),
+                    pos: F4(c.x, c.y - sink, c.z, c.scale), rot: F4(cosf(c.heading), sinf(c.heading), c.pitchS, c.pitchC),
                     tint: F4(c.value * tv.x, c.value * 0.97 * tv.y, c.value * 0.95 * tv.z, c.scale),
                     anim: SIMD4(o.a.rows, o.b.rows, unorm16(o.a.frac) | unorm16(o.b.frac) << 16, unorm16(o.wB) | UInt32(t) << 16 | 2 << 24),
                     fx: SIMD4(unorm8(dead) << 24, 0, unorm16(c.seed), 0))

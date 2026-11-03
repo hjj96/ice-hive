@@ -804,7 +804,7 @@ final class HUD {
     // are kept, at about half their strength; the horde's edge no longer strobes)
     func damageFlash(_ a: Float) { damageA = min(1, damageA + a * 0.6) }
     func screenFlash(_ a: Float) { flashA = max(flashA, a * 0.5) }
-    func hordeFlash() { hordeA = 0.6 }
+    func hordeFlash() { hordeA = 0.38 }
 
     /// HUD point inside the pause button?
     func pauseHit(viewPoint p: CGPoint) -> Bool { pauseRect.contains(p) }
