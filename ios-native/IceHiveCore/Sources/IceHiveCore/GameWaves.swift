@@ -47,8 +47,10 @@ extension Game {
         } else if lullT > 0 {
             beatMul = 0.2
         }
-        // a squad that loiters wakes the hive (pressure past its grace): no more lulls, the stream runs on
+        // a squad that loiters wakes the hive (pressure past its grace): no more lulls, the stream runs on; a player who has
+        // not touched the screen for 12 s draws it harder (the AFK hunt)
         if idleMul >= 1.5 { beatMul = max(beatMul, 1.2) }
+        if huntAfk { beatMul = max(beatMul, 1.6) }
         if lullT > 0 { lullT -= dt }
         // the ambient trickle: two or three creatures at a time from one stretch of rail
         let rate = (0.5 + 0.12 * minutes + 0.15 * done) * stageMul * beatMul * D.trickle * D.popK
@@ -66,7 +68,7 @@ extension Game {
         if hordeT <= 0 {
             if stage == .hold {
                 hordeT = 18 + rng.next() * 6
-                startHorde(Int(((108 + rng.next() * 45) * hordeScale()).rounded()), .hordeTitle, GameText(.bannerHordeLiftSub), 55)
+                startHorde(Int(((80 + rng.next() * 35) * hordeScale()).rounded()), .hordeTitle, GameText(.bannerHordeLiftSub), 55)
                 lullT = 9
             } else {
                 hordeT = 45 + rng.next() * 15
