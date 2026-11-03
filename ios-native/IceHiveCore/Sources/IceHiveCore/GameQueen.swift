@@ -111,7 +111,7 @@ extension Game {
             queen.enraged = true
             S.spd[qi] = D.queen.speed * 1.35
             // (the web passes '' as the subtitle, which falls back to the horde line: nil here)
-            startHorde(Int((D.queen.horde * hordeScale()).rounded()), GameText(.bannerQueenRage), nil, 50)
+            startHorde(Int((D.queen.horde * (D.waves ? 0.5 : 1) * hordeScale()).rounded()), GameText(.bannerQueenRage), nil, 50)
             emit(.queenEnraged(pos: queen.position))
         }
         let en = queen.enraged

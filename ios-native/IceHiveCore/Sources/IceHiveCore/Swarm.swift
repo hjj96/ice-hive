@@ -38,6 +38,11 @@ public final class Swarm {
     let vr: UnsafeMutablePointer<Float>
     /// Separation mass (from the type).
     let ms: UnsafeMutablePointer<Float>
+    /// Wave pacing (`Difficulty.waves`): the bug's mood (0 calm, 1 hesitate, 2 feint, 3 surge, 4 flee, 5 panic), its
+    /// timer, the mood's direction (flight from a blast, a panicked dart) and the runner's leap cooldown.
+    let mood: UnsafeMutablePointer<UInt8>
+    let mt: UnsafeMutablePointer<Float>, mdx: UnsafeMutablePointer<Float>, mdz: UnsafeMutablePointer<Float>
+    let lt: UnsafeMutablePointer<Float>
     // byte arrays
     let type: UnsafeMutablePointer<UInt8>, st: UnsafeMutablePointer<UInt8>, dead: UnsafeMutablePointer<UInt8>
     /// Brute charge: bit k = marine k already hit by this charge.
@@ -55,11 +60,12 @@ public final class Swarm {
         func b() -> UnsafeMutablePointer<UInt8> { let p = UnsafeMutablePointer<UInt8>.allocate(capacity: capacity); p.initialize(repeating: 0, count: capacity); return p }
         x = f(); z = f(); px = f(); pz = f(); vx = f(); vz = f(); y = f(); hp = f(); hpMax = f(); r = f(); spd = f(); sc = f(); t = f(); cd = f()
         chill = f(); frz = f(); burn = f(); ph = f(); hd = f(); fl = f(); ax = f(); az = f(); vr = f(); ms = f()
-        type = b(); st = b(); dead = b(); hit = b()
+        mt = f(); mdx = f(); mdz = f(); lt = f()
+        type = b(); st = b(); dead = b(); hit = b(); mood = b()
         bsrc = .allocate(capacity: capacity); bsrc.initialize(repeating: -1, count: capacity)
         uid = .allocate(capacity: capacity); uid.initialize(repeating: 0, count: capacity)
-        floats = [x, z, px, pz, vx, vz, y, hp, hpMax, r, spd, sc, t, cd, chill, frz, burn, ph, hd, fl, ax, az, vr, ms]
-        bytes = [type, st, dead, hit]
+        floats = [x, z, px, pz, vx, vz, y, hp, hpMax, r, spd, sc, t, cd, chill, frz, burn, ph, hd, fl, ax, az, vr, ms, mt, mdx, mdz, lt]
+        bytes = [type, st, dead, hit, mood]
     }
 
     deinit {
@@ -162,6 +168,8 @@ public final class Swarm {
     public var maxHps: UnsafePointer<Float> { UnsafePointer(hpMax) }
     public var types: UnsafePointer<UInt8> { UnsafePointer(type) }
     public var states: UnsafePointer<UInt8> { UnsafePointer(st) }
+    /// Wave pacing moods (BugMood raw values; all 0 on the legacy pacing).
+    public var moods: UnsafePointer<UInt8> { UnsafePointer(mood) }
     public var deadFlags: UnsafePointer<UInt8> { UnsafePointer(dead) }
     public var uids: UnsafePointer<Int32> { UnsafePointer(uid) }
 }
