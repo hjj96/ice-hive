@@ -152,7 +152,7 @@ final class DirectorTierTests: XCTestCase {
             let b = g.beacons[0]
             g.debugTeleport(b.x + 2.5, b.z)
             let sizes = hordeSizes(g)
-            // wave pacing: the opening horde is 70 (+ step / 2 per beacon done) × the tier's horde × its population scale
+            // wave pacing: the opening horde is 70 (+ 0.3 · step per beacon done) × the tier's horde × its population scale
             let first = Int((Float(70) * g.hordeScale()).rounded())
             XCTAssertEqual(sizes, [Int((Float(first) * tier.horde * tier.popK).rounded())], tier.id)
             XCTAssertEqual(g.activeBeacon, 0)
@@ -169,6 +169,53 @@ final class DirectorTierTests: XCTestCase {
             g.tick()
             XCTAssertEqual(g.beaconPushes, 1, tier.id)
             XCTAssertGreaterThanOrEqual(g.queue.filter { $0.vent == nil }.count, 2, tier.id)
+        }
+    }
+
+    /// The wave pacing's numbers (native-vx-feel): live caps per graphics tier, the hive's three pushes per beacon
+    /// (30 / 62 / 90 % charge: 30 + 5·done, 30 + 5·done, 42 + 6·done × horde × popK, the last from three sides, 8 s of quiet
+    /// after each), the hold (an opening horde of 105, then 80–115 every 18–24 s with a 9 s lull, a share over the rim).
+    func testWavePacingNumbers() {
+        XCTAssertEqual(QualityTier.allCases.map { $0.bugCap }, [220, 250, 350])
+        XCTAssertEqual(QualityTier.allCases.map { $0.legacyCap }, [700, 1400, 2500])
+        XCTAssertEqual(tierGame(.legacyV10).bugCap, 1400, "the legacy stream keeps its cap")
+        for tier in Difficulty.tiers {
+            let g = tierGame(tier, seed: 21, god: true)
+            g.beaconsDone = 1
+            let b = g.beacons[0]
+            g.debugTeleport(b.x + 2.5, b.z)
+            _ = hordeSizes(g)
+            XCTAssertEqual(g.activeBeacon, 0, tier.id)
+            for (k, mark) in [Float(0.31), 0.63, 0.91].enumerated() {
+                g.queue.removeAll(); g.trickle = 0; g.waveT = 100
+                g.debugBeaconProgress(mark)
+                g.tick()
+                let done = Float(g.beaconsDone)
+                let want = Int(((k == 2 ? 42 + 6 * done : 30 + 5 * done) * tier.horde * tier.popK).rounded())
+                XCTAssertEqual(g.beaconPushes, k + 1, tier.id)
+                XCTAssertEqual(g.queue.reduce(0) { $0 + $1.n }, want, "\(tier.id) push \(k + 1)")
+                XCTAssertEqual(g.queue.count, k == 2 ? 3 : 2, "\(tier.id) push \(k + 1): sides")
+                XCTAssertEqual(g.lullT, 8 - SIM_DT, accuracy: 1e-4, tier.id)
+            }
+            // the hold: the opening horde of 105, then a horde of 80–115 and a 9 s lull
+            let h = tierGame(tier, seed: 21, god: true)
+            while h.stage == .beacons { h.debugSkip() }
+            h.clearEvents()
+            h.debugSkip()
+            XCTAssertEqual(h.stage, .hold, tier.id)
+            var opening: [Int] = []
+            h.drainEvents { if case .hordeStarted(let n, _, _) = $0 { opening.append(n) } }
+            XCTAssertEqual(opening, [Int((Float(Int((105 * h.hordeScale()).rounded())) * tier.horde * tier.popK).rounded())], tier.id)
+            XCTAssertEqual(h.hordeT, 16, accuracy: 1e-5, tier.id)
+            XCTAssertEqual(h.lullT, 10, accuracy: 1e-5, tier.id)
+            h.hordeT = 0; h.lullT = 0
+            let sizes = hordeSizes(h)
+            XCTAssertEqual(sizes.count, 1, tier.id)
+            let lo = Int((80 * tier.horde * tier.popK).rounded()) - 1, hi = Int((115 * tier.horde * tier.popK).rounded()) + 1
+            XCTAssertTrue((lo...hi).contains(sizes.first ?? 0), "\(tier.id): hold horde \(sizes)")
+            XCTAssertEqual(h.lullT, 9, accuracy: 1e-5, tier.id)
+            XCTAssertGreaterThanOrEqual(h.hordeT, 18, tier.id)
+            XCTAssertLessThanOrEqual(h.hordeT, 24, tier.id)
         }
     }
 
