@@ -232,7 +232,7 @@ extension Game {
                 stageMul = D.waves ? 1.2 : 1.6
                 if !P.downed && L.onLift(P.x, P.z) { startHold() }
             case .hold:
-                stageMul = D.waves ? 1.6 : 3.2
+                stageMul = D.waves ? 2.0 : 3.2
                 // the Матка climbs onto the deck queen.at s into the hold; while she lives the trickle thins out (she is the horde)
                 queenTick(dt)
                 if queen.alive { stageMul *= D.queen.trickle }
@@ -371,7 +371,7 @@ extension Game {
             banner("Держитесь", sub, false)
             events.append(.sound(.beacon, pos: nil, loud: nil))
         }
-        startHorde(Int(((difficulty.waves ? 150 : 480) * hordeScale()).rounded()), "Держитесь", sub, 70)
+        startHorde(Int(((difficulty.waves ? 105 : 480) * hordeScale()).rounded()), "Держитесь", sub, 70)
         if difficulty.waves { lullT = 10 }
     }
 

@@ -216,12 +216,12 @@ final class QueenTests: XCTestCase {
         g.hordeT = 5
         g.step(120)
         XCTAssertEqual(g.hordeT, 5, accuracy: 1e-4, "hold hordes pause while she lives")
-        // trickle × queen.trickle: the hold stage multiplier (wave pacing 1.6) × 0.4, quieter in the lull after a horde
+        // trickle × queen.trickle: the hold stage multiplier (wave pacing 2.0) × 0.4, quieter in the lull after a horde
         g.trickle = 0
         let beat: Float = g.lullT > 0 ? 0.2 : 1
         g.tick()
         let v = Difficulty.veteran
-        let rate = (0.5 + 0.12 * g.time / 60 + 0.15 * 3) * 1.6 * 0.4 * beat * v.trickle * v.popK
+        let rate = (0.5 + 0.12 * g.time / 60 + 0.15 * 3) * 2.0 * 0.4 * beat * v.trickle * v.popK
         XCTAssertEqual(g.trickle, rate * SIM_DT, accuracy: 1e-4)
         XCTAssertEqual(g.objectiveText, "Убейте Матку · лифт ждёт")
         XCTAssertEqual(g.objectiveProgress, 1 - g.queen.hpFraction, accuracy: 1e-5)
