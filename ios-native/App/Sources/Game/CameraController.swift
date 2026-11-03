@@ -34,7 +34,14 @@ final class CameraController {
     /// Crowd pull-back: camera distance factor, 1 … 1.10 (smoothed; MetalCamera multiplies its distance by it).
     private(set) var zoom: Float = 1
     /// Aim lead along the screen's long (right) axis and its depth (up) axis, and the push toward screen-down (m).
-    static let leadSide: Float = 3.6, leadDepth: Float = 1.5, pushDown: Float = 2.4
+    /// Feel prototype (a calmer camera): a shorter lead (3.6 → 2.6 m sideways) that follows a slowly smoothed aim — the
+    /// autopilot's aim snapping between targets swung the look-at point side to side by up to 7 m.
+    static let leadSide: Float = 2.6, leadDepth: Float = 1.1, pushDown: Float = 2.4
+    /// The aim direction the lead follows (smoothed, ~0.6 s), and the trauma of the shake (0…1; the offset is trauma²).
+    private var leadAx: Float = 0, leadAz: Float = 0, trauma: Float = 0
+    /// Smooth shake noise: two value-noise samples per axis, 14 Hz.
+    private var noiseT: Float = 0
+    private var n0: (Float, Float, Float) = (0, 0, 0), n1: (Float, Float, Float) = (0, 0, 0)
     private var zoomWant: Float = 1
     /// Per-round recoil of the player's weapon (native-vx-squad): each round kicks the look-at back along the aim with a
     /// fast attack and a ~45 ms half-life (the rifle's 9 rounds/s read as distinct thumps; the old `muzzle × 7 cm`
@@ -44,8 +51,13 @@ final class CameraController {
     private var lastMuzzle: Float = 0
     private var rumble: Float = 0
 
+    /// Feel prototype: shake only on big events — a bite (0.12 + 0.012·dmg), a horde siren (0.25) or a distant blast
+    /// stay under the threshold; a blast near the player, a napalm / nova cast, the Матка and a down shake the camera.
     func addShake(_ a: Float) {
-        shake = min(1.4, shake + a * (reducedMotion ? 0.35 : 1))
+        let k = max(0, a - 0.26) * 1.6
+        if k <= 0 { return }
+        trauma = min(1, trauma + k * (reducedMotion ? 0.35 : 1))
+        shake = trauma
     }
 
     /// Snap to the player (new mission / teleport).
@@ -57,11 +69,15 @@ final class CameraController {
         let P = game.player
         let dn: Float = title ? 0 : CameraController.pushDown
         // lead along the screen's axes (mostly sideways: the long axis), then the push toward screen-down
-        let sr = P.ax * RIGHT_X + P.az * RIGHT_Z, su = P.ax * FWD_X + P.az * FWD_Z
+        if !initialized { leadAx = P.ax; leadAz = P.az }
+        let ka = 1 - expf(-1.7 * dt)
+        leadAx += (P.ax - leadAx) * ka; leadAz += (P.az - leadAz) * ka
+        let sr = leadAx * RIGHT_X + leadAz * RIGHT_Z, su = leadAx * FWD_X + leadAz * FWD_Z
         let lr: Float = title ? 0 : CameraController.leadSide, lu: Float = title ? 0 : CameraController.leadDepth
         let wantX = feet.0 + RIGHT_X * sr * lr + FWD_X * su * lu - FWD_X * dn
         let wantZ = feet.2 + RIGHT_Z * sr * lr + FWD_Z * su * lu - FWD_Z * dn
-        if title { zoomWant = 1 } else if bugsNear > 240 { zoomWant = 1.1 } else if bugsNear < 180 { zoomWant = 1 }
+        // (the wave pacing's peaks are smaller: the pull-back from 150 bugs near, back below 110)
+        if title { zoomWant = 1 } else if bugsNear > 150 { zoomWant = 1.08 } else if bugsNear < 110 { zoomWant = 1 }
         zoom += (zoomWant - zoom) * (1 - expf(-1.2 * dt))
         let extract = game.stage == .extract
         let wantY = game.level.groundY(feet.0, feet.2) + (extract && game.level.onLift(P.x, P.z) ? liftRise * 0.55 : 0)
@@ -69,32 +85,39 @@ final class CameraController {
             initialized = true
             tx = wantX; ty = wantY; tz = wantZ
         } else {
-            let k = 1 - expf(-(title ? 1.5 : 5) * dt)
+            let k = 1 - expf(-(title ? 1.5 : 3.4) * dt)
             tx += (wantX - tx) * k
             tz += (wantZ - tz) * k
             ty += (wantY - ty) * (1 - expf(-(extract ? 8 : 4) * dt))
         }
-        shake *= expf(-6 * dt)
-        let sk = shake * 0.35
+        trauma = max(0, trauma - 1.6 * dt)
+        shake = trauma
+        let sk = trauma * trauma * 0.42
         let armed = !(title || P.downed)
         let rm: Float = reducedMotion ? 0.35 : 1
         if armed && P.muzzle > lastMuzzle + 0.3 {
-            recoil = min(1.6, recoil + (P.cls == .gunner ? 0.5 : 1))
-            if P.cls == .gunner { rumble = min(0.8, rumble + 0.12) }
+            recoil = min(1.2, recoil + (P.cls == .gunner ? 0.35 : 0.8))
+            if P.cls == .gunner { rumble = min(0.5, rumble + 0.06) }
         }
         lastMuzzle = P.muzzle
         recoil *= expf(-15 * dt)
         let stream = armed && P.firing && (P.cls == .pyro || P.cls == .cryo)
         rumble = stream ? min(0.45, rumble + 2.5 * dt) : rumble * expf(-7 * dt)
-        let kick: Float = armed ? recoil * (P.cls == .gunner ? 0.12 : 0.2) * rm : 0
+        // (feel prototype: a third of the kick — still a thump per round, no longer a constant jitter of the frame)
+        let kick: Float = armed ? recoil * (P.cls == .gunner ? 0.04 : 0.07) * rm : 0
         let kx = -P.ax * kick, kz = -P.az * kick
-        shakeAcc += dt
-        if shakeAcc >= 1 / 60 {
-            shakeAcc = min(shakeAcc - 1 / 60, 1 / 60)
-            shakeOff = ((rng.next() - 0.5), (rng.next() - 0.5), (rng.next() - 0.5))
+        // smooth value noise (14 Hz) instead of a white jitter re-rolled every frame
+        noiseT += dt * 14
+        while noiseT >= 1 {
+            noiseT -= 1
+            n0 = n1
+            n1 = ((rng.next() - 0.5) * 2, (rng.next() - 0.5) * 2, (rng.next() - 0.5) * 2)
         }
+        let u = noiseT * noiseT * (3 - 2 * noiseT)
+        shakeOff = (n0.0 + (n1.0 - n0.0) * u, n0.1 + (n1.1 - n0.1) * u, n0.2 + (n1.2 - n0.2) * u)
+        shakeAcc = 0
         focus = (tx + kx, ty, tz + kz)
-        let rb = rumble * 0.06 * rm
+        let rb = rumble * 0.02 * rm
         shakeOffset = (shakeOff.0 * (sk + rb), shakeOff.1 * (sk + rb * 0.5), shakeOff.2 * (sk + rb))
     }
 }

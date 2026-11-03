@@ -34,9 +34,11 @@ final class Ribbons {
 
     static let pipelines: [PipelineSpec] = [.world("beams", "vs_beam", "fs_beam", .add)]
     /// Tracer length (m) by projectile colour index (0 rifle, 1 rotary, 2 turret) — the plan's ≤ 3 m.
-    static let tracerLength: [Float] = [2.8, 2.2, 1.8]   // polish: a touch longer streaks (still ≤ 3 m, no laser line)
+    /// Feel prototype (subtler tracers): shorter streaks (2.8 / 2.2 / 1.8 → 1.8 / 1.4 / 1.2 m), a dimmer body and head, a
+    /// narrower halo; the squad's bots draw theirs at 55 % with no halo — the player's own fire stays the brightest.
+    static let tracerLength: [Float] = [1.8, 1.4, 1.2]
     /// Tracer HDR colours: the class hue (assault red, gunner green; the turret a paler green-teal).
-    static let tracerColor: [F3] = [F3(4.6, 0.62, 0.34), F3(0.7, 4.0, 0.95), F3(0.6, 3.2, 1.8)]
+    static let tracerColor: [F3] = [F3(3.2, 0.48, 0.26), F3(0.52, 2.8, 0.7), F3(0.45, 2.3, 1.3)]
 
     private(set) var beams: [BeamInstance] = []
     private var renderer: MetalRenderer?
@@ -76,22 +78,24 @@ final class Ribbons {
             let ci = max(0, min(2, P.colorIndex(k)))
             let len = min(Ribbons.tracerLength[ci], P.speed(k) * 0.034)
             let y = 1.2 + level.groundY(p.x, p.y)
-            bolt(head: F3(p.x, y, p.y), dir: d3(d), len: len, ci: ci)
+            bolt(head: F3(p.x, y, p.y), dir: d3(d), len: len, ci: ci, bot: P.owner(k) != 0)
         }
     }
 
     /// One tracer bolt: `len` m behind its head along the unit `dir`, in projectile colour `ci` (Ribbons.tracerColor).
-    func bolt(head: F3, dir: F3, len: Float, ci: Int) {
+    func bolt(head: F3, dir: F3, len: Float, ci: Int, bot: Bool = false) {
         let tail = head - dir * len
-        let c = Ribbons.tracerColor[max(0, min(2, ci))]
+        let c = Ribbons.tracerColor[max(0, min(2, ci))] * (bot ? 0.55 : 1)
         // polish (owner: «эффекты стрельбы эпичнее»): a thinner, hotter bolt — a crisp white-hot head and a glow
         // around the head only; a halo along the whole bolt read as a glowing rod (a light sabre) in CI combat
         let k = tracerScale
-        add(tail, head, width: (ci == 0 ? 0.05 : 0.045) * k, mode: .tracer, color: c, head: ci == 0 ? 14 : 11)
-        let hs = tail + (head - tail) * 0.55
-        // the halo by the camera too: 0.3 m wide in a close-up it read as a glowing bar (burst fire f62cf27)
-        let gk = max(0, min(1, (k - 1) / 0.6))
-        add(hs, head + dir * 0.12, width: (ci == 0 ? 0.3 : 0.25) * (0.4 + 0.6 * gk), mode: .halo, color: c * (0.25 + 0.17 * gk))
+        add(tail, head, width: (ci == 0 ? 0.04 : 0.036) * k, mode: .tracer, color: c, head: (ci == 0 ? 8 : 6) * (bot ? 0.6 : 1))
+        if !bot {
+            let hs = tail + (head - tail) * 0.6
+            // the halo by the camera too: 0.3 m wide in a close-up it read as a glowing bar (burst fire f62cf27)
+            let gk = max(0, min(1, (k - 1) / 0.6))
+            add(hs, head + dir * 0.1, width: (ci == 0 ? 0.2 : 0.17) * (0.4 + 0.6 * gk), mode: .halo, color: c * (0.16 + 0.1 * gk))
+        }
         longestTracer = max(longestTracer, len)
         tracersDrawn += 1
     }

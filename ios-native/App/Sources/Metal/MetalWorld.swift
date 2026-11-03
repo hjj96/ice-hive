@@ -200,8 +200,13 @@ final class MetalWorld: HUDProjection {
         // the hit bug recoils along the actual shot (WorldSwarm.noteHit), not away from the nearest marine
         if case .bulletHit(let pos, let dir, _) = e { swarm.noteHit(pos, dir) }
         fx.handle(e, game: game)
-        // flash adaptation: a big blast dips the exposure for a moment (scripted; no auto-exposure)
-        if case .explosion(let kind, _, _) = e, kind.isBig { renderer.post.dip(ev: -0.35, duration: 0.45) }
+        // flash adaptation: a big blast dips the exposure for a moment (scripted; no auto-exposure). Feel prototype: only a
+        // blast near the player, and less (every boomer anywhere on screen pumped the whole frame's exposure)
+        if case .explosion(let kind, let pos, _) = e, kind.isBig {
+            let P = game.player
+            let d = ((pos.x - P.x) * (pos.x - P.x) + (pos.y - P.z) * (pos.y - P.z)).squareRoot()
+            if d < 14 { renderer.post.dip(ev: -0.08 - 0.17 * (1 - d / 14), duration: 0.38) }
+        }
     }
 
     // ---------------------------------------------------------------- HUD projection

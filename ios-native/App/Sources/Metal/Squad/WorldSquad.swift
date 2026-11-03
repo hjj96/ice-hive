@@ -84,7 +84,8 @@ final class WorldSquad {
     static let keyLight = F3(1.0, 0.92, 0.82) * 0.3
     static let cavity: Float = 0.45
     /// Weapon flash size from the game camera (polish), × the modelled size; close-ups draw it at 1.
-    static let flashGameScale: Float = 1.45
+    /// (feel prototype: crisp but smaller — 1.45 → 1.1; the spark fans of the flash thinned out below)
+    static let flashGameScale: Float = 1.1
     /// Eye-to-target distance of this frame's camera (MetalWorld sets it before build): the game camera sits ≈ 33 m out,
     /// the punch-in ends at 10 m, the extraction shot rides the shaft wall a few metres off the squad.
     var cameraDistance: Float = 33
@@ -294,7 +295,7 @@ final class WorldSquad {
             len = 0.86 * (0.85 + 0.35 * shotSeed[k]); wid = 0.21; kind = 0; rays = 4
             // (native-vx-squad: a hotter orange body — the old red-pink flame read as a soft pink disc at 100 %)
             col = F3(3.4, 1.3, 0.42); lcol = F3(1.0, 0.55, 0.28); light = 5.0 * a
-            jets = 1; sparks = 0.9; ring = 1
+            jets = 1; sparks = 0.3; ring = 0.7
         case .gunner:
             // the rotary's continuous six-ray flicker, a new roll every frame; the barrels heat with the core's heat
             let on = I.firing && I.spin > 0.35
@@ -306,7 +307,7 @@ final class WorldSquad {
             // a new spray of sparks every fourth frame (the age runs over four frames)
             if on && flashCount % 4 == k % 4 { shotSeed[k] = frand() }
             age = Float((flashCount + k) % 4) * 0.03
-            sparks = on ? 0.75 : 0
+            sparks = on ? 0.25 : 0
             h = coreHeat >= 0 ? h + (coreHeat - h) * min(1, 6 * dt) : (on ? min(1, h + 0.16 * dt) : max(0, h - 0.3 * dt))
         case .pyro:
             // the blue pilot flame always burns; firing: a hot orange cone at the nozzle (the jet itself is the
@@ -331,7 +332,7 @@ final class WorldSquad {
                 // ice shards spat off the emitter
                 if flashCount % 5 == k % 5 { shotSeed[k] = frand() }
                 age = Float((flashCount + k) % 5) * 0.03
-                sparks = 0.45
+                sparks = 0.2
                 roll += dt * 2.5
                 shotRoll[k] = roll
             }
@@ -347,7 +348,7 @@ final class WorldSquad {
         if gk > 0 && (kind != 2 || len > 0.2) {
             let fs = 1 + (WorldSquad.flashGameScale - 1) * gk
             len *= fs; wid *= fs * (1 - 0.05 * gk)
-            col *= 1 + 0.2 * gk; light *= 1 + 0.3 * gk
+            col *= 1 + 0.05 * gk; light *= 1 + 0.1 * gk
         }
         guard let mz = mzOpt else { return }
         draws[k].muzzle = F4(mz.x, mz.y, mz.z, light)
