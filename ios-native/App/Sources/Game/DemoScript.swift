@@ -54,6 +54,12 @@ import IceHiveCore
 //  at `-queenAt` s (7) with `-queenHp` (1100), dies by the squad's guns (or at `-queenKillBy` s (9) after she came),
 //  and the lift leaves `-liftDelay` s (2.5) after her death; combat / stress1400 with `-videoAt k`: the squad starts at
 //  beacon k (0 Альфа, 1 Бета, 2 Гамма) instead of the landing pad.
+//  Feel prototype (native-vx-feel-proto): under `-video` the swarm is the game's own — the wave director — with no crowd
+//  spawned around the squad and no top-ups; the scenes are staged through the objective instead: combat — the defence of
+//  beacon k, charged to `-videoCharge` (0.2) so the hive's first push lands inside the film; punchin — the defence of
+//  «Альфа» until the beacon comes on; stress1400 — the third beacon (two done, mission time 200 s) charged to 0.84 (its
+//  last push from three sides on top of the opening horde) plus a horde 2.5 s in: the heaviest moment of the pacing;
+//  queen — the hold's own opening horde, then the Матка.
 // ================================================================
 final class DemoScript {
     let name: String
@@ -74,6 +80,9 @@ final class DemoScript {
     private let video: Bool
     private let punchAt: Double, liftAt: Double, queenAt: Double, queenKillBy: Double, liftDelay: Double
     private let videoAt: Int
+    /// `-video`: the charge the defended beacon is set to once its defence starts (combat / stress1400).
+    private let videoCharge: Float
+    private var charged = false, extraHorde = false
 
     private init(name: String, options: LaunchOptions, bugs: Int? = nil) {
         self.name = name
@@ -91,6 +100,7 @@ final class DemoScript {
         queenKillBy = num("-queenKillBy", 9)
         liftDelay = num("-liftDelay", 2.5)
         videoAt = Int(num("-videoAt", -1))
+        videoCharge = Float(num("-videoCharge", name == "stress1400" ? 0.84 : 0.2))
         reportFixture = name == "report" ? DemoFixtures.report(options.report) : nil
         if name == "report" && reportFixture == nil { AppLog.error("unknown -report \(options.report ?? "?")") }
     }
@@ -146,8 +156,16 @@ final class DemoScript {
         Cinematics.shared.reset()
         if video && (name == "combat" || name == "stress1400") && videoAt >= 0 && videoAt < game.beacons.count {
             let b = game.beacons[videoAt]
-            game.debugTeleport(b.x + 3, b.z - 3.5)
-            AppLog.info("demo \(name) (video): squad at beacon \(b.name)")
+            if name == "stress1400" { game.debugSetRun(time: 200, beaconsDone: videoAt) }
+            game.debugTeleport(b.x + 2, b.z - 2.5)
+            AppLog.info("demo \(name) (video): squad at beacon \(b.name), beacons done \(game.beaconsDone)")
+        }
+        if video && name != "queen" && name != "title" {
+            // the game's own swarm (wave pacing): nothing spawned around the squad, no top-ups
+            target = 1
+            if name == "punchin", let b = game.beacons.first { game.debugTeleport(b.x + 1.5, b.z - 1.5) }
+            AppLog.info("demo \(name) (video): the wave director's own swarm, bug cap \(game.bugCap)")
+            return
         }
         switch name {
         case "calm", "layout", "bugsheet":
@@ -160,7 +178,8 @@ final class DemoScript {
             while game.stage == .beacons && guardN < 6 { game.debugSkip(); guardN += 1 }
             if game.stage == .toLift { game.debugSkip() }
             target = 260
-            let n = game.debugSpawn(target, type: nil, minRadius: 5, maxRadius: 18)
+            // (video: the hold's own opening horde, no crowd around the lift)
+            let n = video ? 0 : game.debugSpawn(target, type: nil, minRadius: 5, maxRadius: 18)
             AppLog.info("demo \(name): stage \(game.stage.rawValue), spawned \(n) bugs around the lift")
         case "coach":
             // a novice who does not touch the screen: every step ends by its timeout
@@ -275,6 +294,22 @@ final class DemoScript {
         if name == "probe" && probeIndex < probeSteps.count && t >= Float(4 * (probeIndex + 1)) {
             probe = probeSteps[probeIndex]
             probeIndex += 1
+        }
+        if video {
+            // the defended beacon charged so the hive's pushes land inside the film; stress: one more horde 2.5 s in
+            if !charged && game.activeBeacon >= 0 && (name == "combat" || name == "stress1400") {
+                charged = true
+                game.debugBeaconProgress(videoCharge)
+                AppLog.info(String(format: "demo %@ (video): beacon charged to %.2f td=%.2f alive %d", name, videoCharge, sinceReady, game.bugsAlive))
+            }
+            if !extraHorde && name == "stress1400" && sinceReady >= 2.5 {
+                extraHorde = true
+                game.debugHorde(70)
+                AppLog.info(String(format: "demo stress1400 (video): horde td=%.2f alive %d", sinceReady, game.bugsAlive))
+            }
+            logT -= dt
+            if logT <= 0 { logT = 2; AppLog.info(String(format: "demo %@ (video): alive %d td=%.1f stage %d", name, game.bugsAlive, sinceReady, game.stage.rawValue)) }
+            return
         }
         topUpT -= dt
         if topUpT <= 0 {
