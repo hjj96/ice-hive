@@ -37,7 +37,7 @@ struct MarineDraw {
     var trim: F4
     /// rgb added emissive (hurt / invulnerable), w = downed dimming.
     var flash: F4
-    /// x class rim strength, y visor / strip gain, z lamp gain, w = 1 on the High tier.
+    /// x class rim strength (M1: 0), y visor / strobe gain, z lamp gain, w = 1 on the High tier.
     var params: F4
     /// xyz the weapon's muzzle (world), w = its flash as a light on the marine (0 = none).
     var muzzle: F4 = .zero
@@ -78,18 +78,23 @@ final class WorldSquad {
     }
 
     /// Class paint (sRGB) — the same values the Blender build paints with (tools/blender/characters/marines.py TRIM).
-    static let trim: [UInt32] = [0xa62a22, 0xc98118, 0x2c82ba, 0x3c9431]
+    /// M1 «no plastic» (the feel study): desaturated, darker field paint (it was a62a22 / c98118 / 2c82ba / 3c9431).
+    static let trim: [UInt32] = [0x8e3228, 0xac722a, 0x386a90, 0x48763c]
     /// The squad's readability key light (fs_marine: a soft light from above-left of the view, linear colour ×
-    /// intensity) and how much the baked AO darkens the albedo (grime in the seams).
-    static let keyLight = F3(1.0, 0.92, 0.82) * 0.3
-    static let cavity: Float = 0.45
+    /// intensity) and how much the baked AO darkens the albedo (grime in the seams). M1: neutral and weaker (a warm
+    /// 0.3 lit the squad like a product shot), more grime in the seams (0.45 → 0.6).
+    static let keyLight = F3(0.92, 0.96, 1.0) * 0.22
+    static let cavity: Float = 0.6
+    /// The class-hue Fresnel rim (fs_marine params.x): off since M1 — every silhouette edge glowed in the toy colour
+    /// (0.12–0.26); the class reads from the visor, the helmet and pauldron paint, the IFF strobe and the deck rings.
+    static let classRim: Float = 0
     /// Weapon flash size from the game camera (polish), × the modelled size; close-ups draw it at 1.
     static let flashGameScale: Float = 1.45
     /// Eye-to-target distance of this frame's camera (MetalWorld sets it before build): the game camera sits ≈ 33 m out,
     /// the punch-in ends at 10 m, the extraction shot rides the shaft wall a few metres off the squad.
     var cameraDistance: Float = 33
     /// 0 at a close camera (≤ 18 m: the close-ups, the punch-in, the extraction shot), 1 at the game camera (≥ 30 m):
-    /// how much of the game-camera boost (flash size, class rim, visor gain, the rounds' light pop) applies — the title
+    /// how much of the game-camera boost (flash size, visor gain, the rounds' light pop) applies — the title
     /// camera at 24 m gets half (with the full boost its muzzles clipped, title 1.41 % on native-vx-polish-look 55931cb).
     var gameK: Float {
         if lookDev.closeUp { return 0 }
@@ -248,7 +253,7 @@ final class WorldSquad {
             draws[k] = MarineDraw(hue: F4(hue.x, hue.y, hue.z, visor),
                                   trim: F4(tr.x, tr.y, tr.z, Float(m.cls.rawValue)),
                                   flash: F4(0.55 * hurt + inv * 0.4, 0.04 * hurt + inv * 0.9, 0.03 * hurt + inv, m.downed && !I.dead ? 0.6 : (I.dead ? 1 : 0)),
-                                  params: F4((m.isPlayer ? 0.16 : 0.12) + 0.1 * gameK, 5.5 + 2 * gameK, 3.5, high ? 1 : 0))
+                                  params: F4(WorldSquad.classRim, 5.5 + 2 * gameK, 3.5, high ? 1 : 0))
             draws[k].key = F4(WorldSquad.keyLight.x, WorldSquad.keyLight.y, WorldSquad.keyLight.z, WorldSquad.cavity)
             weaponFx(k, m, I, rig, dt: dt, coreHeat: lookDev.on ? -1 : m.heat)
             drawn.append(k)
