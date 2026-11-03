@@ -745,7 +745,7 @@ final class MetalEffects {
             gpu.burst(.fire, n, at: p, ring: r * 0.5, vel: F3(0, 0.6, 0), radial: r * 1.4, radialJitter: 0.4, life: (0.4, 0.8), size: (0.6, 2.0),
                       color: F4(1, 0.72, 0.46, 0.85), gravity: -1.5, drag: 2.4, spin: 2)
         }
-        flash(p + F3(0, 1.1, 0), F3(1.0, 0.45, 0.15), peak: 220, dur: 0.6, range: r * 2.6, priority: 25)
+        flash(p + F3(0, 1.1, 0), F3(1.0, 0.45, 0.15), peak: 160, dur: 0.5, range: r * 2.6, priority: 25)
         floorTimed(x, z, radius: r * 1.4, mode: .shock, color: F3(2.6, 1.0, 0.25), life: 0.4, thickness: 0.07)
         heatTimed(p, radius: r * 1.5, strength: 0.6, mode: 1, life: 0.45)
         decals.add(x, z, size: r * 1.8, cell: .scorch, kind: .scorch, tint: F3(0.12, 0.08, 0.06), flecks: 1)
@@ -780,10 +780,11 @@ final class MetalEffects {
         floorTimed(x, z, radius: r * 1.1, mode: .frost, color: F3(0.6, 1.4, 2.4), life: 0.55, thickness: 0.09)
         gpu.burst(.ice, num(28), at: F3(x, g + 0.5, z), ring: r * 0.25, vel: F3(0, 1, 0), velJitter: F3(0.5, 1, 0.5), radial: r * 2.2,
                   life: (0.4, 0.8), size: (0.08, 0.04), color: F4(0.7, 1.0, 1.45, 1), gravity: 4, drag: 1.2)
-        gpu.burst(.steam, num(12), at: F3(x, g + 0.3, z), ring: r * 0.7, radial: 2, life: (0.9, 1.5), size: (0.8, 2.2),
-                  color: F4(0.6, 0.75, 0.9, 0.35), drag: 1.2, spin: 0.5)
+        // (feel prototype: a thinner frost cloud — the bots' novas left a white disk over the fight in the second film)
+        gpu.burst(.steam, num(5), at: F3(x, g + 0.3, z), ring: r * 0.7, radial: 2, life: (0.9, 1.4), size: (0.8, 2.0),
+                  color: F4(0.55, 0.7, 0.88, 0.22), drag: 1.2, spin: 0.5)
         decals.add(x, z, size: r * 1.5, cell: .frost, kind: .frost, tint: F3(0.75, 0.86, 0.98), opacity: 0.8)
-        flash(F3(x, g + 2, z), F3(0.45, 0.8, 1.0), peak: 150, dur: 0.45, range: r * 2.4, priority: 20)
+        flash(F3(x, g + 2, z), F3(0.45, 0.8, 1.0), peak: 110, dur: 0.4, range: r * 2.4, priority: 20)
     }
 
     private func turretDrop(_ x: Float, _ z: Float) {
