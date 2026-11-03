@@ -1,32 +1,38 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ледяной Улей — политика конфиденциальности</title>
-<meta name="description" content="Политика конфиденциальности игры «Ледяной Улей»: игра не собирает персональных данных.">
+<title>ICE HIVE — Privacy Policy</title>
+<meta name="description" content="Privacy policy of the iPhone game ICE HIVE: the game collects no personal data, works offline and keeps its settings on your device.">
 <style>
   :root {
     color-scheme: light dark;
-    --bg: #f6f7f9;
+    --bg: #f5f7fa;
     --surface: #ffffff;
-    --text: #141a22;
-    --muted: #4c5866;
-    --line: #dde2e8;
-    --accent: #0f7f74;
-    --badge-bg: #e3f4f1;
-    --badge-text: #0b5f57;
+    --text: #121922;
+    --muted: #4a5664;
+    --line: #dbe1e8;
+    --accent: #0b7a8f;
+    --badge-bg: #e1f2f6;
+    --badge-text: #075a6a;
+    --code-bg: #eef2f6;
+    --ph-bg: #fff1c2;
+    --ph-text: #6a4b00;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #05070a;
-      --surface: #0d131a;
-      --text: #e6ebf0;
-      --muted: #9aa7b4;
-      --line: #1f2a35;
-      --accent: #45d6c4;
-      --badge-bg: #0f2a28;
-      --badge-text: #7fe8da;
+      --bg: #05080c;
+      --surface: #0c131b;
+      --text: #e4ebf2;
+      --muted: #97a5b3;
+      --line: #1d2935;
+      --accent: #5fd3e8;
+      --badge-bg: #0d2a31;
+      --badge-text: #8fe6f5;
+      --code-bg: #121c26;
+      --ph-bg: #3a2e05;
+      --ph-text: #ffd866;
     }
   }
   * { box-sizing: border-box; }
@@ -38,10 +44,11 @@
   }
   main { max-width: 720px; margin: 0 auto; }
   header { margin-bottom: 28px; }
-  .app { font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); font-weight: 600; margin: 0 0 6px; }
+  .app { font-size: 13px; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); font-weight: 700; margin: 0 0 6px; }
   h1 { font-size: 30px; line-height: 1.2; margin: 0 0 12px; }
   h2 { font-size: 20px; line-height: 1.3; margin: 32px 0 8px; }
-  p, li { color: var(--text); }
+  h3 { font-size: 16px; margin: 20px 0 4px; }
+  a { color: var(--accent); }
   .meta { color: var(--muted); font-size: 14px; margin: 0; }
   .summary {
     background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent);
@@ -49,81 +56,97 @@
   }
   .summary p { margin: 0; }
   .badges { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; padding: 0; list-style: none; }
-  .badges li { background: var(--badge-bg); color: var(--badge-text); border-radius: 999px; padding: 3px 12px; font-size: 14px; font-weight: 600; }
+  .badges li { background: var(--badge-bg); color: var(--badge-text); border-radius: 999px; padding: 3px 12px; font-size: 14px; font-weight: 600; margin: 0; }
   ul { padding-left: 22px; }
   li { margin: 4px 0; }
-  hr { border: 0; border-top: 1px solid var(--line); margin: 48px 0 8px; }
-  .placeholder { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92em; }
-  footer { margin-top: 40px; color: var(--muted); font-size: 14px; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .86em;
+    background: var(--code-bg); border-radius: 4px; padding: 1px 5px; overflow-wrap: anywhere;
+  }
+  .placeholder {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9em;
+    background: var(--ph-bg); color: var(--ph-text); border-radius: 4px; padding: 1px 5px;
+  }
+  footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
 </style>
 </head>
 <body>
 <main>
   <header>
-    <p class="app">Ледяной Улей · iOS</p>
-    <h1>Политика конфиденциальности</h1>
-    <p class="meta">Дата вступления в силу: <span class="placeholder">[ДАТА ПУБЛИКАЦИИ]</span></p>
-    <p class="meta">Разработчик: <span class="placeholder">[ИМЯ РАЗРАБОТЧИКА]</span> · Контакт: <a href="mailto:zviaginzevandrew@gmail.com">zviaginzevandrew@gmail.com</a></p>
+    <p class="app">ICE HIVE · iPhone</p>
+    <h1>Privacy Policy</h1>
+    <p class="meta">Effective date: <span class="placeholder">[OWNER: EFFECTIVE DATE, e.g. 1 December 2026]</span></p>
+    <p class="meta">Developer: <span class="placeholder">[OWNER: DEVELOPER NAME, as the seller name in Apple Developer]</span> · Contact: <a href="mailto:zviaginzevandrew@gmail.com">zviaginzevandrew@gmail.com</a></p>
+    <p class="meta">This policy covers the iPhone game ICE HIVE, version 2.0 and later.</p>
   </header>
 
   <div class="summary">
-    <p><strong>«Ледяной Улей» не собирает, не хранит на серверах и не передаёт никаких персональных данных.</strong> В игре нет аккаунтов, аналитики, рекламы и отслеживания, и она не подключается к интернету.</p>
+    <p><strong>ICE HIVE does not collect, upload or share any personal data.</strong> The game has no accounts, no analytics, no advertising and no tracking, and it never connects to the internet. What it remembers — your settings, your profile and your records — stays on your iPhone.</p>
     <ul class="badges">
-      <li>Данные не собираются</li><li>Без аккаунтов</li><li>Без аналитики</li><li>Без рекламы</li><li>Работает офлайн</li>
+      <li>Data not collected</li><li>No account</li><li>No analytics</li><li>No ads</li><li>No tracking</li><li>Works offline</li>
     </ul>
   </div>
 
-  <h2>Какие данные мы собираем</h2>
-  <p>Никаких. Приложение не запрашивает имя, e-mail, номер телефона, местоположение, контакты, фотографии, доступ к камере или микрофону. Оно не использует рекламный идентификатор (IDFA) и не отслеживает вас в других приложениях и на сайтах.</p>
+  <h2>Data we collect</h2>
+  <p>None. The app does not ask for your name, e-mail address, phone number, location, contacts, photos, camera or microphone. It does not use the advertising identifier (IDFA) and does not track you across other apps or websites. It shows no App Tracking Transparency prompt because it has nothing to track.</p>
 
-  <h2>Что хранится на вашем устройстве</h2>
-  <p>Чтобы игра запоминала ваш выбор, на iPhone сохраняются только игровые настройки:</p>
-  <ul>
-    <li>выбранный класс бойца;</li>
-    <li>звук включён или выключен и уровень громкости;</li>
-    <li>качество графики;</li>
-    <li>вибрация включена или выключена;</li>
-    <li>рекорд: число убитых жуков и лучшее время эвакуации.</li>
-  </ul>
-  <p>Эти данные хранятся только внутри приложения на вашем устройстве. Мы их не получаем, они никуда не отправляются. Если удалить приложение, они удалятся вместе с ним. Если в iOS включено резервное копирование, они могут попасть в копию iCloud или на компьютер — так же, как данные любого другого приложения. Этим управляет Apple по вашим настройкам iOS.</p>
+  <h2>What the game stores on your iPhone</h2>
+  <p>So that the game remembers your choices and progress, it keeps the following on your device, in the app's own storage (iOS <code>UserDefaults</code>). The storage key is given for each item.</p>
 
-  <h2>Сеть, аналитика и реклама</h2>
+  <h3>Settings</h3>
   <ul>
-    <li>Игра полностью работает без интернета. Весь код, графика, шрифты и звуки встроены в приложение.</li>
-    <li>Нет аналитики, счётчиков, систем сбора сбоев от третьих лиц и рекламных SDK.</li>
-    <li>Нет встроенных покупок, регистрации и входа в аккаунт.</li>
-    <li>Нет чатов, общения с другими игроками и пользовательского контента.</li>
+    <li>the class you picked last — <code>ledulei.cls</code>;</li>
+    <li>sound on or off — <code>ledulei.muted</code>, and the volume level — <code>ledulei.vol</code>;</li>
+    <li>haptics (vibration) on or off — <code>ledulei.haptics</code>;</li>
+    <li>graphics quality — <code>ledulei.quality</code>;</li>
+    <li>brightness — <code>ledulei.bright</code>;</li>
+    <li>the difficulty you picked on the title screen — <code>ledulei.diff</code>;</li>
+    <li>other options you change in the game's settings, stored the same way.</li>
   </ul>
 
-  <h2>Данные, которые собирает Apple</h2>
-  <p>Если вы разрешили в настройках iOS отправлять разработчикам аналитику и отчёты о сбоях, Apple может передавать разработчику обезличенную статистику через App Store Connect. Это регулируется политикой конфиденциальности Apple и вашими настройками iOS («Настройки» → «Конфиденциальность и безопасность» → «Аналитика и улучшения»). Мы не используем эти сведения для того, чтобы установить вашу личность.</p>
+  <h3>Progress</h3>
+  <ul>
+    <li>your best result: the most kills in one mission and your fastest extraction time — <code>ledulei.best</code>;</li>
+    <li>your profile — <code>ledulei.profile</code>: the number of missions and extractions, the total score earned, and for each class its service points (which give its rank), missions, extractions, best score, fastest extraction, the badges earned on each difficulty, the length of its last mission and a count of early losses (used to suggest an easier difficulty); plus a counter of how often that suggestion was shown.</li>
+  </ul>
 
-  <h2>Дети</h2>
-  <p>Игра не собирает данных ни о ком, в том числе о детях.</p>
+  <h3>Tutorial and hints</h3>
+  <ul>
+    <li>whether you have seen the first-mission tutorial — <code>ledulei.tut</code>;</li>
+    <li>how many seconds (up to six) you have used the thumb sticks, so the on-screen stick hints can fade out — <code>ledulei.sticks</code>;</li>
+    <li>the station number for your next mission, only when the game builds a new station layout for you — <code>ledulei.seed</code>.</li>
+  </ul>
 
-  <h2>Изменения политики</h2>
-  <p>Если политика изменится, новая версия появится на этой странице с новой датой вступления в силу.</p>
+  <p>If you played an earlier version of the game on this iPhone, the new version copies your old settings and record on first launch, on the device, so an update keeps them.</p>
+  <p>None of this contains personal information, and none of it leaves your device through the game. Deleting the app deletes all of it. If iCloud Backup or a computer backup is turned on in iOS, these items are included in your own backups like the data of any other app; Apple handles those backups under your iOS settings.</p>
 
-  <h2>Контакты</h2>
-  <p>Вопросы о конфиденциальности: <a href="mailto:zviaginzevandrew@gmail.com">zviaginzevandrew@gmail.com</a></p>
+  <h2>Network, analytics and third parties</h2>
+  <ul>
+    <li>The game works fully offline. All code, 3D models, sounds and fonts are inside the app; it downloads nothing.</li>
+    <li>There are no third-party analytics, advertising, crash-reporting or tracking tools in the app.</li>
+    <li>There are no in-app purchases, no sign-in and no account.</li>
+    <li>There is no chat, no contact with other players and no user-generated content.</li>
+  </ul>
 
-  <hr>
+  <h2>Data Apple may provide</h2>
+  <p>If you chose in iOS to share analytics with app developers (Settings → Privacy &amp; Security → Analytics &amp; Improvements), Apple may give the developer anonymous usage statistics and crash reports through App Store Connect. That is governed by Apple's privacy policy and your iOS settings. We use it only to find and fix problems, never to identify you.</p>
 
-  <section lang="en">
-    <h2>Privacy Policy (English)</h2>
-    <p class="meta">Ice Hive («Ледяной Улей») · Effective date: <span class="placeholder">[DATE OF PUBLICATION]</span> · Developer: <span class="placeholder">[DEVELOPER NAME]</span> · Contact: <a href="mailto:zviaginzevandrew@gmail.com">zviaginzevandrew@gmail.com</a></p>
-    <p><strong>Ice Hive does not collect, store on servers or share any personal data.</strong> The game has no accounts, no analytics, no advertising and no tracking, and it does not connect to the internet.</p>
-    <ul>
-      <li><strong>Data collected:</strong> none. The app does not ask for your name, e-mail, location, contacts, photos, camera or microphone, and does not use the advertising identifier (IDFA).</li>
-      <li><strong>Stored on your device only:</strong> game settings — selected class, sound on/off and volume, graphics quality, vibration on/off, and your best result. They never leave the device and are deleted when you delete the app. They may be included in your own iCloud or computer backups, as with any app.</li>
-      <li><strong>No network, no third parties:</strong> all game code and assets are bundled in the app. There are no third-party analytics, crash-reporting or advertising SDKs, no in-app purchases, no sign-in and no chat.</li>
-      <li><strong>Apple:</strong> if you opted in to share analytics with app developers in iOS settings, Apple may provide anonymised statistics under Apple's own privacy policy.</li>
-      <li><strong>Children:</strong> no data is collected from anyone, including children.</li>
-      <li><strong>Changes:</strong> updates will be posted on this page with a new effective date.</li>
-    </ul>
-  </section>
+  <h2>If you write to us</h2>
+  <p>If you e-mail us, we receive your e-mail address and whatever you write. We use it only to answer you and delete the conversation when it is no longer needed. We never share it.</p>
 
-  <footer>© <span class="placeholder">[ИМЯ ИЛИ НАЗВАНИЕ ПРАВООБЛАДАТЕЛЯ]</span> · «Ледяной Улей»</footer>
+  <h2>Children</h2>
+  <p>The game collects no data from anyone, including children.</p>
+
+  <h2>Your choices</h2>
+  <p>Because we hold no data about you, there is nothing for us to access, correct or delete on your behalf. To erase everything the game has stored, delete the app from your iPhone.</p>
+
+  <h2>Changes to this policy</h2>
+  <p>If this policy changes, the new version will be posted on this page with a new effective date.</p>
+
+  <h2>Contact</h2>
+  <p>Questions about privacy: <a href="mailto:zviaginzevandrew@gmail.com">zviaginzevandrew@gmail.com</a></p>
+
+  <footer>© <span class="placeholder">[OWNER: COPYRIGHT HOLDER NAME]</span> · ICE HIVE</footer>
 </main>
 </body>
 </html>

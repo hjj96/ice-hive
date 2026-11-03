@@ -1,3 +1,10 @@
+> **DEPRECATED — история версии 1.x, не использовать для 2.0.** Версия 2.0 выходит только на английском:
+> актуальная карточка — `store/app-store-en.md`, политика — `store/privacy-policy.md` / `.html`, план скриншотов —
+> `store/screenshot-plan-en.md`. Этот файл (русская карточка веб-версии 1.x на Capacitor) оставлен как история и как
+> основа для будущего русского перевода; `npm run check:store` его больше не проверяет. См. `store/DEPRECATED-ru.md`.
+>
+> *DEPRECATED: the Russian 1.x listing, kept as history. The 2.0 listing is `store/app-store-en.md`.*
+
 # «Ледяной Улей» — карточка App Store (русский, основной язык)
 
 Готовые тексты для App Store Connect. Каждый текст стоит в отдельном блоке: копируйте содержимое блока целиком.

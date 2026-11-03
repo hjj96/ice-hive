@@ -45,9 +45,11 @@
 | `ios/App/App/Info.plist`, `PrivacyInfo.xcprivacy` | Настройки приложения и манифест конфиденциальности |
 | `ios/App/App/Assets.xcassets` | Иконка (`AppIcon-1024.png`) и картинка заставки |
 | `resources/` | Иконка и заставка (`icon.png` 1024×1024, `splash.png` 2732×2732); их исходники и генератор — в `resources/src/` |
-| `store/app-store-ru.md` | Все тексты для App Store Connect с подсчётом символов (проверка: `npm run check:store`) |
-| `store/screenshots/6.3/`, `6.9/`, `6.5/` | Скриншоты для App Store |
-| `store/privacy-policy.html`, `.md` | Политика конфиденциальности (её нужно опубликовать) |
+| `store/app-store-en.md` | **2.0:** все тексты для App Store Connect на английском с подсчётом символов (проверка: `npm run check:store`) |
+| `store/app-store-ru.md` | Русская карточка 1.x — **устарела**, оставлена как история (`store/DEPRECATED-ru.md`) |
+| `store/screenshot-plan-en.md` | **2.0:** план десяти горизонтальных скриншотов на размер и подписи к ним |
+| `store/screenshots/6.3/`, `6.9/`, `6.5/` | Скриншоты 1.x — **устарели** для 2.0 (`store/DEPRECATED-ru.md`) |
+| `store/privacy-policy.html`, `.md` | Политика конфиденциальности 2.0 на английском (её нужно опубликовать); русская 1.x — `privacy-policy-ru.*`, устарела |
 | `www/`, `dist/` | Результаты сборки, в git не попадают |
 
 Команды из `package.json`:
@@ -61,7 +63,7 @@
 | `npm test` | Собирает `www/` и прогоняет короткий тест игры |
 | `npm run test:native` | Тест iOS-моста в имитации оболочки Capacitor |
 | `npm run test:artifact` | Собирает артефакт и прогоняет тест |
-| `npm run check:store` | Проверяет длины текстов в `store/app-store-ru.md` (ключевые слова — в байтах) и запрещённые слова |
+| `npm run check:store` | Проверяет английский пакет 2.0: длины текстов в `store/app-store-en.md` (ключевые слова — в байтах), запрещённые слова, факты по `ios-native`, политику и план скриншотов; `-- --release` падает, пока остались заглушки `OWNER:` |
 
 ## 2. Требования
 
@@ -157,6 +159,8 @@ npm run test:artifact  # однофайловый артефакт для claude
 Каждая команда заканчивается строкой `[harness] RESULT PASS` или `FAIL` и при ошибке возвращает код 1. Скриншоты тестов лежат в `harness/out/`.
 
 ## 7. Карточка приложения в App Store Connect
+
+> Для версии 2.0 (нативной, только на английском) все тексты, ответы и заметки для проверки — в `store/app-store-en.md`, обзор пакета — `store/README.md`. Шаги ниже описывают выпуск 1.x и ссылки в них на `app-store-ru.md` относятся к 1.x.
 
 1. Откройте [appstoreconnect.apple.com](https://appstoreconnect.apple.com) → **Apps** (Приложения) → «+» → **New App**.
 2. Заполните:
