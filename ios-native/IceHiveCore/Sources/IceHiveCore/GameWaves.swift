@@ -1,7 +1,7 @@
 import Foundation
 
 // ================================================================
-//  WAVE PACING (feel prototype, `Difficulty.waves`) — fewer bugs, real
+//  WAVE PACING (native-vx-feel, `Difficulty.waves`) — fewer bugs, real
 //  lulls and peaks instead of a constant stream.
 //   · travel / the walk to the lift: a beat — lull (trickle × 0.15),
 //     build-up (rising), peak (a surge from two flanks) — and a horde
@@ -20,7 +20,7 @@ import Foundation
 extension Game {
 
     /// One tick of the wave director's spawning (replaces the legacy trickle and periodic hordes). `stageMul`: the
-    /// stage factor × the Матка's trickle factor × the hive pressure (0 while the coach holds the swarm back).
+    /// stage factor × the Queen's trickle factor × the hive pressure (0 while the coach holds the swarm back).
     func wavesTick(_ dt: Float, _ stageMul: Float) {
         let D = difficulty
         let minutes = time / 60, done = Float(beaconsDone)
@@ -63,7 +63,7 @@ extension Game {
                 pack(n, near: c, dmin: D.trickleMinDist, dmax: 30, rate: 4)
             }
         }
-        // periodic hordes (the clock pauses during a beacon defence and while the Матка lives)
+        // periodic hordes (the clock pauses during a beacon defence and while the Queen lives)
         if !beaconOn && !queen.alive { hordeT -= dt }
         if hordeT <= 0 {
             if stage == .hold {

@@ -173,7 +173,7 @@ final class MetalEffects {
     ]
 
     /// Explosions alive at once per tier (more: the newest are drawn without fireball and licks).
-    /// (feel prototype: fewer, punchier explosions — 4 / 2 drawn in full at once, was 6 / 3)
+    /// (native-vx-feel: fewer, punchier explosions — 4 / 2 drawn in full at once, was 6 / 3)
     static let blastCapHigh = 4, blastCapEfficient = 2
 
     init(level: Level) {
@@ -373,7 +373,7 @@ final class MetalEffects {
         }
         let ich = MetalEffects.ichor(ty)
         let big = type == .brute
-        // ichor spray, a wet puff (feel prototype: no chitin gibs on small bugs — a dozen dying runners threw chip
+        // ichor spray, a wet puff (native-vx-feel: no chitin gibs on small bugs — a dozen dying runners threw chip
         // confetti; a brute still sheds a few plates)
         gpu.burst(.ichor, num(big ? 9 : 4), at: p, jitter: F3(0.15, 0.1, 0.15) * s, vel: F3(0, 1.2, 0), sphere: big ? 5.5 : 4.2,
                   upper: true, life: (0.5, 0.9), size: (big ? 0.12 : 0.085, big ? 0.09 : 0.065), color: F4(ich.x * 0.55, ich.y * 0.55, ich.z * 0.55, 1),
@@ -417,7 +417,7 @@ final class MetalEffects {
         var flashes: UInt8 = 0, sparks: UInt8 = 0, full: UInt8 = 0, deaths: UInt8 = 0
     }
     private var hitCells = [HitCell](repeating: HitCell(), count: 256)
-    /// (feel prototype: 1 flash, 2 sparks, 1 full spray, 2 death puffs per cell and window — was 2 / 4 / 2 / 2)
+    /// (native-vx-feel: 1 flash, 2 sparks, 1 full spray, 2 death puffs per cell and window — was 2 / 4 / 2 / 2)
     static let hitFlashes: UInt8 = 1, hitSparks: UInt8 = 2, hitFull: UInt8 = 1, hitDeaths: UInt8 = 2
     /// Over-budget hits / kills since the last heartbeat (`hb fx … hitcut=`).
     private var hitsCut = 0
@@ -475,7 +475,7 @@ final class MetalEffects {
         // and 5 cm chips per hit read as confetti); the close-ups keep them (squad camera distance: WorldSquad.gameK)
         let gk = squad?.gameK ?? 1
         // hot sparks off the chitin (bounce on the deck, cool white → orange), a four-ray hit flash
-        // (feel prototype — less but better: no spark confetti; only a brute's plates throw a couple of sparks)
+        // (native-vx-feel — less but better: no spark confetti; only a brute's plates throw a couple of sparks)
         let want = armoured ? (killed ? 3 : 2) : 0
         let ns = min(want, Int(MetalEffects.hitSparks - min(MetalEffects.hitSparks, cell.sparks)))
         if ns > 0 {
@@ -498,7 +498,7 @@ final class MetalEffects {
                        roll: atan2f(dx, dz))
         }
         // the hit lights the bug and the deck for a moment (kills always; hits while the grid has room)
-        // (feel prototype: a kill lights its bug for a moment; plain hits no longer flicker lights over the deck)
+        // (native-vx-feel: a kill lights its bug for a moment; plain hits no longer flicker lights over the deck)
         if killed && flashLights.count < 10 {
             flash(p, F3(1.0, 0.7, 0.45), peak: 16, dur: 0.07, range: 3.4, priority: 4)
         }
@@ -543,7 +543,7 @@ final class MetalEffects {
         // (the harder pop by the camera's distance, like the flash geometry: at the close extraction shot an 85 pop under the
         // player blew a white pool into the deck, CI c9d6db4 extract clip 2.33 %)
         let gk = squad?.gameK ?? 1
-        // (feel prototype: a subtler pop per round — the squad's four weapons strobed the deck — and no spark fan)
+        // (native-vx-feel: a subtler pop per round — the squad's four weapons strobed the deck — and no spark fan)
         flash(o + d * 0.35, c, peak: (m.isPlayer ? 30 : 20) + 10 * gk, dur: rotary ? 0.045 : 0.07, range: 5.5 + gk, priority: m.isPlayer ? 9 : 6)
         // spent casings to the right of the weapon (rotary: every third round)
         if !rotary || shots[k] % 3 == 0 {
@@ -600,7 +600,7 @@ final class MetalEffects {
         // the first bug it meets and frost mist puffs along the length (CI burst-combat 2d38dfd: a thin bright line ran
         // across the whole swarm and past it); the close-ups keep the modelled beam (squad camera distance: gameK)
         let gk = squad?.gameK ?? 1
-        // (feel prototype: a calmer stream at the game camera — a narrower, dimmer sheath; it read as a white smear across the
+        // (native-vx-feel: a calmer stream at the game camera — a narrower, dimmer sheath; it read as a white smear across the
         // fight in the first film)
         ribbons.cryoBeam(from: o, ax: ax, az: az, len: len, time: frameTime, seed: Float(k) * 1.7, intensity: env * env * (1 - 0.4 * gk),
                          widthK: 1 + 0.55 * gk, soft: gk, coreEnd: 1 - gk * (1 - hitU))
@@ -662,7 +662,7 @@ final class MetalEffects {
         // light and the white-hot core
         // (polish: CI fxpeak / combat — chained blasts lit the deck and the swarm pale cream: a warmer, lower light and a
         // smaller white core keep the fireball orange against a dark deck)
-        // feel prototype — fewer, punchier blasts: a harder, shorter light and a fuller fireball, a handful of sparks and
+        // native-vx-feel — fewer, punchier blasts: a harder, shorter light and a fuller fireball, a handful of sparks and
         // embers instead of a fan of 70, a few heavy chunks, then a slow column of dark smoke that lingers; the small
         // blasts (explosive rounds, cluster bomblets) are a crisp pop without a fireball
         // (the small blasts — explosive rounds, cluster bomblets — come by the dozen in a heavy fight: a small hot pop, a
@@ -780,7 +780,7 @@ final class MetalEffects {
         floorTimed(x, z, radius: r * 1.1, mode: .frost, color: F3(0.6, 1.4, 2.4), life: 0.55, thickness: 0.09)
         gpu.burst(.ice, num(28), at: F3(x, g + 0.5, z), ring: r * 0.25, vel: F3(0, 1, 0), velJitter: F3(0.5, 1, 0.5), radial: r * 2.2,
                   life: (0.4, 0.8), size: (0.08, 0.04), color: F4(0.7, 1.0, 1.45, 1), gravity: 4, drag: 1.2)
-        // (feel prototype: a thinner frost cloud — the bots' novas left a white disk over the fight in the second film)
+        // (native-vx-feel: a thinner frost cloud — the bots' novas left a white disk over the fight in the second film)
         gpu.burst(.steam, num(5), at: F3(x, g + 0.3, z), ring: r * 0.7, radial: 2, life: (0.9, 1.4), size: (0.8, 2.0),
                   color: F4(0.55, 0.7, 0.88, 0.22), drag: 1.2, spin: 0.5)
         decals.add(x, z, size: r * 1.5, cell: .frost, kind: .frost, tint: F3(0.75, 0.86, 0.98), opacity: 0.8)

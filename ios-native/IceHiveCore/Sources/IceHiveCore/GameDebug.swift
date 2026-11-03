@@ -255,9 +255,23 @@ extension Game {
     /// Trigger a horde of n bugs now.
     public func debugHorde(_ n: Int = 300) { startHorde(n) }
 
-    /// Set the charge of the beacon being defended (0…0.99; video staging: the hive's pushes come at 30 / 62 / 90 %).
+    /// Set the charge of the beacon being defended (0…0.99; demo staging: the hive's pushes come at 30 / 62 / 90 %).
     public func debugBeaconProgress(_ p: Float) {
         if activeBeacon >= 0 { beacons[activeBeacon].progress = clampf(p, 0, 0.99) }
+    }
+
+    /// Wave pacing: the hive's pushes fired in the running beacon defence (0…3; demo logs).
+    public var beaconPushesFired: Int { beaconPushes }
+
+    /// Live bugs within `r` m of (x, z) (demo logs and tuning; a plain scan, read-only).
+    public func bugsNear(_ x: Float, _ z: Float, _ r: Float) -> Int {
+        let S = bugs, r2 = r * r
+        var n = 0
+        for i in 0..<S.count where S.dead[i] == 0 {
+            let dx = S.x[i] - x, dz = S.z[i] - z
+            if dx * dx + dz * dz <= r2 { n += 1 }
+        }
+        return n
     }
 
     /// Teleport the squad around (x, z).

@@ -131,7 +131,7 @@ final class Corpses {
                 rings[k][i].hasFrom = true
                 rings[k][i].value = value
                 rings[k][i].lod = lod
-                // feel prototype: the dying bug's variety (WorldSwarm.variety: size, tint; Swarm.metal: pattern, sheen)
+                // native-vx-feel: the dying bug's variety (WorldSwarm.variety: size, tint; Swarm.metal: pattern, sheen)
                 rings[k][i].seed = vr
                 rings[k][i].scale *= WorldSwarm.variety(vr).size
             }

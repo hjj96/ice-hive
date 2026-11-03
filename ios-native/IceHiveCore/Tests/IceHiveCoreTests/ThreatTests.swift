@@ -29,7 +29,7 @@ final class TuningTests: XCTestCase {
              d.pulseFalloff, d.stallTime, d.pressureGrace, d.runnerHp,
              d.queen.at, d.queen.hp, d.queen.speed, d.queen.ramT, d.queen.volleyT, d.queen.broodT, Float(d.queen.broodN), d.queen.horde, d.queen.trickle]
         }
-        // (feel prototype: runner HP 22 on the wave pacing — two rifle bolts — instead of the web rows' 15)
+        // (native-vx-feel: runner HP 22 on the wave pacing — two rifle bolts — instead of the web rows' 15)
         let want: [[Float]] = [
             [0.8, 1.0, 0.9, 1.09, 1.07, 50, 1, 1, 1.0, 1.04, 4, 3.5, 1, 0.25, 0.45, 0.35, 12, 1.0, 5, 0, 90, 40, 22,
              35, 2500, 1.5, 9, 6, 8, 6, 80, 0.4],
@@ -40,7 +40,7 @@ final class TuningTests: XCTestCase {
             [1.5, 1.15, 1.25, 1.20, 1.17, 40, 1.25, 1.3, 0.80, 1.02, 3, 5, 0.5, 0.15, 0.35, 0.25, 10, 0.8, 7, 0.6, 40, 15, 22,
              30, 6000, 1.6, 8, 5, 7, 8, 150, 0.6],
         ]
-        // the wave pacing (feel prototype, calibrated on the gate): population, special mix, bite, XP per kill
+        // the wave pacing (native-vx-feel, calibrated on the gate): population, special mix, bite, XP per kill
         XCTAssertEqual([r.waves, v.waves, n.waves], [true, true, true])
         XCTAssertFalse(Difficulty.legacyV10.waves)
         XCTAssertEqual([r.popK, v.popK, n.popK], [2.3, 2.5, 2.6])
@@ -97,7 +97,7 @@ final class FodderTests: XCTestCase {
                 g.tick()   // hpMul follows the mission time
                 XCTAssertGreaterThan(g.hpMul, tier.hp * 0.99)
                 let (lo, hi) = runnerHps(g, 200)
-                // (feel prototype: the tier's flat runner HP × 0.88…1.12 — 22 on the wave pacing: a runner takes two rifle
+                // (native-vx-feel: the tier's flat runner HP × 0.88…1.12 — 22 on the wave pacing: a runner takes two rifle
                 // bolts, never more, whatever the mission time)
                 XCTAssertGreaterThanOrEqual(lo, tier.runnerHp * 0.88 - 1e-3, "\(tier.id) t=\(t)")
                 XCTAssertLessThanOrEqual(hi, tier.runnerHp * 1.12 + 1e-3, "\(tier.id) t=\(t)")

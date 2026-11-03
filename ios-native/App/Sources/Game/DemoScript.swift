@@ -48,6 +48,13 @@ import IceHiveCore
 //    -demo extract-cine  the hold on the lift with a crowd; at 1.5 s the lift leaves → the extraction shot from the
 //                   shaft wall; the lift pinned 2.8 s into its rise for the screenshot
 //  Every demo drives Cinematics (mood, shot EV, dilation) until GameScene does; `-cine off` keeps the game camera.
+//  native-vx-feel (wave pacing):
+//    -demo waves    the game's own swarm, nothing spawned by the demo: the squad in beacon «Beta»'s ring (`-waveBeacon k`
+//                   picks another), the defence's opening horde from 3–4 sides, the ring charged to 27 % so the hive's
+//                   first push (30 %) lands 2 s later; time almost frozen (×0.02) at `-waveFreeze` s (6.5) after «scene
+//                   ready» for the screenshot. Logs `demo waves: td=… alive … near16 … pushes …` once a second.
+//    (the other mission demos keep their forced crowds — combat 600, beacon 350, the hold 260, stress1400 1400 — as
+//    renderer stress and look references above the live caps of the wave pacing: High 350 / Medium 250 / Low 220)
 // ================================================================
 final class DemoScript {
     let name: String
@@ -78,7 +85,7 @@ final class DemoScript {
         case "combat", "smoke", "default": return DemoScript(name: d == "default" ? "combat" : d, options: options, bugs: options.bugs)
         case "beacon": return DemoScript(name: d, options: options, bugs: options.bugs)
         case "title", "calm", "probe", "hold", "holdhint", "extract", "queen", "queenlock", "coach", "pressure", "report", "levelup", "pause", "end",
-             "swarmshot", "layout", "bugsheet", "punchin", "extract-cine":
+             "swarmshot", "layout", "bugsheet", "punchin", "extract-cine", "waves":
             return DemoScript(name: d, options: options)
         case "stress1400": return DemoScript(name: d, options: options, bugs: options.bugs ?? 1400)
         default:
@@ -170,6 +177,12 @@ final class DemoScript {
             target = 300
             let n = game.debugSpawn(target, type: nil, minRadius: 8, maxRadius: 24)
             AppLog.info("demo punchin: squad in beacon \(game.beacons.first.map { $0.name.logID } ?? "?")'s ring, spawned \(n) bugs")
+        case "waves":
+            // the wave director's own swarm: the squad in a beacon's ring, its defence starts on the first tick
+            let k = max(0, min(game.beacons.count - 1, Int(demoNum("-waveBeacon", 1))))
+            if k < game.beacons.count { let b = game.beacons[k]; game.debugTeleport(b.x + 1.5, b.z - 1.5) }
+            target = 0
+            AppLog.info("demo waves: squad in beacon \(k)'s ring, the director's own swarm (bug cap \(game.bugCap))")
         case "beacon":
             if let b = game.beacons.first {
                 game.debugTeleport(b.x + 3, b.z - 3.5)
@@ -208,6 +221,7 @@ final class DemoScript {
             return
         }
         if name == "coach" || name == "pressure" { holdState(game, dt); return }
+        if name == "waves" { waves(game, dt); return }
         if !startsMission || target == 0 { return }
         t += dt
         probe = nil
@@ -314,6 +328,37 @@ final class DemoScript {
             game.setPlayerInput(move: Vec2(0, 0), aim: aim, fire: true, ability: false, dash: false, assist: 0.75)
         }
     }
+
+    /// `-<key> <number>` among the launch options the parser did not know (demo staging only), else `fallback`.
+    private func demoNum(_ key: String, _ fallback: Double) -> Double {
+        let u = options.unknown
+        guard let i = u.firstIndex(of: key), i + 1 < u.count, let v = Double(u[i + 1]) else { return fallback }
+        return v
+    }
+
+    /// waves: the defence of the beacon the squad stands in, as the game plays it — charged to 27 % once it starts (the
+    /// hive's first push at 30 % lands inside the window), time almost frozen at `-waveFreeze` s for the screenshot.
+    private func waves(_ game: Game, _ dt: Float) {
+        t += dt
+        if !charged && game.activeBeacon >= 0 {
+            charged = true
+            game.debugBeaconProgress(0.27)
+            AppLog.info(String(format: "demo waves: defence of beacon %d, charged to 0.27 td=%.2f alive %d", game.activeBeacon, sinceReady, game.bugsAlive))
+        }
+        logT -= dt
+        if logT <= 0 {
+            logT = 1
+            let P = game.player
+            let near = game.bugsNear(P.x, P.z, 16)
+            AppLog.info(String(format: "demo waves: td=%.1f alive %d near16 %d pushes %d stage %d", sinceReady, game.bugsAlive, near,
+                               game.beaconPushesFired, game.stage.rawValue))
+        }
+        if freeze == 1 && sinceReady >= demoNum("-waveFreeze", 6.5) {
+            freeze = 0.02
+            AppLog.info(String(format: "demo waves: frozen td=%.2f alive %d pushes %d", sinceReady, game.bugsAlive, game.beaconPushesFired))
+        }
+    }
+    private var charged = false
 
     // ---------------------------------------------------------------- WP7 cinematics
     /// punchin: the beacon comes on 1.5 s after «scene ready» (the punch-in plays out inside the measured window), at

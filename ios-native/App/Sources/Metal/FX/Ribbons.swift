@@ -34,7 +34,7 @@ final class Ribbons {
 
     static let pipelines: [PipelineSpec] = [.world("beams", "vs_beam", "fs_beam", .add)]
     /// Tracer length (m) by projectile colour index (0 rifle, 1 rotary, 2 turret) — the plan's ≤ 3 m.
-    /// Feel prototype (subtler tracers): shorter streaks (2.8 / 2.2 / 1.8 → 1.8 / 1.4 / 1.2 m), a dimmer body and head, a
+    /// native-vx-feel (subtler tracers): shorter streaks (2.8 / 2.2 / 1.8 → 1.8 / 1.4 / 1.2 m), a dimmer body and head, a
     /// narrower halo; the squad's bots draw theirs at 55 % with no halo — the player's own fire stays the brightest.
     static let tracerLength: [Float] = [1.8, 1.4, 1.2]
     /// Tracer HDR colours: the class hue (assault red, gunner green; the turret a paler green-teal).
@@ -128,7 +128,7 @@ final class Ribbons {
             add(pt(u0), pt(u1), width: w, mode: .cryo, color: F3(1, 1, 1), intensity: flick, u0: u0, u1: u1, seed: seed,
                 head: soft + (2 - soft) * cut)
         }
-        // a wide cold halo along the whole beam (feel prototype: 0.55 → 0.32)
+        // a wide cold halo along the whole beam (native-vx-feel: 0.55 → 0.32)
         add(pt(0), pt(1), width: min(0.9, 0.35 + 0.06 * len) * widthK, mode: .halo, color: F3(0.1, 0.3, 0.75), intensity: 0.32 * intensity)
     }
 

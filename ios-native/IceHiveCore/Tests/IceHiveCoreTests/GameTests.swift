@@ -53,7 +53,7 @@ final class GameTests: XCTestCase {
         XCTAssertEqual(g.player.mods.dmg, 1)
         XCTAssertEqual(g.objective, GameText(.objLightBeacons, [.int(0), .int(3)]))
         XCTAssertEqual(g.stage, .beacons)
-        XCTAssertEqual(g.bugCap, 250, "wave pacing: «средняя» 250 (the legacy stream: 1400)")
+        XCTAssertEqual(g.bugCap, 250, "wave pacing: Medium 250 (the legacy stream: 1400)")
         var drained: [GameEvent] = []
         g.drainEvents { drained.append($0) }
         XCTAssertTrue(drained.contains {

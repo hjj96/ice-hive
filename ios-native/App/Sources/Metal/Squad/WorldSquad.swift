@@ -84,7 +84,7 @@ final class WorldSquad {
     static let keyLight = F3(1.0, 0.92, 0.82) * 0.3
     static let cavity: Float = 0.45
     /// Weapon flash size from the game camera (polish), × the modelled size; close-ups draw it at 1.
-    /// (feel prototype: crisp but smaller — 1.45 → 1.1; the spark fans of the flash thinned out below)
+    /// (native-vx-feel: crisp but smaller — 1.45 → 1.1; the spark fans of the flash thinned out below)
     static let flashGameScale: Float = 1.1
     /// Eye-to-target distance of this frame's camera (MetalWorld sets it before build): the game camera sits ≈ 33 m out,
     /// the punch-in ends at 10 m, the extraction shot rides the shaft wall a few metres off the squad.

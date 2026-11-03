@@ -333,7 +333,7 @@ jobs:
     env:
       # every frame-gated demo, all landscape (the app is landscape-only); `layout` (the four-phone layout check)
       # runs as well but builds ~40 screens in one go, so it is not gated
-      DEMOS: firstlaunch combat beacon swarmshot swarmshot-dots swarm swarm3x calm squad squadclose squadtight squadfire fxsheet fxsheet-high fxpeak stress1400 punchin extract-cine title title-fresh title-return title-nm title-left probe hold extract holdhint queen queenlock coach coach3 pressure pressure-amber levelup pause pause-nm end report-first report-win report-loss report-chip release-combat swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud
+      DEMOS: firstlaunch combat beacon waves swarmshot swarmshot-dots swarm swarm3x calm squad squadclose squadtight squadfire fxsheet fxsheet-high fxpeak stress1400 punchin extract-cine title title-fresh title-return title-nm title-left probe hold extract holdhint queen queenlock coach coach3 pressure pressure-amber levelup pause pause-nm end report-first report-win report-loss report-chip release-combat swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud
       MENUS: levelup,pause,pause-nm,end,report-first,report-win,report-loss,report-chip
     steps:
       - uses: actions/checkout@v4
@@ -429,6 +429,9 @@ jobs:
           run_demo firstlaunch 20 "-demo combat -seed 7"
           run_demo combat 18 "-demo combat -seed 7" 0 6
           run_demo beacon 15 "-demo beacon -seed 7" 0
+          # native-vx-feel: the wave director's own swarm (no forced crowd): the defence of beacon Beta — its opening horde
+          # from 3–4 sides and the hive's first push — time almost frozen at 6.5 s for the screenshot
+          run_demo waves 8 "-demo waves -seed 7" 0
           # the App Store 2-swarm moment staged in the app (gunner at the crossing, 600 bugs, firing, time ~frozen),
           # now in landscape (874x402 @3x)
           run_demo swarmshot 4 "-demo swarmshot -seed 7" 0
@@ -658,7 +661,7 @@ jobs:
           grep -q 'scene ready' results/app-stdout.log || { fail "no 'scene ready' line in app stdout"; }
           grep -q 'hb t=' results/app-stdout.log || { fail "no heartbeat lines in app stdout"; }
           grep -q 'mode=playing' results/app-stdout.log || { fail "combat demo never reached the mission"; }
-          for d in combat beacon swarmshot title extract queen levelup pause end release-combat; do
+          for d in combat beacon waves swarmshot title extract queen levelup pause end release-combat; do
             grep -q 'scene ready' "results/app-$d.log" || { fail "$d: no 'scene ready'"; }
             grep -q 'rend=metal' "results/app-$d.log" || { fail "$d: no Metal heartbeat lines"; }
             if grep -q 'ERROR' "results/app-$d.log"; then fail "$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; fi
@@ -694,6 +697,9 @@ jobs:
           need report-loss 'v11 run tier=vet won=0 .*downBy=4'
           need report-chip 'v11 run .*recTip=1'
           need combat 'v11 start tier=vet coach=0'
+          # native-vx-feel: the wave director staged its own beacon defence (no forced crowd) and the hive pushed
+          need waves 'demo waves: defence of beacon 1, charged to 0.27'
+          need waves 'demo waves: frozen td=[0-9.]+ alive [1-9][0-9]* pushes [1-3]'
           # WP7: the device-capture swarm, the punch-in (started, dilated, ended, replayed and held) and the extraction shot
           need stress1400 'demo stress1400: spawned 1[0-9]{3} bugs'
           need punchin 'cine punchin start beacon='
@@ -709,10 +715,11 @@ jobs:
           need burst-anim 'burst anim written \(16 frames\)'
           need burst-bugs 'burst bugs written \(12 frames\)'
           # native-vx-fix: the mission's live-bug cap is the tier's under the device class's (the simulator stands in for the
-          # iPhone 12: 1400 at «высокая»); the particle compute pipelines are built with the render pipelines, so the
-          # cover's warm-up already goes through the GPU path
-          need stress1400 'cap 1400\)'
-          need combat 'bug cap 1400 \(graphics [a-z]+ 1400, device 1400\)'
+          # iPhone 12: 1400); the particle compute pipelines are built with the render pipelines, so the cover's warm-up
+          # already goes through the GPU path. native-vx-feel: the wave pacing's caps (High 350, Medium 250) under the
+          # device's 1400 (the demos' forced crowds still spawn past them: stress1400 1400, combat 600)
+          need stress1400 'cap 350\)'
+          need combat 'bug cap 250 \(graphics [a-z]+ 250, device 1400\)'
           need combat 'particles: compute ready .* with the pipelines'
           # Metal API validation runs: alive, no debug-layer report
           for d in validate-stress validate-fxpeak validate-extract; do

@@ -132,7 +132,7 @@ vertex CreatureOut vs_creature(uint vid [[vertex_id]], uint iid [[instance_id]],
     o.normal = placeNormal(b, n);
     float3 base = srgbDecode(float3(v.albedoAO.rgb) * (1.0 / 255.0));
     bool pore = (vflags & (IHV_GLAND | IHV_EYE)) != 0u;
-    // feel prototype: per-bug shell variants by the instance seed (the core's variation, inherited by the corpse) — a
+    // native-vx-feel: per-bug shell variants by the instance seed (the core's variation, inherited by the corpse) — a
     // third plain, a third banded across the body, a third mottled with a few pale scars; and a glossier or a duller shell
     float seedI = float(b.fx.z & 0xffffu) * (1.0 / 65535.0);
     float pat = 1.0;

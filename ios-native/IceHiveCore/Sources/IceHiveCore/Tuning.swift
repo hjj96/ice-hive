@@ -114,8 +114,8 @@ public let CLASS_SPECS: [ClassSpec] = {
 // ---------- quality tiers (only the gameplay cap matters to the core) ----------
 public enum QualityTier: String, CaseIterable {
     case low, med, high
-    /// Live-bug cap of the tier on the wave pacing (feel prototype: fewer bugs, each one matters — «высокая» 350,
-    /// «средняя» 250, «низкая» 220; the director's own peaks stay near 250–300).
+    /// Live-bug cap of the tier on the wave pacing (native-vx-feel: fewer bugs, each one matters — High 350,
+    /// Medium 250, Low 220; the director's own peaks stay near 250–300).
     public var bugCap: Int {
         switch self {
         case .low: return 220
@@ -236,7 +236,7 @@ public struct Difficulty: Equatable {
     /// Flat runner HP (one-shot fodder, × 0.88…1.12); 0 = v1.0 scaling (18 × hpMul × k).
     public var runnerHp: Float = 0
     public var queen: QueenTuning = .none
-    /// Feel prototype: the wave pacing — real lulls and peaks instead of a constant stream, packs climbing over the
+    /// native-vx-feel: the wave pacing — real lulls and peaks instead of a constant stream, packs climbing over the
     /// rails and out of vents from several sides, a smaller swarm of smarter bugs (favourite targets, flanking arcs,
     /// hesitation, feints and surges, runner leaps, flight from blasts, panic on fire). false = the v1.0 / v1.1 stream.
     public var waves: Bool = false

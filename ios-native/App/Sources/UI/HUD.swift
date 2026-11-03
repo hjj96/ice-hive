@@ -921,7 +921,7 @@ final class HUD {
          (GameText(.bannerQueenDead), GameText(.bannerQueenDeadSub))]
     }
 
-    // (feel prototype: a calmer screen — the red vignette of a bite, the white flash of a blast and the red edge of a horde
+    // (native-vx-feel: a calmer screen — the red vignette of a bite, the white flash of a blast and the red edge of a horde
     // are kept, at about half their strength; the horde's edge no longer strobes)
     func damageFlash(_ a: Float) { damageA = min(1, damageA + a * 0.6) }
     func screenFlash(_ a: Float) { flashA = max(flashA, a * 0.5) }

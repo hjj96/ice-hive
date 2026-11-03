@@ -263,7 +263,7 @@ extension Game {
         let anyHunt = MUP[0] != 0 && (huntP || huntA)
 
         let burnDps = CLASS_SPECS[1].burnDps
-        // wave pacing (feel prototype): individual steering — a favourite marine, flanking arcs, wander, moods (hesitate,
+        // wave pacing (native-vx-feel): individual steering — a favourite marine, flanking arcs, wander, moods (hesitate,
         // feint, surge, flight from blasts, panic on fire), runner leaps, spitters strafing between spits
         let waves = difficulty.waves
         let MOOD = S.mood, MT = S.mt, MDX = S.mdx, MDZ = S.mdz, LT = S.lt

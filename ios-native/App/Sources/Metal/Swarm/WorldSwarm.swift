@@ -80,10 +80,10 @@ final class WorldSwarm {
     static let glintsPerType = [4, 5, 6, 6]
     static let glintCap = (high: 16000, efficient: 8000)
     /// LOD caps (High: LOD0 32 largest, LOD1 600; Efficient: LOD1 300) and the triangle budget (per bug at 1400).
-    /// (feel prototype: a quarter of the old swarm — LOD0 for the 64 largest at ≥ 48 px on High; Efficient fits every live
+    /// (native-vx-feel: a quarter of the old swarm — LOD0 for the 64 largest at ≥ 48 px on High; Efficient fits every live
     /// bug into LOD1 under the same triangle budgets)
     static let lod0Cap = 64, lod1Cap = (high: 600, efficient: 300)
-    /// Seconds a corpse lies on the deck before it melts into it (feel prototype).
+    /// Seconds a corpse lies on the deck before it melts into it (native-vx-feel).
     static let corpseSinkAfter: Float = 9
     static let triBudget = (high: 250 * 1400, efficient: 170 * 1400)
     /// LOD0 only at ≥ this body length on screen (drawable px); LOD1 not below this.
@@ -109,11 +109,11 @@ final class WorldSwarm {
     /// is authored a size larger than the v1 mesh (1.66 × 1.88 m rest body at model scale 1 against v1's 1.3 × 1.47):
     /// at BUG_SPECS 2.0 it stood 3.3 m wide over a 0.85 m collision radius and buried the squad it reached in combat;
     /// × 0.8 brings it back to the v1 footprint the game was tuned with (the Матка, a brute at 4.2, shrinks with it).
-    /// Feel prototype: runners, spitters and boomers 15 % larger (a bug reads as a creature, not a speck — the wave pacing
+    /// native-vx-feel: runners, spitters and boomers 15 % larger (a bug reads as a creature, not a speck — the wave pacing
     /// has a quarter of the old swarm on screen); the brute only 5 % (0.8 → 0.84: at 0.92 a few of them walled the squad
     /// off in the first film).
     static let sizeK: [Float] = [1.15, 1.15, 0.84, 1.15]
-    /// Feel prototype — per-bug variety from its variation seed (the core's `vr`, which the corpse inherits): a size of
+    /// native-vx-feel — per-bug variety from its variation seed (the core's `vr`, which the corpse inherits): a size of
     /// ±7 % on top of the core's ±12 % (so ±19 % in all, and the gait's tempo follows the size), and one of three shell
     /// tints — the type's own, a cooler dusky one, a warmer rust one. (Swarm.metal adds a shell pattern and sheen by the
     /// same seed.)
@@ -449,7 +449,7 @@ final class WorldSwarm {
                 let k = allN[t]
                 if k >= WorldSwarm.scratchCap { continue }
                 let age = clockC - c.born
-                // feel prototype: a body melts into the deck after 9 s (0.12 m/s, gone ≈ 4 s later; its stain stays) — the
+                // native-vx-feel: a body melts into the deck after 9 s (0.12 m/s, gone ≈ 4 s later; its stain stays) — the
                 // first film piled a carpet of corpses around a defended beacon
                 let sink = max(0, age - WorldSwarm.corpseSinkAfter) * 0.12
                 if sink > 0.45 * c.scale + 0.05 { continue }
