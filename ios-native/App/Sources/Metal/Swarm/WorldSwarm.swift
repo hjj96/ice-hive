@@ -551,7 +551,10 @@ final class WorldSwarm {
         }
         if nAll == 0 { return }
         let avgD0 = Float(t0sum) / Float(nAll), avgD1 = max(1, Float(t1sum) / Float(nAll))
-        // LOD0: the 32 largest at ≥ 64 px (High only)
+        // LOD0: the 64 largest at ≥ 48 px (High only), no more than 60 % of the triangle room above the LOD2 floor allows —
+        // the CI stress runs still put 1400 bugs on screen (LOD0 for 64 of them pushed the swarm to 388k, budget 350k)
+        let room0 = Float(WorldSwarm.triBudget.high - t2sum - held) * 0.6
+        let lod0N = max(8, min(WorldSwarm.lod0Cap, Int(room0 / max(1, avgD0))))
         var th0: Float = .greatestFiniteMagnitude
         var n0 = 0
         if high {
@@ -559,7 +562,7 @@ final class WorldSwarm {
             var b = hist.count - 1
             while b >= 0 {
                 let next = acc + Int(hist[b])
-                if next > WorldSwarm.lod0Cap { break }
+                if next > lod0N { break }
                 acc = next
                 b -= 1
             }
@@ -601,7 +604,7 @@ final class WorldSwarm {
         }
         let th1 = max(WorldSwarm.lod1MinPx, Float(b + 1) * 2)
         // pass 1: the thresholds (corpses keep the LOD they died with, then LOD2), counted
-        let cap0 = high ? WorldSwarm.lod0Cap : 0
+        let cap0 = high ? lod0N : 0
         var c0 = 0, c1 = 0, cB = 0
         for t in 0..<4 {
             for k in 0..<allN[t] {
