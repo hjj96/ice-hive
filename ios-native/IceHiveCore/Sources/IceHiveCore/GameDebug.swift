@@ -254,10 +254,15 @@ extension Game {
     }
 
     /// Explicit quality choice: changes the gameplay bug cap (adaptive render steps must not call this).
-    public func setQuality(_ q: QualityTier) { bugCap = q.bugCap }
+    public func setQuality(_ q: QualityTier) { bugCap = difficulty.waves ? q.bugCap : q.legacyCap }
 
     /// Trigger a horde of n bugs now.
     public func debugHorde(_ n: Int = 300) { startHorde(n) }
+
+    /// Set the charge of the beacon being defended (0…0.99; video staging: the hive's pushes come at 30 / 62 / 90 %).
+    public func debugBeaconProgress(_ p: Float) {
+        if activeBeacon >= 0 { beacons[activeBeacon].progress = clampf(p, 0, 0.99) }
+    }
 
     /// Teleport the squad around (x, z).
     public func debugTeleport(_ x: Float, _ z: Float) {

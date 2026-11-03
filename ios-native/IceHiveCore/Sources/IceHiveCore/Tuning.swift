@@ -39,9 +39,19 @@ let T_RUN: UInt8 = 0, T_SPIT: UInt8 = 1, T_BRUTE: UInt8 = 2, T_BOOM: UInt8 = 3
 
 /// Bug behaviour state (raw values are what `Swarm.state` stores).
 public enum BugState: UInt8 {
-    case move = 0, climb = 1, wind = 2, charge = 3, swell = 4
+    /// `leap`: a runner's pounce (wave pacing) — airborne for `LEAP_T` s, its height arcs over the deck.
+    case move = 0, climb = 1, wind = 2, charge = 3, swell = 4, leap = 5
 }
-let S_MOVE: UInt8 = 0, S_CLIMB: UInt8 = 1, S_WIND: UInt8 = 2, S_CHARGE: UInt8 = 3, S_SWELL: UInt8 = 4
+let S_MOVE: UInt8 = 0, S_CLIMB: UInt8 = 1, S_WIND: UInt8 = 2, S_CHARGE: UInt8 = 3, S_SWELL: UInt8 = 4, S_LEAP: UInt8 = 5
+/// Seconds a runner's leap lasts (its state timer counts it down; height peaks halfway).
+public let LEAP_T: Float = 0.36
+
+/// What a bug feels on the wave pacing (`Swarm.moods`): calm, a hesitation before a surge, a feint (backing off), a surge
+/// (a sudden burst of speed), flight from a blast, the panic of a burning bug.
+public enum BugMood: UInt8 {
+    case calm = 0, hesitate = 1, feint = 2, surge = 3, flee = 4, panic = 5
+}
+let M_CALM: UInt8 = 0, M_HESITATE: UInt8 = 1, M_FEINT: UInt8 = 2, M_SURGE: UInt8 = 3, M_FLEE: UInt8 = 4, M_PANIC: UInt8 = 5
 
 // ---------- classes ----------
 public enum MarineClass: Int, CaseIterable {
@@ -114,8 +124,17 @@ public let PLAYER_NAME: String = "ВЫ"
 // ---------- quality tiers (only the gameplay cap matters to the core) ----------
 public enum QualityTier: String, CaseIterable {
     case low, med, high
-    /// Live-bug cap of the tier (web: QUALITY[q].cap).
+    /// Live-bug cap of the tier on the wave pacing (feel prototype: fewer bugs, each one matters — «высокая» 350,
+    /// «средняя» 250, «низкая» 220; the director's own peaks stay near 250–300).
     public var bugCap: Int {
+        switch self {
+        case .low: return 220
+        case .med: return 250
+        case .high: return 350
+        }
+    }
+    /// The v1.0 / v1.1 caps (web QUALITY[q].cap) — the legacy pacing (`Difficulty.waves == false`) keeps them.
+    public var legacyCap: Int {
         switch self {
         case .low: return 700
         case .med: return 1400
@@ -235,6 +254,18 @@ public struct Difficulty: Equatable {
     /// Flat runner HP (one-shot fodder, × 0.88…1.12); 0 = v1.0 scaling (18 × hpMul × k).
     public var runnerHp: Float = 0
     public var queen: QueenTuning = .none
+    /// Feel prototype: the wave pacing — real lulls and peaks instead of a constant stream, packs climbing over the
+    /// rails and out of vents from several sides, a smaller swarm of smarter bugs (favourite targets, flanking arcs,
+    /// hesitation, feints and surges, runner leaps, flight from blasts, panic on fire). false = the v1.0 / v1.1 stream.
+    public var waves: Bool = false
+    /// Wave pacing: × every spawn volume of the wave director (trickle, packs, surges, hordes).
+    public var popK: Float = 1
+    /// Wave pacing: × the share of spitters, brutes and boomers in the draw (fewer runners, more bugs that matter).
+    public var mix: Float = 1
+    /// Wave pacing: × the bite damage of runners and spitters.
+    public var bite: Float = 1
+    /// Wave pacing: × the XP of a kill (fewer kills, the same rhythm of level-ups).
+    public var xpK: Float = 1
 
     public init() {}
 
@@ -248,6 +279,7 @@ public struct Difficulty: Equatable {
         d.pulseDamage = 1.0; d.pulseInterval = 5; d.pulseFalloff = 0
         d.stallTime = 90; d.pressureGrace = 40; d.runnerHp = 15
         d.queen = QueenTuning(at: 35, hp: 2500, speed: 1.5, ramT: 9, volleyT: 6, broodT: 8, broodN: 6, horde: 80, trickle: 0.4)
+        d.waves = true; d.popK = 2.3; d.mix = 1.8; d.bite = 1.7; d.xpK = 1.6; d.runnerHp = 22
         return d
     }()
     /// Ветеран — as designed; the default after the first evacuation.
@@ -260,6 +292,7 @@ public struct Difficulty: Equatable {
         d.pulseDamage = 1.0; d.pulseInterval = 6; d.pulseFalloff = 0.5
         d.stallTime = 60; d.pressureGrace = 25; d.runnerHp = 15
         d.queen = QueenTuning(at: 35, hp: 3500, speed: 1.5, ramT: 9, volleyT: 6, broodT: 8, broodN: 6, horde: 80, trickle: 0.4)
+        d.waves = true; d.popK = 2.5; d.mix = 1.8; d.bite = 2.0; d.xpK = 1.6; d.runnerHp = 22
         return d
     }()
     /// Кошмар — the swarm is merciless, the squad weaker.
@@ -272,6 +305,7 @@ public struct Difficulty: Equatable {
         d.pulseDamage = 0.8; d.pulseInterval = 7; d.pulseFalloff = 0.6
         d.stallTime = 40; d.pressureGrace = 15; d.runnerHp = 15
         d.queen = QueenTuning(at: 30, hp: 6000, speed: 1.6, ramT: 8, volleyT: 5, broodT: 7, broodN: 8, horde: 150, trickle: 0.6)
+        d.waves = true; d.popK = 2.6; d.mix = 1.8; d.bite = 2.2; d.xpK = 1.6; d.runnerHp = 22
         return d
     }()
     /// v1.0 exactly (hidden; calibration port check and the v1.0 regression test).
@@ -286,7 +320,8 @@ public struct Difficulty: Equatable {
     /// Web field names of `override` (calibration `--th`), in the web DIFF order.
     public static let overrideKeys: [String] = ["hp", "dmg", "trickle", "horde", "step", "spec", "specCap", "bot", "botGrow", "regen", "regenT",
                                                 "regenCap", "heal", "revive", "medkit", "edge", "pulse", "pulseT", "pulseFall", "stall", "grace",
-                                                "runHp", "qAt", "qHp", "qSpd", "qRamT", "qVolleyT", "qBroodT", "qBroodN", "qHorde", "qTrickle", "mul"]
+                                                "runHp", "qAt", "qHp", "qSpd", "qRamT", "qVolleyT", "qBroodT", "qBroodN", "qHorde", "qTrickle", "mul",
+                                                "waves", "popK", "mix", "bite", "xpK"]
 
     /// Set fields by their web names (`trickle`, `qHp`, …; `bot` is the factor on BOT_DMG like the web row).
     /// Returns the keys it did not know (the caller treats them as an error).
@@ -328,6 +363,11 @@ public struct Difficulty: Equatable {
             case "qHorde": queen.horde = v
             case "qTrickle": queen.trickle = v
             case "mul": scoreMul = v
+            case "waves": waves = v != 0
+            case "popK": popK = v
+            case "mix": mix = v
+            case "bite": bite = v
+            case "xpK": xpK = v
             default: unknown.append(k)
             }
         }

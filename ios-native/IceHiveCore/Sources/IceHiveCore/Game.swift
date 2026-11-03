@@ -122,6 +122,7 @@ struct Burst {
     var edge: Int
     var n: Int
     var rate: Float
+    /// Spawn accumulator: starts negative for a delayed pack (−rate × delay).
     var acc: Float
     var vent: Vec2?
 }
@@ -308,6 +309,8 @@ public final class Game {
     public internal(set) var xpLevel = 1
     public internal(set) var xp = 0
     public internal(set) var xpNext = 40
+    /// Wave pacing: the fraction of XP (× xpK) not yet counted.
+    var xpCarry: Float = 0
     public internal(set) var pendingLevels = 0
     /// Upgrade id -> times taken.
     public internal(set) var upgradeCounts: [UpgradeID: Int] = [:]
@@ -334,6 +337,13 @@ public final class Game {
     public internal(set) var extractT: Float = 0
     public internal(set) var hordes = 0
     var pulseT: Float = 5
+    // ---------- wave pacing (GameWaves.swift) ----------
+    /// The beat outside beacon defences and the hold: 0 lull, 1 build-up, 2 peak; seconds left of it.
+    public internal(set) var beat = 0
+    var beatT: Float = 12
+    /// Pushes of the hive fired in this beacon defence (0…3), seconds of forced quiet after a push / horde.
+    var beaconPushes = 0
+    var lullT: Float = 0
 
     // ---------- v1.1: player downs, AFK (GS) ----------
     /// Downs of the PLAYER this mission (score «Без падений»).
@@ -405,7 +415,7 @@ public final class Game {
         self.level = level ?? Level(source: config.levelSource, seed: seed)
         self.difficulty = config.difficulty
         self.holdHintLine = HintLine(text: Game.holdHintText(config.difficulty), urgent: false)
-        self.bugCap = config.bugCap ?? config.quality.bugCap
+        self.bugCap = config.bugCap ?? (config.difficulty.waves ? config.quality.bugCap : config.quality.legacyCap)
         self.rng = SeededRNG(seed: seed == 0 ? 0x9E37_79B9 : seed)
         self.attract = config.attract
         self.autopilot = config.autopilot || config.attract
@@ -445,13 +455,13 @@ public final class Game {
         downs = 0; lastHit = .environment; downBy = .environment; afkTime = 0
         for k in 0..<6 { hurtBy[k] = 0; squadDownBy[k] = 0 }
         for k in 0..<4 { marineLastSrc[k] = -1 }
-        xpLevel = 1; xp = 0; xpNext = xpFor(1); pendingLevels = 0; upgradeCounts = [:]
+        xpLevel = 1; xp = 0; xpCarry = 0; xpNext = xpFor(1); pendingLevels = 0; upgradeCounts = [:]
         seen = [true, false, false, false]
         simTime = 0; flowTimer = 0; tickCount = 0
         updateFlows(); hash.rebuild(bugs)
         if attract {
             let P = marines[0]
-            for _ in 0..<160 {
+            for _ in 0..<(difficulty.waves ? 70 : 160) {
                 let e = pickEdge(P.x, P.z, 8, 30)
                 if e >= 0 { _ = spawnBug(T_RUN, level.edgeX[e] - level.edgeNX[e] * 1.5, level.edgeZ[e] - level.edgeNZ[e] * 1.5) }
             }

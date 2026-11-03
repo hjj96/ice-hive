@@ -52,7 +52,7 @@ final class GameTests: XCTestCase {
         XCTAssertEqual(g.player.mods.dmg, 1)
         XCTAssertEqual(g.objectiveText, "Запустите маяки 0/3")
         XCTAssertEqual(g.stage, .beacons)
-        XCTAssertEqual(g.bugCap, 1400)
+        XCTAssertEqual(g.bugCap, 250, "wave pacing: «средняя» 250 (the legacy stream: 1400)")
         var drained: [GameEvent] = []
         g.drainEvents { drained.append($0) }
         XCTAssertTrue(drained.contains { if case .banner(let t, let s, _) = $0 { return t == "Высадка" && s == "Кельвин-9 · запустите три маяка" }; return false })
@@ -253,7 +253,7 @@ final class GameTests: XCTestCase {
     func testAttractModeRunsForever() {
         var cfg = GameConfig(); cfg.attract = true
         let g = Game(seed: 15, playerClass: .assault, config: cfg)
-        XCTAssertGreaterThan(g.bugs.count, 100)
+        XCTAssertGreaterThan(g.bugs.count, 60)
         g.step(60 * 30)
         XCTAssertEqual(g.phase, .playing)
         XCTAssertEqual(g.objectiveText, "")

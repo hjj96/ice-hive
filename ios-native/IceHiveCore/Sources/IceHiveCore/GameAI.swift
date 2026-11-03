@@ -182,13 +182,15 @@ extension Game {
             m.ai.tuid = m.ai.target >= 0 ? S.uid[m.ai.target] : 0
             // abilities
             if m.abCd <= 0 {
+                // (wave pacing: a smaller swarm — the crowd an ability waits for is smaller too)
+                let w = difficulty.waves
                 if m.cls == .assault && m.ai.target >= 0 {
                     let t = m.ai.target
                     let tx = S.x[t], tz = S.z[t]
-                    if hypotf2(tx - m.x, tz - m.z) > 4 && (hash.queryCircle(S, tx, tz, 3.5) >= 7 || S.type[t] == T_BRUTE) { useAbility(m, tx, tz) }
-                } else if m.cls == .pyro && hash.queryCircle(S, m.x, m.z, 4.5) >= 9 { useAbility(m, 0, 0) }
-                else if m.cls == .cryo && hash.queryCircle(S, m.x, m.z, 6.5) >= 13 { useAbility(m, 0, 0) }
-                else if m.cls == .gunner && hash.queryCircle(S, m.x, m.z, 12) >= 18 { useAbility(m, 0, 0) }
+                    if hypotf2(tx - m.x, tz - m.z) > 4 && (hash.queryCircle(S, tx, tz, 3.5) >= (w ? 4 : 7) || S.type[t] == T_BRUTE) { useAbility(m, tx, tz) }
+                } else if m.cls == .pyro && hash.queryCircle(S, m.x, m.z, 4.5) >= (w ? 5 : 9) { useAbility(m, 0, 0) }
+                else if m.cls == .cryo && hash.queryCircle(S, m.x, m.z, 6.5) >= (w ? 7 : 13) { useAbility(m, 0, 0) }
+                else if m.cls == .gunner && hash.queryCircle(S, m.x, m.z, 12) >= (w ? 10 : 18) { useAbility(m, 0, 0) }
             }
         }
         // --- where to stand ---
