@@ -328,7 +328,8 @@ jobs:
     name: sim-smoke
     needs: build
     runs-on: ${{ vars.NATIVE_MACOS_RUNNER || 'macos-26' }}
-    timeout-minutes: 65
+    # 90: the L10n shots (other phones, pseudo-localised, held banners) took the job to 64.5 of 65 min (4d0ffc6)
+    timeout-minutes: 90
     env:
       # every frame-gated demo, all landscape (the app is landscape-only); `layout` (the four-phone layout check)
       # runs as well but builds ~40 screens in one go, so it is not gated

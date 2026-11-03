@@ -143,7 +143,7 @@ final class HUD {
     private let killsCap = Label(L10n.upper(L10n.ui(.hudKills)), font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 1.4, align: .left)
     private let timeCap = Label(L10n.upper(L10n.ui(.hudTime)), font: Fonts.medium, size: 12, color: UIPalette.inkDim, kern: 1.4, align: .left)
     // numbers that change every few frames: glyph-atlas labels (no text texture per new value)
-    private let killsVal = GlyphLabel("0", font: Fonts.monoBold, size: 17, color: UIPalette.ink, charset: GlyphLabel.digits, align: .left)
+    private let killsVal = GlyphLabel("0", font: Fonts.monoBold, size: 17, color: UIPalette.ink, charset: GlyphLabel.digits + ",", align: .left)
     private let timeVal = GlyphLabel("0:00", font: Fonts.monoBold, size: 17, color: UIPalette.ink, charset: GlyphLabel.digits + ":", align: .left)
     /// The combo counter's characters: digits + whatever hud.combo («×%lld») adds.
     private static let comboCharset = L10n.charset([L10n.ui(.hudCombo, .int(0))])
@@ -999,7 +999,7 @@ final class HUD {
         textT -= dt
         if textT <= 0 {
             textT = 0.1
-            killsVal.set("\(game.kills)")
+            killsVal.set(L10n.num(game.kills))   // en grouping, as on the report: 3,797
             hpVal.set("\(Int(max(0, P.hp).rounded(.up)))")
             let combo = game.comboShown
             if combo != comboLast {
