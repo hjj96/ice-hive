@@ -1,0 +1,10 @@
+LOOK (ci/look_metrics.py; gates: ci/golden/thresholds.json — HUD-off shots gated, HUD-on shots masked and reported)
+swarmshot  swarmshot-nohud-0s.png       median  39.1 (plan 40–55) mean  53.0 p95 168.6 p95/p50 4.32 dark 12.6% clip 0.14% specks 2103 R-B hi +58.0 lo -32.6 colorf 50.9 [gated] ok
+beacon     beacon-nohud-0s.png          median  43.8 mean  46.8 p95 109.9 p95/p50 2.51 dark 11.9% clip 0.03% specks  845 R-B hi  -1.2 lo -36.5 colorf 40.3 [gated] ok
+punchin    punchin-nohud-0s.png         median  35.3 mean  63.5 p95 198.2 p95/p50 5.61 dark 28.8% clip 0.33% specks 1132 R-B hi +25.0 lo -16.2 colorf 45.4 [gated] ok
+extract    extract-cine-nohud-0s.png    median  44.1 mean  76.7 p95 201.7 p95/p50 4.58 dark 13.3% clip 1.56% specks  713 R-B hi  +8.6 lo -37.9 colorf 46.9 [gated] FAIL: clip 1.56 not ≤ 1
+title      title-nohud-0s.png           median  33.4 mean  41.1 p95 117.7 p95/p50 3.52 dark 25.9% clip 0.07% specks   68 R-B hi -16.1 lo -25.9 colorf 39.8 [gated] ok
+calm       calm-nohud-0s.png            median  37.3 mean  44.8 p95 115.9 p95/p50 3.11 dark 10.5% clip 0.01% specks   23 R-B hi -28.5 lo -37.5 colorf 35.9 deck 40.1 (23 % of frame) snow 10109 px, 0 off deck [gated] ok
+brightness gamma 1.3: frame median 37.3 → 56.8 (+19.5, need ≥ +15) [gated] ok
+punch-in entry: started td=1.52, worst loop tick 17 ms over 4 heartbeat s (need ≤ 34), dilation ×0.30 for 0.52 s ok
+LOOK GATE: FAILED — extract: clip 1.56 not ≤ 1
