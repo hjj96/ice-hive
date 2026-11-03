@@ -122,15 +122,18 @@ final class Corpses {
     /// WorldSwarm, once per built frame: the dying bugs still in the core's arrays this frame (`dead` flag set, not yet
     /// compacted) give their last pose, value and LOD to the corpse born at exactly their position; corpses nobody claims
     /// start from their death clip's first row.
-    func link(_ find: (Float, Float, UInt8) -> (ClipSample, Float, UInt8)?) {
+    func link(_ find: (Float, Float, UInt8) -> (ClipSample, Float, UInt8, Float)?) {
         if pending.isEmpty { return }
         for (k, i) in pending where i < rings[k].count && !rings[k][i].linked {
             let c = rings[k][i]
-            if let (pose, value, lod) = find(c.x, c.z, c.type) {
+            if let (pose, value, lod, vr) = find(c.x, c.z, c.type) {
                 rings[k][i].from = pose
                 rings[k][i].hasFrom = true
                 rings[k][i].value = value
                 rings[k][i].lod = lod
+                // feel prototype: the dying bug's variety (WorldSwarm.variety: size, tint; Swarm.metal: pattern, sheen)
+                rings[k][i].seed = vr
+                rings[k][i].scale *= WorldSwarm.variety(vr).size
             }
             rings[k][i].linked = true
         }
