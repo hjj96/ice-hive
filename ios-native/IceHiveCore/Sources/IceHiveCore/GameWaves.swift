@@ -66,7 +66,7 @@ extension Game {
         if hordeT <= 0 {
             if stage == .hold {
                 hordeT = 18 + rng.next() * 6
-                startHorde(Int(((95 + rng.next() * 45) * hordeScale()).rounded()), .hordeTitle, GameText(.bannerHordeLiftSub), 55)
+                startHorde(Int(((108 + rng.next() * 45) * hordeScale()).rounded()), .hordeTitle, GameText(.bannerHordeLiftSub), 55)
                 lullT = 9
             } else {
                 hordeT = 45 + rng.next() * 15
@@ -83,7 +83,7 @@ extension Game {
         let marks: [Float] = [0.3, 0.62, 0.9]
         if beaconPushes < 3 && b.progress >= marks[beaconPushes] {
             let last = beaconPushes == 2
-            let n = ((last ? 44 + 9 * done : 30 + 7 * done) * D.horde * D.popK).rounded()
+            let n = ((last ? 42 + 6 * done : 30 + 5 * done) * D.horde * D.popK).rounded()
             surge(Int(n), sides: last ? 3 : 2, near: Vec2(b.x, b.z), dmin: 12, dmax: 28, rate: 10)
             beaconPushes += 1
             lullT = 8
@@ -165,10 +165,25 @@ extension Game {
         var size = Float(size0)
         let c = squadCenter()
         if stage == .hold {
+            // a third climbs straight over the lift's rim from below, in two packs on different sides (the ramp alone made
+            // the hold one long column)
             let L = level.lift
-            let rim = pickEdge(L.x, L.z, 0, L.r + 1)
-            if rim >= 0 { queueBurst(rim, Int((size * 0.15).rounded()), 7, nil, delay: 1.2) }
-            size *= 0.85
+            let n = Int((size * 0.15).rounded())
+            let r1 = pickEdge(L.x, L.z, 0, L.r + 1)
+            if r1 >= 0 {
+                queueBurst(r1, n, 7, nil, delay: 1.2)
+                var r2 = r1
+                var tries = 0
+                while tries < 12 {
+                    tries += 1
+                    let e = pickEdge(L.x, L.z, 0, L.r + 1)
+                    if e < 0 { break }
+                    let dx = level.edgeX[e] - level.edgeX[r1], dz = level.edgeZ[e] - level.edgeZ[r1]
+                    if dx * dx + dz * dz > L.r * L.r { r2 = e; break }
+                }
+                queueBurst(r2, n, 7, nil, delay: 2.4)
+            }
+            size *= 0.7
         }
         let k = size >= 90 ? 4 : (size >= 40 ? 3 : 2)
         surge(Int(size.rounded()), sides: k, near: c, dmin: 13, dmax: 32, rate: rate * 0.28)
