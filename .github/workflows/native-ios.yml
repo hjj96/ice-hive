@@ -432,12 +432,13 @@ jobs:
           # native-vx-feel: the wave director's own swarm (no forced crowd): the defence of beacon Beta — its opening horde
           # from 3–4 sides and the hive's first push — time almost frozen at 6.5 s for the screenshot
           run_demo waves 8 "-demo waves -seed 7" 0
-          # the App Store 2-swarm moment staged in the app (gunner at the crossing, 600 bugs, firing, time ~frozen),
-          # now in landscape (874x402 @3x)
+          # the App Store 2-swarm moment staged in the app (gunner at the crossing, the store's 600 bugs under the live cap
+          # — 350 on High since native-vx-feel —, firing, time ~frozen), now in landscape (874x402 @3x)
           run_demo swarmshot 4 "-demo swarmshot -seed 7" 0
           # the same with every speckle drawn again as an anti-aliased dot (-glintDots; default off, like the web)
           run_demo swarmshot-dots 4 "-demo swarmshot -seed 7 -glintDots" 0
-          # heavy swarm (the med tier's cap of 1400 live bugs), at the default 2x world target and at the native 3x
+          # heavy swarm: renderer stress past the live caps (-bugs 1400: the old Medium cap; the wave pacing's is 250), at
+          # the default 2x world target and at the native 3x
           run_demo swarm 15 "-demo combat -seed 7 -bugs 1400" 0
           run_demo swarm3x 15 "-demo combat -seed 7 -bugs 1400 -mscale 3" 0
           # baseline: no swarm, no events — what is left is the simulator host (its GPU stalls show up here too)
@@ -531,7 +532,8 @@ jobs:
           run_demo banner-pseudo 8 "-demo beacon -seed 7 -holdBanner -pseudoLoc 1.35" 0
           # horde ingredients one by one (overlay, banner, shake, sounds, haptic, horde) every 4 s: hitch attribution
           run_demo probe 26 "-demo probe -seed 7"
-          # lift: holding out on the platform, then the extraction pinned at +2 s (gore rides up with the deck)
+          # lift: holding out on the platform against the hold's own swarm (native-vx-feel: the director's opening horde,
+          # a third of it over the rim; no forced crowd), then the extraction pinned at +2 s (gore rides up with the deck)
           run_demo hold 8 "-demo hold -seed 3" 0
           run_demo extract 10 "-demo extract -seed 3" 0
           # the Ветеран lift-pulse hint (~450 pt in one line) in the first seconds of the hold, countdown pinned: two

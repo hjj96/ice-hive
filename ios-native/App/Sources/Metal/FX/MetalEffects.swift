@@ -675,7 +675,10 @@ final class MetalEffects {
             flash(p + F3(0, 1.2, 0), boomer ? F3(1.0, 0.66, 0.24) : F3(1.0, 0.5, 0.2), peak: big ? 420 : 30, dur: big ? 0.3 : 0.12,
                   range: r * (big ? 2.6 : 2.0), priority: big ? 30 : 6)
         }
-        gpu.burst(.flash, 1, at: p + F3(0, 0.3, 0), life: (0.07, 0.1), size: (big ? 3.6 : 0.6, big ? 4.4 : 0.8), color: F4(8, 6, 4, 1), sizeJitter: 0)
+        // (the white-hot core smaller than the fireball it lights: at 3.6–4.4 m the CI combat shot of 5c8ad76 caught it as a
+        // cream disc a sixth of the screen wide over the void beside the bridge — soft-faded over the deck, full over the
+        // drop; the fireball, the light and the smoke carry the blast's size)
+        gpu.burst(.flash, 1, at: p + F3(0, 0.3, 0), life: (0.07, 0.1), size: (big ? 2.3 : 0.6, big ? 2.9 : 0.8), color: F4(8, 6, 4, 1), sizeJitter: 0)
         gpu.burst(.glow, 1, at: p, life: (0.14, 0.18), size: (r * (big ? 1.1 : 0.7), r * (big ? 1.6 : 1.0)), color: F4(2.8, 1.55, 0.66, big ? 1 : 0.35),
                   sizeJitter: 0)
         if full && big {
