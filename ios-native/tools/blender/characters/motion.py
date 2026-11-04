@@ -1,14 +1,23 @@
-"""The marines' clips (WP4 «Отряд») — numpy only. Every frame is built from a POSE SPEC (the pelvis and chest in model
-space, the head, the weapon, and IK targets for the hands and feet), so planted feet stay on the deck and the hands
-stay on the grips by construction; specs of one-shot clips are keyframed and interpolated, locomotion is a
-parametric gait. Each class gets its own copy of every clip (its weapon hold, its gait style) in its own file.
+"""The marines' clips (WP4 «Отряд»; feel build A1) — numpy here, the motion capture in mocap/ (Blender's importer).
+Locomotion, the idles and the turns on the spot are retargeted motion capture (mocap/clips.py: CMU, 100STYLE —
+weight transfer, heel strike, the head stabilising; the weapon carried by the chest and both hands on the grips by
+the rig's own IK, planted feet locked). Everything else is built here from POSE SPECS (the pelvis and chest in model
+space, the head, the weapon, IK targets for the hands and feet), so planted feet stay on the deck and the hands stay
+on the grips by construction; specs of one-shot clips are keyframed and interpolated. Each class gets its own copy of
+every clip (its weapon hold, its aim stance) in its own file.
 
 Clip list (30 fps, one track row per frame; names match MarineRig.swift):
-  idle                 loop  2 s   breathing, weight shift, weapon sway, look-around
-  walk_<d> / run_<d>   loops       8 directions d ∈ f fl l bl b br r fr relative to the aim (l = toward +x, the
-                                   marine's left); one phase convention (0 = left foot touch-down, 0.5 = right), stride
-                                   in the clip record (m per loop): the app advances the phase by distance / stride
-  dash_f/_b/_l/_r      one-shot    crouch → boost (feet off the deck) → land → settle
+  idle / idle_b        loops (mocap)   two ready stances (weight shifts, look-around): each marine plays its own
+                                       variant at its own phase; breathing stays a procedural additive in the app
+  walk_<d> / run_<d>   loops (mocap)   8 directions d ∈ f fl l bl b br r fr relative to the aim (l = toward +x, the
+                                       marine's left); one phase convention (0 = left foot touch-down), stride (m per
+                                       loop) in the clip record and duration × game speed (1.5 / 5.3 m/s) = stride:
+                                       the app advances the phase by distance / stride
+  turn_l / turn_r      one-shot (mocap) a 90° turn on the spot to the left / right (for the app's upper / lower body
+                                       split), faced along +z at frame 0
+  dash_f/_b/_l/_r      one-shot    retimed to the core's 0.22 s boost: a 1-frame squash, the boost (feet off the deck,
+                                   the body stretched along the dash), touch-down at 0.23 s, the landing absorbed and
+                                   settled with an overshoot; chest, head and weapon trail the pelvis (overlap)
   fire                 additive    per weapon: rifle kick (one-shot, retriggered per shot), rotary judder, flamer push,
                                    cryo hum (loops) — the delta from its frame 0
   flinch_f / flinch_b  additive    a hit from the front / from behind
@@ -575,35 +584,51 @@ def carried(cls, s, pivot, dq):
     return s
 
 
+def spec_at(keys, t, easing):
+    """The keyed spec at a fractional frame t (clamped to the keys' span)."""
+    if t <= keys[0][0]:
+        return keys[0][1]
+    for i in range(len(keys) - 1):
+        f0, s0 = keys[i]
+        f1, s1 = keys[i + 1]
+        if f0 <= t <= f1:
+            return lerp_spec(s0, s1, easing[i]((t - f0) / max(1e-9, f1 - f0)))
+    return keys[-1][1]
+
+
+DASH_FRAMES = 16
+DASH_TOUCH = 7          # touch-down frame: 0.233 s, the core's dash lasts 0.22 s (17 m/s) — the feet land as it ends
+
+
 def dash(cls, d, report):
-    """Dash toward d (f, b, l, r), 16 frames: anticipation crouch 0–2, boost 3–7 (feet off the deck, body along the
-    dash), land 8–10, settle 11–15."""
+    """Dash toward d (f, b, l, r), retimed to the core's 0.22 s boost: squash 0–1 (the body already moves: the
+    anticipation is one compressed frame, the feet leave at once), boost 1–6 (feet off the deck, the body stretched
+    along the dash, trailing leg back, leading knee up), touch-down at DASH_TOUCH, the landing absorbed 7–9 (pelvis
+    deepest at 8, the chest carried on by its momentum), rise with a small overshoot 9–12, settle 12–15. The chest
+    and the weapon on it trail the pelvis by 1 frame, the head by 2 (overlapping action, not one shared key)."""
     st = stance(cls)
     dv = {'f': np.array([0, 0, 1.0]), 'b': np.array([0, 0, -1.0]), 'l': np.array([1.0, 0, 0]), 'r': np.array([-1.0, 0, 0])}[d]
     ax = np.cross(UP, dv)
     lean = {'f': 30.0, 'b': -14.0, 'l': 22.0, 'r': 22.0}[d]
     piv = st.pelvis_p.copy()
-    crouch = st.copy()
-    q = qaxis(ax, np.radians(lean * 0.45))
-    crouch.pelvis_p = st.pelvis_p + np.array([0, -0.1, 0]) - dv * 0.04
-    crouch.chest_q = qmul(q, st.chest_q)
-    crouch.pelvis_q = qmul(qaxis(ax, np.radians(lean * 0.25)), st.pelvis_q)
-    crouch.head_q = qeuler(x=2.0)
-    carried(cls, crouch, piv, q)
-    crouch.weapon_p = crouch.weapon_p + np.array([0, -0.1, 0]) - dv * 0.04
-    boost = st.copy()
-    q = qaxis(ax, np.radians(lean))
-    up = np.array([0, 0.05, 0]) + dv * 0.05
-    boost.pelvis_p = st.pelvis_p + up
-    boost.pelvis_q = qmul(q, st.pelvis_q)
-    boost.chest_q = qmul(qaxis(ax, np.radians(lean * 1.08)), st.chest_q)
-    boost.head_q = qmul(qaxis(ax, np.radians(-lean * 0.55)), qeuler(x=3.0))
-    carried(cls, boost, piv, qaxis(ax, np.radians(lean * 1.08)))
-    boost.weapon_p = boost.weapon_p + up
     lat = left_of(dv)
+
+    def torso(s, k_pel, k_chest, drop, fwd=0.0, head=None):
+        q = qaxis(ax, np.radians(lean * k_chest))
+        s.pelvis_p = st.pelvis_p + np.array([0.0, -drop, 0.0]) + dv * fwd
+        s.pelvis_q = qmul(qaxis(ax, np.radians(lean * k_pel)), st.pelvis_q)
+        s.chest_q = qmul(q, st.chest_q)
+        carried(cls, s, piv, q)
+        s.weapon_p = s.weapon_p + np.array([0.0, -drop, 0.0]) + dv * fwd
+        if head is not None:
+            s.head_q = head
+        return s
+
+    squash = torso(st.copy(), 0.25, 0.4, 0.075, -0.03, qeuler(x=3.0))
+    boost = torso(st.copy(), 1.0, 1.08, -0.05, 0.05, qmul(qaxis(ax, np.radians(-lean * 0.55)), qeuler(x=3.0)))
     hipL = boost.pelvis_p + qrotate(boost.pelvis_q, np.array([0.12, -0.03, 0.0]))
     hipR = boost.pelvis_p + qrotate(boost.pelvis_q, np.array([-0.12, -0.03, 0.0]))
-    # trailing leg stretched back along the boost, leading knee driven up toward the dash
+    q = qaxis(ax, np.radians(lean))
     tr = 'L' if d in ('f', 'r') else 'R'
     ld = 'R' if tr == 'L' else 'L'
     hips = {'L': hipL, 'R': hipR}
@@ -614,24 +639,39 @@ def dash(cls, d, report):
     for sd in ('L', 'R'):
         boost.knee_pole[sd] = dv * 0.7 + np.array([0.0, -0.1, 0.6]) + (np.array([0.2, 0, 0]) if sd == 'L' else np.array([-0.2, 0, 0]))
     boost.plant = {'L': 0.0, 'R': 0.0}
-    land = st.copy()
-    q = qaxis(ax, np.radians(lean * 0.3))
-    land.pelvis_p = st.pelvis_p + np.array([0, -0.11, 0])
-    land.chest_q = qmul(q, st.chest_q)
-    land.pelvis_q = qmul(qaxis(ax, np.radians(lean * 0.2)), st.pelvis_q)
-    carried(cls, land, piv, q)
-    land.weapon_p = land.weapon_p + np.array([0, -0.1, 0])
+    # reach for the deck: the leading foot comes forward under the body, the trailing one swings through
+    reach = boost.copy()
+    reach.ankle[ld] = hips[ld] + qrotate(q, np.array([0.0, -0.66, 0.0])) + dv * 0.3
+    reach.ankle[tr] = hips[tr] + qrotate(q, np.array([0.0, -0.62, 0.0])) - dv * 0.05
+    reach.foot_q[ld] = qmul(qaxis(ax, np.radians(-8.0)), qeuler(y=8.0 if ld == 'L' else -8.0))
+    land = torso(st.copy(), 0.25, 0.45, 0.09, 0.0, qeuler(x=8.0))
     land.ankle['L'] = st.ankle['L'] - dv * 0.1 + lat * 0.03
     land.ankle['R'] = st.ankle['R'] + dv * 0.1 - lat * 0.03
-    land.head_q = qeuler(x=8.0)
-    keys = [(0, st), (2, crouch), (4, boost), (7, boost), (9, land), (15, st)]
-    clip = keyed(cls, f'dash_{d}', keys, 16, report=report,
-                 easing=[ease, ease_out, lambda t: t, ease, ease])
-    for k, p in enumerate(clip.poses):
-        pl = 1.0 if (k <= 1 or k >= 9) else 0.0
-        t = p.t[IDX['ctrl']]
-        p.ctrl(t[0], t[1], pl, pl, 1.0)
-    return clip
+    deep = torso(land.copy(), 0.3, 0.62, 0.15, 0.0, qeuler(x=13.0))
+    rise = torso(st.copy(), -0.05, -0.12, -0.012, 0.0, qeuler(x=2.0))
+    keys = [(0, st), (1, squash), (3, boost), (5, boost), (6, reach), (DASH_TOUCH, land), (8, deep), (11, rise),
+            (DASH_FRAMES - 1, st)]
+    keys = bake_hand_keys(cls, keys)
+    easing = [ease_out, ease_out, lambda t: t, ease, ease_out, ease_out, ease, ease]
+    poses = []
+    for k in range(DASH_FRAMES):
+        s = spec_at(keys, k, easing).copy()
+        s.chest_q = spec_at(keys, k - 1.0, easing).chest_q
+        s.head_q = spec_at(keys, k - 2.0, easing).head_q
+        pl = 1.0 if k >= DASH_TOUCH else 0.0
+        s.plant = {'L': pl, 'R': pl}
+        # the weapon rides the (trailing) chest, moved with the pelvis; where the support hand cannot reach its grip
+        # at that lag (a hard side lean) the weapon trails less
+        for lag in (1.0, 0.75, 0.5, 0.25, 0.0):
+            w = spec_at(keys, k - lag, easing)
+            s.weapon_p, s.weapon_q = w.weapon_p + (s.pelvis_p - w.pelvis_p), w.weapon_q
+            rep = []
+            p = build(cls, s, rep)
+            if max(e for _, e in rep) <= 1e-5:
+                break
+        report.extend(rep)
+        poses.append(p)
+    return Clip(f'dash_{d}', poses, False)
 
 
 def fire(cls, report):
@@ -886,29 +926,47 @@ def death(cls, report):
     return keyed(cls, 'death', keys, 40, report=report, easing=[ease_out, ease, ease_out, ease])
 
 
-ORDER = (['idle'] + [f'walk_{d}' for d in DIRS] + [f'run_{d}' for d in DIRS]
+ORDER = (['idle', 'idle_b'] + [f'walk_{d}' for d in DIRS] + [f'run_{d}' for d in DIRS] + ['turn_l', 'turn_r']
          + ['dash_f', 'dash_b', 'dash_l', 'dash_r', 'fire', 'flinch_f', 'flinch_b', 'down', 'downed', 'revive', 'death'])
 
 
-def all_clips(cls):
-    """Every clip of a class in file order, plus the gate numbers: foot drift per locomotion clip (m per stride) and
-    the worst IK reach error per clip (m)."""
+def all_clips(cls, mocap=True, report=None):
+    """Every clip of a class in file order, plus the gate numbers: foot drift per locomotion clip (m per stride, after
+    the lock pass) and the worst IK reach error per clip (m); `report` (a dict) receives the motion-capture report of
+    each mocap clip (raw slide before the lock, sole contact, warp, pelvis drop, source range). mocap=False: the
+    procedural set only (look-dev without the sources)."""
     clips, drift, ik = [], {}, {}
+    rep = report if report is not None else {}
+    mc = None
+    if mocap:
+        from mocap import clips as mc       # bpy (Blender's importer): only where the build runs
     for name in ORDER:
-        rep = []
-        if name == 'idle':
-            c = idle(cls, rep)
+        r = []
+        if mc is not None and name in mc.names():
+            poses, loop, stride, m = mc.build(cls, name)
+            c = Clip(name, poses, loop, stride=stride)
+            if name.startswith(('walk_', 'run_')):
+                drift[name] = m['slide_lock']['worst_m']
+            ik[name] = max(m['ik_leg_m'], m['ik_arm_m'])
+            rep[name] = m
+            clips.append(c)
+            continue
+        if name in ('idle', 'idle_b'):
+            c = idle(cls, r)
+            c.name = name
         elif name.startswith('walk_') or name.startswith('run_'):
             kind, d = name.split('_')
-            c = gait(cls, kind, d, rep, drift)
+            c = gait(cls, kind, d, r, drift)
+        elif name.startswith('turn_'):
+            c = Clip(name, idle(cls, r).poses[:30], False)
         elif name.startswith('dash_'):
-            c = dash(cls, name[5:], rep)
+            c = dash(cls, name[5:], r)
         elif name == 'fire':
-            c = fire(cls, rep)
+            c = fire(cls, r)
         elif name.startswith('flinch_'):
-            c = flinch(cls, name[7:], rep)
+            c = flinch(cls, name[7:], r)
         else:
-            c = {'down': down, 'downed': downed, 'revive': revive, 'death': death}[name](cls, rep)
+            c = {'down': down, 'downed': downed, 'revive': revive, 'death': death}[name](cls, r)
         clips.append(c)
-        ik[name] = max([e for _, e in rep] + [0.0])
+        ik[name] = max([e for _, e in r] + [0.0])
     return clips, drift, ik

@@ -15,7 +15,7 @@ Placeholders the owner must fill are square brackets that start with `OWNER:`. `
 | Name | 30 | 8 |
 | Subtitle | 30 | 27 |
 | Promotional Text | 170 | 162 |
-| Description | 4000 | 2856 |
+| Description | 4000 | 3011 |
 | Keywords | 100 **bytes** | 96 bytes |
 | What's New | 4000 | 640 |
 | App Review Notes | 4000 | 2757 |
@@ -70,7 +70,7 @@ Promotional text can be changed at any time without a new build or review.
 Four guns, three beacons, hundreds of ice bugs. Hold the ring, call the lift, get off Kelvin-9 alive. Rebuilt for landscape on native Metal. No ads, no purchases.
 ```
 
-## 4. Description — **2856 / 4000** characters
+## 4. Description — **3011 / 4000** characters
 
 Honest by design: a single-player game whose three squadmates are AI. The check script rejects words that promise play
 with other people, other platforms, prices or rankings.
@@ -116,6 +116,8 @@ NO STRINGS ATTACHED
 • No data collected: your settings, ranks and records stay on your iPhone.
 
 ICE HIVE is a single-player game. Your squadmates are controlled by the game, so you never wait for anyone — just drop in.
+
+Credits: motion data from mocap.cs.cmu.edu (the database was created with funding from NSF EIA-0196217) and The 100STYLE Dataset - Ian Mason (CC BY 4.0).
 ```
 
 ## 5. Keywords — **96 / 100** bytes
@@ -189,9 +191,12 @@ and the player profile live only on the device, in `UserDefaults` (the full list
 required-reason APIs `UserDefaults` (CA92.1) and system boot time (35F9.1, frame timing).
 
 Other questions:
-- **Content Rights** ("contains, shows, or accesses third-party content?") → **No.** The bundled fonts are licensed
-  under the SIL Open Font License, and their license texts ship in the app (`Resources/Fonts/OFL-*.txt`). Models,
-  textures, sounds and code are the project's own.
+- **Content Rights** ("contains, shows, or accesses third-party content?") → **Yes, and I have the rights to use it.**
+  The marines' locomotion clips are retargeted from motion-capture data licensed for commercial use: the CMU Graphics
+  Lab Motion Capture Database (commercial use allowed, no resale of the data) and the 100STYLE dataset (CC BY 4.0,
+  credited in the description and in `ios-native/CREDITS.md`). The bundled fonts are licensed under the SIL Open Font
+  License, and their license texts ship in the app (`Resources/Fonts/OFL-*.txt`). Models, textures, sounds and code
+  are the project's own.
 - **Export Compliance**: answered by `ITSAppUsesNonExemptEncryption = NO` in Info.plist; no question at upload.
 - **Advertising Identifier (IDFA)**: not used. No App Tracking Transparency prompt.
 - **Apple silicon Mac and Apple Vision Pro availability**: the game is built for touch on iPhone in landscape and has

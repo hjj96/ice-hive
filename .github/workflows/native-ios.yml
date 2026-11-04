@@ -470,6 +470,12 @@ jobs:
           # marine), every 5th frame over 1.3 s: popping, sliding, interpenetration frame by frame
           run_demo burst-anim 6 "-demo calm -squadSheet -closeup -hideHUD -burst anim 1.0 16 5"
           pull_burst burst-anim
+          # feel build A1: the motion-capture locomotion on a treadmill (-squadLoco: from 3.0 s marine 0 walks, 1 runs, 2
+          # turns on the spot, 3 dashes), every 3rd frame over 0.8 s, in the close-up and at the game camera
+          run_demo burst-loco 5 "-demo calm -squadSheet -squadLoco -closeup -hideHUD -burst loco 3.0 16 3"
+          pull_burst burst-loco
+          run_demo burst-loco-game 5 "-demo calm -squadSheet -squadLoco -hideHUD -burst locogame 3.0 12 3"
+          pull_burst burst-loco-game
           # every bug type × clip (WorldSwarm's sheet: walk, run, attack, hit, deaths, specials), every 3rd frame over 0.6 s
           run_demo burst-bugs 5 "-demo bugsheet -hideHUD -burst bugs 1.5 12 3"
           pull_burst burst-bugs
@@ -666,7 +672,7 @@ jobs:
           for d in title-fresh title-return title-nm layout holdhint queenlock coach coach3 pressure pressure-amber pause-nm report-first report-win report-loss report-chip stress1400 punchin extract-cine bugsheet calm-bright \
                    layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo banner-beacon banner-queen banner-pseudo \
                    swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud calm-deckmask calm-bright-nohud \
-                   burst-fire burst-tight burst-combat burst-anim burst-bugs validate-stress validate-fxpeak validate-extract lifecycle; do
+                   burst-fire burst-tight burst-combat burst-anim burst-loco burst-loco-game burst-bugs validate-stress validate-fxpeak validate-extract lifecycle; do
             grep -q 'scene ready' "results/app-$d.log" || { fail "$d: no 'scene ready'"; }
             if grep -q 'ERROR' "results/app-$d.log"; then fail "$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; fi
           done
@@ -707,6 +713,8 @@ jobs:
           need burst-tight 'burst tight written \(10 frames\)'
           need burst-combat 'burst combat written \(12 frames\)'
           need burst-anim 'burst anim written \(16 frames\)'
+          need burst-loco 'burst loco written \(16 frames\)'
+          need burst-loco-game 'burst locogame written \(12 frames\)'
           need burst-bugs 'burst bugs written \(12 frames\)'
           # native-vx-fix: the mission's live-bug cap is the tier's under the device class's (the simulator stands in for the
           # iPhone 12: 1400 at «высокая»); the particle compute pipelines are built with the render pipelines, so the
