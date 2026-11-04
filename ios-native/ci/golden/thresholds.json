@@ -1,12 +1,15 @@
 {
-  "_note": "WP7 look gates (ci/look_metrics.py) and 2-up sheets (ci/twoup.py). Each scene: the shots tried in order (the first that exists is measured; a HUD-off one, `*-nohud-*`, is gated, a HUD-on one is measured inside the HUD mask and only reported), the gates, the golden today frame (native-metal 385e8a7, the tree before WP7, HUD on) and the concept panel. Ranges follow the user's blend (base «Кристалл» + horror's beams and deep darkness + frost's rime): frame median 35–50 (between crisp's 50–60 and horror's floor; the plan's frost-base swarmshot range 40–55 is printed next to it), the swarmshot gates of the plan (p95/p50 ≥ 3.6, specks ≥ 800, clipped ≤ 0.8 %, R−B highlights ≥ +25, shadows ≤ −10), near-black ≤ 30 % (horror's limit).",
+  "_note": "WP7 look gates (ci/look_metrics.py) and 2-up sheets (ci/twoup.py). Each scene: the shots tried in order (the first that exists is measured; a HUD-off one, `*-nohud-*`, is gated, a HUD-on one is measured inside the HUD mask and only reported), the gates, the golden today frame (native-metal 385e8a7, the tree before WP7, HUD on) and the concept panel. Ranges follow the user's blend (base «Кристалл» + horror's beams and deep darkness + frost's rime): frame median 35–50 (between crisp's 50–60 and horror's floor; the plan's frost-base swarmshot range 40–55 is printed next to it), the swarmshot gates of the plan (p95/p50 ≥ 3.6, specks ≥ 800, clipped ≤ 0.8 %, R−B highlights ≥ +25, shadows ≤ −10), near-black ≤ 30 % (horror's limit). native-vx-feel re-baseline (package F, the approved feel build: the swarm at the wave pacing's live caps, bigger and varied bugs, fewer and calmer effects): the reference frames today-<scene>.jpg are that build's own HUD-off shots (CI native-vx-feel c6029ec; the punch-in's HUD-on one, see punchin._feel_note) instead of the Russian HUD-on frames of native-metal 385e8a7; each scene carries `feel_baseline`, the numbers of that run; a gate moved only where the look changed on purpose (swarmshot._feel_note).",
+  "today_label": "эталон: native-vx-feel c6029ec (пакет F)",
   "crop": {"left": 0.065, "right": 0.0, "top": 0.0, "bottom": 0.0},
   "hud_mask": [[0.0, 0.0, 1.0, 0.13], [0.0, 0.80, 1.0, 1.0], [0.0, 0.45, 0.30, 0.80], [0.62, 0.40, 1.0, 0.80], [0.95, 0.0, 1.0, 1.0]],
   "scenes": {
     "swarmshot": {
       "shots": ["swarmshot-nohud-0s.png", "swarmshot-0s.png"],
-      "gates": {"median": [35, 50], "p95_p50": [3.6, null], "specks": [800, null], "clip": [null, 0.8],
+      "gates": {"median": [35, 50], "p95_p50": [3.2, null], "specks": [800, null], "clip": [null, 0.8],
                 "warm": [25, null], "cold": [null, -10], "dark": [null, 30]},
+      "_feel_note": "native-vx-feel: p95/p50 3.6 -> 3.2. The store moment now spawns the game's own crowd (the store's 600 under High's live cap of 350: ~200 bodies on screen instead of ~360), so the bright pores that made its highlights are fewer while the median stays (39.1 on 15657ee, 5c8ad76 and c6029ec): p95 168 -> 134, p95/p50 4.32 -> 3.43 (c6029ec; 3.74–4.38 over the 600-bug runs). 3.2 sits ~0.2 under the measured value for the run-to-run spread; the other swarmshot gates (median, specks ≥ 800 — 1104 —, clip, warm, cold, dark) are unchanged and pass.",
+      "feel_baseline": {"median": 39.1, "p95_p50": 3.43, "dark": 11.4, "clip": 0.06, "specks": 1104, "warm": 59.9, "cold": -32.6},
       "plan_median": [40, 55],
       "today": "today-swarmshot.jpg",
       "concept": "concept-swarmshot.jpg",
@@ -16,6 +19,7 @@
       "shots": ["beacon-nohud-0s.png", "beacon-0s.png"],
       "gates": {"median": [35, 50], "clip": [null, 0.8], "cold": [null, -5], "dark": [null, 30]},
       "_warm_note": "R−B of the beacon's highlights is reported, not gated: it follows the effect on screen at the shot (+40 with fire, +9 with the cryo beam on two runs of the same tree)",
+      "feel_baseline": {"median": 44.1, "p95_p50": 2.82, "dark": 7.1, "clip": 0.31, "specks": 960, "warm": 4.4, "cold": -39.7},
       "today": "today-beacon.jpg",
       "concept": "concept-beacon.jpg",
       "concept_label": "Кристалл · удержание маяка (+ хоррор)"
@@ -24,13 +28,16 @@
       "shots": ["punchin-nohud-0s.png", "punchin-0s.png"],
       "gates": {"clip": [null, 1.5], "dark": [12, 35], "p95_p50": [3.6, null]},
       "_median_note": "a close-up: its median follows the framing (the lit deck around the squad fills the frame), so it is reported, not gated; the shot EV keeps the deck from going milky. native-vx-fix: contrast gated (p95/p50 ≥ 3.6, near-black ≥ 12 %) — native-metal 2d38dfd passed at median 66.7, p95/p50 3.31, dark 9.6 % under a grey veil (the effects' lights of a weapon firing near the lens; LightGrid.punchInFxLightCut)",
-      "today": "today-beacon.jpg",
+      "_feel_note": "native-vx-feel: gates unchanged. c6029ec's HUD-off punch-in failed on a grey veil over the middle of the frame (near-black 3.5 %, p95/p50 3.32 — the same flake as native-vx-marine-look 893760b, p95/p50 3.49, before package F): the pyro's flamer smoke hanging lit in its own flashlight cone at the held, frozen moment; the flamer smoke is thinner since (6 puffs/s at alpha 0.5, was 10 at 0.7). Its reference frame is that run's HUD-on punch-in, which caught a clean moment.",
+      "feel_baseline": {"median": 63.6, "p95_p50": 3.32, "dark": 3.5, "clip": 0.42, "_": "the veiled run; 5c8ad76 (same look code): 50.5 / 3.95 / 18.6 %"},
+      "today": "today-punchin.jpg",
       "concept": "concept-punchin.jpg",
       "concept_label": "Иней · наезд на маяк · Кристалл · маяк"
     },
     "extract": {
       "shots": ["extract-cine-nohud-0s.png", "extract-cine-0s.png", "extract-nohud-0s.png", "extract-0s.png"],
       "gates": {"median": [30, 50], "clip": [null, 1.0], "dark": [null, 35]},
+      "feel_baseline": {"median": 42.1, "p95_p50": 4.06, "dark": 22.9, "clip": 0.76, "specks": 279},
       "today": "today-extract.jpg",
       "concept": "concept-extract.jpg",
       "concept_label": "Кристалл · эвакуация · Иней · камера со стены шахты"
@@ -38,6 +45,7 @@
     "title": {
       "shots": ["title-nohud-0s.png", "title-0s.png"],
       "gates": {"median": [25, 50], "clip": [null, 1.0], "dark": [null, 40]},
+      "feel_baseline": {"median": 35.1, "p95_p50": 4.26, "dark": 20.4, "clip": 0.09},
       "today": "today-title.jpg",
       "concept": "concept-title.jpg",
       "concept_label": "Кристалл · лист моделей (свет)"
@@ -46,6 +54,7 @@
       "shots": ["calm-nohud-0s.png", "calm-0s.png"],
       "deck_mask": ["calm-deckmask-0s.png"],
       "gates": {"median": [30, 50], "deck_median": [35, 50], "clip": [null, 0.5], "dark": [null, 30]},
+      "feel_baseline": {"median": 37.2, "deck_median": 39.9, "dark": 10.7, "clip": 0.01},
       "today": "today-calm.jpg",
       "concept": "concept-calm.jpg",
       "concept_label": "Кристалл · кромки дорожек · Иней · иней и сугробы"

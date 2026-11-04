@@ -124,6 +124,9 @@ final class MetalEffects {
     private var timedFloor: [TimedFloor] = []
     private struct TimedHeat { var h: HeatInstance; var t: Float; var life: Float }
     private var timedHeat: [TimedHeat] = []
+    /// A big blast's smoke column, released once its light is gone (native-vx-feel: `explosion`).
+    private struct PendingSmoke { var p: F3; var r: Float; var t: Float }
+    private var pendingSmoke: [PendingSmoke] = []
     /// Live explosions (cap counter): age.
     private var blasts: [Float] = []
     private var blastsPeak = 0
@@ -212,6 +215,7 @@ final class MetalEffects {
         flashLights.removeAll(keepingCapacity: true)
         timedFloor.removeAll(keepingCapacity: true)
         timedHeat.removeAll(keepingCapacity: true)
+        pendingSmoke.removeAll(keepingCapacity: true)
         blasts.removeAll(keepingCapacity: true)
         for k in 0..<3 { lights[k].intensity = 0 }
         for k in 0..<sightLevel.count { sightLevel[k] = 0 }
@@ -570,10 +574,13 @@ final class MetalEffects {
                       gravity: -1.2, drag: 1.6, sizeJitter: 0.3, spin: 2)
         }
         gpu.burst(.glow, 1, at: o + d * 0.35, life: (0.05, 0.07), size: (0.45, 0.7), color: F4(2.6, 1.4, 0.55, 1))
-        let ns = rate(&acc[k][1], 10, dt)
+        // (native-vx-feel: thinner — 6 puffs a second at α 0.5, was 10 at 0.7: the smoke hangs in the pyro's own flashlight
+        // cone, and in the punch-in close-up of CI c6029ec it lit up into a grey veil over the middle of the frame, near-black
+        // 3.5 % against the gate's 12)
+        let ns = rate(&acc[k][1], 6, dt)
         if ns > 0 {
             gpu.burst(.smoke, ns, at: o + d * rr(4.5, 6.5) + F3(0, 0.3, 0), jitter: F3(0.4, 0.2, 0.4), vel: d * 2 + F3(0, 1.4, 0),
-                      life: (1.2, 1.8), size: (0.8, 2.3), color: F4(0.06, 0.055, 0.05, 0.7), gravity: -0.6, drag: 0.8, spin: 0.5)
+                      life: (1.2, 1.8), size: (0.8, 2.3), color: F4(0.06, 0.055, 0.05, 0.5), gravity: -0.6, drag: 0.8, spin: 0.5)
         }
         let ne = rate(&acc[k][2], 10, dt)
         if ne > 0 {
@@ -703,10 +710,18 @@ final class MetalEffects {
             gpu.burst(.debris, num(5), at: p, sphere: 9, upper: true, life: (1.2, 2.0), size: (0.15, 0.12),
                       color: boomer ? F4(0.2, 0.14, 0.04, 1) : F4(0.05, 0.045, 0.05, 1), gravity: 14, drag: 0.3, spin: 8)
         }
-        // dark smoke: a slow rising column that lingers and thins (chained blasts must not wash the deck out)
-        gpu.burst(.smoke, num(big ? 7 : 1), at: p + F3(0, 0.6, 0), jitter: F3(r * 0.35, 0.3, r * 0.35), delay: 0.16, vel: F3(0, 1.3, 0),
-                  radial: 0.6, life: big ? (2.2, 3.4) : (0.9, 1.4), size: (r * 0.5, r * (big ? 1.3 : 0.8)), color: F4(0.05, 0.046, 0.045, big ? 0.5 : 0.35),
-                  gravity: -0.6, drag: 0.8, spin: 0.35)
+        // dark smoke: a slow rising column that lingers and thins (chained blasts must not wash the deck out). A big blast's
+        // column rises once its light is gone (0.3 s, `smokeColumn`): born at 0–0.16 s, its seven puffs caught the 420 peak and
+        // lit up into a cream disc ~8 m across, soft-faded over the deck and full over the drop beside it (CI combat 5c8ad76,
+        // beacon c6029ec)
+        if big {
+            if pendingSmoke.count >= 16 { pendingSmoke.removeFirst() }
+            pendingSmoke.append(PendingSmoke(p: p, r: r, t: 0.3))
+        } else {
+            gpu.burst(.smoke, num(1), at: p + F3(0, 0.6, 0), jitter: F3(r * 0.35, 0.3, r * 0.35), delay: 0.16, vel: F3(0, 1.3, 0),
+                      radial: 0.6, life: (0.9, 1.4), size: (r * 0.5, r * 0.8), color: F4(0.05, 0.046, 0.045, 0.35), gravity: -0.6, drag: 0.8,
+                      spin: 0.35)
+        }
         // the deck: a shock ring, heat waves, a scorch with cooling embers
         if big {
             floorTimed(x, z, radius: r * 1.7, mode: .shock, color: boomer ? F3(3.4, 2.1, 0.6) : F3(4.0, 2.5, 1.25), life: 0.42,   // polish: the boomer's ring amber (a pale lime band washed over the swarm in CI combat)
@@ -721,6 +736,14 @@ final class MetalEffects {
             decals.add(x, z, size: r * 0.65, cell: .acid, kind: .acid, tint: F3(0.42, 0.6, 0.06))
             floorTimed(x, z, radius: r * 0.6, mode: .acid, color: F3(0.35, 1.2, 0.15) * 0.07, life: 1.6, thickness: 0.1)
         }
+    }
+
+    /// A big blast's column of dark smoke (released by `update` 0.3 s after the blast, when its light is out): seven heavy
+    /// puffs over 0.16 s that rise slowly, linger 2.2–3.4 s and thin.
+    private func smokeColumn(_ p: F3, _ r: Float) {
+        gpu.burst(.smoke, num(7), at: p + F3(0, 0.6, 0), jitter: F3(r * 0.35, 0.3, r * 0.35), delay: 0.16, vel: F3(0, 1.3, 0),
+                  radial: 0.6, life: (2.2, 3.4), size: (r * 0.5, r * 1.3), color: F4(0.05, 0.046, 0.045, 0.5), gravity: -0.6, drag: 0.8,
+                  spin: 0.35)
     }
 
     private func acid(_ x: Float, _ z: Float) {
@@ -969,6 +992,17 @@ final class MetalEffects {
                           velJitter: F3(0.3, 0.4, 0.3), life: (2, 3), size: (0.5, 2.4), color: F4(0.55, 0.6, 0.65, 0.13), gravity: -0.15,
                           drag: 0.3, spin: 0.3)
             }
+        }
+        // big blasts' smoke columns, once their light is out
+        var si = 0
+        while si < pendingSmoke.count {
+            pendingSmoke[si].t -= dt
+            if pendingSmoke[si].t <= 0 {
+                smokeColumn(pendingSmoke[si].p, pendingSmoke[si].r)
+                pendingSmoke.remove(at: si)
+                continue
+            }
+            si += 1
         }
         // timed floor fx and heat
         var i = 0
