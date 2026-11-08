@@ -407,7 +407,6 @@ def rephase(T, side=0):
     k = starts[0]
     for tb in T.W:
         T.W[tb] = np.roll(T.W[tb], -k, axis=0)
-    period = T.vel * (T.n / T.fps)
     # positions are root-relative, the root moving at vel: a frame moved from the front to the back of the loop sits
     # one period later on the root's line, so relative to the root it is unchanged
     T.pelvis = np.roll(T.pelvis, -k, axis=0)
@@ -416,7 +415,6 @@ def rephase(T, side=0):
     T.plant = np.roll(T.plant, -k, axis=0)
     if T.aim is not None:
         T.aim = np.roll(T.aim, -k, axis=0)
-    del period
     return k
 
 
