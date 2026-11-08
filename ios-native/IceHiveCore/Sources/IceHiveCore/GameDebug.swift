@@ -213,6 +213,30 @@ extension Game {
         return made
     }
 
+    /// Demo staging: `n` bugs climbing over the lift's rim from below (the hold's own rim climb: spawn mode 1 at a deck
+    /// edge within the lift's radius + 1 m), only on edges whose angle around the lift (x = cos a, z = sin a) lies in
+    /// `sector` (radians: centre, half width). Returns how many were placed (the live cap applies).
+    @discardableResult
+    public func debugClimbLiftRim(_ n: Int, sector: (angle: Float, half: Float)) -> Int {
+        let L = level.lift
+        let ne = level.edgeCount
+        if ne == 0 { return 0 }
+        var made = 0, k = 0
+        while k < n * 20 && made < n {
+            k += 1
+            let e = min(ne - 1, Int(rng.next() * Float(ne)))
+            let dx = level.edgeX[e] - L.x, dz = level.edgeZ[e] - L.z
+            if dx * dx + dz * dz > (L.r + 1) * (L.r + 1) { continue }
+            var d = atan2f(dz, dx) - sector.angle
+            while d > Float.pi { d -= 2 * Float.pi }
+            while d < -Float.pi { d += 2 * Float.pi }
+            if abs(d) > sector.half { continue }
+            if spawnBug(pickType(true), level.edgeX[e], level.edgeZ[e], mode: 1, nx: level.edgeNX[e], nz: level.edgeNZ[e],
+                        depth: 1.8 + rng.next() * 2.2) >= 0 { made += 1 }
+        }
+        return made
+    }
+
     /// Complete the current objective stage.
     @discardableResult
     public func debugSkip() -> MissionStage {

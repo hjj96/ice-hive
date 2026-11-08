@@ -152,7 +152,10 @@ final class DemoScript {
             // third straight over the lift's rim), a horde every 18–24 s; the extraction shot keeps its crowd (gore on the
             // lift as it rises)
             target = name == "extract-cine" ? crowd(260) : 0
-            let n = target > 0 ? game.debugSpawn(target, type: nil, minRadius: 5, maxRadius: 18, sector: crowdSector) : 0
+            // (extract-cine: on the lift's far side from the extraction camera, 4–9 m out — on the deck, not beyond the rim,
+            // where the bugs walked round to the ramp on the camera's side)
+            let n = target <= 0 ? 0 : crowdSector == nil ? game.debugSpawn(target, type: nil, minRadius: 5, maxRadius: 18)
+                : game.debugSpawn(target, type: nil, minRadius: 4, maxRadius: 9, sector: crowdSector)
             AppLog.info("demo \(name): stage \(game.stage.rawValue), spawned \(n) bugs around the lift (bug cap \(game.bugCap))")
         case "coach":
             // a novice who does not touch the screen: every step ends by its timeout
@@ -278,7 +281,10 @@ final class DemoScript {
             topUpT = 0.5
             let alive = game.bugsAlive
             if alive < target - 10 {
-                let n = game.debugSpawn(min(300, target - alive), type: nil, minRadius: 12, maxRadius: 30, sector: crowdSector)
+                let k = min(300, target - alive)
+                // (extract-cine: the top-ups climb over the lift's far rim, the hold's own entrance)
+                let n = crowdSector.map { game.debugClimbLiftRim(k, sector: $0) }
+                    ?? game.debugSpawn(k, type: nil, minRadius: 12, maxRadius: 30)
                 spawned += n
             }
             logT -= 0.5
@@ -291,8 +297,9 @@ final class DemoScript {
     }
     private var spawned = 0
     private var logT: Float = 5
-    /// extract-cine: the crowd (and its top-ups) on the far side of the lift from the extraction camera (Cinematics: the
-    /// eye on the shaft wall at MetalCamera.yaw + 20°), ±75°. native-vx-feel: with the crowd all round, the squad's
+    /// extract-cine: the crowd (on the deck) and its top-ups (over the rim) on the far side of the lift from the extraction
+    /// camera (Cinematics: the eye on the shaft wall at MetalCamera.yaw + 20°), ±75°. (58e10b3 spawned the top-ups 12–30 m
+    /// out on that side: off the lift, they walked round to the ramp on the camera's side and filled the foreground.) native-vx-feel: with the crowd all round, the squad's
     /// flashlights swept the eye and the shot dodged them to its −45° / +12° limit, looking down on the lit deck or along
     /// the cryo beam (median 62.8 on 01c636a, clip 1.24 % on c500515's first shot); the squad now fires away from the lens.
     private var crowdSector: (angle: Float, half: Float)? {
