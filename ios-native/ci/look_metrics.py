@@ -17,8 +17,12 @@ thumb areas, armour bar and debug text cut out) and only reported — its number
 Also: the brightness option at its maximum (calm vs calm-bright, ≥ +15 luma at the deck or the frame median) and the
 punch-in's entry (the worst loop tick of the heartbeat seconds the shot runs in, app-punchin.log, ≤ 34 ms).
 
-Usage: look_metrics.py [--gate] [--golden DIR] [--json OUT] <results dir>
+Usage: look_metrics.py [--gate] [--golden DIR] [--json OUT] [--only s1,s2] [--failed OUT] <results dir>
 Writes the table to stdout; --json writes the numbers for ci/twoup.py. Exit 1 with --gate when a gated check fails.
+--only measures just those scenes (no brightness / punch-in rows unless their base scene is listed); --failed writes the
+HUD-off shots of the scenes that failed a gate, one file name per line — sim-smoke re-shoots each of them once before
+the look-gate job measures the final shots (a HUD-off shot is one frozen moment: a blast's peak, a cinematic camera
+dodging a flashlight cone; a real regression fails the re-shoot too).
 """
 import json
 import os
@@ -163,11 +167,15 @@ def check(v, r):
 
 def main():
     args = sys.argv[1:]
-    gate, golden, jout = False, os.path.join(HERE, 'golden'), None
+    gate, golden, jout, only, fout = False, os.path.join(HERE, 'golden'), None, None, None
     while args and args[0].startswith('--'):
         a = args.pop(0)
         if a == '--gate':
             gate = True
+        elif a == '--only':
+            only = set(x for x in args.pop(0).split(',') if x)
+        elif a == '--failed':
+            fout = args.pop(0)
         elif a == '--golden':
             golden = args.pop(0)
         elif a == '--json':
@@ -179,9 +187,11 @@ def main():
     cfg = json.load(open(os.path.join(golden, 'thresholds.json')))
     crop = cfg.get('crop', {})
     hud = cfg.get('hud_mask', [])
-    failures, out = [], {'scenes': {}}
+    failures, out, failed_shots = [], {'scenes': {}}, []
     print('LOOK (ci/look_metrics.py; gates: ci/golden/thresholds.json — HUD-off shots gated, HUD-on shots masked and reported)')
     for name, sc in cfg['scenes'].items():
+        if only is not None and name not in only:
+            continue
         shot = next((s for s in sc['shots'] if os.path.exists(os.path.join(res, s))), None)
         if not shot:
             print(f'{name:10s} no shot ({", ".join(sc["shots"])})')
@@ -224,9 +234,10 @@ def main():
               f'R-B hi {s["warm"]:+5.1f} lo {s["cold"]:+5.1f} colorf {s["colorf"]:4.1f}{extra} [{tag}] {verdict}')
         if bad and hud_off:
             failures.append(f'{name}: ' + '; '.join(bad))
+            failed_shots.append(shot)
     # the brightness option at its maximum
     b = cfg.get('brightness')
-    if b:
+    if b and (only is None or b['base'] in only):
         base = out['scenes'].get(b['base'])
         shot = next((s for s in b['shots'] if os.path.exists(os.path.join(res, s))), None)
         if base and shot:
@@ -242,11 +253,12 @@ def main():
                   f'[{"gated" if hud_off else "HUD on, reported only"}] {"ok" if ok else "FAIL"}')
             if not ok and hud_off:
                 failures.append(f'brightness: +{lift:.1f} < +{b["min_lift"]}')
+                failed_shots.append(shot)
         else:
             print('brightness: no shots')
     # the punch-in's entry
     p = cfg.get('punchin_entry')
-    if p:
+    if p and only is None:
         e = punchin_entry(os.path.join(res, p['log']), p['window_s'])
         if e is None:
             print('punch-in entry: no log')
@@ -262,6 +274,9 @@ def main():
             out['punchin_entry'] = e
             if not ok:
                 failures.append(f'punch-in entry: worst tick {e["worst"]} ms > {p["max_tick_ms"]}')
+    if fout:
+        with open(fout, 'w') as f:
+            f.write(''.join(x + '\n' for x in failed_shots))
     if jout:
         with open(jout, 'w') as f:
             json.dump(out, f, indent=1, ensure_ascii=False)

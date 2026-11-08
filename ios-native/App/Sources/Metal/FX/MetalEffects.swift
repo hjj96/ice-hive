@@ -676,11 +676,13 @@ final class MetalEffects {
         // faint glow, a light only near the player; the first film still read as a carpet of orange flashes)
         let pl = poses.first.map { F3($0.x, 0, $0.z) } ?? F3(x, 0, z)
         let nearP = (x - pl.x) * (x - pl.x) + (z - pl.z) * (z - pl.z) < 100
-        // (a big blast's light: a hard peak of 420 that is gone fast and stays local — 0.3 s over r × 2.6; at 0.42 s over
-        // r × 3.2 the CI title and combat shots caught a cream pool a sixth of the screen wide, clip 0.85 % on the title)
+        // (a big blast's light: a hard peak of 420 that is gone fast and stays local — 0.3 s over r × 2.2; at 0.42 s over
+        // r × 3.2 the CI title and combat shots caught a cream pool a sixth of the screen wide, clip 0.85 % on the title, and
+        // at r × 2.6 with a yellower colour the hold and Queen shots of 01c636a still caught the lift's deck lit cream half
+        // across: a deeper orange that the tone curve keeps orange at the peak, over a smaller pool)
         if big || nearP {
-            flash(p + F3(0, 1.2, 0), boomer ? F3(1.0, 0.66, 0.24) : F3(1.0, 0.5, 0.2), peak: big ? 420 : 30, dur: big ? 0.3 : 0.12,
-                  range: r * (big ? 2.6 : 2.0), priority: big ? 30 : 6)
+            flash(p + F3(0, 1.2, 0), boomer ? F3(1.0, 0.56, 0.18) : F3(1.0, 0.44, 0.15), peak: big ? 420 : 30, dur: big ? 0.3 : 0.12,
+                  range: r * (big ? 2.2 : 2.0), priority: big ? 30 : 6)
         }
         // (the white-hot core smaller than the fireball it lights: at 3.6–4.4 m the CI combat shot of 5c8ad76 caught it as a
         // cream disc a sixth of the screen wide over the void beside the bridge — soft-faded over the deck, full over the
