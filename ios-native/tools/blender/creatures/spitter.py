@@ -12,6 +12,7 @@ import numpy as np
 from geo import Part, cone, ellipsoid, shell_plate, smoothstep, tube
 from insect import (D2R, F_GLAND, F_SAC, FPS, SIDES, SN, TWO, Leg, State, bell, blob, bone_frame, col_ramp, eye, feet_gait,
                     feet_planted, gland, leg_parts, plate, roll_lift, rx, ry, rz, sc3, skeleton_legs, surface_z, tr)
+from insect import gen_death_burn, gen_death_frost, gen_rear, gen_skitter  # noqa: E402  (native-vx-swarm-life)
 
 NAME = 'spitter'
 SCALE = 1.02
@@ -170,7 +171,7 @@ def build_parts(lod):
 
 
 # ------------------------------------------------------------------ animation
-GROUND_CLAMP = {'death', 'death2', 'hit', 'spit', 'attack'}
+GROUND_CLAMP = {'death', 'death2', 'hit', 'spit', 'attack', 'rear', 'death_burn', 'death_frost'}
 CLIPS = [
     ('idle', 30, True, 0.0, 0, 'sway on the long legs, sac breathes, proboscis tastes the air; feet planted'),
     ('walk', 24, True, 1.10, 0, 'tripod gait on stilts, duty 0.62, body sways, sac bobs behind'),
@@ -180,6 +181,11 @@ CLIPS = [
     ('spit', 16, False, 0.0, 12, 'the 0.5 s wind-up: rear back, sac pumps, the proboscis aims, release on frame 12, recoil'),
     ('death', 30, False, 0.0, 29, 'the sac bursts and deflates, the body slumps sideways, legs curl over it, a kick'),
     ('death2', 30, False, 0.0, 29, 'flips onto its back, the long legs fold up and twitch, the sac dims'),
+    # native-vx-swarm-life: per-bug variants (SwarmAnimator) and deaths by cause (Corpses)
+    ('skitter', 16, True, 1.50, 0, 'a dart on the stilts: low, fast, nervous yaw wiggle, the sac swinging'),
+    ('rear', 24, False, 0.0, 12, 'threat display: rears high, forelegs paw the air, proboscis raised, the sac pumps'),
+    ('death_burn', 36, False, 0.0, 35, 'burned: writhes, the sac shrivels, spins onto its back, legs curl tight, twitches'),
+    ('death_frost', 24, False, 0.0, 23, 'frozen stiff: two shudders, tips over sideways on locked stilts, a small rebound'),
 ]
 
 
@@ -238,9 +244,17 @@ def _death_flip(st, f):
     st.glow.update(gland=max(0.05, (1.0 + 1.5 * k) * (0.08 + 0.92 * fade) + 0.8 * bell(f, 17, 0.8) * fade), eye=max(0.05, 1 - smoothstep(2, 18, f)))
 
 
+
+def _parts(st, k, clack):
+    """head parts for a threat amount k (variants / deaths): mandibles gape, the proboscis rises, the sac pumps"""
+    for s in SIDES:
+        st.set(f'mand.{SN[s]}', rz(-s * (30 * k - 14 * clack * k) * D2R))
+    st.set('prob', rx((-28 * k + 8 * clack * k) * D2R))
+    _sac_scale(st, 1.0 + 0.12 * k * (0.6 + 0.4 * clack))
+
 def clip_state(name, f, n):
     st = State()
-    tau = f / n if name in ('idle', 'walk', 'run') else f / (n - 1)
+    tau = f / n if name in ('idle', 'walk', 'run', 'skitter') else f / (n - 1)
     if name == 'idle':
         w = TWO * tau
         st.set('thorax', tr(0, 0, 0.01 * math.sin(w)) @ rz(4 * D2R * math.sin(w)) @ ry(3 * D2R * math.sin(w + 0.5)))
@@ -320,4 +334,13 @@ def clip_state(name, f, n):
         _death_burst(st, f)
     elif name == 'death2':
         _death_flip(st, f)
+    elif name == 'skitter':
+        gen_skitter(st, tau, LEGS, _parts, 1.50, h=0.1, crouch=0.06)
+    elif name == 'rear':
+        gen_rear(st, f, n, LEGS, _parts, body=1.1)
+    elif name == 'death_burn':
+        gen_death_burn(st, f, LEGS, _parts, BODY_Z * 0.55, 0.2, 0.18, drop=0.25)
+        _sac_scale(st, 1.0 - 0.45 * smoothstep(4, 20, f))
+    elif name == 'death_frost':
+        gen_death_frost(st, f, LEGS, _parts, BODY_Z * 0.55, 0.2, 0.18, drop=0.2)
     return st

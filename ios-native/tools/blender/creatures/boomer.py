@@ -14,6 +14,7 @@ import numpy as np
 from geo import Part, cone, ellipsoid, hex2rgb, smoothstep, tube
 from insect import (D2R, F_GLAND, F_SAC, FPS, SIDES, SN, TWO, Leg, State, blob, bone_frame, col_ramp, eye, feet_gait,
                     feet_planted, gland, leg_parts, plate, rx, ry, rz, sc3, skeleton_legs, surface_z, tr)
+from insect import gen_death_burn, gen_death_frost, gen_rear, gen_skitter  # noqa: E402  (native-vx-swarm-life)
 
 NAME = 'boomer'
 SCALE = 1.15
@@ -148,13 +149,17 @@ def build_parts(lod):
 
 
 # ------------------------------------------------------------------ animation
-GROUND_CLAMP = {'hit', 'swell'}
+GROUND_CLAMP = {'hit', 'swell', 'rear'}
 CLIPS = [
     ('idle', 30, True, 0.0, 0, 'the sac heaves, the head bobs; feet planted'),
     ('walk', 20, True, 0.60, 0, 'short stubby tripod gait, duty 0.62, the sac wobbles behind'),
     ('run', 16, True, 1.0, 0, 'scuttle, duty 0.45, the sac bounces'),
     ('swell', 24, False, 0.0, 23, 'the 0.8 s fuse: the sac swells to 1.32 and shudders, legs brace outward, pores flare'),
     ('hit', 10, False, 0.0, 1, 'recoil, the sac wobbles'),
+    # native-vx-swarm-life: per-bug variants (SwarmAnimator); boomers burst, so no deaths
+    ('walk_b', 20, True, 0.60, 0, 'a waddle: the stubby legs roll the body side to side, the sac sloshes'),
+    ('skitter', 14, True, 0.90, 0, 'a scurry: low, fast, nervous wiggle, the sac bouncing'),
+    ('rear', 24, False, 0.0, 12, 'threat display: rears, forelegs paw, the sac puffs up and shudders'),
 ]
 
 
@@ -162,9 +167,16 @@ def _sac_scale(st, sx, sy=None, sz=None):
     st.set('sac', sc3(sx, sy if sy is not None else sx, sz if sz is not None else sx))
 
 
+
+def _parts(st, k, clack):
+    """head parts for a threat amount k: mandibles gape, the sac puffs"""
+    for s in SIDES:
+        st.set(f'mand.{SN[s]}', rz(-s * (26 * k - 12 * clack * k) * D2R))
+    _sac_scale(st, 1.0 + 0.1 * k + 0.03 * clack)
+
 def clip_state(name, f, n):
     st = State()
-    tau = f / n if name in ('idle', 'walk', 'run') else f / (n - 1)
+    tau = f / n if name in ('idle', 'walk', 'run', 'walk_b', 'skitter') else f / (n - 1)
     if name == 'idle':
         w = TWO * tau
         st.set('thorax', tr(0, 0, 0.006 * math.sin(w)) @ rz(3 * D2R * math.sin(w)))
@@ -203,4 +215,17 @@ def clip_state(name, f, n):
         _sac_scale(st, 1.0 + 0.07 * k * math.cos(f * 2.4), 1.0 - 0.05 * k * math.cos(f * 2.4), 1.0 + 0.06 * k * math.cos(f * 2.4))
         feet_planted(st, LEGS, lambda lg: np.array([lg.s * 0.04, 0.0, 0.0]) * max(k, 0))
         st.glow.update(gland=1.0 + 1.6 * max(k, 0))
+    elif name == 'walk_b':
+        w = TWO * tau
+        st.set('thorax', tr(0, 0, -0.015 * math.cos(2 * w)) @ rz(9 * D2R * math.sin(w + 0.4)) @ ry(10 * D2R * math.sin(w)))
+        st.set('head', rx(-3 * D2R * math.sin(2 * w + 1.4)) @ rz(-6 * D2R * math.sin(w)))
+        st.set('abd.1', rz(-8 * D2R * math.sin(w - 0.9)) @ rx(3 * D2R * math.sin(2 * w - 0.6)))
+        wob = 0.05 * math.sin(2 * w - 1.6)
+        _sac_scale(st, 1.0 - wob * 0.5, 1.0 + wob, 1.0 - wob * 0.6)
+        feet_gait(st, LEGS, tau, 0.62, 0.60, 0.08)
+        st.glow.update(gland=0.9, pulse=0.2, wave=2 * tau)
+    elif name == 'skitter':
+        gen_skitter(st, tau, LEGS, _parts, 0.90, duty=0.45, h=0.06, crouch=0.0, abd2=False, wig=0.4)
+    elif name == 'rear':
+        gen_rear(st, f, n, LEGS, _parts, body=0.8, abd2=False)
     return st

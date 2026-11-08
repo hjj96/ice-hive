@@ -29,7 +29,7 @@ from mathutils.bvhtree import BVHTree  # noqa: E402
 
 import ihv  # noqa: E402
 from geo import hex2rgb  # noqa: E402
-from insect import F_EYE, F_GLAND, F_SOCKET  # noqa: E402
+from insect import F_ABDG, F_EYE, F_GLAND, F_HEADG, F_SOCKET  # noqa: E402
 
 T0 = time.time()
 LOG = []
@@ -82,6 +82,26 @@ def socket_list(D):
             out.append((p.name.replace('gland.', 'g.'), p.bone, np.asarray(c, float), int(fl)))
     for nm, bone, c, fl in D.EXTRA_SOCKETS:
         out.append((nm, bone, np.asarray(c, float), int(fl)))
+    # native-vx-swarm-life: the look / sway pivots (Swarm.metal turns the head and abdomen groups about them)
+    for nm, bone in (('neck', 'head'), ('waist', 'abd.1')):
+        for b, _, M, _ in D.skeleton():
+            if b == bone:
+                out.append((nm, bone, np.asarray(M)[:3, 3].astype(float), 0))
+    return out
+
+
+def look_groups(rig):
+    """bone index -> vertex group bits: the head and its children (F_HEADG), abd.1 and its children (F_ABDG)."""
+    out = []
+    for b in rig.data.bones:
+        g, a = 0, b
+        while a is not None:
+            if a.name == 'head':
+                g = F_HEADG
+            elif a.name == 'abd.1':
+                g = F_ABDG
+            a = a.parent
+        out.append(g)
     return out
 
 
@@ -113,6 +133,8 @@ def make_mesh(D, rig, lod, sockets):
     vglow += [0.0] * len(S)
     vrough += [0.5] * len(S)
     vflag += [F_SOCKET | (F_GLAND if s[3] & 1 else 0) for s in sockets]
+    grp = look_groups(rig)
+    vflag = [fl | grp[b] for fl, b in zip(vflag, vb)]
 
     me = bpy.data.meshes.new(f'{D.NAME}_lod{lod}')
     me.from_pydata(V.tolist(), [], F)

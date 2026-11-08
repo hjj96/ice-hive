@@ -97,7 +97,7 @@ assert VERTEX_DTYPE.itemsize == 20 and SKINNED_DTYPE.itemsize == 32
 
 # budgets (plan §2) — gates.py enforces them on every committed file
 LOD_TRIS = (3000, 450, 150)
-RIGID_FILE_BYTES = 300 * 1024
+RIGID_FILE_BYTES = 384 * 1024    # native-vx-swarm-life: 300 → 384 KiB (per-bug clip variants, deaths by cause)
 SKINNED_TRIS = (8000, 10000)
 
 

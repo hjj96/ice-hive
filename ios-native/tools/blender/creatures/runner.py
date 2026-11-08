@@ -9,9 +9,9 @@ import math
 import numpy as np
 
 from geo import Part, cone, ellipsoid, octa, smoothstep, tube
-from insect import (D2R, F_EYE, FPS, SIDES, SN, TWO, Leg, State, bell, blob, bone_frame, col_ramp, eye, feet_gait,
-                    feet_planted, gland, leg_parts, plate, roll_lift, rx, ry, rz, skeleton_legs, socket_flags,
-                    surface_z, tr)
+from insect import (D2R, F_EYE, FPS, SIDES, SN, TWO, Leg, State, bell, blob, bone_frame, col_ramp, eye, feet_bound,
+                    feet_gait, feet_planted, gen_death_burn, gen_death_frost, gen_rear, gen_skitter, gland, leg_parts,
+                    plate, roll_lift, rx, ry, rz, skeleton_legs, socket_flags, surface_z, tr)
 
 NAME = 'runner'
 SCALE = 0.8                  # BUG_SPECS scale (game instance scale) — game_camera.py sizes the read-back with it
@@ -202,8 +202,9 @@ def build_parts(lod):
 
 
 # ------------------------------------------------------------------ animation
-GROUND_CLAMP = {'death', 'death2', 'death3', 'hit'}   # clips whose root is lifted by any remaining floor penetration
-DEATHS = ('death', 'death2', 'death3')
+GROUND_CLAMP = {'death', 'death2', 'death3', 'hit', 'rear', 'death_burn', 'death_frost'}   # clips whose root is lifted
+DEATHS = ('death', 'death2', 'death3', 'death_burn', 'death_frost')                     # by any floor penetration
+LOOPS = ('idle', 'walk', 'run', 'run_b', 'skitter')
 
 CLIPS = [  # name, frames, loop, stride (m per loop, model scale 1), event frame, notes
     ('idle', 30, True, 0.0, 0, 'breathing, antenna sweeps, mandible chew; feet planted'),
@@ -214,7 +215,54 @@ CLIPS = [  # name, frames, loop, stride (m per loop, model scale 1), event frame
     ('death', 36, False, 0.0, 35, 'recoil, flip onto the back, legs curl, 3 twitches, glands fade; last frame = corpse'),
     ('death2', 30, False, 0.0, 29, 'legs buckle, the body drops on its belly and slides, rolls a little, legs fold under, 2 kicks'),
     ('death3', 36, False, 0.0, 35, 'thrown back by the hit, spins half round while flipping over, legs curl and twitch'),
+    # native-vx-swarm-life: per-bug variants (SwarmAnimator) and deaths by cause (Corpses)
+    ('run_b', 16, True, 1.90, 0, 'bounding gallop: the legs strike by rows, the body rocks up and forward once a stride'),
+    ('pounce', 16, False, 0.0, 11, 'the leap: launch nose-up, airborne stretched with the forelegs reaching, slam + snap'),
+    ('skitter', 14, True, 1.30, 0, 'a dart: low, fast scrabbling tripod, nervous yaw wiggle'),
+    ('rear', 24, False, 0.0, 12, 'threat display: rears high, forelegs paw the air, mandibles gape and clack'),
+    ('death_burn', 36, False, 0.0, 35, 'burned: writhes, spins onto its back, legs flail then curl tight, twitches'),
+    ('death_frost', 24, False, 0.0, 23, 'frozen stiff: two shudders, tips over sideways like a statue, a small rebound'),
 ]
+
+
+def _parts(st, k, clack):
+    """head parts for a threat amount k (variants / deaths): mandibles gape (and clack), antennae up and forward"""
+    for s in SIDES:
+        st.set(f'mand.{SN[s]}', rz(-s * (34 * k - 18 * clack * k) * D2R))
+    _ant(st, 14 * k * D2R, (18 * k) * D2R, 10 * k * D2R, (10 * k) * D2R)
+
+
+def _pounce(st, f, n):
+    t = f / (n - 1)
+    launch = smoothstep(0.0, 0.16, t)
+    fly = smoothstep(0.1, 0.3, t) * (1 - smoothstep(0.6, 0.72, t))
+    strike = smoothstep(0.62, 0.74, t)
+    rec = smoothstep(0.78, 1.0, t)
+    snap = smoothstep(0.68, 0.73, t)
+    st.set('root', tr(0, 0.12 * strike * (1 - rec), 0))
+    st.set('thorax', tr(0, 0, 0.03 * launch * (1 - strike) - 0.04 * strike * (1 - rec))
+           @ rx((16 * launch * (1 - fly) + 6 * fly - 10 * strike * (1 - rec)) * D2R))
+    st.set('head', rx((6 * fly - 8 * strike * (1 - rec)) * D2R))
+    st.set('abd.1', rx((-10 * fly + 6 * strike * (1 - rec)) * D2R))
+    st.set('abd.2', rx((-14 * fly + 4 * strike * (1 - rec)) * D2R))
+    gape = 40 * smoothstep(0.05, 0.3, t) * (1 - snap) - 6 * snap * (1 - rec)
+    for s in SIDES:
+        st.set(f'mand.{SN[s]}', rz(-s * gape * D2R))
+    _ant(st, -16 * fly * D2R, -26 * fly * D2R, -12 * fly * D2R, -22 * fly * D2R)
+    for lg in LEGS:
+        if lg.i == 0:
+            air = np.array([lg.s * -0.05, 0.36, 0.30])
+            hit = np.array([lg.s * -0.03, 0.40, 0.02])
+        elif lg.i == 1:
+            air = np.array([lg.s * 0.12, 0.06, 0.24])
+            hit = np.array([lg.s * 0.04, 0.08, 0.0])
+        else:
+            air = np.array([lg.s * 0.03, -0.32, 0.16])
+            hit = np.array([0.0, -0.08, 0.0])
+        push = np.array([0, -0.12, 0.0]) * launch * (1 - fly) if lg.i == 2 else 0.0
+        off = air * fly + hit * strike * (1 - rec) + push
+        st.feet[lg.name] = ('ik', lg.F0 + off)
+    st.glow.update(gland=1.0 + 1.0 * fly + 0.9 * snap * (1 - rec), eye=1.0 + 0.5 * fly)
 
 
 def _ant(st, a1y, a1p, a2y, a2p):
@@ -287,7 +335,7 @@ def _death_crumple(st, f):
 
 def clip_state(name, f, n):
     st = State()
-    tau = f / n if name in ('idle', 'walk', 'run') else f / (n - 1)
+    tau = f / n if name in LOOPS else f / (n - 1)
     if name == 'idle':
         w = TWO * tau
         st.set('thorax', tr(0, 0, 0.006 * math.sin(w)) @ rx(1.0 * D2R * math.sin(w)) @ rz(3 * D2R * math.sin(w)))
@@ -362,4 +410,26 @@ def clip_state(name, f, n):
         _death_crumple(st, f)
     elif name == 'death3':
         _death_flip(st, f, spin=-2.4, slide=0.38)
+    elif name == 'run_b':
+        w = TWO * tau
+        st.set('thorax', tr(0, 0, 0.045 * math.sin(w - 0.6) - 0.025) @ rx((-5 + 8 * math.sin(w + 0.9)) * D2R)
+               @ rz(2 * D2R * math.sin(w + 0.4)))
+        st.set('head', rx((3 - 5 * math.sin(w + 1.3)) * D2R))
+        st.set('abd.1', rx((2 - 6 * math.sin(w + 0.3)) * D2R) @ rz(-3 * D2R * math.sin(w - 0.5)))
+        st.set('abd.2', rx(-8 * D2R * math.sin(w - 0.3)) @ rz(-4 * D2R * math.sin(w - 1.2)))
+        for s in SIDES:
+            st.set(f'mand.{SN[s]}', rz(-s * (10 + 6 * math.sin(w)) * D2R))
+        _ant(st, -20 * D2R, -16 * D2R + 6 * D2R * math.sin(w + 0.5), -12 * D2R, -20 * D2R + 8 * D2R * math.sin(w - 0.4))
+        feet_bound(st, LEGS, tau, 0.38, 1.90, 0.15)
+        st.glow.update(gland=0.95, pulse=0.2, wave=tau)
+    elif name == 'pounce':
+        _pounce(st, f, n)
+    elif name == 'skitter':
+        gen_skitter(st, tau, LEGS, _parts, 1.30)
+    elif name == 'rear':
+        gen_rear(st, f, n, LEGS, _parts)
+    elif name == 'death_burn':
+        gen_death_burn(st, f, LEGS, _parts, 0.29, 0.235, 0.165)
+    elif name == 'death_frost':
+        gen_death_frost(st, f, LEGS, _parts, 0.29, 0.235, 0.165)
     return st
