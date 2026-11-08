@@ -1115,8 +1115,8 @@ final class MarineRig {
             overrideW = 0
         }
         wasDowned = I.downed
-        // the animation pose of this frame (a turn's end crossfades from it)
-        for b in 0..<n { animQ[b] = lq[b]; animT[b] = lt[b] }
+        // the animation pose of this frame (a turn's end crossfades from it: kept only while a turn plays)
+        if turnSide != 0 { for b in 0..<n { animQ[b] = lq[b]; animT[b] = lt[b] } }
         let upright = 1 - overrideW
         // ---- additive layers: the per-weapon recoil
         if !I.downed {
@@ -1149,6 +1149,10 @@ final class MarineRig {
         hitClock += dt
         let hw = 2 * Float.pi * 2.3 * tempo, hz: Float = 0.3
         let gains = MarineRig.hitGain
+        // at rest (every impulse fired, the chain settled): nothing to integrate
+        if hitFired == 31 && hitClock > 2.5 {
+            for i in 0..<5 where (hitTilt[i] * hitTilt[i]).sum() > 0 { hitTilt[i] = .zero; hitVel[i] = .zero }
+        } else {
         for i in 0..<5 {
             if hitFired & (1 << i) == 0 && hitClock >= Float(i) * 0.035 / tempo {
                 hitFired |= 1 << i
@@ -1166,7 +1170,8 @@ final class MarineRig {
             let l = (hitTilt[i] * hitTilt[i]).sum().squareRoot()
             if l > 0.45 { hitTilt[i] *= 0.45 / l }
         }
-        do {
+        }
+        if hitClock < 3 {
             let w = 2 * Float.pi * 2.0, z: Float = 0.55
             let steps = dt > 1 / 45 ? 2 : 1
             let h = dt / Float(steps)
@@ -1174,6 +1179,8 @@ final class MarineRig {
                 shoveV += (-shoveP * (w * w) - shoveV * (2 * z * w)) * h
                 shoveP += shoveV * h
             }
+        } else if shoveP.x != 0 || shoveP.y != 0 || shoveP.z != 0 {
+            shoveP = .zero; shoveV = .zero
         }
         if I.downed { for i in 0..<5 { hitTilt[i] = .zero; hitVel[i] = .zero }; shoveP = .zero; shoveV = .zero }
         // ---- breathing / fatigue: a per-marine rate, faster and deeper when hurt or blown after a sprint
