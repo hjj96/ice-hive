@@ -16,7 +16,8 @@ import IceHiveCore
 //                railing at the squad (until the mission ends); fov 36°
 //    defeat      (feel build A3) the squad is lost: the world stops,
 //                the marines die where they lie (MarineRig's deaths),
-//                and the camera pushes in on them — ≈ 45 % closer and
+//                and the camera pushes in on the player's marine (a
+//                fifth of the way to the squad) — 55 % closer and
 //                a little lower over `defeatLength` s, the field of view
 //                narrowing — then GameScene brings the report up
 //    title       attract mode: a lower, closer orbit on the squad
@@ -63,7 +64,7 @@ final class Cinematics {
     static let extractionEase: Float = 0.6
     /// The defeat beat (A3): the deaths and the push-in before the report (GameScene holds the report this long).
     static let defeatLength: Float = 2.8
-    static let defeat = (push: Float(0.45), drop: Float(0.12), fovDeg: Float(4), ease: Float(0.9))
+    static let defeat = (push: Float(0.55), drop: Float(0.15), fovDeg: Float(6), ease: Float(0.9))
 
     // ---- framing
     static let punchIn = (pitchDeg: Float(33), dist: Float(10.5), push: Float(1.0), fovDeg: Float(38), orbitDeg: Float(4))
@@ -116,7 +117,8 @@ final class Cinematics {
     // ---- the game, as of the last update
     private var beaconPos = F3(0, 0, 0)
     private var centroid = F3(0, 0, 0)
-    /// Every marine, downed or not (the defeat shot looks at the fallen).
+    /// Where the defeat shot looks: the player's marine (the last one standing goes down with the mission), between it
+    /// and the squad's centre by a fifth.
     private var squadCentre = F3(0, 0, 0)
     private var spots: [(pos: F3, dir: F3)] = []
     private var lift = (c: F3(0, 0, 0), r: Float(10))
@@ -287,7 +289,12 @@ final class Cinematics {
         if n > 0 { centroid = c / n } else if let m = g.marines.first { centroid = F3(m.x, L.groundY(m.x, m.z), m.z) }
         var all = F3(0, 0, 0)
         for m in g.marines { all += F3(m.x, L.groundY(m.x, m.z), m.z) }
-        squadCentre = g.marines.isEmpty ? centroid : all / Float(g.marines.count)
+        if let p = g.marines.first {
+            let pp = F3(p.x, L.groundY(p.x, p.z), p.z)
+            squadCentre = pp + (all / Float(g.marines.count) - pp) * 0.2
+        } else {
+            squadCentre = centroid
+        }
     }
 
     // ---------------------------------------------------------------- the camera

@@ -1093,11 +1093,12 @@ final class MarineRig {
             if actT < MarineRig.helpLoop.1 { actT = MarineRig.helpLoop.1 }
             if sp > 0.5 { actRate = 2.4 }
         }
-        if I.brace && iBrace >= 0 && sp < 0.4 && act < 0 {
+        // (only while not firing: the brace holds the weapon low — a marine shooting off the lift keeps its aim)
+        if I.brace && !I.firing && iBrace >= 0 && sp < 0.4 && act < 0 {
             actMasked = false
             startAct(.brace, iBrace)
         }
-        if actKind == .brace && !actEnding && (!I.brace || sp > 0.6) { endAct() }
+        if actKind == .brace && !actEnding && (!I.brace || I.firing || sp > 0.6) { endAct() }
         guard act >= 0 else { return 0 }
         let C = asset.clips[act]
         var r = actRate * tempo
