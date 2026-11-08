@@ -201,7 +201,9 @@ final class QueenTests: XCTestCase {
         XCTAssertEqual(g.bugs.spd[queenSlot(g)], 1.5 * 1.35, accuracy: 1e-5)
         XCTAssertEqual(hordes.count, 1)
         XCTAssertEqual(hordes.first?.1, GameText(.bannerQueenRage))
-        let want = Int((Float(Int((80 * g.hordeScale()).rounded())) * Difficulty.veteran.horde).rounded())
+        // (wave pacing: half the stream's enrage horde, × the tier's horde and population scale)
+        let v = Difficulty.veteran
+        let want = Int((Float(Int((80 * 0.5 * g.hordeScale()).rounded())) * v.horde * v.popK).rounded())
         XCTAssertEqual(hordes.first?.0, want)
         g.step(60)
         g.drainEvents { if case .queenEnraged = $0 { enraged += 1 } }
@@ -214,10 +216,12 @@ final class QueenTests: XCTestCase {
         g.hordeT = 5
         g.step(120)
         XCTAssertEqual(g.hordeT, 5, accuracy: 1e-4, "hold hordes pause while she lives")
-        // trickle × queen.trickle: the hold stage multiplier 3.2 × 0.4
+        // trickle × queen.trickle: the hold stage multiplier (wave pacing 2.0) × 0.4, quieter in the lull after a horde
         g.trickle = 0
+        let beat: Float = g.lullT > 0 ? 0.2 : 1
         g.tick()
-        let rate = (1.8 + 0.5 * g.time / 60 + 0.5 * 3) * 3.2 * 0.4 * Difficulty.veteran.trickle
+        let v = Difficulty.veteran
+        let rate = (0.5 + 0.12 * g.time / 60 + 0.15 * 3) * 2.0 * 0.4 * beat * v.trickle * v.popK
         XCTAssertEqual(g.trickle, rate * SIM_DT, accuracy: 1e-4)
         XCTAssertEqual(g.objective, GameText(.objKillQueen))
         XCTAssertEqual(g.objectiveProgress, 1 - g.queen.hpFraction, accuracy: 1e-5)
@@ -386,7 +390,7 @@ final class CoachTests: XCTestCase {
         var ring = 0
         for i in 0..<g.bugs.count where g.bugs.dead[i] == 0 && g.bugs.type[i] == T_RUN {
             let d = hypotf2(g.bugs.x[i] - P.x, g.bugs.z[i] - P.z)
-            if d < 5.5 { ring += 1; XCTAssertLessThanOrEqual(g.bugs.hpMax[i], 8.4 + 1e-3) }
+            if d < 5.5 { ring += 1; XCTAssertLessThanOrEqual(g.bugs.hpMax[i], g.difficulty.runnerHp * 0.56 + 1e-3) }
         }
         XCTAssertGreaterThanOrEqual(ring, 5)
         // 4: dash
@@ -407,8 +411,8 @@ final class CoachTests: XCTestCase {
         var spawned = 0
         for i in n0..<g.bugs.count where g.bugs.type[i] == T_RUN {
             spawned += 1
-            XCTAssertLessThanOrEqual(g.bugs.hpMax[i], 8.4 + 1e-3)
-            XCTAssertGreaterThanOrEqual(g.bugs.hpMax[i], 6.6 - 1e-3)
+            XCTAssertLessThanOrEqual(g.bugs.hpMax[i], g.difficulty.runnerHp * 0.56 + 1e-3)
+            XCTAssertGreaterThanOrEqual(g.bugs.hpMax[i], g.difficulty.runnerHp * 0.44 - 1e-3)
         }
         XCTAssertEqual(spawned, 10, "group of 10 at 5/s, nothing else (calm)")
     }

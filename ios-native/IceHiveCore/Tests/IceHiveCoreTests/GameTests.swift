@@ -53,7 +53,7 @@ final class GameTests: XCTestCase {
         XCTAssertEqual(g.player.mods.dmg, 1)
         XCTAssertEqual(g.objective, GameText(.objLightBeacons, [.int(0), .int(3)]))
         XCTAssertEqual(g.stage, .beacons)
-        XCTAssertEqual(g.bugCap, 1400)
+        XCTAssertEqual(g.bugCap, 250, "wave pacing: Medium 250 (the legacy stream: 1400)")
         var drained: [GameEvent] = []
         g.drainEvents { drained.append($0) }
         XCTAssertTrue(drained.contains {
@@ -257,7 +257,7 @@ final class GameTests: XCTestCase {
     func testAttractModeRunsForever() {
         var cfg = GameConfig(); cfg.attract = true
         let g = Game(seed: 15, playerClass: .assault, config: cfg)
-        XCTAssertGreaterThan(g.bugs.count, 100)
+        XCTAssertGreaterThan(g.bugs.count, 60)
         g.step(60 * 30)
         XCTAssertEqual(g.phase, .playing)
         XCTAssertNil(g.objective)

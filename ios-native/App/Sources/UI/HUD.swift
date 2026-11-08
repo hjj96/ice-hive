@@ -921,9 +921,11 @@ final class HUD {
          (GameText(.bannerQueenDead), GameText(.bannerQueenDeadSub))]
     }
 
-    func damageFlash(_ a: Float) { damageA = min(1, damageA + a) }
-    func screenFlash(_ a: Float) { flashA = max(flashA, a) }
-    func hordeFlash() { hordeA = 1 }
+    // (native-vx-feel: a calmer screen — the red vignette of a bite, the white flash of a blast and the red edge of a horde
+    // are kept, at about half their strength; the horde's edge no longer strobes)
+    func damageFlash(_ a: Float) { damageA = min(1, damageA + a * 0.6) }
+    func screenFlash(_ a: Float) { flashA = max(flashA, a * 0.5) }
+    func hordeFlash() { hordeA = 0.38 }
 
     /// HUD point inside the pause button?
     func pauseHit(viewPoint p: CGPoint) -> Bool { pauseRect.contains(p) }
@@ -1159,7 +1161,7 @@ final class HUD {
         damage.alpha = CGFloat(min(1, max(damageA, low, P.downed ? 0.5 : 0)))
         flash.alpha = CGFloat(flashA * 0.45)
         // VX-5: the horde glow peaks at 0.7 on a phone screen
-        horde.alpha = CGFloat(hordeA * (0.6 + 0.4 * sinf(wall * 11.1)) * 0.7)
+        horde.alpha = CGFloat(hordeA * (0.85 + 0.15 * sinf(wall * 3.1)) * 0.7)
         // full-screen quads: skip the fill entirely while invisible
         for n in overlays { n.isHidden = n.alpha < 0.004 }
         banner.isHidden = banner.alpha < 0.004

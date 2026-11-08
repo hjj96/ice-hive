@@ -194,17 +194,45 @@ extension Game {
 
     /// Spawn `n` bugs (type nil = director mix) on walkable floor in a ring around the player. Returns how many were made.
     @discardableResult
-    public func debugSpawn(_ n: Int, type: BugType? = nil, minRadius: Float = 6, maxRadius: Float = 26) -> Int {
+    /// `sector` (radians, the angle of x = cos a, z = sin a around the player, and its half width) keeps the spawns on one
+    /// side — the extraction demo stages its crowd away from the cinematic camera (the same random draws either way).
+    public func debugSpawn(_ n: Int, type: BugType? = nil, minRadius: Float = 6, maxRadius: Float = 26,
+                           sector: (angle: Float, half: Float)? = nil) -> Int {
         let P = marines[0]
         var made = 0
         var k = 0
         while k < n * 6 && made < n {
             k += 1
-            let a = rng.next() * TAU, r = rng.range(minRadius, maxRadius)
+            let u = rng.next(), r = rng.range(minRadius, maxRadius)
+            let a = sector.map { $0.angle + (u * 2 - 1) * $0.half } ?? u * TAU
             let x = P.x + cosf2(a) * r, z = P.z + sinf2(a) * r
             if !level.walkable(x, z) { continue }
             let ty: UInt8 = type.map { UInt8($0.rawValue) } ?? pickType(true)
             if spawnBug(ty, x, z) >= 0 { made += 1 }
+        }
+        return made
+    }
+
+    /// Demo staging: `n` bugs climbing over the lift's rim from below (the hold's own rim climb: spawn mode 1 at a deck
+    /// edge within the lift's radius + 1 m), only on edges whose angle around the lift (x = cos a, z = sin a) lies in
+    /// `sector` (radians: centre, half width). Returns how many were placed (the live cap applies).
+    @discardableResult
+    public func debugClimbLiftRim(_ n: Int, sector: (angle: Float, half: Float)) -> Int {
+        let L = level.lift
+        let ne = level.edgeCount
+        if ne == 0 { return 0 }
+        var made = 0, k = 0
+        while k < n * 20 && made < n {
+            k += 1
+            let e = min(ne - 1, Int(rng.next() * Float(ne)))
+            let dx = level.edgeX[e] - L.x, dz = level.edgeZ[e] - L.z
+            if dx * dx + dz * dz > (L.r + 1) * (L.r + 1) { continue }
+            var d = atan2f(dz, dx) - sector.angle
+            while d > Float.pi { d -= 2 * Float.pi }
+            while d < -Float.pi { d += 2 * Float.pi }
+            if abs(d) > sector.half { continue }
+            if spawnBug(pickType(true), level.edgeX[e], level.edgeZ[e], mode: 1, nx: level.edgeNX[e], nz: level.edgeNZ[e],
+                        depth: 1.8 + rng.next() * 2.2) >= 0 { made += 1 }
         }
         return made
     }
@@ -250,10 +278,29 @@ extension Game {
     }
 
     /// Explicit quality choice: changes the gameplay bug cap (adaptive render steps must not call this).
-    public func setQuality(_ q: QualityTier) { bugCap = q.bugCap }
+    public func setQuality(_ q: QualityTier) { bugCap = difficulty.waves ? q.bugCap : q.legacyCap }
 
     /// Trigger a horde of n bugs now.
     public func debugHorde(_ n: Int = 300) { startHorde(n) }
+
+    /// Set the charge of the beacon being defended (0…0.99; demo staging: the hive's pushes come at 30 / 62 / 90 %).
+    public func debugBeaconProgress(_ p: Float) {
+        if activeBeacon >= 0 { beacons[activeBeacon].progress = clampf(p, 0, 0.99) }
+    }
+
+    /// Wave pacing: the hive's pushes fired in the running beacon defence (0…3; demo logs).
+    public var beaconPushesFired: Int { beaconPushes }
+
+    /// Live bugs within `r` m of (x, z) (demo logs and tuning; a plain scan, read-only).
+    public func bugsNear(_ x: Float, _ z: Float, _ r: Float) -> Int {
+        let S = bugs, r2 = r * r
+        var n = 0
+        for i in 0..<S.count where S.dead[i] == 0 {
+            let dx = S.x[i] - x, dz = S.z[i] - z
+            if dx * dx + dz * dz <= r2 { n += 1 }
+        }
+        return n
+    }
 
     /// Teleport the squad around (x, z).
     public func debugTeleport(_ x: Float, _ z: Float) {

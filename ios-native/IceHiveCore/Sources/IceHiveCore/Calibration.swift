@@ -422,7 +422,8 @@ public enum Calibration {
             out += batch(tier: 0, mode: .afk, n: 1, seed0: seed0, tag: tag, th: th)
             out += batch(tier: 1, mode: .passive, n: 1, seed0: seed0, tag: tag, th: th)
             out += batch(tier: -1, mode: .auto, n: 2, seed0: seed0, tag: tag)
-            // informational: «Графика: низкая» (cap 700) must keep the tier bands (hordes no longer shrink with the cap)
+            // informational: Low graphics (cap 220 on the wave pacing, 700 on the legacy stream) must keep the tier bands (hordes no
+            // longer shrink with the cap)
             out += batch(tier: 1, mode: .auto, n: 8, seed0: seed0, tag: tag, th: th, quality: .low)
             out += batch(tier: 2, mode: .auto, n: 8, seed0: seed0, tag: tag, th: th, quality: .low)
             return out

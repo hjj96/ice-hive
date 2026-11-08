@@ -13,6 +13,7 @@ extension Game {
         // v1.1 (web resetDirector + queenReset): a pressure clock, a warning or a fight never carries over
         calm = false; beaconHordeMul = 1; pressure = 0; idleMul = 1; huntPressure = false; huntAfk = false; heartAt = -9
         liftAllowance = -1
+        beat = 0; beatT = 10; beaconPushes = 0; lullT = 0
         queen = QueenState()
         qWarn = -1; qEdge = -1; qSlot = -1; qBrood = 0; qVolley = 0; qRam = 0; qMeleeCd = 0; qArmed = false
     }
@@ -76,7 +77,9 @@ extension Game {
         let pBrute: Float = (beaconsDone >= 1 || prog > 0.5 || (t > D.stallTime && !attract)) ? (0.012 + 0.004 * d) * k : 0
         let pSpit: Float = t > 15 ? ((horde ? 0.05 : 0.07) + 0.008 * d) * k : 0
         let pBoom: Float = t > 25 ? ((horde ? 0.03 : 0.045) + 0.004 * d) * k : 0
-        var r = rng.next() / D.specials
+        // wave pacing: fewer runners, a larger share of the bugs that matter (the special caps still hold)
+        let mix: Float = D.waves ? D.mix : 1
+        var r = rng.next() / (D.specials * mix)
         var ty = T_RUN
         if r < pBrute { ty = T_BRUTE }
         else {
@@ -95,7 +98,10 @@ extension Game {
 
     /// Live cap of a special type: (SPECIAL_CAP + 2·done for brutes) · specCap, compared as a float (web; not rounded).
     func specialCapFor(_ ty: UInt8) -> Float {
-        Float(SPECIAL_CAP[Int(ty)] + (ty == T_BRUTE ? 2 * beaconsDone : 0)) * difficulty.specialCap
+        // wave pacing: a larger share of specials, lower live caps (a heavy fight is never a wall of brutes or a carpet
+        // of boomers on a 250–350 swarm): spitters 14, brutes 5 + 1 per beacon done, boomers 10
+        if difficulty.waves { return Float(WAVE_SPECIAL_CAP[Int(ty)] + (ty == T_BRUTE ? beaconsDone : 0)) * difficulty.specialCap }
+        return Float(SPECIAL_CAP[Int(ty)] + (ty == T_BRUTE ? 2 * beaconsDone : 0)) * difficulty.specialCap
     }
 
     /// The gameplay cap only changes with an explicit quality choice.
@@ -108,27 +114,33 @@ extension Game {
         return Vec2(x / n, z / n)
     }
 
-    func queueBurst(_ e: Int, _ n: Int, _ rate: Float, _ vent: Vec2?) {
-        queue.append(Burst(edge: e, n: n, rate: rate, acc: 0, vent: vent))
+    func queueBurst(_ e: Int, _ n: Int, _ rate: Float, _ vent: Vec2?, delay: Float = 0) {
+        queue.append(Burst(edge: e, n: n, rate: rate, acc: -rate * delay, vent: vent))
     }
 
     /// `title` / `sub` (nil = the default horde banner) are only evaluated when the game shows text (not `simOnly`).
     func startHorde(_ size00: Int, _ title: @autoclosure () -> GameText? = nil, _ sub: @autoclosure () -> GameText? = nil, _ rate: Float = 40) {
-        // every horde is scaled by the tier here (web startHorde's first line; callers already rounded once)
-        let size0 = attract ? size00 : Int((Float(size00) * difficulty.horde).rounded())
-        var size = Float(size0)
-        let c = squadCenter()
-        let k = size > 300 ? 3 : 2
-        if stage == .hold {
-            // a few climb straight onto the lift rim; the bulk funnels up the ramp (visible pile-up, fair chokepoint)
-            let L = level.lift
-            let rim = pickEdge(L.x, L.z, 0, L.r + 1)
-            if rim >= 0 { queueBurst(rim, Int((size * 0.12).rounded()), 14, nil) }
-            size *= 0.88
-        }
-        for _ in 0..<k {
-            let e = pickEdge(c.x, c.y, 13, 32)
-            if e >= 0 { queueBurst(e, Int((size / Float(k)).rounded()), rate + rng.next() * 18, nil) }
+        let size0: Int
+        if difficulty.waves && !attract {
+            // wave pacing: packs from 2–4 sides, staggered (GameWaves)
+            size0 = wavesHorde(size00, rate)
+        } else {
+            // every horde is scaled by the tier here (web startHorde's first line; callers already rounded once)
+            size0 = attract ? size00 : Int((Float(size00) * difficulty.horde).rounded())
+            var size = Float(size0)
+            let c = squadCenter()
+            let k = size > 300 ? 3 : 2
+            if stage == .hold {
+                // a few climb straight onto the lift rim; the bulk funnels up the ramp (visible pile-up, fair chokepoint)
+                let L = level.lift
+                let rim = pickEdge(L.x, L.z, 0, L.r + 1)
+                if rim >= 0 { queueBurst(rim, Int((size * 0.12).rounded()), 14, nil) }
+                size *= 0.88
+            }
+            for _ in 0..<k {
+                let e = pickEdge(c.x, c.y, 13, 32)
+                if e >= 0 { queueBurst(e, Int((size / Float(k)).rounded()), rate + rng.next() * 18, nil) }
+            }
         }
         hordes += 1
         if !simOnly && !attract {
@@ -184,8 +196,10 @@ extension Game {
                     for k in 0..<beacons.count {
                         let b = beacons[k]
                         if b.state == 0 && standingIn(b.x, b.z, BEACON_R) > 0 {
-                            beacons[k].state = 1; activeBeacon = k; waveT = 2
-                            startHorde(Int(((270 + D.beaconHordeStep * Float(beaconsDone)) * hordeScale() * beaconHordeMul).rounded()),
+                            beacons[k].state = 1; activeBeacon = k; waveT = D.waves ? 9 : 2; beaconPushes = 0
+                            // (wave pacing: a third of the stream's opening horde, from 3–4 sides; the pushes follow the charge)
+                            let open: Float = D.waves ? 70 + 0.3 * D.beaconHordeStep * Float(beaconsDone) : 270 + D.beaconHordeStep * Float(beaconsDone)
+                            startHorde(Int((open * hordeScale() * beaconHordeMul).rounded()),
                                        GameText(.bannerDefend), GameText(.bannerDefendSub, [.name(b.name)]))
                             beaconHordeMul = 1
                             if !simOnly { emit(.beaconStarted(index: k)); events.append(.sound(.beacon, pos: nil, loud: nil)) }
@@ -195,14 +209,14 @@ extension Game {
                 } else {
                     let k = activeBeacon
                     let b = beacons[k]
-                    stageMul = 2.0
+                    stageMul = D.waves ? 1.25 : 2.0
                     // the ring charges only with a marine inside; bugs crowding the ring slow it down
                     beacons[k].contested = hash.queryCircle(bugs, b.x, b.z, BEACON_R - 0.5) >= 6
                     if standingIn(b.x, b.z, BEACON_R) > 0 {
                         beacons[k].progress = min(1, b.progress + dt / BEACON_TIME * (beacons[k].contested ? 0.3 : 1))
                     }
-                    waveT -= dt
-                    if waveT <= 0 {
+                    if D.waves { wavesBeaconTick(k, dt) } else { waveT -= dt }
+                    if !D.waves && waveT <= 0 {
                         waveT = 6 + rng.next() * 3
                         let vents = L.layout.vents.filter { hypotf2($0.x - b.x, $0.y - b.z) < 14 }
                         if !vents.isEmpty {
@@ -216,10 +230,10 @@ extension Game {
                     if beacons[k].progress >= 1 { completeBeacon(k) }
                 }
             case .toLift:
-                stageMul = 1.6
+                stageMul = D.waves ? 1.2 : 1.6
                 if !P.downed && L.onLift(P.x, P.z) { startHold() }
             case .hold:
-                stageMul = 3.2
+                stageMul = D.waves ? 2.0 : 3.2
                 // the Матка climbs onto the deck queen.at s into the hold; while she lives the trickle thins out (she is the horde)
                 queenTick(dt)
                 if queen.alive { stageMul *= D.queen.trickle }
@@ -256,7 +270,8 @@ extension Game {
                 if extractT >= 4.6 { endGame(true); return }
             }
         } else {
-            stageMul = bugs.count < 220 ? 1.5 : 0
+            // (the title's attract swarm: smaller on the wave pacing)
+            stageMul = D.waves ? (bugs.count < 95 ? 0.8 : 0) : (bugs.count < 220 ? 1.5 : 0)
         }
         // hive pressure: loitering with no beacon running (or dawdling on the way to the lift) wakes the hive — past
         // the tier's grace the trickle and the horde clock speed up and part of the swarm starts hunting the player
@@ -286,8 +301,12 @@ extension Game {
         }
         // the first-run coach holds the swarm back (no trickle, no hordes)
         if calm { stageMul = 0; hordeT = max(hordeT, 25) }
+        // wave pacing: lulls and peaks, packs from several sides (GameWaves)
+        if D.waves && !attract {
+            if stageMul > 0 { wavesTick(dt, stageMul) }
+        }
         // continuous trickle from the abyss edges
-        if stageMul > 0 {
+        else if stageMul > 0 {
             let rate = (1.8 + 0.5 * minutes + 0.5 * Float(beaconsDone)) * stageMul * (attract ? 3 : D.trickle)
             trickle += rate * dt
             if trickle >= 1 {
@@ -321,6 +340,7 @@ extension Game {
         // a breather for the squad: everyone standing patches up a quarter of their armour
         for m in marines where !m.downed { m.hp = min(m.maxHp, m.hp + m.maxHp * difficulty.beaconHeal) }
         hordeT = max(hordeT, 28 + rng.next() * 10)   // breather before the next push
+        if difficulty.waves { beat = 0; beatT = 10 + rng.next() * 4; lullT = 0 }
         if !simOnly {
             emit(.beaconCompleted(index: k))
             events.append(.sound(.beaconDone, pos: nil, loud: nil))
@@ -345,13 +365,14 @@ extension Game {
     }
 
     func startHold() {
-        stage = .hold; liftT = LIFT_TIME; hordeT = 3; pulseT = 4
+        stage = .hold; liftT = LIFT_TIME; hordeT = difficulty.waves ? 16 : 3; pulseT = 4
         if !simOnly {
             emit(.holdStarted)
             banner(GameText(.bannerHold), GameText(.bannerHoldSub, [.int(Int(LIFT_TIME))]), false)
             events.append(.sound(.beacon, pos: nil, loud: nil))
         }
-        startHorde(Int((480 * hordeScale()).rounded()), GameText(.bannerHold), GameText(.bannerHoldSub, [.int(Int(LIFT_TIME))]), 70)
+        startHorde(Int(((difficulty.waves ? 105 : 480) * hordeScale()).rounded()), GameText(.bannerHold), GameText(.bannerHoldSub, [.int(Int(LIFT_TIME))]), 70)
+        if difficulty.waves { lullT = 10 }
     }
 
     func endGame(_ won: Bool) {
@@ -368,7 +389,15 @@ extension Game {
     func onBugKilled(_ ty: UInt8, _ src: Int, _ x: Float, _ z: Float) {
         kills += 1
         if simOnly || attract { return }
-        xp += BUG_SPECS[Int(ty)].xp
+        if difficulty.waves {
+            // fewer, tougher kills: × xpK keeps the rhythm of level-ups (the fraction carries over)
+            xpCarry += Float(BUG_SPECS[Int(ty)].xp) * difficulty.xpK
+            let w = Int(xpCarry.rounded(.down))
+            xpCarry -= Float(w)
+            xp += w
+        } else {
+            xp += BUG_SPECS[Int(ty)].xp
+        }
         if src == 0 {
             playerKills += 1; combo += 1; comboT = 1.0   // a real streak: a second without a kill (or a hit taken) ends it
             if combo > bestCombo { bestCombo = combo }

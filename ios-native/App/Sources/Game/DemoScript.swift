@@ -3,10 +3,10 @@ import IceHiveCore
 
 // ================================================================
 //  DEMO SCRIPTS — scripted scenarios for CI screenshots / perf logs:
-//    -demo combat   mission (assault unless -class), squad invulnerable, autopilot,
-//                   600 bugs spawned around the squad and kept at ~600 alive (like the
-//                   web harness swarm screenshots)
-//    -demo beacon   mission started next to beacon «Альфа» with a crowd
+//    -demo combat   mission (assault unless -class), squad invulnerable, autopilot, a crowd spawned around the
+//                   squad and kept topped up: 600, but never more than the mission's live cap (native-vx-feel: 250 on
+//                   Medium — the wave pacing's peak; `-bugs N` asks for N past the cap: the renderer stress runs)
+//    -demo beacon   mission started next to beacon «Alpha» with a crowd (350, under the live cap like combat)
 //    -demo title    the title screen (attract mode behind)
 //    -demo calm     mission start with the director off: no bugs, the squad idles on the
 //                   landing pad (lighting / station look)
@@ -15,11 +15,12 @@ import IceHiveCore
 //    -demo smoke    alias of combat (the original CI scenario name)
 //    -demo probe    combat, plus one horde ingredient every 4 s (overlay, banner, shake, sounds,
 //                   haptic, then a real horde) — CI hitch attribution
-//    -demo hold     beacons skipped, the squad on the lift holding out against a crowd
+//    -demo hold     beacons skipped, the squad on the lift holding out against the hold's own swarm (native-vx-feel:
+//                   nothing spawned by the demo — the director's opening horde, a third of it over the lift's rim)
 //    -demo extract  like hold, then the lift rises and stays at extract + 2 s (gore rides along)
-//    -demo queen    like hold, and the Матка (v1.1 boss of the hold) climbs up 2 s after «scene ready» (1 000 000 HP
+//    -demo queen    like hold, and the Queen (v1.1 boss of the hold) climbs up 2 s after «scene ready» (1 000 000 HP
 //                   unless -queenHp, so she stays on the deck for the screenshot)
-//    -demo queenlock  queen, then the lift countdown runs out 1.5 s later: «Лифт заблокирован — Матка жива»
+//    -demo queenlock  queen, then the lift countdown runs out 1.5 s later: «Lift locked — the Queen lives»
 //    -demo coach    the first mission ever on the fresh demo profile: «Учебная высадка» runs (autopilot off, so the
 //                   steps advance by their timeouts; -coachStep N jumps), the next step 1.5 s after «scene ready»,
 //                   then time almost stopped so the screenshot shows that step
@@ -34,20 +35,29 @@ import IceHiveCore
 //  measured, not hidden in the first second)
 //    -demo swarmshot  the App Store 2-swarm moment (harness/scenarios/store-shots.mjs (b)):
 //                   gunner, 12 s into the mission, the squad at the crossing (0, -5), a few
-//                   steps, 600 bugs around it, the player aiming up-left and firing for 1.6 s,
-//                   then time almost frozen (×0.02) for the screenshot — the renderer A/B
-//                   against store/screenshots/6.3/2-swarm.png
+//                   steps, a crowd around it (the store's 600 under the live cap: 350 on «high»),
+//                   the player aiming up-left and firing for 1.6 s, then time almost frozen (×0.02)
+//                   for the screenshot
 //  WP7 «Режиссура» (look-dev, cinematics, device capture):
 //    -demo stress1400  the device capture: 1400 live bugs around the squad (-bugs N), «высокая» (High), kept topped up —
 //                   `hb gpu` per-pass lines on a device; A/B with -noSwarmDraw / -noStation / -fxSim off / -nocones
 //    -demo bugsheet  every bug type × clip around the camera focus (WorldSwarm's sheet; -bugsheet [scale],
 //                   -bugsheetGame, -bugsheetT s, -bugstrip <type> [scale] as on `-demo calm`), director off
-//    -demo punchin  the squad in beacon «Альфа»'s ring with a crowd; 1.5 s after «scene ready» the beacon comes on →
+//    -demo punchin  the squad in beacon «Alpha»'s ring with a crowd; 1.5 s after «scene ready» the beacon comes on →
 //                   Cinematics' punch-in (push-in at the game yaw, ×0.3 time for ≈ 0.45 s, 2.4 s); at 4.6 s it plays
 //                   again and holds at its peak (0.95 s in) with the world nearly frozen, for the screenshot
 //    -demo extract-cine  the hold on the lift with a crowd; at 1.5 s the lift leaves → the extraction shot from the
 //                   shaft wall; the lift pinned 2.8 s into its rise for the screenshot
 //  Every demo drives Cinematics (mood, shot EV, dilation) until GameScene does; `-cine off` keeps the game camera.
+//  native-vx-feel (wave pacing):
+//    -demo waves    the game's own swarm, nothing spawned by the demo: the squad in beacon «Beta»'s ring (`-waveBeacon k`
+//                   picks another), the defence's opening horde from 3–4 sides, the ring charged to 27 % so the hive's
+//                   first push (30 %) lands 2 s later; time almost frozen (×0.02) at `-waveFreeze` s (6.5) after «scene
+//                   ready» for the screenshot. Logs `demo waves: td=… alive … near16 … pushes …` once a second.
+//    No demo shows more live bugs than the game itself can: every forced crowd is clamped to the mission's live cap
+//    (`crowd(_:)`; the wave pacing's High 350 / Medium 250 / Low 220 under the device class), the hold demos play the
+//    director's own hold. Only the declared renderer stress runs go past it — stress1400 (1400) and an explicit
+//    `-bugs N` (CI `swarm` / `swarm3x`: 1400).
 // ================================================================
 final class DemoScript {
     let name: String
@@ -56,6 +66,12 @@ final class DemoScript {
     private var target = 600
     /// `-bugs N`: swarm size of the combat / beacon demos (renderer stress runs).
     private var override: Int?
+    /// Live-bug cap of the mission (set in `begin`): the forced crowds stay under it (`crowd`).
+    private var cap = Int.max
+
+    /// A forced crowd of `n` as the game could have it: at most the mission's live cap (the wave pacing's peak), unless
+    /// `-bugs N` asks for a renderer stress crowd past it.
+    private func crowd(_ n: Int) -> Int { override ?? min(n, cap) }
 
     private let options: LaunchOptions
     /// Seconds since «scene ready» (the scene sets it before every frame; -1 while loading).
@@ -78,7 +94,7 @@ final class DemoScript {
         case "combat", "smoke", "default": return DemoScript(name: d == "default" ? "combat" : d, options: options, bugs: options.bugs)
         case "beacon": return DemoScript(name: d, options: options, bugs: options.bugs)
         case "title", "calm", "probe", "hold", "holdhint", "extract", "queen", "queenlock", "coach", "pressure", "report", "levelup", "pause", "end",
-             "swarmshot", "layout", "bugsheet", "punchin", "extract-cine":
+             "swarmshot", "layout", "bugsheet", "punchin", "extract-cine", "waves":
             return DemoScript(name: d, options: options)
         case "stress1400": return DemoScript(name: d, options: options, bugs: options.bugs ?? 1400)
         default:
@@ -117,6 +133,7 @@ final class DemoScript {
 
     /// Called right after the mission starts.
     func begin(game: Game) {
+        cap = game.bugCap
         game.godMode = true
         game.autopilot = true
         game.autoPickUpgrades = true
@@ -131,9 +148,15 @@ final class DemoScript {
             var guardN = 0
             while game.stage == .beacons && guardN < 6 { game.debugSkip(); guardN += 1 }
             if game.stage == .toLift { game.debugSkip() }
-            target = 260
-            let n = game.debugSpawn(target, type: nil, minRadius: 5, maxRadius: 18)
-            AppLog.info("demo \(name): stage \(game.stage.rawValue), spawned \(n) bugs around the lift")
+            // native-vx-feel: the hold's own swarm — the director's opening horde (packs from the ramp and the deck, a
+            // third straight over the lift's rim), a horde every 18–24 s; the extraction shot keeps its crowd (gore on the
+            // lift as it rises)
+            target = name == "extract-cine" ? crowd(260) : 0
+            // (extract-cine: on the lift's far side from the extraction camera, 4–9 m out — on the deck, not beyond the rim,
+            // where the bugs walked round to the ramp on the camera's side)
+            let n = target <= 0 ? 0 : crowdSector == nil ? game.debugSpawn(target, type: nil, minRadius: 5, maxRadius: 18)
+                : game.debugSpawn(target, type: nil, minRadius: 4, maxRadius: 9, sector: crowdSector)
+            AppLog.info("demo \(name): stage \(game.stage.rawValue), spawned \(n) bugs around the lift (bug cap \(game.bugCap))")
         case "coach":
             // a novice who does not touch the screen: every step ends by its timeout
             game.autopilot = false
@@ -148,7 +171,7 @@ final class DemoScript {
             AppLog.info(String(format: "demo pressure: t=%.1f pressure %.1f threat %d tier=", game.time, game.pressure, game.threatState.rawValue)
                         + game.difficulty.id)
         case "report":
-            target = 300
+            target = crowd(300)
             let n = game.debugSpawn(target, type: nil, minRadius: 6, maxRadius: 24)
             AppLog.info("demo report \(reportFixture?.name ?? "-"): spawned \(n) bugs, tier=\(game.difficulty.id)")
         case "swarmshot":
@@ -157,7 +180,7 @@ final class DemoScript {
             AppLog.info("demo swarmshot: staging the store 2-swarm moment")
         case "levelup", "pause", "end":
             if name == "levelup" { game.autoPickUpgrades = false }
-            target = 300
+            target = crowd(300)
             let n = game.debugSpawn(target, type: nil, minRadius: 6, maxRadius: 24)
             AppLog.info("demo \(name): spawned \(n) bugs")
         case "stress1400":
@@ -167,20 +190,26 @@ final class DemoScript {
         case "punchin":
             // inside beacon «Альфа»'s ring (the squad charges it; the demo then completes it)
             if let b = game.beacons.first { game.debugTeleport(b.x + 1.5, b.z - 1.5) }
-            target = 300
+            target = crowd(300)
             let n = game.debugSpawn(target, type: nil, minRadius: 8, maxRadius: 24)
             AppLog.info("demo punchin: squad in beacon \(game.beacons.first.map { $0.name.logID } ?? "?")'s ring, spawned \(n) bugs")
+        case "waves":
+            // the wave director's own swarm: the squad in a beacon's ring, its defence starts on the first tick
+            let k = max(0, min(game.beacons.count - 1, Int(demoNum("-waveBeacon", 1))))
+            if k < game.beacons.count { let b = game.beacons[k]; game.debugTeleport(b.x + 1.5, b.z - 1.5) }
+            target = 0
+            AppLog.info("demo waves: squad in beacon \(k)'s ring, the director's own swarm (bug cap \(game.bugCap))")
         case "beacon":
             if let b = game.beacons.first {
                 game.debugTeleport(b.x + 3, b.z - 3.5)
             }
-            target = override ?? 350
+            target = crowd(350)
             let n = game.debugSpawn(min(target, 600), type: nil, minRadius: 7, maxRadius: 24)
             AppLog.info("demo beacon: squad at beacon \(game.beacons.first.map { $0.name.logID } ?? "?"), spawned \(n) bugs")
         default:
-            target = override ?? 600
+            target = crowd(600)
             let n = game.debugSpawn(min(target, 900), type: nil, minRadius: 6, maxRadius: 26)
-            AppLog.info("demo \(name): spawned \(n) bugs around the squad")
+            AppLog.info("demo \(name): spawned \(n) bugs around the squad (target \(target), bug cap \(game.bugCap))")
         }
     }
 
@@ -208,7 +237,8 @@ final class DemoScript {
             return
         }
         if name == "coach" || name == "pressure" { holdState(game, dt); return }
-        if !startsMission || target == 0 { return }
+        if name == "waves" { waves(game, dt); return }
+        if !startsMission { return }
         t += dt
         probe = nil
         request = nil
@@ -247,11 +277,14 @@ final class DemoScript {
             probeIndex += 1
         }
         topUpT -= dt
-        if topUpT <= 0 {
+        if target > 0 && topUpT <= 0 {
             topUpT = 0.5
             let alive = game.bugsAlive
             if alive < target - 10 {
-                let n = game.debugSpawn(min(300, target - alive), type: nil, minRadius: 12, maxRadius: 30)
+                let k = min(300, target - alive)
+                // (extract-cine: the top-ups climb over the lift's far rim, the hold's own entrance)
+                let n = crowdSector.map { game.debugClimbLiftRim(k, sector: $0) }
+                    ?? game.debugSpawn(k, type: nil, minRadius: 12, maxRadius: 30)
                 spawned += n
             }
             logT -= 0.5
@@ -264,6 +297,16 @@ final class DemoScript {
     }
     private var spawned = 0
     private var logT: Float = 5
+    /// extract-cine: the crowd (on the deck) and its top-ups (over the rim) on the far side of the lift from the extraction
+    /// camera (Cinematics: the eye on the shaft wall at MetalCamera.yaw + 20°), ±75°. (58e10b3 spawned the top-ups 12–30 m
+    /// out on that side: off the lift, they walked round to the ramp on the camera's side and filled the foreground.) native-vx-feel: with the crowd all round, the squad's
+    /// flashlights swept the eye and the shot dodged them to its −45° / +12° limit, looking down on the lit deck or along
+    /// the cryo beam (median 62.8 on 01c636a, clip 1.24 % on c500515's first shot); the squad now fires away from the lens.
+    private var crowdSector: (angle: Float, half: Float)? {
+        guard name == "extract-cine" else { return nil }
+        let yaw = MetalCamera.yaw + Cinematics.extraction.yawOffDeg * .pi / 180
+        return (atan2f(-cosf(yaw), -sinf(yaw)), 75 * .pi / 180)
+    }
     private var lockSet = false
 
     /// coach: time almost stops after a moment (the step on screen stays for the screenshot, the card's ghost thumb
@@ -287,7 +330,7 @@ final class DemoScript {
     }
 
     /// store-shots.mjs (b), one step per frame so the scene drains (renders) the events of each step:
-    /// fast(12) → tp(0, -5) → left stick (+50, -20) px for 1.5 s → 1.5 s idle → spawn(600) → right stick (-40, -45) px,
+    /// fast(12) → tp(0, -5) → left stick (+50, -20) px for 1.5 s → 1.5 s idle → spawn(600, under the live cap) → right stick (-40, -45) px,
     /// firing, for 1.6 s → time ×0.02 (the web harness renders the shot at timeScale 0.05 for 4 frames).
     private func swarmShot(_ game: Game) {
         let r = Float(InputController.stickRadius)
@@ -303,7 +346,7 @@ final class DemoScript {
             game.fastForward(seconds: 1.5)
             shotStage = 1
         case 1:
-            let n = game.debugSpawn(600, type: nil, minRadius: 6, maxRadius: 26)
+            let n = game.debugSpawn(crowd(600), type: nil, minRadius: 6, maxRadius: 26)
             game.setPlayerInput(move: Vec2(0, 0), aim: aim, fire: true, ability: false, dash: false, assist: 0.75)
             game.fastForward(seconds: 1.6)
             freeze = 0.02
@@ -314,6 +357,37 @@ final class DemoScript {
             game.setPlayerInput(move: Vec2(0, 0), aim: aim, fire: true, ability: false, dash: false, assist: 0.75)
         }
     }
+
+    /// `-<key> <number>` among the launch options the parser did not know (demo staging only), else `fallback`.
+    private func demoNum(_ key: String, _ fallback: Double) -> Double {
+        let u = options.unknown
+        guard let i = u.firstIndex(of: key), i + 1 < u.count, let v = Double(u[i + 1]) else { return fallback }
+        return v
+    }
+
+    /// waves: the defence of the beacon the squad stands in, as the game plays it — charged to 27 % once it starts (the
+    /// hive's first push at 30 % lands inside the window), time almost frozen at `-waveFreeze` s for the screenshot.
+    private func waves(_ game: Game, _ dt: Float) {
+        t += dt
+        if !charged && game.activeBeacon >= 0 {
+            charged = true
+            game.debugBeaconProgress(0.27)
+            AppLog.info(String(format: "demo waves: defence of beacon %d, charged to 0.27 td=%.2f alive %d", game.activeBeacon, sinceReady, game.bugsAlive))
+        }
+        logT -= dt
+        if logT <= 0 {
+            logT = 1
+            let P = game.player
+            let near = game.bugsNear(P.x, P.z, 16)
+            AppLog.info(String(format: "demo waves: td=%.1f alive %d near16 %d pushes %d stage %d", sinceReady, game.bugsAlive, near,
+                               game.beaconPushesFired, game.stage.rawValue))
+        }
+        if freeze == 1 && sinceReady >= demoNum("-waveFreeze", 6.5) {
+            freeze = 0.02
+            AppLog.info(String(format: "demo waves: frozen td=%.2f alive %d pushes %d", sinceReady, game.bugsAlive, game.beaconPushesFired))
+        }
+    }
+    private var charged = false
 
     // ---------------------------------------------------------------- WP7 cinematics
     /// punchin: the beacon comes on 1.5 s after «scene ready» (the punch-in plays out inside the measured window), at

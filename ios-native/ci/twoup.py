@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""CI 2-up sheets (WP7 «Режиссура»): today | concept | this commit, one sheet per scene of ci/golden/thresholds.json.
+"""CI 2-up sheets (WP7 «Режиссура»): reference | concept | this commit, one sheet per scene of ci/golden/thresholds.json.
 
-Left column: the scene on native-metal before WP7 (golden today-<scene>.jpg, HUD on) above this commit's shot (the
+Left column: the scene's reference frame (golden today-<scene>.jpg; which build it is from — thresholds.json
+`today_label`: since native-vx-feel the approved feel build, before it native-metal 385e8a7) above this commit's shot (the
 first of the scene's shots that exists; HUD-off when the run has them), both at phone size (1311 × 603). Right: the
 concept panel (golden concept-<scene>.jpg: «Кристалл», the base, next to the horror / frost frame each blend rule comes
 from). Labels in the game's Oswald; the commit's look numbers (ci/look_metrics.py --json) under its label.
@@ -49,7 +50,7 @@ def numbers(row):
     return s
 
 
-def sheet(name, sc, res, golden, look, sha):
+def sheet(name, sc, res, golden, look, sha, today_label='эталон'):
     shot = next((s for s in sc['shots'] if os.path.exists(os.path.join(res, s))), None)
     if not shot:
         return None
@@ -65,14 +66,14 @@ def sheet(name, sc, res, golden, look, sha):
     d = ImageDraw.Draw(im, 'RGBA')
     big, mid, small = font(34, 'SemiBold'), font(24), font(19, 'Regular')
     d.text((PAD, 8), f'«ЛЕДЯНОЙ УЛЕЙ» · {name}', font=big, fill=(255, 196, 64))
-    sub = 'сегодня (native-metal 385e8a7, до WP7) | концепт | этот коммит' + (f' {sha[:7]}' if sha else '')
+    sub = f'{today_label} | концепт | этот коммит' + (f' {sha[:7]}' if sha else '')
     sw = d.textbbox((0, 0), sub, font=mid)[2]
     d.text((W - PAD - sw, 16), sub, font=mid, fill=(170, 180, 190))
     y0 = HEAD
     im.paste(today, (PAD, y0))
     im.paste(now, (PAD, y0 + H1 + GAP))
     im.paste(concept, (PAD + W1 + PAD, y0))
-    label(d, (PAD + 12, y0 + 10), 'СЕГОДНЯ · HUD вкл.', mid)
+    label(d, (PAD + 12, y0 + 10), 'ЭТАЛОН · ' + sc['today'], mid)
     hud = 'без HUD' if '-nohud' in shot else 'HUD вкл. (замер в маске)'
     label(d, (PAD + 12, y0 + H1 + GAP + 10), f'ЭТОТ КОММИТ · {shot} · {hud}', mid, fill=(120, 230, 255))
     n = numbers(look.get('scenes', {}).get(name))
@@ -100,7 +101,7 @@ def main():
     cfg = json.load(open(os.path.join(golden, 'thresholds.json')))
     look = json.load(open(lookp)) if lookp and os.path.exists(lookp) else {}
     for name, sc in cfg['scenes'].items():
-        im = sheet(name, sc, res, golden, look, sha)
+        im = sheet(name, sc, res, golden, look, sha, cfg.get('today_label', 'эталон'))
         if im is None:
             print(f'twoup {name}: no shot')
             continue

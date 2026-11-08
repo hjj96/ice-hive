@@ -36,6 +36,9 @@ extension Game {
         S.vx[i] = 0; S.vz[i] = 0; S.cd[i] = rng.next() * T.atkCd
         S.chill[i] = 0; S.frz[i] = 0; S.burn[i] = 0; S.fl[i] = 0
         S.ph[i] = rng.next() * TAU; S.vr[i] = rng.next()
+        S.mood[i] = M_CALM; S.mdx[i] = 0; S.mdz[i] = 0
+        // (the wave arrays only draw from the RNG on the wave pacing: the legacy stream replays v1.0 bit for bit)
+        if difficulty.waves { S.mt[i] = rng.next() * 2; S.lt[i] = 0.5 + rng.next() } else { S.mt[i] = 0; S.lt[i] = 0 }
         if mode == 1 {
             S.st[i] = S_CLIMB; S.t[i] = 4; S.x[i] = x + nx * 0.85; S.z[i] = z + nz * 0.85; S.y[i] = -depth
             S.ax[i] = -nx; S.az[i] = -nz; S.hd[i] = atan2f2(-nx, -nz)
@@ -125,6 +128,21 @@ extension Game {
                         if e.kind == .frost && !qb { S.chill[b] = minf(1, S.chill[b] + 0.45) }
                         if S.type[b] != T_BRUTE { S.vx[b] += dx / d * knock * f; S.vz[b] += dz / d * knock * f }
                         hitBug(b, e.dmg * f, e.src)
+                    }
+                }
+                // wave pacing: the survivors around a blast scatter — a short flight away from it, then back in
+                if difficulty.waves && (e.kind == .frag || e.kind == .boomer || e.kind == .mini) {
+                    let fr = e.r * 1.9
+                    let cnt2 = hash.queryCircle(S, e.x, e.z, fr)
+                    var q = 0
+                    while q < cnt2 {
+                        let b = hash.qb[q]
+                        q += 1
+                        if S.dead[b] != 0 || S.type[b] == T_BRUTE || S.uid[b] == qUid || S.st[b] != S_MOVE { continue }
+                        let dx = S.x[b] - e.x, dz = S.z[b] - e.z, d = (dx * dx + dz * dz).squareRoot()
+                        if d < 0.05 { continue }
+                        S.mood[b] = M_FLEE; S.mt[b] = (0.45 + 0.5 * rng.next()) * (1.2 - 0.5 * d / fr)
+                        S.mdx[b] = dx / d; S.mdz[b] = dz / d
                     }
                 }
                 if e.kind == .boomer {
@@ -245,6 +263,12 @@ extension Game {
         let anyHunt = MUP[0] != 0 && (huntP || huntA)
 
         let burnDps = CLASS_SPECS[1].burnDps
+        // wave pacing (native-vx-feel): individual steering — a favourite marine, flanking arcs, wander, moods (hesitate,
+        // feint, surge, flight from blasts, panic on fire), runner leaps, spitters strafing between spits
+        let waves = difficulty.waves
+        let MOOD = S.mood, MT = S.mt, MDX = S.mdx, MDZ = S.mdz, LT = S.lt
+        let simT = simTime
+        let biteK = difficulty.bite
         var iNext = 0
         while iNext < n {
             let i = iNext
@@ -269,6 +293,7 @@ extension Game {
             }
             if FRZ[i] > 0 {
                 FRZ[i] -= dt; VX[i] = 0; VZ[i] = 0
+                if ST[i] == S_LEAP { ST[i] = S_MOVE; Y[i] = 0 }   // ice drops a leaping runner onto the deck
                 if FRZ[i] <= 0 { CHILL[i] = 0.5 }
                 continue
             }
@@ -289,8 +314,29 @@ extension Game {
                 var y = Y[i]
                 if y < -0.85 { y += dt * (2.8 + VR[i]) }
                 else { y += dt * 2.4; X[i] = x + AX[i] * 2.6 * dt; Z[i] = z + AZ[i] * 2.6 * dt }
-                if y >= 0 || T[i] <= 0 { y = 0; ST[i] = S_MOVE; VX[i] = AX[i] * 2; VZ[i] = AZ[i] * 2 }
+                if y >= 0 || T[i] <= 0 {
+                    y = 0; ST[i] = S_MOVE; VX[i] = AX[i] * 2; VZ[i] = AZ[i] * 2
+                    // wave pacing: some runners vault the railing — a short hop inward instead of a crawl over it
+                    if waves && ty == T_RUN && VR[i] > 0.55 {
+                        ST[i] = S_LEAP; T[i] = LEAP_T * 0.85; VX[i] = AX[i] * 5.5; VZ[i] = AZ[i] * 5.5
+                    }
+                }
                 Y[i] = y
+                continue
+            }
+            // --- a runner's leap (wave pacing): airborne along its launch vector, height arcing over the deck ---
+            if st == S_LEAP {
+                T[i] -= dt
+                let p = clampf(1 - T[i] / LEAP_T, 0, 1)
+                Y[i] = 1.7 * p * (1 - p)   // ≈ 0.42 m at the top
+                var nx = x + VX[i] * dt, nz = z + VZ[i] * dt
+                if !walkAt(walk, nx, nz) { nx = x; nz = z; VX[i] *= 0.2; VZ[i] *= 0.2 }
+                X[i] = nx; Z[i] = nz
+                PH[i] += dt * 20
+                if T[i] <= 0 {
+                    Y[i] = 0; ST[i] = S_MOVE; VX[i] *= 0.4; VZ[i] *= 0.4
+                    if CD[i] > 0.1 { CD[i] = 0.1 }   // it lands biting
+                }
                 continue
             }
             // --- pick target marine ---
@@ -306,6 +352,16 @@ extension Game {
                 }
                 k += 1
             }
+            // wave pacing: every bug has a favourite marine (uid % 4) and goes for that one unless another is much
+            // closer — the swarm splits over the squad instead of funnelling into the nearest marine
+            if waves && !hunt && u != qUid && bd > 6.25 {
+                let pk = Int(u & 3)
+                if !(anyUp && MUP[pk] == 0) {
+                    let dx = MX[pk] - x, dz = MZ[pk] - z, d2 = dx * dx + dz * dz
+                    let lim = bd.squareRoot() + 7
+                    if d2 < lim * lim { bd = d2; best = pk }
+                }
+            }
             let dist = bd.squareRoot() + 1e-4
             let tx = (MX[best] - x) / dist, tz = (MZ[best] - z) / dist
             var ddx: Float, ddz: Float
@@ -314,6 +370,62 @@ extension Game {
             var speed = SPD[i] * (1 - 0.6 * CHILL[i]) * (BURN[i] > 0 ? 1.15 : 1)
             if CD[i] > 0 { CD[i] -= dt }
             var acc: Float = 9
+            var md = M_CALM
+            if waves && u != qUid && st == S_MOVE {
+                if MT[i] > 0 { MT[i] -= dt }
+                if LT[i] > 0 { LT[i] -= dt }
+                md = MOOD[i]
+                if BURN[i] > 0 && ty != T_BRUTE {
+                    // a burning bug panics: it darts about at random, now and then forgetting the squad
+                    if md != M_PANIC || MT[i] <= 0 {
+                        var rx = rng.next() - 0.5, rz = rng.next() - 0.5
+                        // half the darts still lean toward the target: panic, not a retreat
+                        if rng.next() < 0.5 { rx += tx * 0.6; rz += tz * 0.6 }
+                        let rl = hypotf2(rx, rz) + 1e-4
+                        md = M_PANIC; MT[i] = 0.22 + rng.next() * 0.3; MDX[i] = rx / rl; MDZ[i] = rz / rl
+                    }
+                } else if md == M_PANIC {
+                    md = M_CALM; MT[i] = 0.4
+                } else if md == M_CALM && MT[i] <= 0 {
+                    if dist > 3.5 && dist < 15 && ty != T_BRUTE {
+                        let r = rng.next()
+                        if r < 0.17 { md = M_HESITATE; MT[i] = 0.3 + rng.next() * 0.5 }
+                        else if r < 0.27 && ty == T_RUN && dist < 10 {
+                            // a feint: it backs off at a slant, then comes in hard
+                            let sd: Float = rng.next() < 0.5 ? 1 : -1
+                            md = M_FEINT; MT[i] = 0.25 + rng.next() * 0.25; MDX[i] = -tx * 0.6 - tz * 0.8 * sd; MDZ[i] = -tz * 0.6 + tx * 0.8 * sd
+                        } else if r < 0.4 { md = M_SURGE; MT[i] = 0.4 + rng.next() * 0.4 }
+                        else { MT[i] = 1.0 + rng.next() * 2.4 }
+                    } else { MT[i] = 0.5 + rng.next() * 1.0 }
+                } else if md != M_CALM && MT[i] <= 0 {
+                    // a hesitation or a feint ends in a surge; a surge or a flight in calm
+                    if md == M_HESITATE || md == M_FEINT { md = M_SURGE; MT[i] = 0.45 + rng.next() * 0.45 }
+                    else { md = M_CALM; MT[i] = 1.0 + rng.next() * 2.4 }
+                }
+                MOOD[i] = md
+                switch md {
+                case M_HESITATE: speed *= 0.1
+                case M_FEINT: ddx = MDX[i]; ddz = MDZ[i]; speed *= 0.8
+                case M_SURGE: speed *= 1.5; acc = 14
+                case M_FLEE: ddx = MDX[i]; ddz = MDZ[i]; speed *= 1.35; acc = 16
+                case M_PANIC: ddx = MDX[i]; ddz = MDZ[i]; speed *= 1.3; acc = 14
+                default: break
+                }
+                if md == M_CALM || md == M_SURGE {
+                    // flanking arcs and wander: the approach bends to one side (by uid) far out and straightens near
+                    // the target; a slow per-bug weave on top. Only where the bent step stays on the deck.
+                    var ang: Float = 0
+                    if dist > 4 {
+                        let sd: Float = (u & 4) != 0 ? 1 : -1
+                        ang = sd * (0.22 + 0.5 * VR[i]) * minf(1, (dist - 4) * 0.1)
+                    }
+                    ang += 0.3 * waveOsc(simT * (0.35 + 0.4 * VR[i]) + Float(u & 63) * 0.137)
+                    let a2 = ang * ang
+                    let sn = ang * (1 - a2 / 6 * (1 - a2 / 20)), cs = 1 - a2 / 2 * (1 - a2 / 12)
+                    let rx = ddx * cs + ddz * sn, rz = -ddx * sn + ddz * cs
+                    if walkAt(walk, x + rx * 1.4, z + rz * 1.4) { ddx = rx; ddz = rz }
+                }
+            }
             // --- type behaviours ---
             if ty == T_SPIT {
                 if st == S_MOVE {
@@ -327,7 +439,13 @@ extension Game {
                             teleFill(ax, az, 1.5, 0.5, 0.85, 0.08, 1.45, cause: .acidTarget)
                         }
                     } else if dist < 4 { ddx = -tx; ddz = -tz; speed *= 0.8 }
-                    else if dist < 10 && CD[i] > 0.4 { speed *= 0.25 }
+                    else if dist < 10 && CD[i] > 0.4 {
+                        if waves && md == M_CALM {
+                            // wave pacing: between spits it strafes across the squad's front instead of standing in line
+                            let sd: Float = (u & 8) != 0 ? 1 : -1
+                            ddx = -tz * sd * 0.95 + tx * 0.1; ddz = tx * sd * 0.95 + tz * 0.1; speed *= 0.5
+                        } else { speed *= 0.25 }
+                    }
                 } else {
                     speed = 0
                     T[i] -= dt
@@ -369,6 +487,21 @@ extension Game {
                     speed *= 0.35; T[i] -= dt
                     if T[i] <= 0 { killBug(i, -1); continue }
                 }
+            }
+            // --- a runner leaps at its marine from 1.6–4 m (wave pacing): fast, low, landing in a bite ---
+            if waves && ty == T_RUN && ST[i] == S_MOVE && md != M_FLEE && md != M_PANIC && LT[i] <= 0 && dist > 1.6 && dist < 4.0
+                && MUP[best] != 0 {
+                if rng.next() < 0.55 {
+                    let m = marines[best]
+                    let lx = MX[best] + m.vx * 0.25 - x, lz = MZ[best] + m.vz * 0.25 - z
+                    let ll = hypotf2(lx, lz) + 1e-4
+                    let v = clampf(ll / LEAP_T, 6.5, 11.5)
+                    ST[i] = S_LEAP; T[i] = LEAP_T; AX[i] = lx / ll; AZ[i] = lz / ll; VX[i] = AX[i] * v; VZ[i] = AZ[i] * v
+                    HD[i] = atan2f2(lx, lz)
+                    LT[i] = 2.2 + rng.next() * 2.0
+                    continue
+                }
+                LT[i] = 0.5 + rng.next() * 0.6
             }
             // --- steering ---
             let k1 = minf(1, acc * dt)
@@ -440,7 +573,8 @@ extension Game {
                 if ty == T_BRUTE || mm.bite >= 1 {
                     if ty != T_BRUTE { mm.bite -= 1 }
                     let kb: Float = ty == T_BRUTE ? 6 : 0.6
-                    hurtMarine(mm, BUG_SPECS[Int(ty)].dmg * dmgMulL * (qm ? 1.6 : 1), tx * kb, tz * kb, qm ? .queen : DamageSource(bugType: ty))
+                    let bk: Float = waves && (ty == T_RUN || ty == T_SPIT) ? biteK : 1
+                    hurtMarine(mm, BUG_SPECS[Int(ty)].dmg * dmgMulL * (qm ? 1.6 : 1) * bk, tx * kb, tz * kb, qm ? .queen : DamageSource(bugType: ty))
                     let cd = BUG_SPECS[Int(ty)].atkCd * (0.8 + rng.next() * 0.4)
                     if qm { qMeleeCd = cd } else { CD[i] = cd }
                     PH[i] += 1.5
@@ -456,6 +590,14 @@ extension Game {
             if hasWant { HD[i] += angDiff(HD[i], want) * minf(1, 10 * dt) }
             PH[i] += sp2.squareRoot() * dt * 8 / SC[i]
         }
+    }
+
+    /// A smooth periodic wave in [-1, 1] of phase `p` (one period per unit) from basic arithmetic only (a shaped triangle:
+    /// no libm, so a mission plays bit-identically on every platform).
+    @inline(__always) func waveOsc(_ p: Float) -> Float {
+        let f = p - p.rounded(.down)
+        let t = 4 * absf(f - 0.5) - 1
+        return t * (1.5 - 0.5 * t * t)
     }
 
     /// Floor cell at (x, z) is walkable (inline helper of the swarm loop).

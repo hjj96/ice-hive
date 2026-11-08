@@ -333,7 +333,7 @@ jobs:
     env:
       # every frame-gated demo, all landscape (the app is landscape-only); `layout` (the four-phone layout check)
       # runs as well but builds ~40 screens in one go, so it is not gated
-      DEMOS: firstlaunch combat beacon swarmshot swarmshot-dots swarm swarm3x calm squad squadclose squadtight squadfire fxsheet fxsheet-high fxpeak stress1400 punchin extract-cine title title-fresh title-return title-nm title-left probe hold extract holdhint queen queenlock coach coach3 pressure pressure-amber levelup pause pause-nm end report-first report-win report-loss report-chip release-combat swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud
+      DEMOS: firstlaunch combat beacon waves swarmshot swarmshot-dots swarm swarm3x calm squad squadclose squadtight squadfire fxsheet fxsheet-high fxpeak stress1400 punchin extract-cine title title-fresh title-return title-nm title-left probe hold extract holdhint queen queenlock coach coach3 pressure pressure-amber levelup pause pause-nm end report-first report-win report-loss report-chip release-combat swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud
       MENUS: levelup,pause,pause-nm,end,report-first,report-win,report-loss,report-chip
     steps:
       - uses: actions/checkout@v4
@@ -429,12 +429,16 @@ jobs:
           run_demo firstlaunch 20 "-demo combat -seed 7"
           run_demo combat 18 "-demo combat -seed 7" 0 6
           run_demo beacon 15 "-demo beacon -seed 7" 0
-          # the App Store 2-swarm moment staged in the app (gunner at the crossing, 600 bugs, firing, time ~frozen),
-          # now in landscape (874x402 @3x)
+          # native-vx-feel: the wave director's own swarm (no forced crowd): the defence of beacon Beta — its opening horde
+          # from 3–4 sides and the hive's first push — time almost frozen at 6.5 s for the screenshot
+          run_demo waves 8 "-demo waves -seed 7" 0
+          # the App Store 2-swarm moment staged in the app (gunner at the crossing, the store's 600 bugs under the live cap
+          # — 350 on High since native-vx-feel —, firing, time ~frozen), now in landscape (874x402 @3x)
           run_demo swarmshot 4 "-demo swarmshot -seed 7" 0
           # the same with every speckle drawn again as an anti-aliased dot (-glintDots; default off, like the web)
           run_demo swarmshot-dots 4 "-demo swarmshot -seed 7 -glintDots" 0
-          # heavy swarm (the med tier's cap of 1400 live bugs), at the default 2x world target and at the native 3x
+          # heavy swarm: renderer stress past the live caps (-bugs 1400: the old Medium cap; the wave pacing's is 250), at
+          # the default 2x world target and at the native 3x
           run_demo swarm 15 "-demo combat -seed 7 -bugs 1400" 0
           run_demo swarm3x 15 "-demo combat -seed 7 -bugs 1400 -mscale 3" 0
           # baseline: no swarm, no events — what is left is the simulator host (its GPU stalls show up here too)
@@ -507,6 +511,28 @@ jobs:
           run_demo calm-nohud 8 "-demo calm -hideHUD" 0
           run_demo calm-deckmask 8 "-demo calm -hideHUD -deckMask -nocones -noweather" 0
           run_demo calm-bright-nohud 6 "-demo calm -brightness 1.3 -hideHUD" 0
+          # native-vx-feel: a HUD-off look shot is one frozen moment, and some moments are not the scene (a grenade's peak on
+          # the title, the punch-in at a muzzle flash, the extraction camera at its cone-dodging limit looking down on the
+          # deck). Like the frame gate's re-run of a failed demo: the look gates are measured here on the HUD-off shots
+          # (ci/look_metrics.py --only <scenes> --failed), and each failing shot's demo is shot once more; the look-gate job
+          # then gates the final shots, so a real regression (it fails the re-shoot too) still fails. The first shot stays as
+          # <label>-look1-0s.png, its log as app-<label>-look1.log, the verdicts in gate-reruns.txt.
+          : > results/gate-reruns.txt
+          if python3 -m venv /tmp/lookpy && /tmp/lookpy/bin/pip install -q numpy pillow; then
+            /tmp/lookpy/bin/python ios-native/ci/look_metrics.py --gate --only swarmshot,beacon,punchin,extract,title,calm \
+              --failed results/look-run1-failed.txt results > results/look-run1.txt 2>&1 || true
+            for shot in $(cat results/look-run1-failed.txt 2>/dev/null); do
+              d=${shot%-0s.png}
+              spec=$(grep -m 1 "^$d|" results/demo-specs.txt) || continue
+              { echo "== look: $d re-shot (first shot: $(grep -m 1 " $shot " results/look-run1.txt | sed -E 's/ +/ /g; s/.*\[gated\] //'))"; } >> results/gate-reruns.txt
+              mv "results/$shot" "results/$d-look1-0s.png"
+              mv "results/app-$d.log" "results/app-$d-look1.log"
+              rest=${spec#*|}; secs=${rest%%|*}; args=${rest#*|}
+              run_demo "$d" "$secs" "$args" 0
+            done
+          else
+            echo "== look: no numpy / pillow on this runner — no re-shoots" >> results/gate-reruns.txt
+          fi
           run_demo title 6 "-demo title" 0
           # v1.1 title: a fresh profile (НОВОБРАНЕЦ selected, premise, no profile line) and a returning one (ВЕТЕРАН,
           # profile line, rank chips + medal pips); -layoutCheck logs overlaps / off-screen / small taps
@@ -534,7 +560,8 @@ jobs:
           run_demo banner-pseudo 8 "-demo beacon -seed 7 -holdBanner -pseudoLoc 1.35" 0
           # horde ingredients one by one (overlay, banner, shake, sounds, haptic, horde) every 4 s: hitch attribution
           run_demo probe 26 "-demo probe -seed 7"
-          # lift: holding out on the platform, then the extraction pinned at +2 s (gore rides up with the deck)
+          # lift: holding out on the platform against the hold's own swarm (native-vx-feel: the director's opening horde,
+          # a third of it over the rim; no forced crowd), then the extraction pinned at +2 s (gore rides up with the deck)
           run_demo hold 8 "-demo hold -seed 3" 0
           run_demo extract 10 "-demo extract -seed 3" 0
           # the Ветеран lift-pulse hint (~450 pt in one line) in the first seconds of the hold, countdown pinned: two
@@ -609,7 +636,8 @@ jobs:
           # gate-reruns.txt. The cold first launch is re-run cold — the app uninstalled and installed again (its container
           # and Metal shader cache go with it) — and last, so no other re-run starts on a cold cache (native-metal 9c47b72:
           # 5.09 s with a 1.1 s host command buffer in the cover, renderer wait 0.00 s).
-          : > results/gate-reruns.txt
+          # (gate-reruns.txt already holds the look re-shoots of the HUD-off shots, above)
+          touch results/gate-reruns.txt
           python3 ios-native/ci/frame_metrics.py --gate --cold firstlaunch --cold-max-ms 150 --menus "$MENUS" results $DEMOS > results/gate-run1.txt 2>&1 || true
           failed=$(sed -n 's/^  \([a-z0-9-]*\): .*/\1/p' results/gate-run1.txt | sort -u | grep -v -x firstlaunch || true)
           if grep -q '^  firstlaunch: ' results/gate-run1.txt; then failed="$failed firstlaunch"; fi
@@ -664,7 +692,7 @@ jobs:
           grep -q 'scene ready' results/app-stdout.log || { fail "no 'scene ready' line in app stdout"; }
           grep -q 'hb t=' results/app-stdout.log || { fail "no heartbeat lines in app stdout"; }
           grep -q 'mode=playing' results/app-stdout.log || { fail "combat demo never reached the mission"; }
-          for d in combat beacon swarmshot title extract queen levelup pause end release-combat; do
+          for d in combat beacon waves swarmshot title extract queen levelup pause end release-combat; do
             grep -q 'scene ready' "results/app-$d.log" || { fail "$d: no 'scene ready'"; }
             grep -q 'rend=metal' "results/app-$d.log" || { fail "$d: no Metal heartbeat lines"; }
             if grep -q 'ERROR' "results/app-$d.log"; then fail "$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; fi
@@ -700,6 +728,9 @@ jobs:
           need report-loss 'v11 run tier=vet won=0 .*downBy=4'
           need report-chip 'v11 run .*recTip=1'
           need combat 'v11 start tier=vet coach=0'
+          # native-vx-feel: the wave director staged its own beacon defence (no forced crowd) and the hive pushed
+          need waves 'demo waves: defence of beacon 1, charged to 0.27'
+          need waves 'demo waves: frozen td=[0-9.]+ alive [1-9][0-9]* pushes [1-3]'
           # WP7: the device-capture swarm, the punch-in (started, dilated, ended, replayed and held) and the extraction shot
           need stress1400 'demo stress1400: spawned 1[0-9]{3} bugs'
           need punchin 'cine punchin start beacon='
@@ -717,10 +748,11 @@ jobs:
           need burst-loco-game 'burst locogame written \(12 frames\)'
           need burst-bugs 'burst bugs written \(12 frames\)'
           # native-vx-fix: the mission's live-bug cap is the tier's under the device class's (the simulator stands in for the
-          # iPhone 12: 1400 at «высокая»); the particle compute pipelines are built with the render pipelines, so the
-          # cover's warm-up already goes through the GPU path
-          need stress1400 'cap 1400\)'
-          need combat 'bug cap 1400 \(graphics [a-z]+ 1400, device 1400\)'
+          # iPhone 12: 1400); the particle compute pipelines are built with the render pipelines, so the cover's warm-up
+          # already goes through the GPU path. native-vx-feel: the wave pacing's caps (High 350, Medium 250) under the
+          # device's 1400 (the demos' forced crowds still spawn past them: stress1400 1400, combat 600)
+          need stress1400 'cap 350\)'
+          need combat 'bug cap 250 \(graphics [a-z]+ 250, device 1400\)'
           need combat 'particles: compute ready .* with the pipelines'
           # Metal API validation runs: alive, no debug-layer report
           for d in validate-stress validate-fxpeak validate-extract; do

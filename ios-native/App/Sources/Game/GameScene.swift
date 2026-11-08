@@ -293,7 +293,7 @@ final class GameScene: SKScene {
         host?.setFrameRate(fps)
     }
 
-    /// Live-bug cap of a mission: the «Графика» tier's (700 / 1400 / 2500) under the device class's
+    /// Live-bug cap of a mission: the graphics tier's (wave pacing 220 / 250 / 350; the legacy stream 700 / 1400 / 2500) under the device class's
     /// (RenderQuality.deviceBugCap: A13 and older 900, A14 1400, …; the simulator 1400).
     private var missionBugCap: Int {
         min((QualityTier(rawValue: qualityName) ?? .med).bugCap, world?.renderer.quality.deviceBugCap ?? 1400)
