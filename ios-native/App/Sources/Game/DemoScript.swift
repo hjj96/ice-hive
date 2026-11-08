@@ -54,6 +54,10 @@ import IceHiveCore
 //                   picks another), the defence's opening horde from 3–4 sides, the ring charged to 27 % so the hive's
 //                   first push (30 %) lands 2 s later; time almost frozen (×0.02) at `-waveFreeze` s (6.5) after «scene
 //                   ready» for the screenshot. Logs `demo waves: td=… alive … near16 … pushes …` once a second.
+//  native-vx-swarm-life (a living swarm — the CI bursts burst-pack / burst-mix, A/B with -swarmLegacy):
+//    -demo swarmpack  a runner pack (70) rushing the squad from screen-left, 9–16 m out, kept topped up from there; the
+//                   director off, the player idle, the squad firing (deaths by cause: shots, flames, frost, grenades)
+//    -demo swarmmix   a mixed pack (90, every type) from screen-left and screen-top-right, the same way
 //    No demo shows more live bugs than the game itself can: every forced crowd is clamped to the mission's live cap
 //    (`crowd(_:)`; the wave pacing's High 350 / Medium 250 / Low 220 under the device class), the hold demos play the
 //    director's own hold. Only the declared renderer stress runs go past it — stress1400 (1400) and an explicit
@@ -94,7 +98,7 @@ final class DemoScript {
         case "combat", "smoke", "default": return DemoScript(name: d == "default" ? "combat" : d, options: options, bugs: options.bugs)
         case "beacon": return DemoScript(name: d, options: options, bugs: options.bugs)
         case "title", "calm", "probe", "hold", "holdhint", "extract", "queen", "queenlock", "coach", "pressure", "report", "levelup", "pause", "end",
-             "swarmshot", "layout", "bugsheet", "punchin", "extract-cine", "waves":
+             "swarmshot", "layout", "bugsheet", "punchin", "extract-cine", "waves", "swarmpack", "swarmmix":
             return DemoScript(name: d, options: options)
         case "stress1400": return DemoScript(name: d, options: options, bugs: options.bugs ?? 1400)
         default:
@@ -184,6 +188,17 @@ final class DemoScript {
             game.autopilot = false
             target = 0
             AppLog.info("demo swarmshot: staging the store 2-swarm moment")
+        case "swarmpack", "swarmmix":
+            game.autopilot = false
+            game.directorEnabled = false
+            target = crowd(name == "swarmpack" ? 70 : 90)
+            var n = 0
+            for (k, sec) in packSectors.enumerated() {
+                let share = k == packSectors.count - 1 ? target - n : target / packSectors.count
+                n += game.debugSpawn(share, type: packType, minRadius: 9, maxRadius: 16, sector: sec)
+            }
+            AppLog.info("demo \(name): spawned \(n) bugs (\(packType.map { "\($0)" } ?? "mixed")) in \(packSectors.count) sector(s), swarm "
+                        + (SwarmAnimator.legacy ? "legacy" : "life"))
         case "levelup", "pause", "end":
             if name == "levelup" { game.autoPickUpgrades = false }
             target = crowd(300)
@@ -290,8 +305,10 @@ final class DemoScript {
                 let k = min(300, target - alive)
                 // (extract-cine: the top-ups climb over the lift's rim on either flank in turn, the hold's own entrance)
                 flankTurn.toggle()
+                let pk = packSectors
                 let n = crowdFlanks.map { game.debugClimbLiftRim(k, sector: flankTurn ? $0.0 : $0.1) }
-                    ?? game.debugSpawn(k, type: nil, minRadius: 12, maxRadius: 30)
+                    ?? (pk.isEmpty ? game.debugSpawn(k, type: nil, minRadius: 12, maxRadius: 30)
+                        : game.debugSpawn(k, type: packType, minRadius: 12, maxRadius: 17, sector: pk[flankTurn ? 0 : pk.count - 1]))
                 spawned += n
             }
             logT -= 0.5
@@ -319,6 +336,20 @@ final class DemoScript {
     }
     private var flankTurn = false
     private var lockSet = false
+    /// swarmpack / swarmmix: where the pack comes from — screen-left (and screen-top-right for the mixed pack) around the
+    /// player, ±0.55 rad: it runs across the frame at the game camera, so its banking, darting and pounces read.
+    private var packSectors: [(angle: Float, half: Float)] {
+        func sector(_ sx: Float, _ sy: Float) -> (angle: Float, half: Float) {
+            let d = Game.worldFromScreen(sx, sy)
+            return (atan2f(d.y, d.x), 0.55)
+        }
+        switch name {
+        case "swarmpack": return [sector(-1, -0.15)]
+        case "swarmmix": return [sector(-1, -0.15), sector(0.7, -0.7)]
+        default: return []
+        }
+    }
+    private var packType: BugType? { name == "swarmpack" ? .runner : nil }
 
     /// coach: time almost stops after a moment (the step on screen stays for the screenshot, the card's ghost thumb
     /// keeps moving: it runs on wall time); pressure: the hive pressure pinned inside the amber / red band.

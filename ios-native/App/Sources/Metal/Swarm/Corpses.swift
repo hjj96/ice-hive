@@ -15,7 +15,34 @@ import IceHiveCore
 //  draws (no extra draw call); MetalEffects.bugDeath calls add() with
 //  its own random sequence (two draws per body, as before: the effects
 //  stay deterministic for a seed).
+//  native-vx-swarm-life — deaths by cause and direction: WorldSwarm tells
+//  the link how the bug died (Cause: the shot's direction, burning,
+//  chilled, or thrown by a blast — its velocity), and the corpse takes
+//  the matching death clip (a bullet: thrown back from the front,
+//  crumpled forward from behind, rolled away from a side shot; fire:
+//  `death_burn`; frost: `death_frost`, stiff; a blast: thrown and
+//  spinning) and its knock-back: a slide along the hit, a blast's hop
+//  and tumble through the air, a burning bug's last spin. The body keeps
+//  the cause on it for a while (char and embers, a frost crust).
 // ================================================================
+/// How a bug died (WorldSwarm decides from the dying bug's state).
+enum DeathCause: UInt8 {
+    case bullet = 0, fire = 1, frost = 2, blast = 3
+}
+
+/// What the dying bug hands its corpse (WorldSwarm.buildCorpses → Corpses.link).
+struct CorpseLink {
+    var pose: ClipSample
+    var hasPose: Bool
+    var value: Float
+    var lod: UInt8
+    var seed: Float
+    var cause: DeathCause
+    /// The push (unit xz: the shot's travel, the blast's push) and its strength (m/s; the blast's knock).
+    var dirX: Float, dirZ: Float
+    var power: Float
+}
+
 struct CorpseRecord {
     var x: Float, y: Float, z: Float
     var heading: Float
@@ -36,6 +63,10 @@ struct CorpseRecord {
     /// LOD the bug was drawn with when it died (255 = unknown), kept until the body has settled.
     var lod: UInt8
     var liftBaseY: Float
+    // native-vx-swarm-life
+    var cause: UInt8 = 0
+    /// Knock-back: slide velocity (m/s), height above the deck and its vertical speed (a blast's hop), spin (rad/s).
+    var vx: Float = 0, vz: Float = 0, hop: Float = 0, vy: Float = 0, spin: Float = 0
 }
 
 final class Corpses {
@@ -54,12 +85,15 @@ final class Corpses {
     private(set) var clock: Float = 0
     /// Corpses added since WorldSwarm last linked them to their dying bugs (ring, index).
     private(set) var pending: [(Int, Int)] = []
+    /// Bodies still sliding / tumbling (ring, index).
+    private var movers: [(Int, Int)] = []
 
     /// `store`: kept for the world's call (the bodies are the swarm's creature meshes now).
     init(level: Level, store: MeshStore) {
         self.level = level
         for k in 0..<2 { rings[k].reserveCapacity(520) }
         pending.reserveCapacity(64)
+        movers.reserveCapacity(64)
         Corpses.active = self
     }
 
@@ -73,6 +107,7 @@ final class Corpses {
             if rings[k].count > cr[k] { rings[k].removeLast(rings[k].count - cr[k]) }
         }
         pending.removeAll()
+        movers.removeAll()
         liftGore = nil
     }
 
@@ -81,9 +116,73 @@ final class Corpses {
         liftGore = nil
         liftRiseLast = 0
         pending.removeAll()
+        movers.removeAll()
     }
 
-    func advance(_ dt: Float) { clock += max(0, dt) }
+    func advance(_ dt: Float) {
+        clock += max(0, dt)
+        if dt > 0 && !movers.isEmpty { move(min(dt, 0.05)) }
+    }
+
+    /// The knock-back of the fresh bodies: a slide with friction on the deck, a hop under gravity, a spin that dies with
+    /// the slide; a body stops at the deck's edge (never off a walkable cell).
+    private func move(_ dt: Float) {
+        var k = 0
+        while k < movers.count {
+            let (r, i) = movers[k]
+            guard i < rings[r].count else { movers.remove(at: k); continue }
+            var c = rings[r][i]
+            let air = c.hop > 0 || c.vy > 0
+            if air {
+                c.vy -= 16 * dt
+                c.hop = max(0, c.hop + c.vy * dt)
+                if c.hop == 0 { c.vy = 0; c.vx *= 0.55; c.vz *= 0.55; c.spin *= 0.6 }
+            }
+            let nx = c.x + c.vx * dt, nz = c.z + c.vz * dt
+            let cell = level.cellOf(nx, nz)
+            if cell >= 0 && level.walkValue(cell) != 0 {
+                c.x = nx; c.z = nz
+                c.y = level.groundY(nx, nz) + (level.isStairCell(cell) ? 0.06 : 0) + 0.005
+                c.liftBaseY = c.y
+            } else {
+                c.vx = 0; c.vz = 0
+            }
+            c.heading += c.spin * dt
+            if !air {
+                let sp = (c.vx * c.vx + c.vz * c.vz).squareRoot()
+                let ns = max(0, sp - 7 * dt)
+                let f = sp > 1e-4 ? ns / sp : 0
+                c.vx *= f; c.vz *= f
+                c.spin *= max(0, 1 - 5 * dt)
+            }
+            rings[r][i] = c
+            if c.hop == 0 && c.vy <= 0 && c.vx * c.vx + c.vz * c.vz < 1e-4 && abs(c.spin) < 0.05 {
+                movers.remove(at: k)
+            } else {
+                k += 1
+            }
+        }
+    }
+
+    /// The death variant of a cause and direction (SwarmAnimator.deathClip: 0…2 the type's bullet deaths, 3 burned,
+    /// 4 frozen stiff). `front`: the push along the bug's facing (−1 = a shot in the face, +1 = from behind); `left`: the push
+    /// toward the bug's own left side (the runner's flip rolls onto its left).
+    static func variant(type: BugType, cause: DeathCause, front: Float, left: Float, seed: Float) -> UInt8 {
+        switch cause {
+        case .fire: return 3
+        case .frost: return 4
+        case .blast: return type == .runner ? 2 : 1
+        case .bullet:
+            switch type {
+            case .runner:
+                if front < -0.35 { return 2 }           // thrown back, spinning over
+                if front > 0.35 { return 1 }            // crumpled forward onto its belly, sliding
+                return left > 0 ? 0 : (seed < 0.5 ? 2 : 1)   // rolled away from the shot
+            case .spitter: return front < -0.2 ? 1 : 0  // flipped back / the sac bursts, slumping
+            default: return abs(front) > 0.5 ? 0 : 1    // brute: collapses forward / topples onto its side
+            }
+        }
+    }
 
     /// dy/dz of the floor at (x, z) (ramps run along z).
     private func slopeZ(_ x: Float, _ z: Float) -> Float {
@@ -114,6 +213,7 @@ final class Corpses {
             idx = head[k]
             rings[k][idx] = r
             forgetLiftGore(k, idx)
+            movers.removeAll(where: { $0.0 == k && $0.1 == idx })
             head[k] = (head[k] + 1) % ringSize[k]
         }
         pending.append((k, idx))
@@ -122,18 +222,47 @@ final class Corpses {
     /// WorldSwarm, once per built frame: the dying bugs still in the core's arrays this frame (`dead` flag set, not yet
     /// compacted) give their last pose, value and LOD to the corpse born at exactly their position; corpses nobody claims
     /// start from their death clip's first row.
-    func link(_ find: (Float, Float, UInt8) -> (ClipSample, Float, UInt8, Float)?) {
+    func link(_ find: (Float, Float, UInt8) -> CorpseLink?) {
         if pending.isEmpty { return }
         for (k, i) in pending where i < rings[k].count && !rings[k][i].linked {
             let c = rings[k][i]
-            if let (pose, value, lod, vr) = find(c.x, c.z, c.type) {
-                rings[k][i].from = pose
-                rings[k][i].hasFrom = true
-                rings[k][i].value = value
-                rings[k][i].lod = lod
+            if let L = find(c.x, c.z, c.type) {
+                rings[k][i].from = L.pose
+                rings[k][i].hasFrom = L.hasPose
+                rings[k][i].value = L.value
+                rings[k][i].lod = L.lod
                 // native-vx-feel: the dying bug's variety (WorldSwarm.variety: size, tint; Swarm.metal: pattern, sheen)
-                rings[k][i].seed = vr
-                rings[k][i].scale *= WorldSwarm.variety(vr).size
+                rings[k][i].seed = L.seed
+                rings[k][i].scale *= WorldSwarm.variety(L.seed).size
+                // native-vx-swarm-life: the death by cause and direction, and its knock-back (not under -swarmLegacy)
+                if SwarmAnimator.legacy { rings[k][i].linked = true; continue }
+                let ty = BugType(rawValue: Int(c.type)) ?? .runner
+                let sh = sinf(c.heading), ch = cosf(c.heading)
+                let front = L.dirX * sh + L.dirZ * ch, left = L.dirX * ch - L.dirZ * sh
+                rings[k][i].variant = Corpses.variant(type: ty, cause: L.cause, front: front, left: left, seed: L.seed)
+                rings[k][i].cause = L.cause.rawValue
+                let h = SwarmAnimator.hash(Int32(bitPattern: UInt32(L.seed * 65535)))
+                let sgn: Float = h.0 < 0.5 ? -1 : 1
+                let heavy: Float = ty == .brute ? 0.35 : 1
+                var sp: Float = 0
+                switch L.cause {
+                case .bullet:
+                    sp = (1.1 + 0.7 * h.1) * heavy
+                    rings[k][i].spin = sgn * (0.5 + 1.2 * h.2) * heavy
+                case .blast:
+                    sp = min(0.45 * L.power, 5.5) * heavy
+                    rings[k][i].vy = min(0.32 * L.power, 4.2) * heavy
+                    rings[k][i].hop = 0.01
+                    rings[k][i].spin = sgn * (2.5 + 0.35 * L.power) * heavy
+                case .fire:
+                    sp = 0.5 + 0.5 * h.1
+                    rings[k][i].spin = sgn * (1.6 + 1.6 * h.2) * heavy
+                case .frost:
+                    sp = 0.35 * heavy
+                }
+                rings[k][i].vx = L.dirX * sp
+                rings[k][i].vz = L.dirZ * sp
+                if sp > 0 || rings[k][i].vy > 0 { movers.append((k, i)) }
             }
             rings[k][i].linked = true
         }

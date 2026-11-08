@@ -18,6 +18,13 @@
 //                    four types): steady sparkle at phone size
 //   vs_creature_proxy  the 20-triangle shadow blob of a bug inside a
 //                    flashlight cone (shadow atlas casters)
+//  native-vx-swarm-life: the head look and abdomen sway — vertices of the
+//  head group (vertex flag bit5: head, mandibles, antennae, proboscis)
+//  and the abdomen group (bit6: abdomen, sac) turn about the type's neck /
+//  waist pivot (vertex buffer 7, model space) by the instance's angles
+//  (fx.w bytes 1–3, snorm8 × 0.8 rad: head yaw, head pitch, abdomen sway;
+//  zero on LOD2, so the branch is skipped there) before the bone matrix;
+//  the glints on those bones turn with them.
 //  Bindings: vertex buffer 0 the LOD's vertices (the IHV file buffer),
 //  1 Frame, 2 instances, 3 SwarmParams (both stages), 4 the glow table;
 //  vertex texture 6 the bone texture (glints: 6–9 one per type, glow
@@ -109,12 +116,33 @@ static float3 placeNormal(CreatureInstance b, float3 n) {
 
 static inline float3 srgbDecode(float3 c) { return c * (c * (c * 0.305306011 + 0.682171111) + 0.012522878); }
 
+#define IHV_HEADG 32u
+#define IHV_ABDG 64u
+constant float kLookRange = 0.8;
+
+/// native-vx-swarm-life: a rest point / normal of the head (grp 1) or abdomen (grp 2) group turned about its pivot by the
+/// instance's look angles — yaw about the model's up, then pitch about its side axis (nose up). Cheap: only for the
+/// grouped vertices of instances with angles (LOD0 / LOD1).
+static void lookTurn(uint grp, uint packed, float3 pivot, thread float3& p, thread float3& n) {
+    float3 a = unpack_snorm4x8_to_float(packed).yzw * kLookRange;
+    float yaw = grp == 1u ? a.x : a.z;
+    float pitch = grp == 1u ? a.y : -0.35 * a.z * a.z;
+    float cy = cos(yaw), sy = sin(yaw), cp = cos(pitch), sp = sin(pitch);
+    float3 q = p - pivot;
+    q = float3(cy * q.x + sy * q.z, q.y, -sy * q.x + cy * q.z);
+    q = float3(q.x, cp * q.y + sp * q.z, -sp * q.y + cp * q.z);
+    p = pivot + q;
+    float3 m = float3(cy * n.x + sy * n.z, n.y, -sy * n.x + cy * n.z);
+    n = float3(m.x, cp * m.y + sp * m.z, -sp * m.y + cp * m.z);
+}
+
 // ================================================================ the creature body
 vertex CreatureOut vs_creature(uint vid [[vertex_id]], uint iid [[instance_id]],
                                const device IhvVertex* V [[buffer(0)]],
                                constant Frame& F [[buffer(1)]],
                                const device CreatureInstance* I [[buffer(2)]],
                                const device float4* glowTab [[buffer(4)]],
+                               constant float4* lookPivot [[buffer(7)]],
                                texture2d<half, access::read> boneTex [[texture(6)]]) {
     IhvVertex v = V[vid];
     CreatureInstance b = I[iid];
@@ -123,8 +151,14 @@ vertex CreatureOut vs_creature(uint vid [[vertex_id]], uint iid [[instance_id]],
     Pose P = poseOf(boneTex, glowTab, bone, b.anim);
     half4 rest = half4(v.rest);
     char4 nr = char4(v.nrm);
-    float3 p = xform(P.M, float3(rest.xyz));
-    float3 n = xformDir(P.M, float3(nr.xyz) * (1.0 / 127.0));
+    float3 rp = float3(rest.xyz), rn = float3(nr.xyz) * (1.0 / 127.0);
+    uint grp = (vflags & IHV_HEADG) != 0u ? 1u : ((vflags & IHV_ABDG) != 0u ? 2u : 0u);
+    if (grp != 0u && (b.fx.w >> 8) != 0u) {
+        uint ty = (b.anim.w >> 16) & 3u;
+        lookTurn(grp, b.fx.w, lookPivot[grp == 1u ? ty : 4u + ty].xyz, rp, rn);
+    }
+    float3 p = xform(P.M, rp);
+    float3 n = xformDir(P.M, rn);
     float3 w = b.pos.xyz + placeOffset(b, p);
     CreatureOut o;
     o.position = F.viewProj * float4(w, 1.0);
@@ -265,7 +299,8 @@ vertex GlintOut vs_swarm_glint(uint vid [[vertex_id]], uint iid [[instance_id]],
                                texture2d<half, access::read> T0 [[texture(6)]],
                                texture2d<half, access::read> T1 [[texture(7)]],
                                texture2d<half, access::read> T2 [[texture(8)]],
-                               texture2d<half, access::read> T3 [[texture(9)]]) {
+                               texture2d<half, access::read> T3 [[texture(9)]],
+                               constant float4* lookPivot [[buffer(7)]]) {
     // the type whose glint range holds this instance (ranges are cumulative; an empty range is skipped)
     uint t = uint(iid >= SP.types[1].glint.z) + uint(iid >= SP.types[2].glint.z) + uint(iid >= SP.types[3].glint.z);
     uint4 gi = SP.types[t].glint;
@@ -273,7 +308,10 @@ vertex GlintOut vs_swarm_glint(uint vid [[vertex_id]], uint iid [[instance_id]],
     uint local = iid - gi.z;
     CreatureInstance b = I[gi.w + local / per];
     GlintSocket gs = S[gi.x + local % per];
-    uint bone = uint(gs.pos.w);
+    uint bw = uint(gs.pos.w);
+    uint bone = bw & 255u, grp = bw >> 8;
+    float3 gp = gs.pos.xyz, gn = float3(0.0, 1.0, 0.0);
+    if (grp != 0u && (b.fx.w >> 8) != 0u) lookTurn(grp, b.fx.w, lookPivot[grp == 1u ? t : 4u + t].xyz, gp, gn);
     Pose P;
     switch (t) {
         case 0: P = poseOf(T0, G0, bone, b.anim); break;
@@ -281,7 +319,7 @@ vertex GlintOut vs_swarm_glint(uint vid [[vertex_id]], uint iid [[instance_id]],
         case 2: P = poseOf(T2, G2, bone, b.anim); break;
         default: P = poseOf(T3, G3, bone, b.anim); break;
     }
-    float3 w = b.pos.xyz + placeOffset(b, xform(P.M, gs.pos.xyz));
+    float3 w = b.pos.xyz + placeOffset(b, xform(P.M, gp));
     float4 st = unpack_unorm4x8_to_float(b.fx.x);
     float mult = max(0.0, P.g.x + P.g.y * sin(6.2831853 * (P.g.z + gs.info.w)));
     float boost = float(b.fx.z >> 16) * (1.0 / 65535.0);
