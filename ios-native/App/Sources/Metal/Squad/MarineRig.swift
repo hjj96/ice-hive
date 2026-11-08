@@ -18,8 +18,13 @@ import IceHiveCore
 //                   and AO / roughness / metal / paint mask (ASTC 6×6)
 //   MarineRig       one marine's blend tree, every drawn frame:
 //     locomotion    idle ↔ walk ↔ run in 8 directions (move vs aim
-//                   angle), one phase advanced by distance / stride so
-//                   planted feet stay planted at any speed
+//                   angle; motion capture since the feel build A1), one
+//                   phase advanced by distance / the stride of the
+//                   directions being blended, so planted feet stay
+//                   planted at any speed; two idle variants (idle,
+//                   idle_b), each marine its own variant and phase
+//     clip table    turn_l / turn_r (a 90° turn on the spot, mocap) are
+//                   in every file for the upper / lower body split
 //     full body     dash (anticipation → boost → land → settle, 4
 //                   directions), down → downed crawl → revive (scrubbed
 //                   by the revive progress, then played out) → death
@@ -371,6 +376,11 @@ struct RigInput {
     /// The mission is lost: downed marines die.
     var dead = false
     var invulnerable = false
+    /// Look-dev (`-squadLoco`): a named clip played as the full-body override at `clipTime` (turn_l / turn_r, which
+    /// the game does not drive yet), and the treadmill view — no world foot lock, the clip's own feet.
+    var clip: String? = nil
+    var clipTime: Float = 0
+    var treadmill = false
 }
 
 final class MarineRig {
@@ -455,9 +465,12 @@ final class MarineRig {
         accT = lt
         let dirs = ["f", "fl", "l", "bl", "b", "br", "r", "fr"]
         iDirs = [dirs.map { asset.clip("walk_" + $0) }, dirs.map { asset.clip("run_" + $0) }]
-        iIdle = asset.clip("idle"); iFire = asset.clip("fire"); iFlinchF = asset.clip("flinch_f"); iFlinchB = asset.clip("flinch_b")
+        // two ready stances: every other class plays the second one, each class at its own phase — the four never
+        // breathe or look round in step (a file without idle_b falls back to idle: clip 0)
+        iIdle = asset.clip(asset.cls.rawValue % 2 == 0 ? "idle" : "idle_b"); iFire = asset.clip("fire"); iFlinchF = asset.clip("flinch_f"); iFlinchB = asset.clip("flinch_b")
         iDown = asset.clip("down"); iDowned = asset.clip("downed"); iRevive = asset.clip("revive"); iDeath = asset.clip("death")
         iDash = ["f", "l", "b", "r"].map { asset.clip("dash_" + $0) }
+        idleClock = Float(asset.cls.rawValue) * 1.37
     }
 
     func reset() {
@@ -647,19 +660,23 @@ final class MarineRig {
         let wRun = min(1, max(0, (v - walkV) / max(0.1, runV - walkV)))
         gaitRun += (wRun - gaitRun) * min(1, dt * 8)
         let moveW = min(1, max(0, (v - 0.08) / 0.7))
-        let strideW = asset.clips[iDirs[0][0]].stride, strideR = asset.clips[iDirs[1][0]].stride
-        let stride = strideW + (strideR - strideW) * gaitRun
-        // the phase runs on the distance actually covered this frame (raw speed: a smoothed one lags the body when it
-        // speeds up, and the planted foot would be dragged)
-        phase += sp * dt / max(0.2, stride)
-        phase -= floorf(phase)
-        idleClock += dt
         // 8-way: the angle of the movement relative to the aim (0 = forward, +90 = toward the marine's left)
         var ang = atan2f(dir.x, dir.y) * 180 / Float.pi
         if ang < 0 { ang += 360 }
         let sect = ang / 45
         let i0 = Int(sect) % 8, i1 = (i0 + 1) % 8
         let fa = sect - floorf(sect)
+        // each direction's loop has its own stride (a side step or a back-pedal is shorter than a forward stride, A1):
+        // the phase runs on the stride of the two directions being blended
+        let C = asset.clips
+        let strideW = C[iDirs[0][i0]].stride * (1 - fa) + C[iDirs[0][i1]].stride * fa
+        let strideR = C[iDirs[1][i0]].stride * (1 - fa) + C[iDirs[1][i1]].stride * fa
+        let stride = strideW + (strideR - strideW) * gaitRun
+        // the phase runs on the distance actually covered this frame (raw speed: a smoothed one lags the body when it
+        // speeds up, and the planted foot would be dragged)
+        phase += sp * dt / max(0.2, stride)
+        phase -= floorf(phase)
+        idleClock += dt
         beginAcc()
         acc(iIdle, time: idleClock, 1 - moveW)
         if moveW > 1e-3 {
@@ -702,6 +719,10 @@ final class MarineRig {
             want = 1
             overrideW = 1
             getUpClock = 10
+        } else if let name = I.clip, let ci = asset.clipIndex[name] {
+            acc(ci, time: I.clipTime, 1)
+            want = 1
+            state = name
         } else {
             if wasDowned {
                 getUpClock = 0
@@ -829,7 +850,7 @@ final class MarineRig {
             let (th, sh, ft, toe) = asset.iLeg[side]
             let ballM = wt[toe]
             let ballW = I.pos + Quat.rotate(Quat.axis(F3(0, 1, 0), I.yaw), ballM)
-            let planted = plant[side] > 0.5 && overrideW < 0.5
+            let planted = plant[side] > 0.5 && overrideW < 0.5 && !I.treadmill
             if !planted {
                 lockOn[side] = false
                 continue

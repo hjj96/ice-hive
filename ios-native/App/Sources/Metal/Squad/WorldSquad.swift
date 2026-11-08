@@ -471,11 +471,15 @@ final class WorldSquad {
 /// `-squadSheet`: the squad lined up across the game camera's view, facing it, each marine cycling through its clips
 /// (offset per marine, so one frame shows several); `-closeup` frames the line, `-closeupTight` the player's marine;
 /// `-squadFire`: all four hold and fire, their bores turned across the camera (the weapon flashes side-on).
+/// `-squadLoco` (feel build A1): the motion-capture locomotion on a treadmill (no world foot lock: the clips' own
+/// feet), each marine on its own 10 s cycle — idle, walk, run, a turn on the spot (turn_l), dash — offset so that from
+/// 3.0 s to 3.8 s marine 0 walks, 1 runs, 2 turns and 3 dashes (the CI bursts burst-loco / burst-loco-game).
 final class SquadLookDev {
     let on: Bool
     let closeUp: Bool
     let tight: Bool
     let fire: Bool
+    let loco: Bool
     private var anchor = F3(0, 0, 0)
     private var anchored = false
 
@@ -484,6 +488,7 @@ final class SquadLookDev {
         on = u.contains("-squadSheet")
         tight = u.contains("-closeupTight")
         fire = u.contains("-squadFire")
+        loco = u.contains("-squadLoco")
         closeUp = on && (u.contains("-closeup") || tight)
     }
 
@@ -518,6 +523,22 @@ final class SquadLookDev {
         I.revive = 0
         I.dead = false
         I.invulnerable = false
+        if loco {
+            I.treadmill = true
+            let t = fmodf(time + [0, 1.8, 3.4, 4.6][k % 4], 10)
+            switch t {
+            case ..<2.0: break                                   // idle (idle / idle_b by class)
+            case ..<4.0: I.vel = fwd * 1.5                       // walk toward the camera
+            case ..<6.0: I.vel = fwd * 5.3                       // run
+            case ..<7.7: I.clip = "turn_l"; I.clipTime = t - 6.0 // a 90° turn on the spot
+            case ..<7.92:                                        // dash (0.22 s at 17 m/s), then the landing
+                I.dashT = 0.22 - (t - 7.7)
+                I.dashDir = fwd
+                I.vel = fwd * 17
+            default: break
+            }
+            return
+        }
         if fire {
             // hold and fire away from the camera in a fan (native-vx-squad: with the whole shot — tracers, the flame jet,
             // the cryo beam — the old bores, turned toward the camera at ±49–66°, fired the streams into the lens and the

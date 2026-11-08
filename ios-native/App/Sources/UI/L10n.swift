@@ -71,6 +71,13 @@ enum UIText: String, CaseIterable {
     case levelupGear = "levelup.gear"
     case levelupTaken = "levelup.taken"
     case levelupNew = "levelup.new"
+    // ---- credits (feel build A1: the motion-capture data in the marines' clips; the Settings › Credits panel that
+    //      shows them comes with the interface overhaul, phase U)
+    case creditsTitle = "credits.title"
+    case creditsMotion = "credits.motion"
+    case creditsCMU = "credits.cmu"
+    case creditsStyle = "credits.style"
+    case creditsUAL = "credits.ual"
 
     var signature: String {
         switch self {

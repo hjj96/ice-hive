@@ -51,6 +51,8 @@ THREADS = 3
 # the floor gate: no clip may put a skinned vertex deeper than this under the deck (the sole's chamfer, a plate's rim
 # pressed into the grating — the deck's own grid bevels hide that much)
 FLOOR_GATE = -0.02
+# the contact gate (motion capture): the lowest sole point of a planted boot sits on the deck (|y| ≤ 5 mm)
+CONTACT_GATE = 0.005
 REGIONS = ['body', 'head', 'pauldron', 'hands', 'pack', 'weapon']
 # texel share per region (relative scale of its islands before packing)
 REGION_SCALE = {'body': 1.0, 'head': 1.45, 'pauldron': 1.25, 'hands': 0.8, 'pack': 0.9, 'weapon': 1.1}
@@ -639,8 +641,8 @@ def export_vertices(cls, lo):
     return out, np.asarray(I, dtype=np.int64).ravel()
 
 
-def tracks_for(cls):
-    clips, drift, ik = motion.all_clips(cls)
+def tracks_for(cls, mocap_report=None):
+    clips, drift, ik = motion.all_clips(cls, report=mocap_report)
     rows, recs = [], []
     first = 0
     for c in clips:
@@ -733,7 +735,8 @@ def main():
         normals.append(n)
         orms.append(orm)
         V, I = export_vertices(cls, lo)
-        tracks, recs, drift, ik = tracks_for(cls)
+        mrep = {}
+        tracks, recs, drift, ik = tracks_for(cls, mrep)
         P = None
         D = dict(bones=[(nm, par) for nm, par, _ in SK.BONES])
         bind = SK.bind_local(cls)
@@ -765,6 +768,16 @@ def main():
             report['gates']['foot_drift_m'][f'{cls}/{k}'] = round(float(v), 5)
         for k, v in ik.items():
             report['gates']['ik_err_m'][f'{cls}/{k}'] = round(float(v), 6)
+        report['gates'].setdefault('contact_m', {})
+        report.setdefault('mocap', {})
+        for k, m in mrep.items():
+            report['gates']['contact_m'][f'{cls}/{k}'] = m['contact_m']
+            report['mocap'][f'{cls}/{k}'] = dict(slide_raw_m=m['slide_src']['worst_m'], slide_lock_m=m['slide_lock']['worst_m'],
+                                                 contacts=m['slide_lock']['contacts'], pelvis_drop_m=m.get('pelvis_drop_m', 0.0),
+                                                 **{x: m[x] for x in ('stride', 'warp', 'turn_deg', 'rephase') if x in m},
+                                                 source=m['source'])
+            if m['contact_m'] > CONTACT_GATE:
+                raise SystemExit(f'{cls}: {k} plants a sole {m["contact_m"] * 100:.1f} cm off the deck (gate {CONTACT_GATE * 100:.1f} cm)')
         report['gates'].setdefault('floor_min_y_m', {})
         for k, v in floor.items():
             report['gates']['floor_min_y_m'][f'{cls}/{k}'] = round(v, 4)
