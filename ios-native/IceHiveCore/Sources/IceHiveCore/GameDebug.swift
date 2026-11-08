@@ -194,13 +194,17 @@ extension Game {
 
     /// Spawn `n` bugs (type nil = director mix) on walkable floor in a ring around the player. Returns how many were made.
     @discardableResult
-    public func debugSpawn(_ n: Int, type: BugType? = nil, minRadius: Float = 6, maxRadius: Float = 26) -> Int {
+    /// `sector` (radians, the angle of x = cos a, z = sin a around the player, and its half width) keeps the spawns on one
+    /// side — the extraction demo stages its crowd away from the cinematic camera (the same random draws either way).
+    public func debugSpawn(_ n: Int, type: BugType? = nil, minRadius: Float = 6, maxRadius: Float = 26,
+                           sector: (angle: Float, half: Float)? = nil) -> Int {
         let P = marines[0]
         var made = 0
         var k = 0
         while k < n * 6 && made < n {
             k += 1
-            let a = rng.next() * TAU, r = rng.range(minRadius, maxRadius)
+            let u = rng.next(), r = rng.range(minRadius, maxRadius)
+            let a = sector.map { $0.angle + (u * 2 - 1) * $0.half } ?? u * TAU
             let x = P.x + cosf2(a) * r, z = P.z + sinf2(a) * r
             if !level.walkable(x, z) { continue }
             let ty: UInt8 = type.map { UInt8($0.rawValue) } ?? pickType(true)
