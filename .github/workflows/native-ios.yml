@@ -478,15 +478,15 @@ jobs:
           run_demo burst-bugs 5 "-demo bugsheet -hideHUD -burst bugs 1.5 12 3"
           pull_burst burst-bugs
           # native-vx-swarm-life: a runner pack and a mixed pack rushing the squad across the game camera — 24 frames, every
-          # 2nd present, from 2 s —, the swarm's life on and (-swarmLegacy) as it was before, same seed; a shot after each
+          # 3rd present, from 0.6 s —, the swarm's life on and (-swarmLegacy) as it was before, same seed; a shot after each
           # live run (the bodies: deaths by cause and direction)
-          run_demo burst-pack 6 "-demo swarmpack -seed 7 -hideHUD -burst pack 2 24 2" 0
+          run_demo burst-pack 6 "-demo swarmpack -seed 7 -hideHUD -burst pack 0.6 24 3" 0
           pull_burst burst-pack
-          run_demo burst-packold 6 "-demo swarmpack -seed 7 -hideHUD -swarmLegacy -burst packold 2 24 2"
+          run_demo burst-packold 6 "-demo swarmpack -seed 7 -hideHUD -swarmLegacy -burst packold 0.6 24 3"
           pull_burst burst-packold
-          run_demo burst-mix 6 "-demo swarmmix -seed 7 -hideHUD -burst mix 2 24 2" 0
+          run_demo burst-mix 6 "-demo swarmmix -seed 7 -hideHUD -burst mix 0.6 24 3" 0
           pull_burst burst-mix
-          run_demo burst-mixold 6 "-demo swarmmix -seed 7 -hideHUD -swarmLegacy -burst mixold 2 24 2"
+          run_demo burst-mixold 6 "-demo swarmmix -seed 7 -hideHUD -swarmLegacy -burst mixold 0.6 24 3"
           pull_burst burst-mixold
           # WP5 effects look-dev: every effect staged around the squad and frozen mid-air (-fxSheet: blasts, napalm, the
           # flamer jet, the cryo beam, hits, kills, a frozen shatter, acid, a nova, casings, a row of every stain), on

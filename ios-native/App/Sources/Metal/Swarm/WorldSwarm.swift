@@ -512,11 +512,12 @@ final class WorldSwarm {
                 let o = A.corpse(type: t, variant: Int(c.variant), age: age, from: c.from, hasFrom: c.hasFrom && c.from.rows != 0)
                 let dead = smoothf(0, max(0.3, dur), age)
                 let tv = WorldSwarm.variety(c.seed).tint
-                // native-vx-swarm-life: the cause stays on the body a while — a burned one charred (embers fading over
-                // ~2.5 s), a frozen-stiff one under a frost crust (thawing over 8 s)
+                // native-vx-swarm-life: the cause stays on the body a while, quietly — a burned one charred (its embers out in
+                // ~1.5 s), a frozen-stiff one under a thin frost crust (thawing over 4 s). (CI e088420: at 0.9 / 0.85 the
+                // pyro's and the cryo's kills lay as orange-rimmed and pale grey heaps — the extraction shot's median 39 → 54)
                 var burnC: Float = 0, frostC: Float = 0, char: Float = 1
-                if c.cause == DeathCause.fire.rawValue { burnC = 0.9 * expf(-age / 2.5); char = 0.62 }
-                else if c.cause == DeathCause.frost.rawValue { frostC = 0.85 * max(0, 1 - age / 8) }
+                if c.cause == DeathCause.fire.rawValue { burnC = 0.3 * expf(-age / 0.6); char = 0.7 }
+                else if c.cause == DeathCause.frost.rawValue { frostC = 0.3 * max(0, 1 - age / 4) }
                 let cv = c.value * char
                 scratch[t][k] = CreatureInstance(
                     pos: F4(c.x, c.y - sink + c.hop, c.z, c.scale), rot: F4(cosf(c.heading), sinf(c.heading), c.pitchS, c.pitchC),
