@@ -14,7 +14,21 @@ distance-driven phase plays it at the cadence it was cut for.
                   backward run); l / r and diagonals: the forward / backward cycle turned 45° / 90° (hips turn, the
                   legs run their own way, spine and chest twist back to the aim)
   turn_l / turn_r CMU 69_16 / 69_18: a 90° turn on the spot (for the runtime's upper / lower body split)
-Everything else (dash, fire, flinch, down, downed, revive, death) stays procedural in motion.py."""
+Feel build A3 — the actions (mocap/actions.py; ACTIONS below):
+  stagger_f       CMU 104_13: hit from the front — doubled over, stumbling back, recovering (both hands on the rifle)
+  stagger_b       CMU 22_12: shoved from behind — a lurch forward and catch steps
+  knockdown       CMU 90_18 (feet swept, onto the back) chained into CMU 140_08 (getting up from the back)
+  down            CMU 90_18: the legs go, onto the back, the rifle falls beside him
+  downed          CMU 140_08 (lying on the back, stirring), a closed loop
+  revive          CMU 140_08: from the back to standing, picking the rifle up (the app scrubs it by the progress)
+  death           CMU 90_18 (the impact and settling still): a downed marine dies, the visor goes dark
+  death_stand     Quaternius UAL Death01: a standing marine dies (the last of the squad on a defeat)
+  help            Quaternius UAL Fixing_Kneeling: kneel by a downed squadmate, work on him, rise (the app loops
+                  the work)
+  cast            per class, upper body (the app masks it): assault CMU 111_33 (overhand grenade throw), pyro
+                  CMU 111_33 (the napalm canister: a wound-up throw), cryo CMU 113_24, gunner CMU 113_24 (the turret
+                  tossed down ahead)
+Everything else (dash, fire; brace, victory, the weapon action — reload / vent) is keyed in motion.py."""
 import json
 import os
 
@@ -23,6 +37,7 @@ import numpy as np
 import motion as MO
 import skeleton as S
 
+from . import actions as AC
 from . import bvhsrc
 from . import rtg
 
@@ -59,7 +74,7 @@ def take_path(take):
 def load(take, times):
     kind, scale = kind_of(take)
     path, off = take_path(take)
-    return bvhsrc.load(path, scale, times=np.asarray(times, dtype=np.float64) - off), kind
+    return bvhsrc.load(path, scale, times=np.asarray(times, dtype=np.float64) - off, z_up=kind == 'ual'), kind
 
 
 def load_all(take, fps):
@@ -281,7 +296,36 @@ TURNS = {
     'turn_l': ('cmu_69_16', (1.55, 3.25)),
     'turn_r': ('cmu_69_18', (2.55, 4.0)),
 }
+# actions (mocap/actions.py build_action): segments (take, t0, t1 of the original take, options: rate = playback speed,
+# face = s into the segment whose facing becomes +z), the weapon's modes by frame, the ctrl curves (frame, value)
+_DOWN_W = [(0, 'hand'), (14, 'ground')]
+ACTIONS = {
+    'stagger_f': dict(segs=[('cmu_104_13', 0.5, 2.0, dict(face=0.0, rate=1.15))], weapon='carry', keep=0.6),
+    'stagger_b': dict(segs=[('cmu_22_12', 0.0, 1.6, dict(face=0.0, rate=1.2))], weapon='carry', keep=0.6),
+    'knockdown': dict(segs=[('cmu_90_18', 0.45, 1.5, dict(face=0.0)), ('cmu_140_08', 2.6, 5.7, dict(face=0.0, rate=1.35))],
+                      weapon=[(0, 'hand'), (82, 'carry')], ik_sup=[(0, 1), (5, 0), (84, 0), (91, 1)]),
+    'down': dict(segs=[('cmu_90_18', 0.45, 2.0, dict(face=0.0))], weapon=_DOWN_W, ground_end=True, ik_gun=[(10, 1), (14, 0)],
+                 ik_sup=[(0, 1), (5, 0)]),
+    'downed': dict(segs=[('cmu_140_08', 0.6, 2.6, dict(face=0.0))], weapon='ground', loop=True, ik_gun=[(0, 0)]),
+    'revive': dict(segs=[('cmu_140_08', 2.0, 5.7, dict(face=0.0, rate=1.2))], weapon=[(0, 'ground'), (40, 'hand'), (76, 'carry')],
+                   ik_gun=[(40, 0), (50, 1)], ik_sup=[(78, 0), (86, 1)]),
+    'death': dict(segs=[('cmu_90_18', 1.15, 2.6, dict(face=0.0))], weapon='ground', ik_gun=[(0, 0)], visor=[(6, 1), (30, 0)]),
+    'death_stand': dict(segs=[('ual_death01', 0.0, 2.4, dict(face=0.0))], weapon=[(0, 'carry'), (16, 'ground')],
+                        ground=(0.45, 0.2, 20.0), ground_end=True, ik_gun=[(10, 1), (16, 0)], ik_sup=[(4, 1), (8, 0)],
+                        visor=[(10, 1), (40, 0)]),
+    'help': dict(segs=[('ual_fixing_kneeling', 0.0, 5.2, dict(face=0.0))], weapon='low', ik_sup=[(0, 1), (8, 0), (148, 0), (156, 1)]),
+}
+CASTS = {
+    'assault': dict(segs=[('cmu_111_33', 1.3, 2.8, dict(face=0.6, rate=1.2))], weapon='low', ik_sup=[(0, 1), (4, 0), (30, 0), (37, 1)]),
+    'pyro': dict(segs=[('cmu_111_33', 6.0, 7.5, dict(face=0.65, rate=1.2))], weapon='low', ik_sup=[(0, 1), (4, 0), (30, 0), (37, 1)]),
+    'cryo': dict(segs=[('cmu_113_24', 2.2, 3.7, dict(face=0.7, rate=1.2))], weapon='low', ik_sup=[(0, 1), (4, 0), (30, 0), (37, 1)]),
+    'gunner': dict(segs=[('cmu_113_24', 6.4, 7.9, dict(face=0.6, rate=1.2))], weapon='low', ik_sup=[(0, 1), (4, 0), (30, 0), (37, 1)]),
+}
 _CYC = {}
+
+
+def action_spec(cls, name):
+    return CASTS[cls] if name == 'cast' else ACTIONS[name]
 
 
 def cycle(name):
@@ -304,11 +348,15 @@ def build(cls, name):
         take, (t0, t1) = TURNS[name]
         poses, rep = turn(cls, take, t0, t1)
         return poses, False, 0.0, rep
+    if name in ACTIONS or name == 'cast':
+        A = action_spec(cls, name)
+        poses, rep = AC.build_action(cls, A)
+        return poses, bool(A.get('loop', False)), 0.0, rep
     raise KeyError(name)
 
 
 def names():
-    return list(IDLES) + list(LOCO) + list(TURNS)
+    return list(IDLES) + list(LOCO) + list(TURNS) + list(ACTIONS) + ['cast']
 
 
 def used_ranges():
@@ -319,4 +367,7 @@ def used_ranges():
         out.setdefault(c.take, []).append((min(c.t0, c.t1), max(c.t0, c.t1)))
     for take, (t0, t1) in list(IDLES.values()) + list(TURNS.values()):
         out.setdefault(take, []).append((t0, t1))
+    for A in list(ACTIONS.values()) + list(CASTS.values()):
+        for sg in A['segs']:
+            out.setdefault(sg[0], []).append((sg[1], sg[2]))
     return out

@@ -122,6 +122,10 @@ final class WorldSquad {
     private var aimInit = false
     // the nearest live bug of each marine (head look-at), refreshed every third frame, staggered per marine
     private var threat = [F3?](repeating: nil, count: 4)
+    // feel build A3: the core's states watched for the rig's actions — an ability cooldown restarting (a cast), a reload
+    // or an overheat lockout starting (the weapon action) — counted per slot
+    private var prevAbCd: [Float] = [0, 0, 0, 0], prevReload: [Float] = [0, 0, 0, 0], prevOver: [Float] = [0, 0, 0, 0]
+    private var castSeq = [0, 0, 0, 0], weaponSeq = [0, 0, 0, 0]
     private var threatTick = 0
     private var palettes = [Region](repeating: Region(), count: 4)
     private var draws = [MarineDraw](repeating: MarineDraw(hue: .zero, trim: .zero, flash: .zero, params: .zero), count: 4)
@@ -246,6 +250,25 @@ final class WorldSquad {
             I.dead = lost && m.downed
             I.invulnerable = m.invulnerable
             I.hp = m.hp / max(1, m.maxHp)
+            // A3 actions — each from a state the core already has (no new event, nothing fed back)
+            if m.abCd > prevAbCd[k] + 0.5 { castSeq[k] += 1 }
+            if m.reload > prevReload[k] + 0.3 || m.over > prevOver[k] + 0.3 { weaponSeq[k] += 1 }
+            prevAbCd[k] = m.abCd; prevReload[k] = m.reload; prevOver[k] = m.over
+            I.castSeq = castSeq[k]
+            I.weaponSeq = weaponSeq[k]
+            if !m.downed {
+                // the core counts a downed marine's revive up while a squadmate stands within √5.3 m (updateRevive)
+                for (j, o) in game.marines.enumerated() where j != k && j < 4 && o.downed && o.revive > 0.02 {
+                    let dx = o.x - m.x, dz = o.z - m.z
+                    if dx * dx + dz * dz < 5.3 {
+                        let v = rigs[j]?.origin ?? F3(o.x, 0, o.z)
+                        I.help = SIMD2<Float>(v.x, v.z)
+                        break
+                    }
+                }
+            }
+            I.brace = liftOn && level.onLift(m.x, m.z)
+            I.victory = game.phase == .won || (liftOn && game.extractT > 3.1)
             if (threatTick + k) % 3 == 0 { threat[k] = m.downed ? nil : nearestThreat(game, x: x, z: z, y: y) }
             I.look = threat[k]
             if lookDev.on { lookDev.script(&I, k, time: time, level: level) }
@@ -459,7 +482,7 @@ final class WorldSquad {
         if now - lastLog < 1 { return }
         lastLog = now
         var slide: Float = 0, grip: Float = 0
-        var steps = 0, turns = 0, hits = 0
+        var steps = 0, turns = 0, hits = 0, acts = 0
         var twist: Float = 0
         var st: [String] = []
         for r in rigs {
@@ -469,6 +492,8 @@ final class WorldSquad {
             steps += r.restepCount
             turns += r.turnCount
             hits += r.hitCount
+            acts += r.actionCount
+            r.actionCount = 0
             twist = max(twist, r.twistMax)
             r.slideMax = 0
             r.gripErrMax = 0
@@ -478,9 +503,9 @@ final class WorldSquad {
             r.twistMax = 0
             st.append(r.state)
         }
-        AppLog.info(String(format: "hb squad cpu=%.3fms slide=%.1fcm grip=%.1fmm draws=%d restep=%d flashes=%d turns=%d hits=%d twist=%.0fdeg ",
+        AppLog.info(String(format: "hb squad cpu=%.3fms slide=%.1fcm grip=%.1fmm draws=%d restep=%d flashes=%d turns=%d hits=%d twist=%.0fdeg acts=%d ",
                            cpuAcc / Double(max(1, cpuFrames)), slide * 100, grip * 1000, drawn.count, steps, flashes.count, turns, hits,
-                           twist * 180 / Float.pi) + "states=" + st.joined(separator: ","))
+                           twist * 180 / Float.pi, acts) + "states=" + st.joined(separator: ","))
         cpuAcc = 0
         cpuFrames = 0
     }
@@ -514,12 +539,19 @@ final class WorldSquad {
 /// the chest is on it at once, the legs step round with turn_l), marine 1 strafes on a treadmill while its aim sweeps
 /// (a reversal at 3.5 s), marine 2 takes a heavy hit from the front at 3.1 s and looks at a threat ahead-left, marine 3
 /// (hurt) a hit from behind at 3.1 s.
+/// `-squadActions` (feel build A3, the actions showcase; CI bursts burst-acta / -actb / -actc): the four casts one after
+/// another from 2.0 s (0.4 s apart), the weapon actions from 4.0 s (reload, vents), at 6.0 s a brute's ram from the front
+/// on marine 0 (the knock-down and its get-up), a shove from behind on 1, a boomer's blast from the front on 2 and on 3
+/// while it runs (the stagger on the upper body); from 9.0 s marine 1 goes down and marine 2 kneels and revives it
+/// (12.0 s), marine 3 goes down at 9.4 s and dies at 11.0 s; from 13.0 s the four brace on the «lift» and 14.4 s the
+/// victory.
 final class SquadLookDev {
     let on: Bool
     let closeUp: Bool
     let tight: Bool
     let fire: Bool
     let loco: Bool
+    let actions: Bool
     private var anchor = F3(0, 0, 0)
     private var anchored = false
 
@@ -529,6 +561,7 @@ final class SquadLookDev {
         tight = u.contains("-closeupTight")
         fire = u.contains("-squadFire")
         loco = u.contains("-squadLoco")
+        actions = u.contains("-squadActions")
         closeUp = on && (u.contains("-closeup") || tight)
     }
 
@@ -565,6 +598,10 @@ final class SquadLookDev {
         I.revive = 0
         I.dead = false
         I.invulnerable = false
+        if actions {
+            scriptActions(&I, k, time: fmodf(time, 16), fwd: fwd, left: left)
+            return
+        }
         if loco {
             let t = fmodf(time, 10)
             func hit(_ at: Float, _ push: SIMD2<Float>) {
@@ -637,6 +674,44 @@ final class SquadLookDev {
         default:
             I.invulnerable = true                                // getting up, then idle
         }
+    }
+
+    /// `-squadActions` (see the class comment): marine k's input at t (s into the 16 s cycle).
+    private func scriptActions(_ I: inout RigInput, _ k: Int, time t: Float, fwd: SIMD2<Float>, left: SIMD2<Float>) {
+        let j = Float(k % 4)
+        I.castSeq = t >= 2.0 + 0.4 * j ? 1 : 0
+        I.weaponSeq = t >= 4.0 + 0.4 * j ? 1 : 0
+        func hit(_ at: Float, _ push: SIMD2<Float>) {
+            if t >= at && t < at + 0.22 {
+                I.hurtT = 0.22 - (t - at)
+                I.knock = push * (I.hurtT / 0.22)
+            }
+        }
+        switch k % 4 {
+        case 0: hit(6.0, -fwd * 13)                              // a brute's ram from the front: knocked down
+        case 1:
+            hit(6.2, fwd * 8)                                    // shoved from behind
+            if t >= 9.0 && t < 12.6 {                            // down, revived by marine 2 from 9.6 s
+                I.downed = true
+                I.revive = max(0, min(1, (t - 9.6) / 3.0))
+                if t >= 12.6 { I.downed = false }
+            }
+        case 2:
+            hit(6.4, -fwd * 8)                                   // a blast from the front
+            if t >= 9.3 && t < 12.6 {                            // kneels by marine 1 (to its right on the line)
+                let o = spot(1)
+                I.help = o
+            }
+        default:
+            if t >= 6.2 && t < 7.6 { I.vel = left * 4.5 }       // running across when the blast hits
+            hit(6.6, -fwd * 8)
+            if t >= 9.4 && t < 13.0 {
+                I.downed = true
+                I.dead = t >= 11.0
+            }
+        }
+        if t >= 13.0 { I.brace = true }
+        if t >= 14.4 { I.victory = true }
     }
 
     /// The close-up camera: the whole line (wide) or the player's marine (tight), 14° above, from the game's yaw.

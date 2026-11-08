@@ -480,6 +480,19 @@ jobs:
           pull_burst burst-loco
           run_demo burst-loco-game 5 "-demo calm -squadSheet -squadLoco -hideHUD -burst locogame 3.0 12 3"
           pull_burst burst-loco-game
+          # feel build A3: the actions (-squadActions, the close-up): the four ability casts and the weapon actions (reload,
+          # vents) from 1.9 s; the knock-down, the staggers (one on the run: upper body) from 5.9 s; down, the revive helper,
+          # the revive and a death from 8.9 s
+          run_demo burst-acta 6 "-demo calm -squadSheet -squadActions -closeup -hideHUD -burst acta 1.9 14 8"
+          pull_burst burst-acta
+          run_demo burst-actb 8 "-demo calm -squadSheet -squadActions -closeup -hideHUD -burst actb 5.9 16 10"
+          pull_burst burst-actb
+          run_demo burst-actc 14 "-demo calm -squadSheet -squadActions -closeup -hideHUD -burst actc 8.9 18 20"
+          pull_burst burst-actc
+          # the defeat (-demo defeat): the squad goes down one by one, the deaths and the push-in (the burst), then the report
+          # (the screenshot when the demo is done)
+          run_demo burst-defeat 9 "-demo defeat -seed 7 -burst defeat 3.3 16 10" 0
+          pull_burst burst-defeat
           # every bug type × clip (WorldSwarm's sheet: walk, run, attack, hit, deaths, specials), every 3rd frame over 0.6 s
           run_demo burst-bugs 5 "-demo bugsheet -hideHUD -burst bugs 1.5 12 3"
           pull_burst burst-bugs
@@ -711,7 +724,7 @@ jobs:
           for d in title-fresh title-return title-nm layout holdhint queenlock coach coach3 pressure pressure-amber pause-nm report-first report-win report-loss report-chip stress1400 punchin extract-cine bugsheet calm-bright \
                    layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo banner-beacon banner-queen banner-pseudo \
                    swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud calm-deckmask calm-bright-nohud \
-                   burst-fire burst-tight burst-combat burst-anim burst-loco burst-loco-game burst-bugs burst-pack burst-packold burst-mix burst-mixold validate-stress validate-fxpeak validate-extract lifecycle; do
+                   burst-fire burst-tight burst-combat burst-anim burst-loco burst-loco-game burst-acta burst-actb burst-actc burst-defeat burst-bugs burst-pack burst-packold burst-mix burst-mixold validate-stress validate-fxpeak validate-extract lifecycle; do
             grep -q 'scene ready' "results/app-$d.log" || { fail "$d: no 'scene ready'"; }
             if grep -q 'ERROR' "results/app-$d.log"; then fail "$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; fi
           done
@@ -757,6 +770,12 @@ jobs:
           need burst-anim 'burst anim written \(16 frames\)'
           need burst-loco 'burst loco written \(16 frames\)'
           need burst-loco-game 'burst locogame written \(12 frames\)'
+          need burst-acta 'burst acta written \(14 frames\)'
+          need burst-actb 'burst actb written \(16 frames\)'
+          need burst-actc 'burst actc written \(18 frames\)'
+          need burst-defeat 'burst defeat written \(16 frames\)'
+          need burst-defeat 'defeat beat start'
+          need burst-defeat 'mission over won=false'
           need burst-bugs 'burst bugs written \(12 frames\)'
           need burst-pack 'burst pack written \(24 frames\)'
           need burst-packold 'burst packold written \(24 frames\)'

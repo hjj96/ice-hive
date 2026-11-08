@@ -59,6 +59,11 @@ import IceHiveCore
 //                   the deck 5–11 m around it rushing in, kept topped up from the walkways (11–17 m); the director off,
 //                   the player idle, the squad firing (deaths by cause: shots, flames, frost, grenades)
 //    -demo swarmmix   the same with a mixed pack (75, every type)
+//  feel build A3 (the actions):
+//    -demo defeat   a crowd round the squad (200, under the live cap), then the squad goes down one by one from 2.0 s
+//                   after «scene ready» (0.6 s apart, the player last, invulnerability off for it): the core loses the
+//                   mission, GameScene plays the defeat beat (the deaths, Cinematics' push-in, 2.8 s) and the report
+//                   comes up — the CI burst burst-defeat and the screenshot after it
 //    No demo shows more live bugs than the game itself can: every forced crowd is clamped to the mission's live cap
 //    (`crowd(_:)`; the wave pacing's High 350 / Medium 250 / Low 220 under the device class), the hold demos play the
 //    director's own hold. Only the declared renderer stress runs go past it — stress1400 (1400) and an explicit
@@ -86,6 +91,7 @@ final class DemoScript {
     /// The running demo's `sinceReady` (-1 with no demo or while loading).
     private(set) static var sceneClock: Double = -1
     private var queenSet = false, coachStepped = false
+    private var defeatStep = 0
     /// `-demo report`: the fixture whose outcome the mission gets.
     let reportFixture: DemoFixtures.Report?
 
@@ -103,7 +109,7 @@ final class DemoScript {
         case "combat", "smoke", "default": return DemoScript(name: d == "default" ? "combat" : d, options: options, bugs: options.bugs)
         case "beacon": return DemoScript(name: d, options: options, bugs: options.bugs)
         case "title", "calm", "probe", "hold", "holdhint", "extract", "queen", "queenlock", "coach", "pressure", "report", "levelup", "pause", "end",
-             "swarmshot", "layout", "bugsheet", "punchin", "extract-cine", "waves", "swarmpack", "swarmmix":
+             "swarmshot", "layout", "bugsheet", "punchin", "extract-cine", "waves", "swarmpack", "swarmmix", "defeat":
             return DemoScript(name: d, options: options)
         case "stress1400": return DemoScript(name: d, options: options, bugs: options.bugs ?? 1400)
         default:
@@ -201,6 +207,10 @@ final class DemoScript {
             let n = game.debugSpawn(target, type: packType, minRadius: 5, maxRadius: 11)
             AppLog.info("demo \(name): spawned \(n) bugs (\(packType.map { "\($0)" } ?? "mixed")) on beacon Alpha's deck, swarm "
                         + (SwarmAnimator.legacy ? "legacy" : "life"))
+        case "defeat":
+            target = crowd(200)
+            let n = game.debugSpawn(target, type: nil, minRadius: 7, maxRadius: 22)
+            AppLog.info("demo defeat: spawned \(n) bugs, the squad goes down from 2.0 s")
         case "levelup", "pause", "end":
             if name == "levelup" { game.autoPickUpgrades = false }
             target = crowd(300)
@@ -275,6 +285,17 @@ final class DemoScript {
                 if let r = reportFixture { DemoFixtures.apply(r, to: game) }
                 request = .end
             default: break
+            }
+        }
+        if name == "defeat" {
+            // the squad down one by one (the player last): the core ends the mission when the last one is down
+            let at: [Double] = [2.0, 2.6, 3.2, 3.8]
+            while defeatStep < 4 && sinceReady >= at[defeatStep] {
+                game.godMode = false
+                let k = 3 - defeatStep
+                game.debugHurt(marine: k, hp: 0)
+                defeatStep += 1
+                AppLog.info("demo defeat: marine \(k) down")
             }
         }
         if (name == "queen" || name == "queenlock") && !queenSet && sinceReady >= 2 {

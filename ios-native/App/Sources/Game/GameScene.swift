@@ -35,6 +35,8 @@ final class GameScene: SKScene {
     private var demo: DemoScript?
     private var selectedClass: MarineClass = .assault
     private var surrendered = false
+    /// Seconds of the defeat beat played (A3: the report waits for the deaths and the push-in).
+    private var defeatBeat: Float = 0
     /// Settings and records (UserDefaults, v1 values migrated on the first launch). Demos keep the v1.1 meta keys
     /// (profile, tier pick, coach flag, stick seconds) in memory, seeded by `-profile` / `-report` (DemoFixtures).
     private let settings: SettingsStore
@@ -434,6 +436,7 @@ final class GameScene: SKScene {
         guard let g = newGame(attract: false, tier: tier, coach: coach) else { return }
         game = g
         surrendered = false
+        defeatBeat = 0
         report = nil
         rankUpHapticAt = -1
         threatLogged = -1
@@ -806,8 +809,17 @@ final class GameScene: SKScene {
         }
         if rankUpHapticAt > 0 && lastTime >= rankUpHapticAt { rankUpHapticAt = -1; haptics.play(.success) }
         if mode == .playing && g.wantsLevelUp && !g.autoPickUpgrades { openLevelUp() }
-        // the report comes up at once over the frozen world, like the web endGame()
-        if mode == .playing && g.phase != .playing && demo == nil { showEnd() }
+        // the report comes up over the frozen world, like the web endGame(); a lost squad first gets its defeat beat (feel
+        // build A3: the deaths and Cinematics' push-in, `Cinematics.defeatLength` s — `-demo defeat` plays it too)
+        if mode == .playing && g.phase != .playing && (demo == nil || demo?.name == "defeat") {
+            if g.phase == .lost && !surrendered && defeatBeat < Cinematics.defeatLength {
+                if defeatBeat == 0 { AppLog.info("defeat beat start") }
+                defeatBeat += max(dt, 1e-4)
+                input.reset()
+            } else {
+                showEnd()
+            }
+        }
         if mode == .ended && menu.endPending && lastTime > endBegunAt { stepPendingReport() }
         // low armour heartbeat (app side, like the web audioUpdate): faster as the armour falls
         heartT -= dt

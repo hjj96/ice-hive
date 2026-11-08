@@ -68,18 +68,20 @@ def duration(path):
     return (n - 1) * frame_time(path)
 
 
-def load(path, scale, times=None, fps_out=30.0):
+def load(path, scale, times=None, fps_out=30.0, z_up=False):
     """dict(names, parent, rest_R, rest_P, R (n,J,3,3), P (n,J,3), fps, src_fps, duration). `times` (s from the first
-    frame of the file) default: the whole take at fps_out."""
+    frame of the file) default: the whole take at fps_out. `z_up`: a file written by Blender's own BVH exporter (its
+    Z-up axes: the Quaternius cuts of ual_cut.py), read without the Y-up conversion."""
     src_dt = frame_time(path)
     dur = duration(path)
     if times is None:
         times = np.arange(0.0, dur + 1e-9, 1.0 / fps_out)
-    k = _key(path, scale, times)
+    k = _key(path, scale, times, 'z' if z_up else '')
     if k in _CACHE:
         return dict(_CACHE[k])
     bpy.ops.wm.read_factory_settings(use_empty=True)
-    bpy.ops.import_anim.bvh(filepath=path, global_scale=scale, rotate_mode='NATIVE', axis_forward='-Z', axis_up='Y',
+    fwd, up = ('Y', 'Z') if z_up else ('-Z', 'Y')
+    bpy.ops.import_anim.bvh(filepath=path, global_scale=scale, rotate_mode='NATIVE', axis_forward=fwd, axis_up=up,
                             update_scene_fps=False, update_scene_duration=False, use_fps_scale=False)
     arm = [o for o in bpy.context.scene.objects if o.type == 'ARMATURE'][0]
     f0 = int(round(arm.animation_data.action.frame_range[0]))

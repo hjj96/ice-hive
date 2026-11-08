@@ -20,11 +20,15 @@ Clip list (30 fps, one track row per frame; names match MarineRig.swift):
                                    settled with an overshoot; chest, head and weapon trail the pelvis (overlap)
   fire                 additive    per weapon: rifle kick (one-shot, retriggered per shot), rotary judder, flamer push,
                                    cryo hum (loops) — the delta from its frame 0
-  flinch_f / flinch_b  additive    a hit from the front / from behind
-  down                 one-shot    knees buckle → kneel → fall prone (holds)
-  downed               loop  2 s   prone crawl in place (the support arm reaches and pulls, the legs push)
-  revive               one-shot    prone → hands and knees → kneel → stand (the app scrubs it by revive progress)
-  death                one-shot    from prone: the last spasm, the weapon slides away, the visor goes dark (holds)
+  down / downed /      one-shot / loop / one-shot (mocap, feel build A3: mocap/actions.py) — going down onto the
+  revive / death       back, lying wounded, getting up (the app scrubs it by the revive progress), dying; the procedural
+                       versions below remain for a look-dev build without the captures (mocap=False)
+  stagger_f / _b,      one-shot (mocap) the heavy-hit reactions, the knock-down and its get-up, the standing death, the
+  knockdown,           revive helper's kneel, the class's ability cast (upper body: the app masks it)
+  death_stand, help,
+  cast
+  weapon               one-shot (keyed) the assault's reload, the others' overheat vent (upper body)
+  brace / victory      loop / one-shot (keyed) on the extraction lift
 The ctrl bone carries the IK weights (gun hand, support hand), the foot plant weights and the visor glow.
 """
 import numpy as np
@@ -926,8 +930,119 @@ def death(cls, report):
     return keyed(cls, 'death', keys, 40, report=report, easing=[ease_out, ease, ease_out, ease])
 
 
+# ---------------------------------------------------------------- keyed actions (feel build A3: no free mocap holds a
+# rifle — reloads, vents, the lift's brace and the victory are keyed here, like the dash)
+def _sup_off(s, wrist, hq):
+    """The support hand off its grip to a model-space wrist target."""
+    s.ik = {'L': 1.0, 'R': 0.0}
+    s.wrist['R'] = np.asarray(wrist, dtype=np.float64)
+    s.hand_q['R'] = hq
+    return s
+
+
+def _tilted(cls, s, dq, dp=(0.0, 0.0, 0.0)):
+    """The stance weapon turned by dq about the gun hand's grip, moved by dp; the chest follows a third of it."""
+    wp, wq = stance_weapon(cls)
+    s.weapon_p = wp + np.asarray(dp, dtype=np.float64)
+    s.weapon_q = qnorm(qmul(dq, wq))
+    return s
+
+
+def reload(cls, report):
+    """Assault, 1.3 s (the core's reload): the rifle rolls toward the support side and dips (anticipation), the
+    support hand strips the magazine and drops it (2–13), fetches a fresh one from the belt (13–20), seats it with a
+    shove that kicks the rifle (24) and slaps the bolt (29), back on the grip (36), the rifle levels with a small
+    overshoot (39)."""
+    st = stance(cls)
+    wp, _ = stance_weapon(cls)
+    down = hand_rot('R', x=(1.0, 0.0, 0.0), y=(0.0, 0.3, -1.0), z=(0.0, -1.0, -0.3))
+    palm_up = hand_rot('R', x=(1.0, 0.0, 0.0), y=(0.0, -1.0, 0.2), z=(0.0, 0.2, 1.0))
+    mag = wp + np.array([-0.02, -0.17, 0.14])            # under the receiver, in front of the gun hand
+    roll = qeuler(z=-24.0, x=-8.0)
+    a = _tilted(cls, st.copy(), qeuler(z=-10.0, x=6.0), (0.0, -0.02, 0.0))
+    b = _sup_off(_tilted(cls, st.copy(), roll, (-0.03, 0.03, -0.04)), mag + np.array([-0.04, 0.02, 0.0]), palm_up)
+    b.chest_q = qmul(qeuler(x=6.0, y=-6.0), st.chest_q)
+    b.head_q = qeuler(x=18.0, y=-12.0)
+    c = _sup_off(b.copy(), mag + np.array([-0.08, -0.16, 0.02]), down)
+    d = _sup_off(b.copy(), st.pelvis_p + np.array([-0.2, 0.1, 0.1]), down)
+    e = _sup_off(b.copy(), mag + np.array([-0.05, -0.08, 0.0]), palm_up)
+    f = _sup_off(_tilted(cls, st.copy(), qmul(qeuler(x=-6.0), roll), (-0.03, 0.06, -0.05)), mag + np.array([-0.03, 0.03, 0.0]), palm_up)
+    f.chest_q, f.head_q = b.chest_q, b.head_q
+    g = _sup_off(_tilted(cls, st.copy(), qeuler(z=-14.0), (-0.01, 0.03, -0.02)), wp + np.array([-0.08, 0.08, 0.02]), down)
+    g.head_q = qeuler(x=10.0, y=-6.0)
+    h = _tilted(cls, st.copy(), qeuler(x=-3.0), (0.0, 0.01, 0.0))
+    keys = [(0, st), (3, a), (7, b), (11, c), (16, d), (21, e), (24, f), (29, g), (35, h), (38, st)]
+    return keyed(cls, 'reload', keys, 39, report=report,
+                 easing=[ease_out, ease, ease_out, ease, ease, ease_out, ease, ease, ease])
+
+
+def vent(cls, report):
+    """Gunner / pyro / cryo overheat: the weapon heaves up muzzle-high and rolls (the vents open: 0–7), the support
+    hand comes off and fans / slaps the housing twice (8–24), the weapon comes back down and levels (24–35)."""
+    st = stance(cls)
+    wp, _ = stance_weapon(cls)
+    side = hand_rot('R', x=(0.0, 1.0, 0.0), y=(-1.0, 0.0, 0.0), z=(0.0, 0.0, 1.0))
+    up = _tilted(cls, st.copy(), qeuler(x=-30.0, z=-16.0), (0.0, 0.08, -0.06))
+    up.chest_q = qmul(qeuler(x=-5.0), st.chest_q)
+    up.head_q = qeuler(x=-6.0, y=-10.0)
+    h0 = _sup_off(up.copy(), wp + np.array([-0.22, 0.22, 0.22]), side)
+    h1 = _sup_off(up.copy(), wp + np.array([-0.1, 0.16, 0.3]), side)
+    h2 = _sup_off(up.copy(), wp + np.array([-0.24, 0.26, 0.18]), side)
+    mid = lerp_spec(up, st, 0.5)
+    keys = [(0, st), (6, up), (9, h0), (13, h1), (17, h2), (21, h1), (25, up), (31, mid), (35, st)]
+    return keyed(cls, 'vent', keys, 36, report=report,
+                 easing=[ease_out, ease, ease_out, ease, ease_out, ease, ease, ease])
+
+
+def victory(cls, report):
+    """On the rising lift, the mission won: the weapon goes up overhead in the gun hand, the support fist pumps
+    twice, then the weapon comes down to the shoulder (one-shot, 1.6 s, the last frame held)."""
+    st = stance(cls)
+    fist = hand_rot('R', x=(1.0, 0.0, 0.0), y=(0.0, 0.0, -1.0), z=(0.0, 1.0, 0.0))
+    raised = st.copy()
+    raised.weapon_p = np.array([0.24, 1.86, 0.12])
+    raised.weapon_q = qeuler(x=-62.0, z=8.0)
+    raised.chest_q = qmul(qeuler(x=-8.0), st.chest_q)
+    raised.head_q = qeuler(x=-14.0)
+    raised.pelvis_p = st.pelvis_p + np.array([0.0, 0.03, 0.0])
+    p1 = _sup_off(raised.copy(), np.array([-0.24, 1.72, 0.14]), fist)
+    p2 = _sup_off(raised.copy(), np.array([-0.26, 1.42, 0.2]), fist)
+    rest = st.copy()
+    rest.weapon_p = np.array([0.2, 1.5, 0.05])
+    rest.weapon_q = qeuler(x=-55.0)
+    rest.head_q = qeuler(x=-4.0)
+    rest = _sup_off(rest, np.array([-0.2, 1.05, 0.08]), hand_rot('R', x=(1.0, 0.0, 0.0), y=(0.0, 0.0, -1.0), z=(0.0, -1.0, 0.0)))
+    keys = [(0, st), (6, p2), (12, p1), (18, p2), (24, p1), (32, p2), (42, rest), (47, rest)]
+    return keyed(cls, 'victory', keys, 48, report=report, easing=[ease_out, ease_out, ease, ease_out, ease, ease, ease])
+
+
+def brace(cls, report):
+    """On the rising lift: a wide, low stance, the weapon at low ready, the weight shifting with the platform's
+    shudder and a look round (loop, 2 s)."""
+    n = 60
+    poses = []
+    wp, _ = stance_weapon(cls)
+    for k in range(n):
+        u = k / n
+        s = stance(cls, crouch=0.11)
+        sw = np.sin(2 * np.pi * u)
+        s.pelvis_p = s.pelvis_p + np.array([0.025 * sw, 0.008 * np.sin(4 * np.pi * u + 0.5), 0.0])
+        s.ankle['L'] = s.ankle['L'] + np.array([0.08, 0.0, -0.02])
+        s.ankle['R'] = s.ankle['R'] + np.array([-0.08, 0.0, 0.02])
+        s.chest_q = qmul(qeuler(x=9.0, z=2.0 * sw), s.chest_q)
+        s.head_q = qeuler(x=6.0, y=28.0 * np.sin(2 * np.pi * u + 0.8))
+        s.weapon_p = wp + np.array([0.0, -0.14, -0.04])
+        s.weapon_q = qeuler(x=24.0, y=-6.0)
+        poses.append(build(cls, s, report))
+    return Clip('brace', poses, True)
+
+
 ORDER = (['idle', 'idle_b'] + [f'walk_{d}' for d in DIRS] + [f'run_{d}' for d in DIRS] + ['turn_l', 'turn_r']
-         + ['dash_f', 'dash_b', 'dash_l', 'dash_r', 'fire', 'flinch_f', 'flinch_b', 'down', 'downed', 'revive', 'death'])
+         + ['dash_f', 'dash_b', 'dash_l', 'dash_r', 'fire', 'down', 'downed', 'revive', 'death']
+         + ['stagger_f', 'stagger_b', 'knockdown', 'death_stand', 'help', 'cast', 'brace', 'victory', 'weapon'])
+# (feel build A3: flinch_f / flinch_b are gone — the app's hit impulses replaced them; 'weapon' is the class's own
+# weapon action: the assault's reload, the others' overheat vent)
+KEYED = {'brace': brace, 'victory': victory}
 
 
 def all_clips(cls, mocap=True, report=None):
@@ -965,8 +1080,15 @@ def all_clips(cls, mocap=True, report=None):
             c = fire(cls, r)
         elif name.startswith('flinch_'):
             c = flinch(cls, name[7:], r)
-        else:
+        elif name in KEYED:
+            c = KEYED[name](cls, r)
+        elif name == 'weapon':
+            c = reload(cls, r) if cls == 'assault' else vent(cls, r)
+            c.name = 'weapon'
+        elif name in ('down', 'downed', 'revive', 'death'):
             c = {'down': down, 'downed': downed, 'revive': revive, 'death': death}[name](cls, r)
+        else:
+            continue                        # (mocap=False: a look-dev build without the action captures)
         clips.append(c)
         ik[name] = max([e for _, e in r] + [0.0])
     return clips, drift, ik

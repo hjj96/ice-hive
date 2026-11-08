@@ -14,6 +14,11 @@ import IceHiveCore
 //                platform and 2.6 m above its deck, and rides up with it
 //                — a little slower, so at the top it looks up across the
 //                railing at the squad (until the mission ends); fov 36°
+//    defeat      (feel build A3) the squad is lost: the world stops,
+//                the marines die where they lie (MarineRig's deaths),
+//                and the camera pushes in on them — ≈ 45 % closer and
+//                a little lower over `defeatLength` s, the field of view
+//                narrowing — then GameScene brings the report up
 //    title       attract mode: a lower, closer orbit on the squad
 //                (pitch 44°, 24 m, fov 34°), composed into the free
 //                space top right, above the subtitle and the class cards
@@ -39,7 +44,7 @@ import IceHiveCore
 final class Cinematics {
     static let shared = Cinematics()
 
-    enum Kind: String { case punchIn = "punchin", extraction, title }
+    enum Kind: String { case punchIn = "punchin", extraction, title, defeat }
     /// Who calls update(): once the scene does, the demos' calls are ignored (one update per tick).
     enum Driver { case scene, demo }
 
@@ -56,6 +61,9 @@ final class Cinematics {
     /// Time dilation of the punch-in: ×slow between `dilate.0` and `dilate.1` s into the shot, smooth edges of `edge` s.
     static let dilate: (Float, Float) = (0.08, 0.53), dilateEdge: Float = 0.1, dilateSlow: Float = 0.3
     static let extractionEase: Float = 0.6
+    /// The defeat beat (A3): the deaths and the push-in before the report (GameScene holds the report this long).
+    static let defeatLength: Float = 2.8
+    static let defeat = (push: Float(0.45), drop: Float(0.12), fovDeg: Float(4), ease: Float(0.9))
 
     // ---- framing
     static let punchIn = (pitchDeg: Float(33), dist: Float(10.5), push: Float(1.0), fovDeg: Float(38), orbitDeg: Float(4))
@@ -108,6 +116,8 @@ final class Cinematics {
     // ---- the game, as of the last update
     private var beaconPos = F3(0, 0, 0)
     private var centroid = F3(0, 0, 0)
+    /// Every marine, downed or not (the defeat shot looks at the fallen).
+    private var squadCentre = F3(0, 0, 0)
     private var spots: [(pos: F3, dir: F3)] = []
     private var lift = (c: F3(0, 0, 0), r: Float(10))
     private var rise: Float = 0
@@ -154,10 +164,12 @@ final class Cinematics {
         // triggers: a beacon came on → punch-in; the lift leaves → extraction; attract → title
         if g.attract {
             if kind != .title { start(.title) }
+        } else if g.phase == .lost {
+            if kind != .defeat { start(.defeat) }
         } else if g.stage == .extract {
             if kind != .extraction { start(.extraction) }
         } else {
-            if kind == .title || kind == .extraction { kind = nil; weight = 0 }
+            if kind == .title || kind == .extraction || kind == .defeat { kind = nil; weight = 0 }
             for k in 0..<g.beacons.count {
                 let s = g.beacons[k].state
                 if known && k < beaconStates.count && beaconStates[k] != 2 && s == 2 { beaconIndex = k; start(.punchIn) }
@@ -225,6 +237,9 @@ final class Cinematics {
         case .title:
             weight = 1
             timeScale = 1
+        case .defeat:
+            weight = easeOut(t / Cinematics.defeat.ease)
+            timeScale = 1
         }
         if !camerasOn { weight = 0 }
     }
@@ -270,6 +285,9 @@ final class Cinematics {
             spots.append((pos, d / max(1e-4, length(d))))
         }
         if n > 0 { centroid = c / n } else if let m = g.marines.first { centroid = F3(m.x, L.groundY(m.x, m.z), m.z) }
+        var all = F3(0, 0, 0)
+        for m in g.marines { all += F3(m.x, L.groundY(m.x, m.z), m.z) }
+        squadCentre = g.marines.isEmpty ? centroid : all / Float(g.marines.count)
     }
 
     // ---------------------------------------------------------------- the camera
@@ -284,8 +302,10 @@ final class Cinematics {
         case .punchIn: shot = punchInPose()
         case .extraction: shot = extractionPose()
         case .title: shot = titlePose(aspect: aspect, time: time)
+        case .defeat: shot = defeatPose(base)
         }
-        shot = keepOutOfCones(shot, kind: k, dt: dt)
+        // (the defeat looks down at marines lying on the deck: their torches point at it, not into the lens)
+        if k != .defeat { shot = keepOutOfCones(shot, kind: k, dt: dt) }
         if weight >= 0.999 { return shot }
         let w = weight
         return Pose(eye: base.eye + (shot.eye - base.eye) * w, target: base.target + (shot.target - base.target) * w,
@@ -299,6 +319,16 @@ final class Cinematics {
 
     private func orbit(_ target: F3, yaw: Float, pitch: Float, dist: Float) -> F3 {
         target + F3(sinf(yaw) * cosf(pitch), sinf(pitch), cosf(yaw) * cosf(pitch)) * dist
+    }
+
+    /// The defeat: from the game camera's own direction, pushed in on the whole squad and a little lower.
+    private func defeatPose(_ base: Pose) -> Pose {
+        let D = Cinematics.defeat
+        let u = smooth01f(t / Cinematics.defeatLength) * (reducedMotion ? 0.5 : 1)
+        let target = squadCentre + F3(0, 0.45, 0)
+        var dir = base.eye - base.target
+        dir.y *= 1 - D.drop * u
+        return Pose(eye: target + dir * (1 - D.push * u), target: target, fovDeg: base.fovDeg - D.fovDeg * u)
     }
 
     private func punchInPose() -> Pose {

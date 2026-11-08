@@ -398,6 +398,17 @@ struct RigInput {
     var hp: Float = 1
     /// The nearest threat (world), nil = none: the head turns to it within its limits.
     var look: F3? = nil
+    // ---- actions (feel build A3): each maps onto a state or an event the core already has
+    /// Bumped once per ability cast (the core's ability cooldown restarting): the class's cast plays on the upper body.
+    var castSeq = 0
+    /// Bumped once per reload (assault) or overheat lockout (gunner / pyro / cryo): the class's weapon action.
+    var weaponSeq = 0
+    /// World xz of the downed squadmate this marine stands by while the core counts its revive up (nil = none): it
+    /// kneels and works on him.
+    var help: SIMD2<Float>? = nil
+    /// On the rising extraction lift: the wide brace stance; `victory`: the mission is won (the weapon goes up).
+    var brace = false
+    var victory = false
     /// Look-dev (`-squadLoco`): a named clip played as the full-body override at `clipTime`, and the treadmill view —
     /// no world foot lock, the clip's own feet.
     var clip: String? = nil
@@ -453,7 +464,41 @@ final class MarineRig {
     private var getUpClock: Float = 10
     private var getUpFrom: Float = 0
     private var deathClock: Float = 0
+    private var deathStand = false
     private var overrideW: Float = 0
+    // actions (A3). Full body: a stagger / the knock-down after a heavy hit, kneeling by a squadmate being revived, the
+    // lift's brace — `act` the clip playing (-1 none), its clock, playback rate, fade weight and whether it is ending.
+    // Upper body (the bone mask): the ability cast, the weapon action, the victory — `up` likewise.
+    private enum ActKind { case none, stagger, knock, help, brace }
+    private var actKind = ActKind.none
+    private var act = -1
+    private var actT: Float = 0, actRate: Float = 1, actW: Float = 0
+    private var actEnding = false
+    private var actLoop: (Float, Float)? = nil
+    private var up = -1
+    private var upT: Float = 0, upW: Float = 0, upHold = false
+    private var lastCast = -1, lastWeapon = -1
+    private var wasVictory = false
+    /// The visual offset of the body from the simulation's position (world xz): what a full-body clip's own travel
+    /// (a fall, a stagger's steps) has moved it; eased back to 0 once the marine is on its feet (the feet re-step).
+    private var rootOff = F3(0, 0, 0)
+    private var actShift = SIMD2<Float>(0, 0)
+    private var downShift = SIMD2<Float>(0, 0), downMoved = false, getUpShift = SIMD2<Float>(0, 0)
+    private var actMasked = false
+    private var actRot: Float = 0, getUpRot: Float = 0
+    private var seqInit = false
+    private var helpOff = F3(0, 0, 0), helpCur = F3(0, 0, 0)
+    /// How much of the get-up the revive progress scrubs (the rest plays once revived).
+    private static let reviveScrub: Float = 0.62
+    /// The cast starts this far in (its wind-up is cut short: the core's grenade / napalm / nova / turret is out at once).
+    private static let castStart: Float = 0.3
+    /// The kneel's working loop (s into `help`) and the rise after it.
+    private static let helpLoop: (Float, Float) = (1.35, 3.95)
+    private let iStaggerF, iStaggerB, iKnock, iDeathStand, iHelp, iCast, iBrace, iVictory, iWeaponAct: Int
+    /// Bones the upper-body actions drive (spine1 … head, the arms, the weapon, the armour on them) with their weight.
+    private var upMask: [(Int, Float)] = []
+    /// actions started since the last read (hb squad)
+    var actionCount = 0
     private var idleClock: Float = 0
     // upper / lower body split: the legs' world yaw (the model frame), the twist the spine carries (aim − legs − the
     // turn clip's progress), the turn-in-place clip (side +1 turn_l, −1 turn_r), the settle shuffle
@@ -586,6 +631,9 @@ final class MarineRig {
         iIdle = asset.clip(asset.cls.rawValue % 2 == 0 ? "idle" : "idle_b"); iFire = asset.clip("fire")
         iDown = asset.clip("down"); iDowned = asset.clip("downed"); iRevive = asset.clip("revive"); iDeath = asset.clip("death")
         iDash = ["f", "l", "b", "r"].map { asset.clip("dash_" + $0) }
+        func opt(_ s: String) -> Int { asset.clipIndex[s] ?? -1 }
+        iStaggerF = opt("stagger_f"); iStaggerB = opt("stagger_b"); iKnock = opt("knockdown"); iDeathStand = opt("death_stand")
+        iHelp = opt("help"); iCast = opt("cast"); iBrace = opt("brace"); iVictory = opt("victory"); iWeaponAct = opt("weapon")
         iTurn = ["turn_l", "turn_r"].map { asset.clipIndex[$0] ?? -1 }
         func idx(_ s: String) -> Int { asset.names.firstIndex(of: s) ?? 0 }
         iChain = ["spine1", "spine2", "chest", "neck", "head"].map(idx)
@@ -596,6 +644,10 @@ final class MarineRig {
             while p >= 0 { sub[p] |= UInt32(1) << UInt32(b); p = asset.parent[p] }
         }
         subtree = sub
+        let upperW: [String: Float] = ["spine1": 0.45, "spine2": 0.8, "chest": 1, "neck": 1, "head": 1, "clav_L": 1, "clav_R": 1,
+                                       "upperarm_L": 1, "forearm_L": 1, "hand_L": 1, "upperarm_R": 1, "forearm_R": 1, "hand_R": 1,
+                                       "weapon": 1, "weapon_aux": 1, "pauldron_L": 1, "pauldron_R": 1, "backpack": 1, "antenna": 1]
+        upMask = upperW.compactMap { k, w in asset.names.firstIndex(of: k).map { ($0, w) } }.sorted { $0.0 < $1.0 }
         iBackpack = idx("backpack"); iAntenna = idx("antenna"); iClav = (idx("clav_L"), idx("clav_R"))
         // tips in the bone's frame (bind axes = model axes): pauldrons stick out sideways, the pack hangs, the antenna
         // stands up, tassets hang over the thighs; underdamped (ζ < 0.4) so they overshoot and settle
@@ -644,6 +696,8 @@ final class MarineRig {
         feetInit = false; turnSide = 0; turnW = 0; turnYawApplied = 0; snapW = 0; settleClock = 0; shuffling = false
         hitClock = 10; hitFired = 0; fatigue = 0; hurtSm = 0; lookYaw = 0; lookPitch = 0
         shoveP = .zero; shoveV = .zero
+        actKind = .none; act = -1; actW = 0; up = -1; upW = 0; rootOff = .zero; actShift = .zero; deathStand = false
+        lastCast = -1; lastWeapon = -1; wasVictory = false
         for i in 0..<5 { hitTilt[i] = .zero; hitVel[i] = .zero }
         for i in 0..<springs.count { springs[i].on = false }
         gunSpring.on = false
@@ -658,8 +712,10 @@ final class MarineRig {
         ctrlVisor = 0
     }
 
-    /// Add clip `c` at time t (s; loops wrap, one-shots clamp) with weight w.
-    private func acc(_ c: Int, time t: Float, _ w: Float) {
+    /// Add clip `c` at time t (s; loops wrap, one-shots clamp) with weight w; `shift` (model xz) is taken off its pelvis
+    /// (a clip's travel already moved into the visual offset).
+    private func acc(_ c: Int, time t: Float, _ w: Float, shift: SIMD2<Float> = .zero, rot: Float = 0) {
+        let rq = rot != 0 ? Quat.axis(F3(0, 1, 0), -rot) : Quat.identity
         if w <= 1e-4 { return }
         let C = asset.clips[c]
         let fr = Float(C.frames)
@@ -676,10 +732,16 @@ final class MarineRig {
                 continue
             }
             var q = Quat.nlerp(asset.rot[r0 + b], asset.rot[r1 + b], fa)
+            if rot != 0 && b == asset.iPelvis { q = Quat.norm(Quat.mul(rq, q)) }
             if (q * accQ[b]).sum() < 0 { q = -q }
             accQ[b] += q * w
             let a = asset.pos[r0 + b], bb = asset.pos[r1 + b]
-            accT[b] += F3(a.x + (bb.x - a.x) * fa, a.y + (bb.y - a.y) * fa, a.z + (bb.z - a.z) * fa) * w
+            var tr = F3(a.x + (bb.x - a.x) * fa, a.y + (bb.y - a.y) * fa, a.z + (bb.z - a.z) * fa)
+            if b == asset.iPelvis {
+                tr.x -= shift.x; tr.z -= shift.y
+                if rot != 0 { tr = Quat.rotate(rq, tr) }
+            }
+            accT[b] += tr * w
         }
         accW += w
     }
@@ -940,18 +1002,196 @@ final class MarineRig {
         origin + Quat.rotate(yawQ, p)
     }
 
+    // ---------------------------------------------------------------- actions (feel build A3)
+    /// A clip's own travel at t (model xz: the pelvis from its first frame).
+    private func clipDrift(_ c: Int, _ t: Float) -> SIMD2<Float> {
+        let C = asset.clips[c]
+        let f = C.loop ? 0 : min(C.frames - 1, max(0, Int(t * asset.fps)))
+        let a = asset.pos[C.first * n + asset.iPelvis], b = asset.pos[(C.first + f) * n + asset.iPelvis]
+        return SIMD2<Float>(b.x - a.x, b.z - a.z)
+    }
+
+    /// How far a clip's pelvis heading turns from its first frame to t (rad; an upright end).
+    private func clipYaw(_ c: Int, _ t: Float) -> Float {
+        let C = asset.clips[c]
+        let f = min(C.frames - 1, max(0, Int(t * asset.fps)))
+        func h(_ k: Int) -> Float {
+            let z = Quat.rotate(Quat.norm(asset.rot[(C.first + k) * n + asset.iPelvis]), F3(1, 0, 0))
+            return atan2f(-z.z, z.x)
+        }
+        return wrapPi(h(f) - h(0))
+    }
+
+    /// Turn the legs' frame by d (rad) without a pop: the last animation pose, re-expressed in the new frame, is
+    /// faded out over 0.3 s (as a turn on the spot ends).
+    private func reframe(_ d: Float) {
+        if abs(d) < 1e-3 { return }
+        if turnSide != 0 { endTurn() }
+        feetYaw = wrapPi(feetYaw + d)
+        let r = Quat.axis(F3(0, 1, 0), -d)
+        for b in 0..<n { snapQ[b] = animQ[b]; snapT[b] = animT[b] }
+        snapQ[asset.iPelvis] = Quat.norm(Quat.mul(r, animQ[asset.iPelvis]))
+        snapT[asset.iPelvis] = Quat.rotate(r, animT[asset.iPelvis])
+        snapW = 1
+    }
+
+    /// Start a full-body action (clip c), faced `face` (world yaw; nil = as the legs stand).
+    private func startAct(_ k: ActKind, _ c: Int, rate: Float = 1, face: Float? = nil, loop: (Float, Float)? = nil) {
+        if c < 0 { return }
+        if act >= 0 { endAct(now: true) }
+        if let f = face { reframe(wrapPi(f - feetYaw)) }
+        actKind = k; act = c; actT = 0; actRate = rate; actEnding = false; actLoop = loop
+        actShift = .zero
+        actRot = 0
+        if !actMasked { lockOn = [false, false] }
+        actionCount += 1
+    }
+
+    /// The action ends: its travel goes into the visual offset (and out of the clip while it fades), its last heading
+    /// into the legs' frame.
+    private func endAct(now: Bool = false) {
+        guard act >= 0, !actEnding else { if now { act = -1; actKind = .none; actW = 0 }; return }
+        let d = clipDrift(act, actT)
+        rootOff += Quat.rotate(yawQ, F3(d.x, 0, d.y))
+        actShift = d
+        if (actKind == .stagger || actKind == .knock) && !actMasked {
+            actRot = clipYaw(act, actT)
+            reframe(actRot)
+        }
+        actEnding = true
+        if now { act = -1; actKind = .none; actW = 0 }
+    }
+
+    /// The full-body actions of a marine on its feet: triggers (a heavy hit, standing by a squadmate being revived, the
+    /// rising lift), the clock and the fades; samples the clip into the override accumulator. Returns its weight.
+    private func fullBodyAction(_ I: RigInput, heavy: SIMD2<Float>?, speed sp: Float, dt: Float) -> Float {
+        if let k = heavy, actKind != .knock {
+            let fwd = SIMD2<Float>(sinf(feetYaw), cosf(feetYaw))
+            let along = (k * fwd).sum()                      // > 0: shoved from behind
+            let km = (I.knock * I.knock).sum().squareRoot()
+            let hard = km >= 11 && iKnock >= 0 && sp < 3 && along <= 0.35
+            actMasked = !hard && sp > 1.2                     // running: the stagger is the upper body's, the legs run on
+            if along > 0.35 && iStaggerB >= 0 {
+                startAct(.stagger, iStaggerB, face: actMasked ? nil : atan2f(k.x, k.y))
+            } else if hard {
+                startAct(.knock, iKnock, face: atan2f(-k.x, -k.y))
+            } else if iStaggerF >= 0 {
+                startAct(.stagger, iStaggerF, face: actMasked ? nil : atan2f(-k.x, -k.y))
+            }
+        }
+        // by a downed squadmate whose revive the core is counting: kneel facing him, a little closer
+        if let h = I.help, iHelp >= 0, sp < 0.4, act < 0 || (actKind == .brace) {
+            let d = h - SIMD2<Float>(I.pos.x, I.pos.z)
+            actMasked = false
+            startAct(.help, iHelp, face: atan2f(d.x, d.y), loop: MarineRig.helpLoop)
+            let L = (d * d).sum().squareRoot()
+            let step = max(0, min(0.8, L - 0.95))
+            helpOff = L > 1e-3 ? F3(d.x, 0, d.y) / L * step : .zero
+        }
+        if actKind == .help && !actEnding && actLoop != nil && (I.help == nil || sp > 0.5) {
+            actLoop = nil                                     // done (or off he goes): rise, played out from the loop's end
+            if actT < MarineRig.helpLoop.1 { actT = MarineRig.helpLoop.1 }
+            if sp > 0.5 { actRate = 2.4 }
+        }
+        if I.brace && iBrace >= 0 && sp < 0.4 && act < 0 {
+            actMasked = false
+            startAct(.brace, iBrace)
+        }
+        if actKind == .brace && !actEnding && (!I.brace || sp > 0.6) { endAct() }
+        guard act >= 0 else { return 0 }
+        let C = asset.clips[act]
+        var r = actRate * tempo
+        if actKind == .knock && sp > 1.5 { r *= 1.7 }       // the simulation is moving him: up quicker
+        actT += dt * r
+        if let L = actLoop, actT > L.1 { actT = L.0 + (actT - L.1) }
+        if !C.loop && !actEnding && actT >= C.duration - 0.22 { endAct() }
+        let fadeIn: Float = actKind == .help || actKind == .brace ? 0.3 : 0.07
+        actW = actEnding ? max(0, actW - dt / 0.22) : min(1, actW + dt / fadeIn)
+        // kneeling: the body closes the last stretch to the squadmate (the visual offset), back once it has risen
+        if actKind == .help && !actEnding {
+            let goal = helpOff * smooth01(actT / 0.6)
+            rootOff += goal - helpCur
+            helpCur = goal
+        } else {
+            helpCur = .zero                                   // (what it moved eases back with the offset once he stands)
+        }
+        if actEnding && actW <= 0 { act = -1; actKind = .none; return 0 }
+        if actMasked { state = "stagger"; return 0 }
+        acc(act, time: C.loop ? actT : min(actT, C.duration - 1e-3), max(1e-3, actW), shift: actShift, rot: actRot)
+        switch actKind {
+        case .stagger: state = "stagger"
+        case .knock: state = "knockdown"
+        case .help: state = "help"
+        case .brace: state = "brace"
+        case .none: break
+        }
+        return actW
+    }
+
+    /// The upper-body actions (the cast, the weapon action, the victory; a stagger on the run) through the bone mask:
+    /// spine1 at 45 %, spine2 at 80 %, chest, head, arms, the weapon and the armour on them fully; the hands' IK
+    /// weights follow the clip's (the support hand leaves the grip to throw, reload, gesture).
+    private func upperBodyActions(_ I: RigInput, ctrl: inout SIMD4<Float>, dt: Float) {
+        if !seqInit { seqInit = true; lastCast = I.castSeq; lastWeapon = I.weaponSeq }
+        let free = !I.downed && I.clip == nil && (overrideW < 0.5 || actKind == .brace)
+        if I.castSeq != lastCast {
+            lastCast = I.castSeq
+            if free && iCast >= 0 { up = iCast; upT = MarineRig.castStart; upHold = false; upW = min(upW, 0.3); actionCount += 1 }
+        }
+        if I.weaponSeq != lastWeapon {
+            lastWeapon = I.weaponSeq
+            if free && iWeaponAct >= 0 && up != iCast { up = iWeaponAct; upT = 0; upHold = false; actionCount += 1 }
+        }
+        if I.victory && !wasVictory && iVictory >= 0 && !I.downed { up = iVictory; upT = 0; upHold = true; actionCount += 1 }
+        wasVictory = I.victory
+        if up == iVictory && !I.victory { upHold = false }
+        if up >= 0 {
+            let dur = asset.clips[up].duration
+            upT += dt * tempo
+            let done = !upHold && upT >= dur - 0.2
+            upW = done || !free ? max(0, upW - dt / 0.22) : min(1, upW + dt / 0.08)
+            if upW <= 0 && (done || !free) { up = -1 } else {
+                maskBlend(up, min(upT, dur - 1e-3), upW, ctrl: &ctrl)
+                if up == iCast { state = "cast" } else if up == iVictory { state = "victory" } else { state = asset.cls == .assault ? "reload" : "vent" }
+            }
+        }
+        if act >= 0 && actMasked && actW > 1e-3 {
+            maskBlend(act, min(actT, asset.clips[act].duration - 1e-3), actW * 0.85, ctrl: &ctrl)
+        }
+    }
+
+    private func maskBlend(_ c: Int, _ t: Float, _ w: Float, ctrl: inout SIMD4<Float>) {
+        beginAcc()
+        acc(c, time: t, 1)
+        let uc = ctrlAcc
+        endAcc(into: &oq, &ot)
+        let k = smooth01(w)
+        for (b, m) in upMask {
+            let wb = k * m
+            lq[b] = Quat.nlerp(lq[b], oq[b], wb)
+            lt[b] += (ot[b] - lt[b]) * wb
+        }
+        ctrl.x += (uc.x - ctrl.x) * k
+        ctrl.y += (uc.y - ctrl.y) * k
+    }
+
     // ---------------------------------------------------------------- the frame
     /// Advance and pose this marine for the frame (world space input), dt seconds since the last drawn frame.
-    func update(_ I: RigInput, dt dt0: Float) {
+    func update(_ I0: RigInput, dt dt0: Float) {
         let dt = min(0.1, max(0, dt0))
-        origin = I.pos
+        let simPos = I0.pos
         // a jump in position (lift, spawn, revive warp): no lock or spring survives it
         var jumped = false
         if hasPrev {
-            let j = I.pos - prevPos
+            let j = simPos - prevPos
             if (j.x * j.x + j.z * j.z) > 0.8 * 0.8 { jumped = true }
         }
-        let fullBody = I.downed || I.clip != nil || overrideW > 0.5 || dashClock < 10 || getUpClock < 10
+        if jumped { rootOff = .zero }
+        // the body stands where the simulation has the marine plus the travel of its last full-body clips (A3)
+        var I = I0
+        I.pos = simPos + rootOff
+        origin = I.pos
+        let fullBody = I.downed || I.clip != nil || overrideW > 0.5 || dashClock < 10 || getUpClock < 10 || (act >= 0 && actW > 0.5 && !actMasked)
         updateLegs(I, dt: dt, fullBody: fullBody)
         yaw = feetYaw
         yawQ = Quat.axis(F3(0, 1, 0), yaw)
@@ -1036,30 +1276,58 @@ final class MarineRig {
         }
         // ---- full-body overrides
         var want: Float = 0
+        // a heavy hit (a boomer, a brute's ram: the core's knockback ≥ 6.5 m/s) on a marine on its feet (A3): a stagger,
+        // or the knock-down when it is thrown back hard
+        var heavy: SIMD2<Float>? = nil
+        if I.hurtT > prevHurt + 0.05 && !I.downed && I.clip == nil {
+            let km = (I.knock * I.knock).sum().squareRoot()
+            if km >= 6.5 { heavy = I.knock / km }
+        }
         beginAcc()
         if I.downed {
-            if !wasDowned { downClock = 0; deathClock = 0 }
+            if !wasDowned {
+                downClock = 0; deathClock = 0; deathStand = false; downShift = .zero; downMoved = false
+                if act >= 0 { endAct(now: true) }
+                up = -1; upW = 0
+            }
             downClock += dt
             let dd = asset.clips[iDown].duration
+            let xf: Float = 0.4                      // the fall crossfades into lying for its last 0.4 s
+            if !downMoved && !deathStand && downClock >= dd - xf {
+                // the fall's travel moves into the visual offset (the lying clips start over their own origin)
+                downMoved = true
+                let d = clipDrift(iDown, dd)
+                rootOff += Quat.rotate(yawQ, F3(d.x, 0, d.y))
+                downShift = d
+            }
+            let wLie = downClock < dd - xf ? 0 : smooth01((downClock - (dd - xf)) / xf)
             if I.dead {
+                if deathClock == 0 { deathStand = downClock < 0.7 && iDeathStand >= 0 }
                 deathClock += dt
-                acc(iDeath, time: deathClock, 1)
+                if deathStand {
+                    // the last one down falls dead: the standing death takes over the fall
+                    let w = smooth01(deathClock / 0.25)
+                    acc(iDown, time: downClock, 1 - w, shift: downShift)
+                    acc(iDeathStand, time: downClock, w)
+                } else {
+                    let w = smooth01(deathClock / 0.35)
+                    if wLie < 1 { acc(iDown, time: downClock, (1 - wLie) * (1 - w), shift: downShift) }
+                    acc(iDowned, time: max(0, downClock - dd), wLie * (1 - w))
+                    acc(iDeath, time: deathClock, w)
+                }
                 state = "death"
             } else {
                 let rv = min(1, max(0, I.revive))
                 reviveW += ((rv > 0.01 ? 1 : 0) - reviveW) * min(1, dt * 6)
-                if downClock < dd {
-                    acc(iDown, time: downClock, 1 - reviveW)
-                    state = "down"
-                } else {
-                    acc(iDowned, time: downClock - dd, 1 - reviveW)
-                    state = "downed"
-                }
+                let wl = 1 - reviveW
+                if wLie < 1 { acc(iDown, time: downClock, wl * (1 - wLie), shift: downShift) }
+                if wLie > 0 { acc(iDowned, time: max(0, downClock - (dd - xf)), wl * wLie) }
+                state = downClock < dd ? "down" : "downed"
                 if reviveW > 1e-3 {
-                    acc(iRevive, time: rv * 0.78 * asset.clips[iRevive].duration, reviveW)
+                    acc(iRevive, time: rv * MarineRig.reviveScrub * asset.clips[iRevive].duration, reviveW)
                     state = "revive"
                 }
-                getUpFrom = rv * 0.78
+                getUpFrom = rv * MarineRig.reviveScrub
             }
             want = 1
             overrideW = 1
@@ -1071,13 +1339,22 @@ final class MarineRig {
         } else {
             if wasDowned {
                 getUpClock = 0
+                getUpShift = .zero
                 lockOn = [false, false]
             }
             let rd = asset.clips[iRevive].duration
             if getUpClock < 10 {
                 getUpClock += dt
                 let t = getUpFrom * rd + getUpClock
-                acc(iRevive, time: t, 1)
+                if t >= rd && getUpShift == .zero {
+                    // on its feet: the get-up's travel into the visual offset, its heading into the legs
+                    let d = clipDrift(iRevive, rd)
+                    rootOff += Quat.rotate(yawQ, F3(d.x, 0, d.y))
+                    getUpShift = d + SIMD2<Float>(1e-6, 0)
+                    getUpRot = clipYaw(iRevive, rd)
+                    reframe(getUpRot)
+                }
+                acc(iRevive, time: t, 1, shift: getUpShift, rot: t >= rd ? getUpRot : 0)
                 state = "getup"
                 want = t < rd ? 1 : max(0, 1 - (t - rd) / 0.25)
                 if t > rd + 0.25 { getUpClock = 10 }
@@ -1089,6 +1366,7 @@ final class MarineRig {
                 dashRel = SIMD2<Float>(dx, dz)
                 lockOn = [false, false]
                 fatigue = min(1, fatigue + 0.1)
+                if act >= 0 { endAct(now: true) }
             }
             if dashClock < 10 && want < 0.5 {
                 dashClock += dt
@@ -1105,6 +1383,7 @@ final class MarineRig {
                 if dashClock > dur { dashClock = 10 }
                 state = "dash"
             }
+            if want < 0.5 { want = max(want, fullBodyAction(I, heavy: heavy, speed: sp, dt: dt)) }
         }
         prevDash = I.dashT
         if accW > 1e-4 {
@@ -1122,8 +1401,17 @@ final class MarineRig {
             overrideW = 0
         }
         wasDowned = I.downed
-        // the animation pose of this frame (a turn's end crossfades from it: kept only while a turn plays)
-        if turnSide != 0 { for b in 0..<n { animQ[b] = lq[b]; animT[b] = lt[b] } }
+        // ---- upper-body actions through the bone mask (A3): the cast, the weapon action, the victory; a stagger while
+        // the marine runs plays here too (the legs keep running)
+        upperBodyActions(I, ctrl: &ctrl, dt: dt)
+        // the visual offset eases back once the marine stands on its own (the planted feet re-step after it)
+        if act < 0 && !I.downed && getUpClock >= 10 && overrideW < 0.5 {
+            let l = (rootOff * rootOff).sum().squareRoot()
+            if l > 1e-4 { rootOff *= max(0, l - dt * (0.6 + 0.8 * min(1, sp))) / l }
+            if l > 1.5 { rootOff *= 1.5 / l }
+        }
+        // the animation pose of this frame (a turn's end and a reframed action crossfade from it)
+        for b in 0..<n { animQ[b] = lq[b]; animT[b] = lt[b] }
         let upright = 1 - overrideW
         // ---- additive layers: the per-weapon recoil
         if !I.downed {
@@ -1313,7 +1601,7 @@ final class MarineRig {
         // ---- feet: planted balls stay put in the world (leg IK); a turning idle marine re-steps
         let inv = Mat4.rotationY(-yaw)
         if jumped { lockOn = [false, false]; lastPlanted = [false, false]; slideAcc = [0, 0] }
-        prevPos = I.pos
+        prevPos = simPos
         hasPrev = true
         // the planted targets of this frame (model space ball positions), and the pelvis drop that keeps them in reach
         var targets: [F3?] = [nil, nil]
@@ -1322,7 +1610,9 @@ final class MarineRig {
             let (th, sh, ft, toe) = asset.iLeg[side]
             let ballM = wt[toe]
             let ballW = I.pos + Quat.rotate(yawQ, ballM)
-            let planted = plant[side] > 0.5 && overrideW < 0.5 && !I.treadmill
+            // (a full-body action owns the feet from its first frame to its last: no lock drags them through its fades —
+            // they lock afresh where it leaves them)
+            let planted = plant[side] > 0.5 && overrideW < 0.5 && !I.treadmill && !(act >= 0 && !actMasked)
             if !planted {
                 lockOn[side] = false
                 continue

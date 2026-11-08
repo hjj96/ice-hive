@@ -35,11 +35,12 @@ rewritten); the build reads them with Blender's own importer (`bvhsrc.py`). No w
 |---|---|---|
 | CMU Graphics Lab Motion Capture Database, cgspeed 2010 BVH conversion (GitHub mirror meshula/cmu-mocap) | Free for research and commercial use; the data may be included in commercially sold products but not resold, even converted. Credit (appreciated, given in `ios-native/CREDITS.md` and the game's credits): «The data used in this project was obtained from mocap.cs.cmu.edu. The database was created with funding from NSF EIA-0196217.» | retargeted into the clips baked into the marines' `.ihv` files; the BVH cuts here are build inputs, never shipped |
 | 100STYLE (Mason, Starke, Komura 2022), Neutral style cuts (GitHub mirror aether-lang-dev/ae3d, unchanged frames of the Zenodo release) | CC BY 4.0 — https://creativecommons.org/licenses/by/4.0/ — credit «The 100STYLE Dataset - Ian Mason» (`ios-native/CREDITS.md`, the game's credits, the store description) | as above |
-| Quaternius Universal Animation Library | CC0 1.0 | credited; no clip of this package uses it (kept for the actions package) |
+| Quaternius Universal Animation Library (UAL1, the Godot-standard Rigify glTF; GitHub mirror aether-lang-dev/ae3d) | CC0 1.0 (credited voluntarily) | Death01, Fixing_Kneeling exported to BVH by `ual_cut.py` (the glTF itself is not committed) and retargeted like the captures |
 
 Not usable, never added: LAFAN1 (CC BY-NC-ND), Bandai Namco Research Motion (CC BY-NC), AMASS, Motorica, the 4TU CC BY-NC
 FBX conversion of CMU. CMU subjects captured at 60 fps but stamped 120 fps by the conversion (e.g. 141, 143) are not used:
-every CMU take here is from subjects 09, 35, 69 and 77 (120 fps).
+the locomotion's CMU takes are from subjects 09, 35, 69 and 77 (120 fps). The actions (feel build A3) add subjects 22, 90, 104,
+111, 113 and 140, whose durations were checked against their motion (a fall's free drop, a throw's release) at 120 fps.
 
 """
 
@@ -84,12 +85,25 @@ def main():
             by_take.setdefault(C.CYCLES[C.LOCO[nm][0]]['take'], []).append(nm)
         elif nm in C.IDLES:
             by_take.setdefault(C.IDLES[nm][0], []).append(nm)
-        else:
+        elif nm in C.TURNS:
             by_take.setdefault(C.TURNS[nm][0], []).append(nm)
+    for nm, A in list(C.ACTIONS.items()) + [(f'cast ({c})', A) for c, A in C.CASTS.items()]:
+        for sg in A['segs']:
+            if nm not in by_take.setdefault(sg[0], []):
+                by_take[sg[0]].append(nm)
+    old = json.load(open(os.path.join(HERE, 'sources', 'manifest.json')))
     out_dir = os.path.join(HERE, 'sources')
     os.makedirs(out_dir, exist_ok=True)
     man, rows = {}, []
     for take in sorted(ranges):
+        if take.startswith('ual_'):
+            # (exported whole by ual_cut.py from the CC0 glTF: kept as they are)
+            dst = os.path.join(out_dir, take + '.bvh')
+            man[take] = old[take]
+            rows.append(f'| `sources/{take}.bvh` | Quaternius Universal Animation Library, `{old[take]["original"]}` | CC0 1.0 | '
+                        f'all {old[take]["frames"]} frames at {1 / old[take]["frame_time"]:.0f} fps (`ual_cut.py`) | — | `{sha(dst)}` | '
+                        f'{", ".join(sorted(by_take.get(take, [])))} |')
+            continue
         src = os.path.realpath(os.path.join(dl, take + '.bvh'))
         lo = min(a for a, _ in ranges[take]) - MARGIN
         hi = max(b for _, b in ranges[take]) + MARGIN
