@@ -1,0 +1,54 @@
+firstlaunch         load 3.93 s | loop avg 59.4 min 53.0 worst 122 ms hitches 0 host-stalls 2 (122 ms) | gpu drawn avg 39.0 min 2.0 gap 1053 ms stall-s 15 cbmax 1197 ms | gpu ema 0.24 ms allocs 1 tier efficient scale 1.20/1.35/1.40/1.55/1.60 | cold 3.93 s > 1.6 on this runner (renderer wait 0.00 s + compiler start-up 1.17 s, cover GPU frames/s 13/22/4)
+combat              load 3.48 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 57.4 min 51.0 gap 65 ms stall-s 3 cbmax 75 ms | gpu ema 0.16 ms allocs 1 tier efficient scale 1.60 | ok
+beacon              load 3.09 s | loop avg 59.8 min 57.0 worst 41 ms hitches 0 host-stalls 1 (41 ms) | gpu drawn avg 53.8 min 43.0 gap 65 ms stall-s 5 cbmax 107 ms | gpu ema 0.20 ms allocs 1 tier efficient scale 1.60 | ok (loop fps 60.0 avg / 60 min without 1 host-stall second(s))
+waves               load 2.51 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 58.6 min 57.0 gap 70 ms stall-s 3 cbmax 65 ms | gpu ema 0.15 ms allocs 1 tier efficient scale 1.60 | ok
+swarmshot           load 2.22 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 57.5 min 55.0 gap 75 ms stall-s 2 cbmax 99 ms | gpu ema 0.18 ms allocs 1 tier high scale 2.00 | ok
+swarmshot-dots      load 2.15 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 56.8 min 54.0 gap 80 ms stall-s 2 cbmax 69 ms | gpu ema 0.17 ms allocs 1 tier high scale 2.00 | ok
+swarm               load 2.48 s | loop avg 59.9 min 58.0 worst 43 ms hitches 0 host-stalls 1 (43 ms) | gpu drawn avg 49.2 min 41.0 gap 120 ms stall-s 13 cbmax 113 ms | gpu ema 0.17 ms allocs 1 tier efficient scale 1.60 | ok
+swarm3x             load 2.45 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 57.2 min 53.0 gap 79 ms stall-s 4 cbmax 77 ms | gpu ema 0.17 ms allocs 1 tier efficient scale 3.00 | ok
+calm                load 2.18 s | loop avg 59.9 min 59.0 worst 35 ms hitches 0 host-stalls 1 (35 ms) | gpu drawn avg 57.1 min 51.0 gap 86 ms stall-s 4 cbmax 73 ms | gpu ema 0.14 ms allocs 1 tier efficient scale 1.60 | ok
+squad               load 1.89 s | loop avg 59.9 min 59.0 worst 33 ms hitches 0 | gpu drawn avg 55.7 min 51.0 gap 72 ms stall-s 4 cbmax 81 ms | gpu ema 0.15 ms allocs 1 tier efficient scale 1.60 | ok
+squadclose          load 3.32 s | loop avg 59.7 min 58.0 worst 39 ms hitches 0 host-stalls 2 (65 ms) | gpu drawn avg 45.3 min 30.0 gap 83 ms stall-s 7 cbmax 120 ms | gpu ema 0.19 ms allocs 1 tier efficient scale 1.60 | ok
+squadtight          load 2.97 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 47.4 min 41.0 gap 71 ms stall-s 6 cbmax 115 ms | gpu ema 0.18 ms allocs 1 tier efficient scale 1.60 | ok
+squadfire           load 2.07 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 54.5 min 50.0 gap 77 ms stall-s 4 cbmax 92 ms | gpu ema 0.16 ms allocs 1 tier efficient scale 1.60 | ok
+fxsheet             load 1.88 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 60.0 min 60.0 gap 35 ms stall-s 0 cbmax 27 ms | gpu ema 0.14 ms allocs 1 tier efficient scale 1.60 | ok
+fxsheet-high        load 1.73 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 59.2 min 57.0 gap 43 ms stall-s 0 cbmax 58 ms | gpu ema 0.15 ms allocs 1 tier high scale 2.00 | ok
+fxpeak              load 1.73 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 57.5 min 39.0 gap 236 ms stall-s 2 cbmax 261 ms | gpu ema 0.15 ms allocs 1 tier high scale 2.00 | ok
+stress1400          load 1.90 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 59.7 min 55.0 gap 47 ms stall-s 0 cbmax 47 ms | gpu ema 0.14 ms allocs 1 tier high scale 2.00 | ok
+punchin             load 2.06 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 58.0 min 56.0 gap 61 ms stall-s 3 cbmax 90 ms | gpu ema 0.19 ms allocs 1 tier high scale 2.00 | ok
+extract-cine        load 2.52 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 58.4 min 56.0 gap 75 ms stall-s 3 cbmax 91 ms | gpu ema 0.17 ms allocs 1 tier high scale 2.00 | ok
+title               load 2.30 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 56.5 min 51.0 gap 123 ms stall-s 2 cbmax 114 ms | gpu ema 0.14 ms allocs 1 tier efficient scale 1.60 | ok
+title-fresh         load 1.84 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 60.0 min 60.0 gap 30 ms stall-s 0 cbmax 19 ms | gpu ema 0.15 ms allocs 1 tier efficient scale 1.60 | ok
+title-return        load 2.11 s | loop avg 59.4 min 57.0 worst 54 ms hitches 1 | gpu drawn avg 54.6 min 50.0 gap 66 ms stall-s 4 cbmax 115 ms | gpu ema 0.18 ms allocs 1 tier efficient scale 1.60 | FAIL: avgFps 59.4 < 59.5; minFps 57.0 < 58; worstFrame 54 ms > 43; 1 loop hitch(es) > 50 ms after 1 s, worst 54 ms
+title-nm            load 2.15 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 58.6 min 58.0 gap 39 ms stall-s 0 cbmax 54 ms | gpu ema 0.14 ms allocs 1 tier efficient scale 1.60 | ok
+title-left          load 2.40 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 57.4 min 52.0 gap 137 ms stall-s 2 cbmax 132 ms | gpu ema 0.16 ms allocs 1 tier efficient scale 1.60 | ok
+probe               load 2.37 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 58.5 min 43.0 gap 321 ms stall-s 4 cbmax 312 ms | gpu ema 0.15 ms allocs 1 tier efficient scale 1.20/1.60 drs 10/10 worst 17 ms | ok
+hold                load 2.13 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 57.8 min 54.0 gap 71 ms stall-s 2 cbmax 79 ms | gpu ema 0.16 ms allocs 1 tier efficient scale 1.60 | ok
+extract             load 2.10 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 59.3 min 57.0 gap 71 ms stall-s 1 cbmax 71 ms | gpu ema 0.15 ms allocs 1 tier efficient scale 1.60 | ok
+holdhint            load 2.13 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 59.6 min 58.0 gap 67 ms stall-s 1 cbmax 59 ms | gpu ema 0.15 ms allocs 1 tier efficient scale 1.60 | ok
+queen               load 1.88 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 58.0 min 53.0 gap 78 ms stall-s 3 cbmax 90 ms | gpu ema 0.15 ms allocs 1 tier efficient scale 1.60 | ok
+queenlock           load 2.06 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 57.4 min 52.0 gap 78 ms stall-s 4 cbmax 94 ms | gpu ema 0.15 ms allocs 1 tier efficient scale 1.60 | ok
+coach               load 1.67 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 59.7 min 58.0 gap 57 ms stall-s 1 cbmax 48 ms | gpu ema 0.12 ms allocs 1 tier efficient scale 1.60 | ok
+coach3              load 1.75 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 59.2 min 57.0 gap 67 ms stall-s 1 cbmax 59 ms | gpu ema 0.13 ms allocs 1 tier efficient scale 1.60 | ok
+pressure            load 2.25 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 59.6 min 58.0 gap 74 ms stall-s 1 cbmax 61 ms | gpu ema 0.13 ms allocs 1 tier efficient scale 1.60 | ok
+pressure-amber      load 1.80 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 60.0 min 60.0 gap 23 ms stall-s 0 cbmax 11 ms | gpu ema 0.13 ms allocs 1 tier efficient scale 1.60 | ok
+levelup             load 2.08 s | loop avg 30.0 min 30.0 worst 33 ms hitches 0 | gpu drawn avg 30.0 min 30.0 gap 55 ms stall-s 1 cbmax 33 ms | gpu ema 0.15 ms allocs 1 tier efficient scale 1.60 | ok
+pause               load 1.80 s | loop avg 43.5 min 30.0 worst 33 ms hitches 0 | gpu drawn avg 43.5 min 30.0 gap 60 ms stall-s 1 cbmax 35 ms | gpu ema 0.14 ms allocs 1 tier efficient scale 1.60 | ok
+pause-nm            load 2.00 s | loop avg 40.2 min 30.0 worst 33 ms hitches 0 | gpu drawn avg 38.8 min 30.0 gap 57 ms stall-s 1 cbmax 87 ms | gpu ema 0.14 ms allocs 1 tier efficient scale 1.60 | ok
+end                 load 1.87 s | loop avg 38.7 min 30.0 worst 33 ms hitches 0 | gpu drawn avg 38.7 min 30.0 gap 38 ms stall-s 0 cbmax 28 ms | gpu ema 0.15 ms allocs 1 tier efficient scale 1.60 | ok
+report-first        load 1.88 s | loop avg 39.3 min 30.0 worst 33 ms hitches 0 | gpu drawn avg 39.3 min 30.0 gap 40 ms stall-s 0 cbmax 13 ms | gpu ema 0.15 ms allocs 1 tier efficient scale 1.60 | ok
+report-win          load 1.60 s | loop avg 42.3 min 30.0 worst 33 ms hitches 0 | gpu drawn avg 42.3 min 30.0 gap 37 ms stall-s 0 cbmax 13 ms | gpu ema 0.13 ms allocs 1 tier efficient scale 1.60 | ok
+report-loss         load 1.67 s | loop avg 42.8 min 30.0 worst 33 ms hitches 0 | gpu drawn avg 42.8 min 30.0 gap 42 ms stall-s 0 cbmax 16 ms | gpu ema 0.13 ms allocs 1 tier efficient scale 1.60 | ok
+report-chip         load 1.83 s | loop avg 39.0 min 30.0 worst 33 ms hitches 0 | gpu drawn avg 39.0 min 30.0 gap 42 ms stall-s 0 cbmax 18 ms | gpu ema 0.14 ms allocs 1 tier efficient scale 1.60 | ok
+release-combat      load 1.53 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 58.8 min 56.0 gap 52 ms stall-s 1 cbmax 74 ms | gpu ema 0.14 ms allocs 1 tier efficient scale 1.60 | ok
+swarmshot-nohud     load 3.70 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 43.5 min 32.0 gap 212 ms stall-s 4 cbmax 230 ms | gpu ema 0.25 ms allocs 1 tier high scale 2.00 | ok
+beacon-nohud        load 2.78 s | loop avg 59.9 min 58.0 worst 41 ms hitches 0 host-stalls 1 (41 ms) | gpu drawn avg 52.9 min 15.0 gap 487 ms stall-s 9 cbmax 497 ms | gpu ema 0.17 ms allocs 1 tier efficient scale 1.60 | ok
+punchin-nohud       load 2.36 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 58.0 min 55.0 gap 67 ms stall-s 3 cbmax 90 ms | gpu ema 0.18 ms allocs 1 tier high scale 2.00 | ok
+extract-cine-nohud  load 2.43 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 56.8 min 53.0 gap 72 ms stall-s 4 cbmax 83 ms | gpu ema 0.17 ms allocs 1 tier high scale 2.00 | ok
+title-nohud         load 2.60 s | loop avg 60.0 min 60.0 worst 17 ms hitches 0 | gpu drawn avg 57.5 min 56.0 gap 67 ms stall-s 3 cbmax 85 ms | gpu ema 0.15 ms allocs 1 tier efficient scale 1.60 | ok
+calm-nohud          load 2.97 s | loop avg 59.4 min 58.0 worst 42 ms hitches 0 host-stalls 1 (42 ms) | gpu drawn avg 54.6 min 49.0 gap 86 ms stall-s 5 cbmax 134 ms | gpu ema 0.17 ms allocs 1 tier efficient scale 1.60 | ok (loop fps 59.7 avg / 58 min without 1 host-stall second(s))
+
+GPU side (gated only in release-combat, swarm3x, floor 55.0): drawn avg < 55/s in beacon 53.8, swarm 49.2, squadclose 45.3, squadtight 47.4, squadfire 54.5, title-return 54.6, swarmshot-nohud 43.5, beacon-nohud 52.9, calm-nohud 54.6 (calm baseline 57.1)
+
+GATE: FAILED
+  title-return: avgFps 59.4 < 59.5; minFps 57.0 < 58; worstFrame 54 ms > 43; 1 loop hitch(es) > 50 ms after 1 s, worst 54 ms
