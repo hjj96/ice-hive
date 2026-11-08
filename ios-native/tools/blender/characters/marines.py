@@ -116,13 +116,14 @@ def rgb(h):
 
 def materials(cls):
     """slot → (sRGB albedo, roughness, metal, glow 0..1, flags). flags: bit0 class-hue strip / visor, bit1 emissive,
-    bit2 painted armour (worn chamfers show steel), bit3 heats up under sustained fire, bit5 blinks (the IFF strobe).
-    (bit4 is kept for the material maps pass: fabric.) The painted slots' roughness is raised in fs_marine (+0.22, floor
-    0.5: matte field paint), the bake keeps the slot values so its worn chamfers stay the smoother steel."""
+    bit2 painted armour (worn chamfers show steel), bit3 heats up under sustained fire, bit4 fabric (the undersuit and
+    rubber seals: fs_marine's sheen lobe), bit5 blinks (the IFF strobe). The slot values feed the bake (its worn chamfers
+    stay the smoother steel); the shipped albedo / roughness / metal come from paint.py (M2), which finds each texel's
+    slot by these albedo + flag values — keep them distinct."""
     return {
         ARMOUR: ((118, 122, 123), 0.42, 0.06, 0.0, 4),     # M1: a darker, colder ceramic (it was 138, 142, 147)
         PAINT: (rgb(TRIM[cls]), 0.4, 0.05, 0.0, 4),
-        DARK: ((42, 45, 50), 0.62, 0.0, 0.0, 0),
+        DARK: ((42, 45, 50), 0.62, 0.0, 0.0, 16),     # M2: bit4 = fabric (fs_marine: a sheen lobe; paint.py: rubberised weave)
         METAL: ((70, 74, 80), 0.34, 0.85, 0.0, 0),
         GLOW: (rgb(HUE[cls]), 0.2, 0.0, 1.0, 3),            # M1: the visors only (T, goggles, band, slit)
         GLASS: ((12, 34, 52), 0.05, 0.0, 0.14, 3),    # the cryo's dome / canister, lenses, tank windows: dark glass

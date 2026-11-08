@@ -80,6 +80,7 @@ final class WorldSquad {
         static let draw = 4
         static let normal = 11
         static let orm = 12
+        static let albedo = 13      // M2: the painted albedo array (Characters.metal MARINE_ALBEDO)
     }
 
     /// Class paint (sRGB) — the same values the Blender build paints with (tools/blender/characters/marines.py TRIM).
@@ -416,6 +417,7 @@ final class WorldSquad {
         r.use(enc, ps)
         if let t = textures.normal { enc.setFragmentTexture(t, index: Slot.normal) }
         if let t = textures.orm { enc.setFragmentTexture(t, index: Slot.orm) }
+        if let t = textures.albedo { enc.setFragmentTexture(t, index: Slot.albedo) }
         for k in drawn {
             guard let rig = rigs[k], palettes[k].count > 0 else { continue }
             let a = rig.asset

@@ -3,11 +3,15 @@
 //   • the skinned marines — vs_marine (32-byte IHV1 skinned vertices
 //     read by vertex id, up to 4 bones from the rig's palette: 3 float4
 //     rows per bone, world space, MarineRig.swift) → fs_marine on WP2's
-//     full light model: baked tangent-space normals + AO / roughness /
-//     metal / paint mask from the class texture arrays, worn steel on
-//     painted chamfers, the class paint on painted markings, matte field
-//     paint (M1 «no plastic»: rough ≥ 0.5, no coat, chips / soot / rime
-//     ×1.6), only the visor glowing in the class hue (HDR, it blooms)
+//     full light model: three class texture arrays generated in texel
+//     space by tools/blender/characters/paint.py (M2 «used armour»):
+//     the albedo (field-grey matte paint, the class colour only as an
+//     accent on the helmet and the pauldron tops, chips → primer →
+//     steel, scratches, grime, frost), the tangent normal (bake + fabric
+//     grain, rime crust, scratch grooves) and AO / roughness / metal /
+//     frost; a view-dependent sparkle on the rime, a sheen lobe on the
+//     fabric (vertex flag bit4), no coat; only the visor glowing in the
+//     class hue (HDR, it blooms)
 //     besides the helmet lamp and a blinking IFF strobe on the pack, a
 //     neutral readability key, hurt / invulnerable flashes, the downed
 //     dimming; the shooter lit by
@@ -76,8 +80,8 @@ vertex ShadowOut vs_shadow_mesh(MeshIn v [[stage_in]],
 struct SkinVertex {
     half4 rest;       // xyz bind position (model space)
     char4 nrm;        // snorm xyz, w = flags (bit0 class-hue visor / strobe, bit1 emissive, bit2 painted armour,
-                      // bit3 heats up with sustained fire: barrels, muzzle, nozzle, emitter; bit5 the blinking IFF
-                      // strobe on the pack)
+                      // bit3 heats up with sustained fire: barrels, muzzle, nozzle, emitter; bit4 fabric (the
+                      // undersuit, rubber seals: a sheen lobe); bit5 the blinking IFF strobe on the pack)
     char4 tan;        // snorm xyz along +u, w = ±127 bitangent sign
     half2 uv;         // the class's texture layer (top-left origin)
     uchar4 albedo;    // sRGB rgb, a = glow 0…1
@@ -100,6 +104,7 @@ struct MarineDraw {
 #define MARINE_DRAW 4
 #define MARINE_NORMAL 11
 #define MARINE_ORM 12
+#define MARINE_ALBEDO 13
 
 struct MarineOut {
     float4 position [[position]];
@@ -158,22 +163,12 @@ vertex MarineOut vs_marine(uint vid [[vertex_id]],
     return o;
 }
 
-// value noise in the marine's bind space (native-vx-squad: the armour's breakup — the plates were one flat value each,
-// the «plastic toy» look the owner objected to)
+// a hash of the marine's bind-space position (the frost sparkle's cells; the value noise of the earlier wear passes now
+// lives in the texel-space maps of tools/blender/characters/paint.py, which uses the same hash)
 static inline float mHash(float3 p) {
     p = fract(p * 0.1031);
     p += dot(p, p.zyx + 31.32);
     return fract((p.x + p.y) * p.z);
-}
-
-static inline float mNoise(float3 p) {
-    float3 i = floor(p), f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    float a = mix(mHash(i), mHash(i + float3(1, 0, 0)), f.x);
-    float b = mix(mHash(i + float3(0, 1, 0)), mHash(i + float3(1, 1, 0)), f.x);
-    float c = mix(mHash(i + float3(0, 0, 1)), mHash(i + float3(1, 0, 1)), f.x);
-    float d = mix(mHash(i + float3(0, 1, 1)), mHash(i + float3(1, 1, 1)), f.x);
-    return mix(mix(a, b, f.y), mix(c, d, f.y), f.z);
 }
 
 fragment float4 fs_marine(MarineOut in [[stage_in]],
@@ -181,11 +176,14 @@ fragment float4 fs_marine(MarineOut in [[stage_in]],
                           constant MarineDraw& D [[buffer(MARINE_DRAW)]],
                           texture2d_array<half> nrmTex [[texture(MARINE_NORMAL)]],
                           texture2d_array<half> ormTex [[texture(MARINE_ORM)]],
+                          texture2d_array<half> albTex [[texture(MARINE_ALBEDO)]],
                           LIGHTING_PARAMS) {
     uint layer = uint(D.trim.w + 0.5);
     half4 nt = nrmTex.sample(repeatSampler, in.uv, layer);
     half4 om = ormTex.sample(repeatSampler, in.uv, layer);
-    // baked tangent-space normal (ASTC normal mode: x in rgb, y in alpha)
+    half4 at = albTex.sample(repeatSampler, in.uv, layer);
+    // tangent-space normal (ASTC normal mode: x in rgb, y in alpha): the bake + paint.py's fabric grain, rime crust and
+    // scratch grooves
     float2 xy = float2(nt.r, nt.a) * 2.0 - 1.0;
     float3 tn = float3(xy, sqrt(saturate(1.0 - dot(xy, xy))));
     float3 N0 = normalize(in.normal);
@@ -194,44 +192,15 @@ fragment float4 fs_marine(MarineOut in [[stage_in]],
     float3 B = cross(N0, T) * in.tangent.w;
     float3 N = normalize(T * tn.x + B * tn.y + N0 * tn.z);
     float3 V = normalize(F.camPos.xyz - in.world);
-    float ao = float(om.r), rough = float(om.g), metal = float(om.b), paint = float(om.a);
-    // paint mask (tools/blender/characters/marines.py MARK_*): 0.5 = a dark stencil / hazard stripe, 1 = the class hue
-    // (the blurred edge between the hue and bare armour passes the dark band: a thin pinline); worn chamfers of
-    // painted armour show steel
-    float3 albedo = in.albedo;
-    float clsPaint = smoothstep(0.7, 0.88, paint);
-    float darkPaint = smoothstep(0.25, 0.42, paint) * (1.0 - clsPaint);
-    albedo = mix(albedo, D.trim.rgb, clsPaint);
-    albedo = mix(albedo, float3(0.016, 0.017, 0.019), darkPaint * 0.94);
-    bool painted = (in.flags & 4u) != 0u;
-    bool emissive = (in.flags & 2u) != 0u;
-    float wear = painted ? smoothstep(0.3, 0.8, metal) : 0.0;
-    albedo = mix(albedo, float3(0.42, 0.43, 0.45), wear);
-    // field wear in bind space (native-vx-squad): each plate drifts a little in value, painted plates carry chips down to
-    // the dark primer (class paint) or to steel (the ceramic), scuffs vary the roughness, and the boots and greaves carry
-    // the deck's soot and slush up to the knees, with rime on the toe caps — a used power armour, not a clean toy.
-    // M1 «no plastic» (the feel study's CHEAP column): the paint is matte (+0.22 rough, floor 0.5 — it was 0.33–0.43,
-    // injection-moulded plastic), the plate drift wider, chips, soot and rime 1.6 × stronger
-    float3 mp = in.bind;
-    float macro = mNoise(mp * 5.3);
-    float fine = mNoise(mp * 29.0 + 7.1);
-    if (painted && !emissive) {
-        albedo *= 0.85 + 0.3 * macro;
-        float chip = smoothstep(0.64, 0.70, mNoise(mp * 47.0 + 3.7)) * smoothstep(0.35, 0.75, fine) * (1.0 - wear);
-        chip *= 0.35 + 0.65 * clsPaint;
-        albedo = mix(albedo, clsPaint > 0.5 ? float3(0.035, 0.036, 0.04) : float3(0.3, 0.31, 0.33), chip);
-        metal = mix(metal, clsPaint > 0.5 ? 0.0 : 0.8, chip);
-        rough = clamp(rough + 0.22 + (fine - 0.5) * 0.18 + chip * 0.1, 0.5, 0.9);
-    }
-    if (!emissive) {
-        float grime = saturate(1.6 * (1.0 - smoothstep(0.06, 0.6, mp.y)) * (0.6 + 0.4 * macro));
-        albedo = mix(albedo, albedo * 0.42 + float3(0.008, 0.008, 0.009), grime * 0.75);
-        rough = mix(rough, 0.82, grime * 0.6);
-        metal *= 1.0 - 0.5 * grime;
-        float rime = saturate(1.6 * (1.0 - smoothstep(0.1, 0.2, mp.y)) * smoothstep(0.35, 0.8, N0.y) * smoothstep(0.45, 0.7, fine));
-        albedo = mix(albedo, float3(0.5, 0.56, 0.62), rime * 0.6);
-        rough = mix(rough, 0.55, rime);
-    }
+    // M2 «used armour, not plastic»: the surface is painted in texel space (tools/blender/characters/paint.py, from the
+    // bind-space position map + the bake): field-grey matte paint (rough 0.6–0.8) drifting per plate, the class colour
+    // only as an accent on the helmet and the pauldron tops, chamfers chipped to primer and steel, scratches, grime in
+    // the seams and up the legs, a rubberised undersuit (0.86–0.93), rime on up-facing surfaces and in crevices. The
+    // albedo array is sRGB (linear here); ORM = AO, roughness, metal, frost. (The bind-space value noise of the earlier
+    // passes is baked into those maps: no per-pixel noise left here.)
+    float ao = float(om.r), rough = float(om.g), metal = float(om.b), frost = float(om.a);
+    float3 albedo = float3(at.rgb);
+    bool fabric = (in.flags & 16u) != 0u;
     // cavity: the baked AO also darkens the albedo a little (grime in the seams: panel lines, bolts and vents read in
     // direct light too)
     albedo *= mix(1.0, ao, D.key.w);
@@ -252,6 +221,30 @@ fragment float4 fs_marine(MarineOut in [[stage_in]],
         float3 f0 = mix(float3(0.04), albedo, metal);
         float rk = max(rough, 0.1);
         c += D.key.rgb * nlk * (albedo * (1.0 - metal) * ao + PI_F * brdfGGX(Lk, V, N, f0, rk * rk));
+    }
+    // frost sparkle: rime crystals catch the light — a hash per ~3 mm cell of the bind position (coarser cells, up to
+    // 12 mm, when the marine is small on screen), lit when the view reflected about the normal meets the cell's facet,
+    // so they twinkle as the marine or the camera moves; faded out where a cell is smaller than a pixel (the game camera:
+    // no shimmering noise); as bright as the light the surface receives (no glitter in the dark)
+    float foot0 = length(fwidth(in.bind)) * 340.0;           // pixel footprint in 3 mm cells (outside any branch)
+    float lumW = dot(albedo, float3(0.3, 0.55, 0.15));
+    float irr = min(dot(c, float3(0.3, 0.55, 0.15)) / max(lumW, 0.01), 20.0);   // ≈ the light the surface receives
+    if (frost > 0.15) {
+        float lod = clamp(ceil(log2(max(foot0, 1e-3))), 0.0, 2.0);
+        float k = 340.0 * exp2(-lod);
+        float3 cell = floor(in.bind * k);
+        float h = mHash(cell);
+        float3 facet = normalize(float3(mHash(cell + 17.0), mHash(cell + 31.0), mHash(cell + 53.0)) - 0.5);
+        float tw = saturate(dot(reflect(-V, N), normalize(N + facet * 0.9)));
+        float sp = step(0.86, h) * smoothstep(0.93, 0.995, tw) * smoothstep(0.15, 0.6, frost)
+                 * (1.0 - smoothstep(0.7, 1.5, foot0 * exp2(-lod)));
+        c += float3(0.85, 0.93, 1.0) * sp * (irr * 0.35 + 0.03);
+    }
+    // fabric sheen (flag bit4): the rubberised weave scatters a soft grazing lobe instead of a specular highlight —
+    // the undersuit reads as cloth / rubber against the paint, not as one more plastic shell
+    if (fabric) {
+        float sheen = pow(1.0 - saturate(dot(N, V)), 4.0);
+        c += (albedo * 0.8 + float3(0.03, 0.033, 0.036)) * sheen * (irr * 0.5 + 0.05);
     }
     // a class-hue Fresnel rim (M1: off, params.x = 0 — every silhouette edge glowed in the toy colour) and a faint suit
     // fill (the armour never sinks into the fog colour outside the beams)

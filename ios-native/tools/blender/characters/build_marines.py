@@ -16,8 +16,13 @@ For each class:
  4. export: corner-split skinned vertices (game space; MikkTSpace tangents of the atlas; v flipped to Metal's
     top-left origin), material colour / glow / flags per vertex, one bone per rigid part (hoses blend two), the
     clip tracks of motion.all_clips, sockets → OUTDIR/marine_<cls>.ihv (IHV1 v2 skinned);
-then all classes' maps as two texture arrays (layer = class index): OUTDIR/marine_normal.iht (1024², ASTC 6×6,
-normal mode) and OUTDIR/marine_orm.iht (512², ASTC 6×6: AO, roughness, metal, paint) — and
+ 5. the material maps (feel build M2, paint.py): from the bind-space position map of the exported LOD0 + the bake's
+    AO / chamfer / paint-mask channels — field-grey matte paint with the class colour only as an accent (helmet,
+    pauldron tops), chips → primer → steel, scratches, grime, a rubberised undersuit, rime; a pure numpy function
+    (deterministic like the rest of the build);
+then all classes' maps as three texture arrays (layer = class index): OUTDIR/marine_albedo.iht (1024², ASTC sRGB:
+paint, wear, grime, frost colour), OUTDIR/marine_normal.iht (1024², ASTC 6×6, normal mode: the bake + fabric grain,
+rime crust, scratch grooves) and OUTDIR/marine_orm.iht (1024², ASTC 6×6: AO, roughness, metal, frost) — and
 OUTDIR/characters_build.json (triangles, sizes, foot drift per locomotion clip, IK reach error per clip).
 Deterministic: fixed seeds / threads, sorted output, maps from the committed 8-bit bake.
 """
@@ -40,12 +45,17 @@ import ihv  # noqa: E402
 import iht  # noqa: E402
 import marines as MR  # noqa: E402
 import motion  # noqa: E402
+import paint  # noqa: E402
 import shapes  # noqa: E402
 import skeleton as SK  # noqa: E402
 
 T0 = time.time()
 NRM_SIZE = 1024
 ORM_SIZE = 1024
+ALB_SIZE = 1024
+# the albedo array's ASTC block (iht format code): 8×8 = 2 bits per texel, 4 × 1024² with mips ≈ 1.4 MB (6×6 would be
+# 2.5 MB); the paint's detail (chips, scratches, stencils) is carried as much by the ORM / normal (6×6) as by the colour
+ALB_FMT = 4
 BAKE_SRC = os.path.join(HERE, 'bake_src')
 THREADS = 3
 # the floor gate: no clip may put a skinned vertex deeper than this under the deck (the sole's chamfer, a plate's rim
@@ -704,13 +714,15 @@ def main():
         classes = args[args.index('--classes') + 1].split(',')
     os.makedirs(out, exist_ok=True)
     report = dict(classes={}, gates=dict(foot_drift_m={}, ik_err_m={}))
-    normals, orms = [], []
+    normals, orms, albedos = [], [], []
+    report['paint'] = {}
     for cls in MR.CLASSES:
         if cls not in classes:
             # (a partial build for look-dev: flat maps for the classes left out)
             n, orm = flat_maps()
             normals.append(n)
             orms.append(orm)
+            albedos.append(np.full((ALB_SIZE, ALB_SIZE, 3), 0.18, np.float32))
             continue
         reset()
         lob = MR.build(cls, hi=False)
@@ -732,9 +744,22 @@ def main():
             n, orm = read_bake(cls, fp)
         else:
             n, orm = flat_maps()
+        V, I = export_vertices(cls, lo)
+        if noflat:
+            t1 = time.time()
+            alb, orm, n, pst = paint.generate(cls, V, I, [nm for nm, _, _ in SK.BONES], n, orm, MR.materials(cls),
+                                              MR.rgb(MR.TRIM[cls]), paint.slot_table(shapes, MR))
+            report['paint'][cls] = pst
+            log(f'{cls}: paint {time.time() - t1:.1f} s — accent {pst["accent_share"] * 100:.1f} %, bare metal '
+                f'{pst["bare_metal_share"] * 100:.1f} %, frost {pst["frost_share"] * 100:.1f} %, plate rough '
+                f'{pst["rough_plate_p5_50_95"]}, fabric rough {pst["rough_fabric_p5_50_95"]}')
+            if pst['unmatched_texels']:
+                raise SystemExit(f'{cls}: {pst["unmatched_texels"]} texels of no material slot (marines.materials colours must stay distinct)')
+        else:
+            alb = np.full((ALB_SIZE, ALB_SIZE, 3), 0.18, np.float32)
         normals.append(n)
         orms.append(orm)
-        V, I = export_vertices(cls, lo)
+        albedos.append(alb)
         mrep = {}
         tracks, recs, drift, ik = tracks_for(cls, mrep)
         P = None
@@ -791,6 +816,8 @@ def main():
         iht.write(os.path.join(out, 'marine_normal.iht'), 3, NRM_SIZE, NRM_SIZE, nl, flags=iht.FL_NORMAL | iht.FL_ARRAY)
         ol = iht.encode_layers(orms, 3, 'data')
         iht.write(os.path.join(out, 'marine_orm.iht'), 3, ORM_SIZE, ORM_SIZE, ol, flags=iht.FL_ARRAY)
+        al = paint.encode_albedo(albedos, ALB_FMT)
+        iht.write(os.path.join(out, 'marine_albedo.iht'), ALB_FMT, ALB_SIZE, ALB_SIZE, al, flags=iht.FL_SRGB | iht.FL_ARRAY)
         log('textures written')
     json.dump(report, open(os.path.join(out, 'characters_build.json'), 'w'), indent=1, sort_keys=True)
     log('done')
