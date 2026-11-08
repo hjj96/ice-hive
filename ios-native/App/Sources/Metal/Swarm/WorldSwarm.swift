@@ -29,6 +29,12 @@ import IceHiveCore
 //  the clips at s), `-bugstrip <type> [scale]` one type's clips × 8
 //  frames — both at LOD0 —, `-swarmLOD 0|1|2` forces a LOD (pop A/B),
 //  `-noGlints`.
+//  native-vx-swarm-life: the animator's banking, pitch, darting yaw and
+//  look / sway angles go into each instance (fx.w bytes 1–3: head yaw,
+//  head pitch, abdomen sway, snorm8 × 0.8 rad — cleared on LOD2); the
+//  creatures' `neck` / `waist` sockets are the pivots (vertex buffer 7 of
+//  vs_creature / vs_swarm_glint); the dying bug's cause and direction go
+//  to its corpse (Corpses: deaths by cause, knock-back).
 // ================================================================
 
 /// One creature in a draw (`struct CreatureInstance` in SwarmTypes.h, 80 bytes).
@@ -41,7 +47,7 @@ struct CreatureInstance {
     var tint: F4
     /// x clip A rows, y clip B rows, z fracs (unorm16 ×2), w = weight B | type << 16 | flags << 24.
     var anim: SIMD4<UInt32>
-    /// x state unorm8 ×4 (hit, burn, frost, dead), y lean snorm16 ×2, z seed | glow boost, w 0.
+    /// x state unorm8 ×4 (hit, burn, frost, dead), y lean snorm16 ×2, z seed | glow boost, w rim cut | look snorm8 ×3 << 8.
     var fx: SIMD4<UInt32>
 }
 
@@ -168,7 +174,13 @@ final class WorldSwarm {
     private var hits = [(x: Float, z: Float, dx: Float, dz: Float, t: Float)](repeating: (0, 0, 0, 0, -9), count: 32)
     private var hitHead = 0
     private var clock: Float = 0
-    private var deadList: [(x: Float, z: Float, type: UInt8, uid: Int32, value: Float)] = []
+    private var deadList: [(x: Float, z: Float, type: UInt8, uid: Int32, value: Float, cause: DeathCause, dx: Float, dz: Float, power: Float)] = []
+    /// native-vx-swarm-life: the look / sway pivots per type (neck 0…3, waist 4…7; model space, w unused) for vertex buffer 7,
+    /// and each type's bone → look group (0 none, 1 head, 2 abdomen) from its vertex flags.
+    private var lookPivots = [F4](repeating: .zero, count: 8)
+    private var boneGroup: [[UInt8]] = [[], [], [], []]
+    /// Look angles are packed ±0.8 rad (snorm8).
+    static let lookRange: Float = 0.8
     // stats
     /// Bugs drawn this frame (heartbeat `vis`).
     private(set) var visible = 0
@@ -240,6 +252,7 @@ final class WorldSwarm {
         if let lib = library {
             animator = SwarmAnimator(library: lib)
             AppLog.info("swarm: " + lib.summary)
+            buildLookTables(lib)
             buildGlintTable(lib)
             lens = lib.types.map { max(0.3, $0.length) }
         }
@@ -269,6 +282,25 @@ final class WorldSwarm {
         r.register(.shadowCasters, order: 200, "swarm proxies") { [unowned self] enc in self.encodeProxies(enc) }
     }
 
+    /// native-vx-swarm-life: each type's look pivots (its `neck` / `waist` sockets) and the bone → group map read from LOD0's
+    /// vertex flags (bit5 head group, bit6 abdomen group; tools/blender/creatures/insect.py).
+    private func buildLookTables(_ lib: CreatureLibrary) {
+        for t in 0..<4 {
+            let c = lib.types[t]
+            if let n = c.sockets.first(where: { $0.name == "neck" }) { lookPivots[t] = F4(n.rest.x, n.rest.y, n.rest.z, 1) }
+            if let w = c.sockets.first(where: { $0.name == "waist" }) { lookPivots[4 + t] = F4(w.rest.x, w.rest.y, w.rest.z, 1) }
+            var g = [UInt8](repeating: 0, count: max(1, c.boneCount))
+            let L = c.lods[0]
+            let base = UnsafeRawPointer(c.buffer.contents()).advanced(by: L.vertexOffset)
+            for v in 0..<L.vertexCount {
+                let bone = Int(base.load(fromByteOffset: v * 20 + 6, as: UInt8.self))
+                let fl = base.load(fromByteOffset: v * 20 + 7, as: UInt8.self)
+                if bone < g.count { g[bone] = fl & 32 != 0 ? 1 : (fl & 64 != 0 ? 2 : g[bone]) }
+            }
+            boneGroup[t] = g
+        }
+    }
+
     /// The glinting sockets of each type, brightest first (≤ glintsPerBug), and the type constants.
     private func buildGlintTable(_ lib: CreatureLibrary) {
         glintTable.removeAll()
@@ -279,7 +311,9 @@ final class WorldSwarm {
             glintPer[t] = g.count
             for s in g {
                 let phase = Float(s.name.unicodeScalars.reduce(0) { $0 &* 31 &+ Int($1.value) } & 1023) / 1023
-                glintTable.append(GlintSocket(pos: F4(s.rest.x, s.rest.y, s.rest.z, Float(s.bone)),
+                // (w: bone + 256 × look group, so the glint turns with the abdomen / head it sits on)
+                let grp = s.bone < boneGroup[t].count ? Float(boneGroup[t][s.bone]) : 0
+                glintTable.append(GlintSocket(pos: F4(s.rest.x, s.rest.y, s.rest.z, Float(s.bone) + 256 * grp),
                                               info: F4(s.radius, s.intensity, s.hot ? 1 : 0, phase)))
             }
             coreSocket[t] = c.sockets.firstIndex { $0.name == "core" } ?? -1
@@ -338,6 +372,7 @@ final class WorldSwarm {
         let X = S.xs, Z = S.zs, PX = S.prevXs, PZ = S.prevZs, Y = S.heights, HD = S.headings, SC = S.scales
         let PH = S.gaitPhases, FL = S.flashes, BU = S.burnTimers, FR = S.freezeTimers, CH = S.chills
         let ST = S.states, TT = S.stateTimers, VR = S.variations, U = S.uids
+        let VX = S.velocityX, VZ = S.velocityZ, MD = S.moods
         let swell = BugState.swell.rawValue, wind = BugState.wind.rawValue, climb = BugState.climb.rawValue, leapState = BugState.leap.rawValue
         let brute = UInt8(BugType.brute.rawValue)
         let queenUid: Int32 = game.queen.alive ? game.queen.uid : -1
@@ -348,7 +383,18 @@ final class WorldSwarm {
             defer { i += 1 }
             let t = Int(min(3, types[i]))
             if dead[i] != 0 {
-                if deadList.count < 64 { deadList.append((X[i], Z[i], UInt8(t), U[i], VR[i])) }
+                if deadList.count < 64 {
+                    // native-vx-swarm-life: how it died — burning, chilled, thrown by a blast (its velocity: the blast's
+                    // knock, well above any gait or leap), else shot (the shot that hit it, or away from the nearest marine)
+                    var cause = DeathCause.bullet
+                    var dx: Float = 0, dz: Float = 0, pw: Float = 0
+                    let v = (VX[i] * VX[i] + VZ[i] * VZ[i]).squareRoot()
+                    if BU[i] > 0 { cause = .fire; if v > 0.1 { dx = VX[i] / v; dz = VZ[i] / v } }
+                    else if CH[i] > 0.3 { cause = .frost; if v > 0.1 { dx = VX[i] / v; dz = VZ[i] / v } }
+                    else if t != WorldSwarm.bruteType && v > (ST[i] == leapState ? 13 : 7.5) { cause = .blast; dx = VX[i] / v; dz = VZ[i] / v; pw = v }
+                    else { (dx, dz) = impactDir(X[i], Z[i], marines, window: 0.35) }
+                    deadList.append((X[i], Z[i], UInt8(t), U[i], VR[i], cause, dx, dz, pw))
+                }
                 continue
             }
             let bx = PX[i] + (X[i] - PX[i]) * alpha, bz = PZ[i] + (Z[i] - PZ[i]) * alpha
@@ -386,7 +432,8 @@ final class WorldSwarm {
             let frozen = FR[i] > 0
             let frz: Float = frozen ? 1 : CH[i] * 0.55
             let o = A.live(type: t, uid: U[i], st: st, stT: TT[i], ph: PH[i], x: bx, z: bz, y: Y[i], hd: HD[i], scale: s, flash: FL[i],
-                           frozen: frozen, dt: dt) { self.impactDir(bx, bz, marines) }
+                           frozen: frozen, dt: dt, mood: MD[i], vx: VX[i], vz: VZ[i], time: time) { self.impactDir(bx, bz, marines) }
+            let hdR = HD[i] + o.yaw
             // per-bug value / hue (no even «carpet»): ±28 % value, a slight warm / cool shift
             let v = 0.72 + vr * 0.56
             let h = (vr * 7.31 - floorf(vr * 7.31)) - 0.5
@@ -397,10 +444,10 @@ final class WorldSwarm {
             let tint = queen ? F4(0.75, 0.40, 2.6, sy) : F4(v * (1 + 0.14 * h) * tv.x, v * tv.y, v * (1 - 0.14 * h) * tv.z, sy)
             let k = allN[t]
             scratch[t][k] = CreatureInstance(
-                pos: F4(bx, gy, bz, s), rot: F4(cosf(HD[i]), sinf(HD[i]), sp, cp), tint: tint,
+                pos: F4(bx, gy, bz, s), rot: F4(cosf(hdR), sinf(hdR), sp, cp), tint: tint,
                 anim: SIMD4(o.a.rows, o.b.rows, unorm16(o.a.frac) | unorm16(o.b.frac) << 16, unorm16(o.wB) | UInt32(t) << 16 | flags << 24),
                 fx: SIMD4(unorm8(flash) | unorm8(burn) << 8 | unorm8(frz) << 16, snorm16(o.leanX) | snorm16(o.leanZ) << 16,
-                          unorm16(vr) | unorm16(o.boost) << 16, 0))
+                          unorm16(vr) | unorm16(o.boost) << 16, WorldSwarm.packLook(o.lookY, o.lookP, o.sway)))
             let depth = max(0.5, (F3(bx - eye.x, gy - eye.y, bz - eye.z) * fwd).sum())
             pxs[t][k] = s * lens[t] * pxScale / depth
             lodHint[t][k] = o.lodPrev
@@ -411,11 +458,18 @@ final class WorldSwarm {
         for t in 0..<4 { liveN[t] = allN[t] }
     }
 
-    /// The recoil direction of a bug hit at (x, z): the shot that hit it (noteHit), else away from the nearest marine.
-    private func impactDir(_ x: Float, _ z: Float, _ marines: [Marine]) -> (Float, Float) {
+    /// Head yaw, head pitch, abdomen sway (radians) → fx.w bytes 1–3 (snorm8 of ±lookRange).
+    @inline(__always) static func packLook(_ y: Float, _ p: Float, _ s: Float) -> UInt32 {
+        @inline(__always) func b(_ a: Float) -> UInt32 { UInt32(UInt8(bitPattern: Int8(max(-127, min(127, (a / lookRange * 127).rounded()))))) }
+        return b(y) << 8 | b(p) << 16 | b(s) << 24
+    }
+
+    /// The recoil direction of a bug hit at (x, z): the shot that hit it (noteHit, within `window` s), else away from the
+    /// nearest marine.
+    private func impactDir(_ x: Float, _ z: Float, _ marines: [Marine], window: Float = 0.15) -> (Float, Float) {
         var best: Float = 1.2 * 1.2
         var dir: (Float, Float)? = nil
-        for h in hits where clock - h.t < 0.15 {
+        for h in hits where clock - h.t < window {
             let dx = h.x - x, dz = h.z - z, d2 = dx * dx + dz * dz
             if d2 < best { best = d2; dir = (h.dx, h.dz) }
         }
@@ -437,9 +491,10 @@ final class WorldSwarm {
         C.link { x, z, ty in
             guard let d = self.deadList.first(where: { $0.x == x && $0.z == z && $0.type == ty }) else { return nil }
             let v = 0.72 + d.value * 0.56
-            // (the body keeps the dying bug's size, tint and pattern: its variation seed)
-            if let (pose, lod) = A.lastPose(uid: d.uid) { return (pose, v, lod, d.value) }
-            return (ClipSample.zero, v, 255, d.value)
+            // (the body keeps the dying bug's size, tint and pattern: its variation seed; and how it died)
+            let lp = A.lastPose(uid: d.uid)
+            return CorpseLink(pose: lp?.0 ?? .zero, hasPose: lp != nil, value: v, lod: lp?.1 ?? 255, seed: d.value, cause: d.cause,
+                              dirX: d.dx, dirZ: d.dz, power: d.power)
         }
         let clockC = C.clock
         for ring in C.rings {
@@ -457,11 +512,18 @@ final class WorldSwarm {
                 let o = A.corpse(type: t, variant: Int(c.variant), age: age, from: c.from, hasFrom: c.hasFrom && c.from.rows != 0)
                 let dead = smoothf(0, max(0.3, dur), age)
                 let tv = WorldSwarm.variety(c.seed).tint
+                // native-vx-swarm-life: the cause stays on the body a while, quietly — a burned one charred (its embers out in
+                // ~1.5 s), a frozen-stiff one under a thin frost crust (thawing over 4 s). (CI e088420: at 0.9 / 0.85 the
+                // pyro's and the cryo's kills lay as orange-rimmed and pale grey heaps — the extraction shot's median 39 → 54)
+                var burnC: Float = 0, frostC: Float = 0, char: Float = 1
+                if c.cause == DeathCause.fire.rawValue { burnC = 0.3 * expf(-age / 0.6); char = 0.7 }
+                else if c.cause == DeathCause.frost.rawValue { frostC = 0.3 * max(0, 1 - age / 4) }
+                let cv = c.value * char
                 scratch[t][k] = CreatureInstance(
-                    pos: F4(c.x, c.y - sink, c.z, c.scale), rot: F4(cosf(c.heading), sinf(c.heading), c.pitchS, c.pitchC),
-                    tint: F4(c.value * tv.x, c.value * 0.97 * tv.y, c.value * 0.95 * tv.z, c.scale),
+                    pos: F4(c.x, c.y - sink + c.hop, c.z, c.scale), rot: F4(cosf(c.heading), sinf(c.heading), c.pitchS, c.pitchC),
+                    tint: F4(cv * tv.x, cv * 0.97 * tv.y, cv * 0.95 * tv.z, c.scale),
                     anim: SIMD4(o.a.rows, o.b.rows, unorm16(o.a.frac) | unorm16(o.b.frac) << 16, unorm16(o.wB) | UInt32(t) << 16 | 2 << 24),
-                    fx: SIMD4(unorm8(dead) << 24, 0, unorm16(c.seed), 0))
+                    fx: SIMD4(unorm8(burnC) << 8 | unorm8(frostC) << 16 | unorm8(dead) << 24, 0, unorm16(c.seed), 0))
                 let depth = max(0.5, (F3(c.x - eye.x, c.y - eye.y, c.z - eye.z) * fwd).sum())
                 pxs[t][k] = c.scale * lens[t] * pxScale / depth
                 // settled bodies drop to LOD2; until then the LOD the bug died with (no mesh change while it dies)
@@ -657,7 +719,9 @@ final class WorldSwarm {
                 let lv = WorldSwarm.lodValue[t][l]
                 if lv != 1 { inst.tint.x *= lv; inst.tint.y *= lv; inst.tint.z *= lv }
                 let rk = WorldSwarm.lodRim[t][l]
-                if rk != 1 { inst.fx.w = UInt32(max(0, min(255, ((1 - rk) * 255).rounded()))) }
+                if rk != 1 { inst.fx.w = (inst.fx.w & ~0xff) | UInt32(max(0, min(255, ((1 - rk) * 255).rounded()))) }
+                // the head look / abdomen sway on LOD0 / LOD1 only (the glint block reads scratch: cleared there too)
+                if l == 2 { inst.fx.w &= 0xff; scratch[t][k].fx.w &= 0xff }
                 p[regions[t][l].count] = inst
                 regions[t][l].count += 1
                 if slots[t][k] >= 0 { animator?.setLOD(Int(slots[t][k]), UInt8(l)) }
@@ -805,6 +869,7 @@ final class WorldSwarm {
         var P = params
         enc.setVertexBytes(&P, length: MemoryLayout<SwarmParams>.stride, index: 3)
         enc.setFragmentBytes(&P, length: MemoryLayout<SwarmParams>.stride, index: 3)
+        lookPivots.withUnsafeBytes { enc.setVertexBytes($0.baseAddress!, length: $0.count, index: 7) }
         for t in 0..<4 {
             let c = lib.types[t]
             var bound = false
@@ -832,6 +897,7 @@ final class WorldSwarm {
         var P = params
         enc.setVertexBytes(&P, length: MemoryLayout<SwarmParams>.stride, index: 3)
         glintTable.withUnsafeBytes { enc.setVertexBytes($0.baseAddress!, length: $0.count, index: 10) }
+        lookPivots.withUnsafeBytes { enc.setVertexBytes($0.baseAddress!, length: $0.count, index: 7) }
         for t in 0..<4 {
             let c = lib.types[t]
             enc.setVertexTexture(c.boneTexture, index: 6 + t)

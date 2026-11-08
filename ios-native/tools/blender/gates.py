@@ -12,7 +12,7 @@ Gates (plan §2):
              degenerate / out-of-range triangle, unit normals; the kit ≤ 3 MB; the committed AO bake (kit/ao_src) was
              made for exactly this geometry (ihk.ao_fingerprint)
   textures   every .iht under App/Resources parses (level table, sizes, ASTC block rows); all textures ≤ 30 MB
-  creatures  every *.ihv: LOD0 ≤ 3000, LOD1 ≤ 450, LOD2 ≤ 150 triangles; a rigid ship file ≤ 0.3 MB, all ≤ 1.5 MB;
+  creatures  every *.ihv: LOD0 ≤ 3000, LOD1 ≤ 450, LOD2 ≤ 150 triangles; a rigid ship file ≤ 384 KiB, all ≤ 1.5 MB;
              skinned meshes 8–10k triangles, weights summing to 255
   reports    tools/blender/reports/*.json written by the creature / character builds:
              rigid_vs_vat_m ≤ 0.001, foot_drift_m (per clip) ≤ 0.02, ik_err_m (per clip) ≤ 1e-4

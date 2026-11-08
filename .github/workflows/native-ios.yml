@@ -483,6 +483,17 @@ jobs:
           # every bug type × clip (WorldSwarm's sheet: walk, run, attack, hit, deaths, specials), every 3rd frame over 0.6 s
           run_demo burst-bugs 5 "-demo bugsheet -hideHUD -burst bugs 1.5 12 3"
           pull_burst burst-bugs
+          # native-vx-swarm-life: a runner pack and a mixed pack rushing the squad across the game camera — 24 frames, every
+          # 3rd present, from 0.6 s —, the swarm's life on and (-swarmLegacy) as it was before, same seed; a shot after each
+          # live run (the bodies: deaths by cause and direction)
+          run_demo burst-pack 6 "-demo swarmpack -seed 7 -hideHUD -burst pack 0.6 24 3" 0
+          pull_burst burst-pack
+          run_demo burst-packold 6 "-demo swarmpack -seed 7 -hideHUD -swarmLegacy -burst packold 0.6 24 3"
+          pull_burst burst-packold
+          run_demo burst-mix 6 "-demo swarmmix -seed 7 -hideHUD -burst mix 0.6 24 3" 0
+          pull_burst burst-mix
+          run_demo burst-mixold 6 "-demo swarmmix -seed 7 -hideHUD -swarmLegacy -burst mixold 0.6 24 3"
+          pull_burst burst-mixold
           # WP5 effects look-dev: every effect staged around the squad and frozen mid-air (-fxSheet: blasts, napalm, the
           # flamer jet, the cryo beam, hits, kills, a frozen shatter, acid, a nova, casings, a row of every stain), on
           # Efficient and on High (wet decals, heat haze); the plan's scripted peak (three chained boomers + napalm +
@@ -700,7 +711,7 @@ jobs:
           for d in title-fresh title-return title-nm layout holdhint queenlock coach coach3 pressure pressure-amber pause-nm report-first report-win report-loss report-chip stress1400 punchin extract-cine bugsheet calm-bright \
                    layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo banner-beacon banner-queen banner-pseudo \
                    swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud calm-deckmask calm-bright-nohud \
-                   burst-fire burst-tight burst-combat burst-anim burst-loco burst-loco-game burst-bugs validate-stress validate-fxpeak validate-extract lifecycle; do
+                   burst-fire burst-tight burst-combat burst-anim burst-loco burst-loco-game burst-bugs burst-pack burst-packold burst-mix burst-mixold validate-stress validate-fxpeak validate-extract lifecycle; do
             grep -q 'scene ready' "results/app-$d.log" || { fail "$d: no 'scene ready'"; }
             if grep -q 'ERROR' "results/app-$d.log"; then fail "$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; fi
           done
@@ -747,6 +758,12 @@ jobs:
           need burst-loco 'burst loco written \(16 frames\)'
           need burst-loco-game 'burst locogame written \(12 frames\)'
           need burst-bugs 'burst bugs written \(12 frames\)'
+          need burst-pack 'burst pack written \(24 frames\)'
+          need burst-packold 'burst packold written \(24 frames\)'
+          need burst-mix 'burst mix written \(24 frames\)'
+          need burst-mixold 'burst mixold written \(24 frames\)'
+          need burst-pack 'demo swarmpack: spawned [1-9][0-9]* bugs .*swarm life'
+          need burst-packold 'demo swarmpack: spawned [1-9][0-9]* bugs .*swarm legacy'
           # native-vx-fix: the mission's live-bug cap is the tier's under the device class's (the simulator stands in for the
           # iPhone 12: 1400); the particle compute pipelines are built with the render pipelines, so the cover's warm-up
           # already goes through the GPU path. native-vx-feel: the wave pacing's caps (High 350, Medium 250) under the

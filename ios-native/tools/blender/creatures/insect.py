@@ -8,7 +8,9 @@ the legs; leg bones are named `leg.<F|M|B>.<L|R>.<femur|tibia|tarsus>` and posed
 
 Vertex flags (IHV1 rigid vertex material.w): bit0 gland · bit1 eye · bit2 carapace edge · bit3 socket point ·
 bit4 SAC (translucent acid / gas sac: Swarm.metal lights it from inside) — bit4 is creature content, documented here
-and in SwarmTypes.h.
+and in SwarmTypes.h · bit5 HEAD group (the `head` bone and its children: mandibles, antennae, proboscis) · bit6
+ABDOMEN group (`abd.1` and its children: abdomen, sac) — native-vx-swarm-life: Swarm.metal vs_creature turns these
+two groups about the creature's `neck` / `waist` sockets by per-bug look / sway angles (LOD0 / LOD1).
 Socket flags (IHV1 socket record): bit0 GLINT (the gland is also drawn as a glint sprite, Swarm.metal
 vs_swarm_glint), bit1 hot (pink-white core) else dim (red), bits 8–15 the gland radius in mm, bits 16–23 the glint
 intensity × 100; non-gland sockets (mouth, core, sac, spit) carry 0.
@@ -25,6 +27,7 @@ SN = {-1: 'L', 1: 'R'}
 LEG_ID = ('F', 'M', 'B')            # front, middle, back
 
 F_GLAND, F_EYE, F_EDGE, F_SOCKET, F_SAC = 1, 2, 4, 8, 16
+F_HEADG, F_ABDG = 32, 64
 S_GLINT, S_HOT = 1, 2
 D2R = math.pi / 180
 TWO = 2 * math.pi
@@ -180,10 +183,11 @@ class State:
         self.basis[bone] = M
 
 
-def gait_foot(tau, lg, duty, stroke, h):
+def gait_foot(tau, lg, duty, stroke, h, phase=None):
     """tripod gait: foot target in model space at loop phase tau (0..1); planted (z = 0) for `duty` of the loop and
-    moving back at exactly stroke / duty per loop — the clip's stride, so a phase driven by distance plants the feet."""
-    p = (tau + 0.5 * lg.tripod) % 1.0
+    moving back at exactly stroke / duty per loop — the clip's stride, so a phase driven by distance plants the feet.
+    `phase`: the leg's own offset in the loop (default the tripod: 0 or 0.5)."""
+    p = (tau + (0.5 * lg.tripod if phase is None else phase)) % 1.0
     if p < duty:
         y = stroke / 2 - stroke * (p / duty)
         z = 0.0
@@ -355,3 +359,106 @@ def feet_gait(st, legs, tau, duty, D, h, fb=0.0):
     stroke = D * duty
     for lg in legs:
         st.feet[lg.name] = ('ik', gait_foot(tau, lg, duty, stroke, h) + np.array([0, (-fb if lg.i == 0 else fb if lg.i == 2 else 0), 0]))
+
+
+# ------------------------------------------------------------------ native-vx-swarm-life: shared variant clips
+# Per-bug clip variants and deaths by cause (SwarmAnimator picks them per uid / by the core's moods; Corpses by the
+# cause of death). Each takes the creature's legs and a `parts(st, k, clack)` hook that poses its own head parts
+# (mandibles, antennae, proboscis, sac) for a threat amount k.
+def feet_bound(st, legs, tau, duty, D, h, offs=(0.0, 0.11, 0.22), lr=0.035):
+    """a bounding gallop: the legs of a row strike together (front, middle, back one after another, the right side a
+    hair late) — the whole body rocks up and forward once per stride; stance moves back at stride D per loop."""
+    stroke = D * duty
+    for lg in legs:
+        st.feet[lg.name] = ('ik', gait_foot(tau, lg, duty, stroke, h, phase=offs[lg.i] + (lr if lg.s > 0 else 0.0)))
+
+
+def gen_rear(st, f, n, legs, parts, body=1.0, abd2=True):
+    """threat display: the fore body rears high, front legs raised and spread wide pawing the air, mandibles gape and
+    clack, the abdomen cocks up; held, then down (one-shot)."""
+    t = f / (n - 1)
+    up = smoothstep(0.0, 0.26, t) * (1 - smoothstep(0.74, 1.0, t))
+    hold = smoothstep(0.2, 0.3, t) * (1 - smoothstep(0.66, 0.76, t))
+    shiver = math.sin(f * 2.9) * hold
+    st.set('root', tr(0, -0.06 * up * body, 0))
+    st.set('thorax', tr(0, 0, 0.11 * up * body) @ rx((36 * up + 2 * shiver) * D2R) @ rz(3 * shiver * D2R))
+    st.set('head', rx((8 * up) * D2R) @ rz(9 * D2R * math.sin(f * 0.9) * hold))
+    st.set('abd.1', rx((22 * up) * D2R) @ rz(4 * shiver * D2R))
+    if abd2:
+        st.set('abd.2', rx((16 * up) * D2R))
+    clack = max(0.0, math.sin(f * 1.6)) * hold
+    parts(st, up, clack)
+    for lg in legs:
+        if lg.i == 0:
+            paw = 0.07 * math.sin(f * 1.3 + (0 if lg.s > 0 else 1.6)) * hold
+            off = np.array([lg.s * 0.13, 0.10, 0.36 + paw]) * up * body
+        elif lg.i == 1:
+            off = np.array([lg.s * 0.06, 0.03, 0.0]) * up * body
+        else:
+            off = np.array([lg.s * 0.02, -0.06, 0.0]) * up * body
+        st.feet[lg.name] = ('ik', lg.F0 + off)
+    st.glow.update(gland=1.0 + 1.3 * up, pulse=0.35 * hold, wave=t * 5, eye=1.0 + 0.6 * up)
+
+
+def gen_skitter(st, tau, legs, parts, D, duty=0.4, h=0.07, crouch=0.035, abd2=True, wig=1.0):
+    """a dart: a low, fast scrabbling tripod with a nervous yaw wiggle twice a stride (a loop; stride D)."""
+    w = TWO * tau
+    st.set('thorax', tr(0, 0, -crouch - 0.008 * math.cos(2 * w)) @ rz(8 * wig * D2R * math.sin(2 * w + 0.3)) @ rx(-5 * D2R)
+           @ ry(4 * wig * D2R * math.sin(w)))
+    st.set('head', rz(-10 * D2R * math.sin(2 * w + 0.9)) @ rx(5 * D2R))
+    st.set('abd.1', rz(-7 * D2R * math.sin(2 * w - 0.4)) @ rx(4 * D2R))
+    if abd2:
+        st.set('abd.2', rz(-9 * D2R * math.sin(2 * w - 1.1)))
+    parts(st, 0.35, 0.5 + 0.5 * math.sin(4 * w))
+    feet_gait(st, legs, tau, duty, D, h, fb=0.03)
+    st.glow.update(gland=1.1, pulse=0.3, wave=2 * tau)
+
+
+def gen_death_burn(st, f, legs, parts, cz, ea, eb, abd2=True, drop=0.0):
+    """burned alive: a frantic writhe on its feet, a spin over onto the back, the legs flail then curl tight over the
+    belly, the abdomen curls under; violent twitches that die out; the pores flare, then go out (charred)."""
+    writhe = 1 - smoothstep(6, 14, f)
+    flip = smoothstep(6, 16, f)
+    rho = math.pi * flip * 0.95
+    lift = roll_lift(rho, cz, ea, eb, flip) + 0.06 * math.sin(math.pi * min(max((f - 2) / 10, 0), 1))
+    tw = sum(a * bell(f, t0, 1.2) for t0, a in ((17, 1.0), (21, 0.8), (26, 0.55), (31, 0.3)))
+    st.set('root', tr(-cz * math.sin(rho) * 0.9, 0.04 * flip, lift - drop * flip) @ rz(1.1 * flip + 0.25 * math.sin(f * 0.8) * writhe)
+           @ ry(rho))
+    st.set('thorax', rz((16 * math.sin(f * 1.7) * writhe) * D2R) @ rx((10 * math.sin(f * 1.3) * writhe) * D2R) @ ry(-9 * tw * D2R))
+    st.set('head', rx((20 * math.sin(f * 1.9) * writhe - 26 * flip) * D2R) @ rz(14 * tw * D2R))
+    st.set('abd.1', rx((-12 * math.sin(f * 1.5 + 1) * writhe - 30 * flip + 8 * tw) * D2R))
+    if abd2:
+        st.set('abd.2', rx((-34 * flip + 12 * tw) * D2R) @ rz(10 * tw * D2R))
+    parts(st, 0.6 * writhe + 0.9 * flip, max(0.0, math.sin(f * 2.1)) * writhe + 0.6 * tw)
+    curl = smoothstep(10, 20, f)
+    flail = (0.5 + 0.5 * writhe) * (1 - smoothstep(20, 30, f))
+    for lg in legs:
+        seed = lg.i * 2.3 + (lg.s + 1) * 1.7
+        twl = tw * (0.5 + 0.5 * math.sin(seed * 2.7))
+        jitter = np.array([0.4 * flail * math.sin(f * 2.2 + seed), 0.7 * flail * math.sin(f * 2.6 + seed * 1.3) + 0.4 * twl,
+                           0.9 * flail * math.sin(f * 3.1 + seed) - 0.6 * twl, 0.7 * flail * math.sin(f * 2.4 + seed * 0.7) + 0.8 * twl])
+        dp = lg.dead_params() + np.array([0, math.radians(-12), math.radians(-14), math.radians(16)])
+        st.feet[lg.name] = ('mix2', lg.F0 + np.array([lg.s * 0.06, 0, 0.05 * writhe]), lg.tuck_params() + jitter * 0.6,
+                            smoothstep(1, 7, f), dp + jitter * 0.5, curl)
+    flare = 1.0 + 2.2 * (1 - smoothstep(2, 12, f))
+    st.glow.update(gland=max(0.03, flare * (1 - smoothstep(6, 24, f)) + 0.5 * tw * (1 - smoothstep(14, 32, f))),
+                   pulse=0.5 * writhe, wave=f * 0.15, eye=max(0.03, 1 - smoothstep(3, 13, f)))
+
+
+def gen_death_frost(st, f, legs, parts, cz, ea, eb, side=1.0, rho_max=1.38, drop=0.0):
+    """frozen stiff: two shudders, the legs locked in their standing pose, then the whole body tips over sideways like
+    a statue, a small rebound off the deck, still; the pores and eyes go out at once (one-shot)."""
+    shud = math.sin(f * 3.3) * (1 - smoothstep(2, 7, f))
+    top = smoothstep(6, 14, f)
+    rho = side * (rho_max * top - 0.1 * bell(f, 16, 1.3) * top)
+    lift = roll_lift(abs(rho), cz, ea, eb, top)
+    st.set('root', tr(-side * cz * math.sin(abs(rho)) * 0.8, 0, lift - drop * top) @ ry(rho))
+    st.set('thorax', tr(0, 0, -0.015 * smoothstep(0, 4, f)) @ rz(4 * shud * D2R) @ rx(2 * shud * D2R))
+    st.set('head', rx(4 * shud * D2R))
+    parts(st, 0.25, 0.0)
+    stiff = smoothstep(0, 4, f)
+    for lg in legs:
+        p = lg.rest[0].copy()
+        bent = p + np.array([0, math.radians(8), math.radians(-6), 0]) * stiff
+        st.feet[lg.name] = ('mix', lg.F0 + np.array([lg.s * 0.02, 0, 0]) * stiff, bent, smoothstep(5, 8, f))
+    st.glow.update(gland=max(0.04, 0.9 * (1 - smoothstep(0, 6, f))), eye=max(0.04, 1 - smoothstep(0, 7, f)))

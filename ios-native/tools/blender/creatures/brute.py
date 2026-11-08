@@ -13,6 +13,7 @@ import numpy as np
 from geo import Part, cone, ellipsoid, smoothstep, tube
 from insect import (D2R, F_GLAND, F_SAC, FPS, SIDES, SN, TWO, Leg, State, bell, blob, bone_frame, col_ramp, eye, feet_gait,
                     feet_planted, gland, leg_parts, plate, roll_lift, rx, ry, rz, skeleton_legs, surface_z, tr)
+from insect import gen_death_burn, gen_death_frost, gen_rear, gen_skitter  # noqa: E402  (native-vx-swarm-life)
 
 NAME = 'brute'
 SCALE = 2.0
@@ -167,7 +168,7 @@ def build_parts(lod):
 
 
 # ------------------------------------------------------------------ animation
-GROUND_CLAMP = {'death', 'death2', 'hit', 'attack', 'wind'}
+GROUND_CLAMP = {'death', 'death2', 'hit', 'attack', 'wind', 'rear', 'death_burn', 'death_frost'}
 CLIPS = [
     ('idle', 36, True, 0.0, 0, 'heavy breathing, the shield sways, mandibles grind, the forelimbs shift weight'),
     ('walk', 32, True, 0.72, 0, 'heavy tripod gait, duty 0.66, big bob, shield rolls'),
@@ -178,6 +179,11 @@ CLIPS = [
     ('hit', 8, False, 0.0, 1, 'a small heavy flinch'),
     ('death', 36, False, 0.0, 35, 'legs buckle, collapses forward onto the shield, rear settles, a roll, twitches'),
     ('death2', 36, False, 0.0, 35, 'topples onto its side, legs curl, twitches, the eyes go out'),
+    # native-vx-swarm-life: per-bug variants (SwarmAnimator) and deaths by cause (Corpses)
+    ('walk_b', 32, True, 0.72, 0, 'a heavier lumber: duty 0.7, deep bob, the shield rolls side to side, head low'),
+    ('rear', 24, False, 0.0, 12, 'threat display: rears, forelimbs raised wide, mandibles gape and grind'),
+    ('death_burn', 36, False, 0.0, 35, 'burned: thrashes, rolls onto its back, legs curl tight over the belly, twitches'),
+    ('death_frost', 24, False, 0.0, 23, 'frozen stiff: shudders, tips over sideways like a statue, a heavy rebound'),
 ]
 
 
@@ -232,9 +238,14 @@ def _death_side(st, f):
                    eye=max(0.05, 1 - smoothstep(3, 24, f)))
 
 
+
+def _parts(st, k, clack):
+    """head parts for a threat amount k (variants / deaths): the mandibles gape and grind"""
+    _mands(st, 8 + 36 * k - 16 * clack * k)
+
 def clip_state(name, f, n):
     st = State()
-    tau = f / n if name in ('idle', 'walk', 'run', 'charge') else f / (n - 1)
+    tau = f / n if name in ('idle', 'walk', 'run', 'charge', 'walk_b') else f / (n - 1)
     if name == 'idle':
         w = TWO * tau
         st.set('thorax', tr(0, 0, 0.012 * math.sin(w)) @ rx(1.5 * D2R * math.sin(w)) @ ry(2.5 * D2R * math.sin(w + 0.6)))
@@ -301,4 +312,20 @@ def clip_state(name, f, n):
         _death_fwd(st, f)
     elif name == 'death2':
         _death_side(st, f)
+    elif name == 'walk_b':
+        w = TWO * tau
+        st.set('thorax', tr(0, 0, -0.04 * math.cos(2 * w) - 0.03) @ rz(8 * D2R * math.sin(w + 0.4)) @ rx((-3 + 3 * math.sin(2 * w + 0.6)) * D2R)
+               @ ry(8 * D2R * math.sin(w)))
+        st.set('head', rx((4 - 3 * math.sin(2 * w + 1.4)) * D2R) @ rz(-5 * D2R * math.sin(w + 0.4)))
+        st.set('abd.1', rz(-6 * D2R * math.sin(w - 0.5)) @ rx((2 + 3 * math.sin(2 * w - 0.2)) * D2R))
+        st.set('abd.2', rz(-8 * D2R * math.sin(w - 1.2)) @ rx(3 * D2R * math.sin(2 * w - 0.9)))
+        _mands(st, 8 + 8 * (0.5 + 0.5 * math.sin(2 * w)))
+        feet_gait(st, LEGS, tau, 0.7, 0.72, 0.12)
+        st.glow.update(gland=0.9, pulse=0.25, wave=2 * tau)
+    elif name == 'rear':
+        gen_rear(st, f, n, LEGS, _parts, body=0.7)
+    elif name == 'death_burn':
+        gen_death_burn(st, f, LEGS, _parts, BODY_Z * 0.9, 0.5, 0.32, drop=0.12)
+    elif name == 'death_frost':
+        gen_death_frost(st, f, LEGS, _parts, BODY_Z * 0.9, 0.5, 0.32, rho_max=1.3, drop=0.1)
     return st

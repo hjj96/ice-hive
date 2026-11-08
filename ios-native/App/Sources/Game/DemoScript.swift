@@ -54,6 +54,11 @@ import IceHiveCore
 //                   picks another), the defence's opening horde from 3–4 sides, the ring charged to 27 % so the hive's
 //                   first push (30 %) lands 2 s later; time almost frozen (×0.02) at `-waveFreeze` s (6.5) after «scene
 //                   ready» for the screenshot. Logs `demo waves: td=… alive … near16 … pushes …` once a second.
+//  native-vx-swarm-life (a living swarm — the CI bursts burst-pack / burst-mix, A/B with -swarmLegacy):
+//    -demo swarmpack  the squad on beacon «Alpha»'s platform (open deck, as `beacon`), a runner pack (60) spread over
+//                   the deck 5–11 m around it rushing in, kept topped up from the walkways (11–17 m); the director off,
+//                   the player idle, the squad firing (deaths by cause: shots, flames, frost, grenades)
+//    -demo swarmmix   the same with a mixed pack (75, every type)
 //    No demo shows more live bugs than the game itself can: every forced crowd is clamped to the mission's live cap
 //    (`crowd(_:)`; the wave pacing's High 350 / Medium 250 / Low 220 under the device class), the hold demos play the
 //    director's own hold. Only the declared renderer stress runs go past it — stress1400 (1400) and an explicit
@@ -94,7 +99,7 @@ final class DemoScript {
         case "combat", "smoke", "default": return DemoScript(name: d == "default" ? "combat" : d, options: options, bugs: options.bugs)
         case "beacon": return DemoScript(name: d, options: options, bugs: options.bugs)
         case "title", "calm", "probe", "hold", "holdhint", "extract", "queen", "queenlock", "coach", "pressure", "report", "levelup", "pause", "end",
-             "swarmshot", "layout", "bugsheet", "punchin", "extract-cine", "waves":
+             "swarmshot", "layout", "bugsheet", "punchin", "extract-cine", "waves", "swarmpack", "swarmmix":
             return DemoScript(name: d, options: options)
         case "stress1400": return DemoScript(name: d, options: options, bugs: options.bugs ?? 1400)
         default:
@@ -184,6 +189,14 @@ final class DemoScript {
             game.autopilot = false
             target = 0
             AppLog.info("demo swarmshot: staging the store 2-swarm moment")
+        case "swarmpack", "swarmmix":
+            game.autopilot = false
+            game.directorEnabled = false
+            if let b = game.beacons.first { game.debugTeleport(b.x + 3, b.z - 3.5) }
+            target = crowd(name == "swarmpack" ? 60 : 75)
+            let n = game.debugSpawn(target, type: packType, minRadius: 5, maxRadius: 11)
+            AppLog.info("demo \(name): spawned \(n) bugs (\(packType.map { "\($0)" } ?? "mixed")) on beacon Alpha's deck, swarm "
+                        + (SwarmAnimator.legacy ? "legacy" : "life"))
         case "levelup", "pause", "end":
             if name == "levelup" { game.autoPickUpgrades = false }
             target = crowd(300)
@@ -290,8 +303,9 @@ final class DemoScript {
                 let k = min(300, target - alive)
                 // (extract-cine: the top-ups climb over the lift's rim on either flank in turn, the hold's own entrance)
                 flankTurn.toggle()
+                let pack = name == "swarmpack" || name == "swarmmix"
                 let n = crowdFlanks.map { game.debugClimbLiftRim(k, sector: flankTurn ? $0.0 : $0.1) }
-                    ?? game.debugSpawn(k, type: nil, minRadius: 12, maxRadius: 30)
+                    ?? game.debugSpawn(k, type: packType, minRadius: pack ? 11 : 12, maxRadius: pack ? 17 : 30)
                 spawned += n
             }
             logT -= 0.5
@@ -319,6 +333,8 @@ final class DemoScript {
     }
     private var flankTurn = false
     private var lockSet = false
+    /// swarmpack: runners only; swarmmix: every type.
+    private var packType: BugType? { name == "swarmpack" ? .runner : nil }
 
     /// coach: time almost stops after a moment (the step on screen stays for the screenshot, the card's ghost thumb
     /// keeps moving: it runs on wall time); pressure: the hive pressure pinned inside the amber / red band.
