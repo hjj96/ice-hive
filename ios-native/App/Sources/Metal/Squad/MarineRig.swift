@@ -23,18 +23,27 @@ import IceHiveCore
 //                   directions being blended, so planted feet stay
 //                   planted at any speed; two idle variants (idle,
 //                   idle_b), each marine its own variant and phase
-//     clip table    turn_l / turn_r (a 90° turn on the spot, mocap) are
-//                   in every file for the upper / lower body split
+//     split (A2)    the model stands on its legs (feetYaw); the aim
+//                   twists pelvis → spine1 → spine2 → chest at once
+//                   within ±70°, beyond it the legs turn on the spot
+//                   (turn_l / turn_r, mocap) or, for a smaller twist
+//                   held a while, shuffle round; never past ±110°;
+//                   moving, the legs chase the aim (the spine leads)
 //     full body     dash (anticipation → boost → land → settle, 4
 //                   directions), down → downed crawl → revive (scrubbed
 //                   by the revive progress, then played out) → death
 //     additive      per-weapon fire layer (rifle kick per shot, rotary
-//                   judder, flamer push, cryo hum), hit flinch
-//     procedural    rotary barrels / cryo coils spin (weapon_aux),
-//                   pauldrons / tassets follow, both hands on 2-bone IK
-//                   to the weapon grips every frame, planted feet
-//                   locked in the world (2-bone leg IK; a turning idle
-//                   marine re-steps)
+//                   judder, flamer push, cryo hum)
+//     procedural    hit impulses up the spine with successive delays
+//                   (heavier knock, bigger; the hips shoved), breathing
+//                   / fatigue (own rate, faster hurt or after a
+//                   sprint), head look-at the nearest threat, springs
+//                   with overshoot (pauldrons, pack, antenna, tassets,
+//                   the weapon lagging the chest), per-marine tempo
+//                   ±5 % and phases; rotary barrels / cryo coils spin
+//                   (weapon_aux), both hands on 2-bone IK to the weapon
+//                   grips every frame, planted feet locked in the world
+//                   (2-bone leg IK; a foot out of place re-steps)
 //     palette       32 × 3×4 skinning matrices in world space (the
 //                   instance transform folded in) → the frame arena
 //  The ctrl bone of every clip carries the IK weights (gun hand,
@@ -357,7 +366,8 @@ final class MarineTextures {
 /// What the rig needs from the simulation for one marine this frame (world space).
 struct RigInput {
     var pos = F3(0, 0, 0)
-    /// Facing (aim) angle about +y: the model's +z points along (sin yaw, cos yaw).
+    /// Aim angle about +y: the weapon points along (sin yaw, cos yaw). The legs follow it on their own (feel build A2:
+    /// the upper / lower body split), the model's +z is the legs' facing (`MarineRig.feetYaw`).
     var yaw: Float = 0
     /// Ground velocity (m/s, world x / z).
     var vel = SIMD2<Float>(0, 0)
@@ -369,6 +379,7 @@ struct RigInput {
     var dashT: Float = 0
     var dashDir = SIMD2<Float>(0, 1)
     var hurtT: Float = 0
+    /// Knockback velocity (world; its size on the hit's frame tells a bite from a brute's ram).
     var knock = SIMD2<Float>(0, 0)
     var downed = false
     /// Revive progress 0…1 while downed.
@@ -376,12 +387,25 @@ struct RigInput {
     /// The mission is lost: downed marines die.
     var dead = false
     var invulnerable = false
-    /// Look-dev (`-squadLoco`): a named clip played as the full-body override at `clipTime` (turn_l / turn_r, which
-    /// the game does not drive yet), and the treadmill view — no world foot lock, the clip's own feet.
+    /// Health 0…1: a hurt marine breathes faster and deeper.
+    var hp: Float = 1
+    /// The nearest threat (world), nil = none: the head turns to it within its limits.
+    var look: F3? = nil
+    /// Look-dev (`-squadLoco`): a named clip played as the full-body override at `clipTime`, and the treadmill view —
+    /// no world foot lock, the clip's own feet.
     var clip: String? = nil
     var clipTime: Float = 0
     var treadmill = false
 }
+
+@inline(__always) private func wrapPi(_ a: Float) -> Float {
+    var d = a
+    while d > Float.pi { d -= 2 * Float.pi }
+    while d < -Float.pi { d += 2 * Float.pi }
+    return d
+}
+
+@inline(__always) private func smooth01(_ x: Float) -> Float { let t = min(1, max(0, x)); return t * t * (3 - 2 * t) }
 
 final class MarineRig {
     let asset: MarineAsset
@@ -392,13 +416,16 @@ final class MarineRig {
     private(set) var lt: [F3]
     private(set) var wq: [Q]
     private(set) var wt: [F3]
-    private var oq: [Q], ot: [F3]      // the full-body override pose
+    private var oq: [Q], ot: [F3]      // the full-body override pose / the turn layer
     private var accQ: [Q], accT: [F3]
     private var accW: Float = 0
     /// ctrl curves of the blended pose: IK gun / support hand, plant L / R, visor.
     private(set) var ikGun: Float = 1, ikSup: Float = 1, plant = SIMD2<Float>(1, 1), visor: Float = 1
     private var ctrlAcc = SIMD4<Float>(0, 0, 0, 0), ctrlVisor: Float = 0
 
+    // per-marine variation (seed = the squad slot): tempo ±5 %, its own phases — the squad never moves in step
+    let seed: Int
+    private let tempo: Float
     // animation state
     private var phase: Float = 0
     private var gaitRun: Float = 0
@@ -408,8 +435,6 @@ final class MarineRig {
     private var dashClock: Float = 10
     private var dashRel = SIMD2<Float>(0, 1)
     private var prevHurt: Float = 0
-    private var flinchClock: Float = 10
-    private var flinchBack = false
     private var prevMuzzle: Float = 0
     private var fireClock: Float = 10
     private var fireLoopW: Float = 0
@@ -423,6 +448,64 @@ final class MarineRig {
     private var deathClock: Float = 0
     private var overrideW: Float = 0
     private var idleClock: Float = 0
+    // upper / lower body split: the legs' world yaw (the model frame), the twist the spine carries (aim − legs − the
+    // turn clip's progress), the turn-in-place clip (side +1 turn_l, −1 turn_r), the settle shuffle
+    private(set) var feetYaw: Float = 0
+    private var feetInit = false
+    private(set) var twist: Float = 0
+    private var turnSide = 0
+    private var turnT: Float = 0
+    private var turnRate: Float = 1
+    private var turnW: Float = 0
+    private var turnYawApplied: Float = 0
+    private let iTurn: [Int]
+    private var turnYawTab: [[Float]] = [[], []]
+    private var turnDrift: [F3] = [.zero, .zero]
+    private var settleClock: Float = 0
+    private var shuffling = false
+    /// turns on the spot and settle shuffles since the last read
+    var turnCount = 0
+    // crossfade from a snapshot of the last animation pose (a turn's end, re-expressed in the new leg frame)
+    private var animQ: [Q], animT: [F3]
+    private var snapQ: [Q], snapT: [F3]
+    private var snapW: Float = 0
+    // springs (world space tip points): armour, pack, antenna, the weapon's lag behind the chest
+    private struct Spring {
+        let bone: Int
+        let tip: F3
+        let freq: Float
+        let zeta: Float
+        let maxAng: Float
+        let drag: Float
+        var p = F3(0, 0, 0)
+        var v = F3(0, 0, 0)
+        var tPrev = F3(0, 0, 0)
+        var on = false
+        init(_ bone: Int, _ tip: F3, freq: Float, zeta: Float, maxDeg: Float, drag: Float = 0) {
+            self.bone = bone; self.tip = tip; self.freq = freq; self.zeta = zeta; self.maxAng = maxDeg * Float.pi / 180; self.drag = drag
+        }
+    }
+    private var springs: [Spring]
+    private var gunSpring: Spring
+    private let iBackpack: Int, iAntenna: Int, iClav: (Int, Int)
+    // hit reactions: per spine bone (spine1, spine2, chest, neck, head) a damped tilt (x, z: the way «up» leans), the
+    // impulses travelling up the chain with successive delays; the pelvis shove (xz) and knee dip (y)
+    private let iChain: [Int]
+    private var hitTilt = [SIMD2<Float>](repeating: .zero, count: 5)
+    private var hitVel = [SIMD2<Float>](repeating: .zero, count: 5)
+    private var hitClock: Float = 10
+    private var hitDir = SIMD2<Float>(0, -1)
+    private var hitMag: Float = 0
+    private var hitFired = 0
+    private var shoveP = F3(0, 0, 0), shoveV = F3(0, 0, 0)
+    /// hits taken since the last read
+    var hitCount = 0
+    // breathing / fatigue
+    private var breathPh: Float = 0
+    private var fatigue: Float = 0
+    private var hurtSm: Float = 0
+    // head look-at (relative to the aim, rad)
+    private var lookYaw: Float = 0, lookPitch: Float = 0
     // foot lock (world space): locked ball position per foot and how long a re-step has been running
     private var lockOn = [false, false]
     private var lockPos = [F3](repeating: .zero, count: 2)
@@ -443,17 +526,39 @@ final class MarineRig {
     // hand-to-grip error (m) since the last read
     var slideMax: Float = 0
     var gripErrMax: Float = 0
+    /// largest |twist| since the last read (rad)
+    var twistMax: Float = 0
     private var lastBall = [F3](repeating: .zero, count: 2)
     private var lastPlanted = [false, false]
     private var slideAcc: [Float] = [0, 0]
     private(set) var state = "idle"
 
     private let iDirs: [[Int]]      // [walk, run] × 8 directions (f fl l bl b br r fr)
-    private let iIdle, iFire, iFlinchF, iFlinchB, iDown, iDowned, iRevive, iDeath: Int
+    /// Per bone: the bit set of itself and every bone under it (32 bones: one UInt32), for subtree FK without walking
+    /// the parents of every bone.
+    private let subtree: [UInt32]
+    /// This frame's instance yaw as a quaternion (model ↔ world).
+    private var yawQ = Quat.identity
+    // scratch of the spine chain (no per-frame allocations)
+    private var chainW = [SIMD4<Float>](repeating: Quat.identity, count: 7)
+    private let chainBones: [Int]
+    private static let hitGain: [Float] = [0.45, 0.75, 1.0, 0.6, 1.25]
+    private static let grips: [(String, String, String)] = [("grip_L", "grip_L_y", "grip_L_z"), ("grip_R", "grip_R_y", "grip_R_z")]
+    private static let handAxes: [(String, String)] = [("hand_L_y", "hand_L_z"), ("hand_R_y", "hand_R_z")]
+    private let iIdle, iFire, iDown, iDowned, iRevive, iDeath: Int
     private let iDash: [Int]         // f l b r
 
-    init(asset: MarineAsset) {
+    // the split's limits
+    private static let twistSoft: Float = 70 * Float.pi / 180     // standing: beyond this the legs turn (turn_l / turn_r)
+    private static let twistHard: Float = 110 * Float.pi / 180    // never more: the legs are dragged round (a flip)
+    private static let settleTwist: Float = 30 * Float.pi / 180   // held this long (s below) → a short foot shuffle
+    private static let settleAfter: Float = 1.1
+    /// The twist's share per bone: pelvis, spine1, spine2, chest (sums to 1).
+    private static let twistShare: [Float] = [0.12, 0.25, 0.3, 0.33]
+
+    init(asset: MarineAsset, seed: Int = 0) {
         self.asset = asset
+        self.seed = seed
         n = asset.bones
         lq = [Q](repeating: Quat.identity, count: n)
         lt = asset.bindLocal
@@ -463,20 +568,79 @@ final class MarineRig {
         ot = lt
         accQ = lq
         accT = lt
+        animQ = lq
+        animT = lt
+        snapQ = lq
+        snapT = lt
         let dirs = ["f", "fl", "l", "bl", "b", "br", "r", "fr"]
         iDirs = [dirs.map { asset.clip("walk_" + $0) }, dirs.map { asset.clip("run_" + $0) }]
         // two ready stances: every other class plays the second one, each class at its own phase — the four never
         // breathe or look round in step (a file without idle_b falls back to idle: clip 0)
-        iIdle = asset.clip(asset.cls.rawValue % 2 == 0 ? "idle" : "idle_b"); iFire = asset.clip("fire"); iFlinchF = asset.clip("flinch_f"); iFlinchB = asset.clip("flinch_b")
+        iIdle = asset.clip(asset.cls.rawValue % 2 == 0 ? "idle" : "idle_b"); iFire = asset.clip("fire")
         iDown = asset.clip("down"); iDowned = asset.clip("downed"); iRevive = asset.clip("revive"); iDeath = asset.clip("death")
         iDash = ["f", "l", "b", "r"].map { asset.clip("dash_" + $0) }
-        idleClock = Float(asset.cls.rawValue) * 1.37
+        iTurn = ["turn_l", "turn_r"].map { asset.clipIndex[$0] ?? -1 }
+        func idx(_ s: String) -> Int { asset.names.firstIndex(of: s) ?? 0 }
+        iChain = ["spine1", "spine2", "chest", "neck", "head"].map(idx)
+        chainBones = [asset.iPelvis] + iChain
+        var sub = [UInt32](repeating: 0, count: n)
+        for b in 0..<min(n, 32) {
+            var p = b
+            while p >= 0 { sub[p] |= UInt32(1) << UInt32(b); p = asset.parent[p] }
+        }
+        subtree = sub
+        iBackpack = idx("backpack"); iAntenna = idx("antenna"); iClav = (idx("clav_L"), idx("clav_R"))
+        // tips in the bone's frame (bind axes = model axes): pauldrons stick out sideways, the pack hangs, the antenna
+        // stands up, tassets hang over the thighs; underdamped (ζ < 0.4) so they overshoot and settle
+        springs = [Spring(idx("pauldron_L"), F3(0.11, 0.02, 0), freq: 3.6, zeta: 0.26, maxDeg: 13),
+                   Spring(idx("pauldron_R"), F3(-0.11, 0.02, 0), freq: 3.6, zeta: 0.26, maxDeg: 13),
+                   Spring(iBackpack, F3(0, -0.24, -0.04), freq: 2.8, zeta: 0.32, maxDeg: 6),
+                   Spring(iAntenna, F3(0, 0.34, 0), freq: 1.9, zeta: 0.12, maxDeg: 28, drag: 1.4),
+                   Spring(idx("tasset_L"), F3(0, -0.17, 0.03), freq: 3.1, zeta: 0.3, maxDeg: 16),
+                   Spring(idx("tasset_R"), F3(0, -0.17, 0.03), freq: 3.1, zeta: 0.3, maxDeg: 16)]
+        gunSpring = Spring(asset.iChest, F3(0, 0, 0.55), freq: 4.2, zeta: 0.45, maxDeg: 7)
+        // ±5 %: an even spread over the four slots (a random draw can land two of four on the same tempo)
+        let spread: [Float] = [-0.7, 0.9, 0.25, -0.3]
+        tempo = 1 + 0.05 * spread[((seed % 4) + 4) % 4] * (seed >= 4 ? 0.6 : 1)
+        // the turn clips' pelvis yaw progress (rad, from frame 0) and the drift of the hips over the clip (removed:
+        // the turn stays on the spot)
+        for s in 0..<2 where iTurn[s] >= 0 {
+            let C = asset.clips[iTurn[s]]
+            var tab: [Float] = []
+            var prev: Float = 0, acc: Float = 0
+            for f in 0..<C.frames {
+                let q = asset.rot[(C.first + f) * n + asset.iPelvis]
+                let z = Quat.rotate(Quat.norm(q), F3(0, 0, 1))
+                let a = atan2f(z.x, z.z)
+                if f > 0 { acc += wrapPi(a - prev) }
+                prev = a
+                tab.append(acc)
+            }
+            turnYawTab[s] = tab
+            let p0 = asset.pos[C.first * n + asset.iPelvis], p1 = asset.pos[(C.first + C.frames - 1) * n + asset.iPelvis]
+            turnDrift[s] = F3(p1.x - p0.x, 0, p1.z - p0.z)
+        }
+        resetPhases()
+    }
+
+    private func resetPhases() {
+        let s = Float(seed)
+        idleClock = Float(asset.cls.rawValue) * 1.37 + s * 0.83
+        phase = (s * 0.31 + 0.12).truncatingRemainder(dividingBy: 1)
+        breathPh = (s * 0.27 + 0.05).truncatingRemainder(dividingBy: 1)
     }
 
     func reset() {
-        phase = 0; dashClock = 10; flinchClock = 10; fireClock = 10; fireLoopW = 0; wasDowned = false; overrideW = 0
+        dashClock = 10; fireClock = 10; fireLoopW = 0; wasDowned = false; overrideW = 0
         getUpClock = 10; reviveW = 0; lockOn = [false, false]; speedSm = 0; prevDash = 0; prevHurt = 0; prevMuzzle = 0
         pelvisDrop = 0; hasPrev = false; lastPlanted = [false, false]; slideAcc = [0, 0]
+        feetInit = false; turnSide = 0; turnW = 0; turnYawApplied = 0; snapW = 0; settleClock = 0; shuffling = false
+        hitClock = 10; hitFired = 0; fatigue = 0; hurtSm = 0; lookYaw = 0; lookPitch = 0
+        shoveP = .zero; shoveV = .zero
+        for i in 0..<5 { hitTilt[i] = .zero; hitVel[i] = .zero }
+        for i in 0..<springs.count { springs[i].on = false }
+        gunSpring.on = false
+        resetPhases()
     }
 
     // ---------------------------------------------------------------- sampling
@@ -560,11 +724,13 @@ final class MarineRig {
         }
     }
 
-    /// FK of one bone's subtree after a local change (bones are ordered parents first).
+    /// FK of one bone's subtree after a local change (bones are ordered parents first: the mask's bits ascend).
     private func fkFrom(_ root: Int) {
-        for b in root..<n {
+        var m = subtree[root]
+        while m != 0 {
+            let b = m.trailingZeroBitCount
+            m &= m - 1
             let p = asset.parent[b]
-            guard b == root || isUnder(b, root) else { continue }
             if p < 0 { wq[b] = lq[b]; wt[b] = lt[b] } else {
                 wq[b] = Quat.norm(Quat.mul(wq[p], lq[b]))
                 wt[b] = wt[p] + Quat.rotate(wq[p], lt[b])
@@ -572,16 +738,19 @@ final class MarineRig {
         }
     }
 
-    private func isUnder(_ b: Int, _ root: Int) -> Bool {
-        var p = asset.parent[b]
-        while p >= 0 { if p == root { return true }; p = asset.parent[p] }
-        return false
-    }
-
     /// Give bone b the model-space rotation q (its parent's from the current FK).
     private func setWorld(_ b: Int, _ q: Q) {
         let p = asset.parent[b]
         lq[b] = p >= 0 ? Quat.norm(Quat.mul(Quat.conj(wq[p]), q)) : q
+    }
+
+    /// FK of one bone whose parent is already posed (no subtree).
+    @inline(__always) private func fkOne(_ b: Int) {
+        let p = asset.parent[b]
+        if p < 0 { wq[b] = lq[b]; wt[b] = lt[b] } else {
+            wq[b] = Quat.norm(Quat.mul(wq[p], lq[b]))
+            wt[b] = wt[p] + Quat.rotate(wq[p], lt[b])
+        }
     }
 
     /// Analytic 2-bone IK: a → b → c (c's origin is the end joint) to `target` (model space), bending toward the
@@ -635,15 +804,153 @@ final class MarineRig {
     /// A socket's model-space position on the current pose.
     @inline(__always) private func socket(_ s: MarineAsset.Socket) -> F3 { wt[s.bone] + Quat.rotate(wq[s.bone], s.offset) }
 
+    // ---------------------------------------------------------------- the split
+    /// The turn clip's pelvis yaw progress at t (rad).
+    private func turnYaw(_ side: Int, _ t: Float) -> Float {
+        let tab = turnYawTab[side]
+        guard tab.count > 1 else { return 0 }
+        let p = min(max(0, t * asset.fps), Float(tab.count - 1))
+        let f0 = min(Int(p), tab.count - 2)
+        return tab[f0] + (tab[f0 + 1] - tab[f0]) * (p - Float(f0))
+    }
+
+    private func startTurn(_ side: Int, urgency: Float) {
+        turnSide = side
+        turnT = 0
+        turnW = 0
+        // the mocap turn steps round over 1.5–1.7 s; the game plays it brisker, faster still for a big swing
+        turnRate = (1.25 + 0.45 * urgency) * tempo
+        turnCount += 1
+    }
+
+    /// The turn is over (or interrupted): the legs' frame takes the clip's progress, the last animation pose is kept as a
+    /// snapshot re-expressed in the new frame and faded out — no pop.
+    private func endTurn() {
+        let y = turnYawApplied
+        feetYaw = wrapPi(feetYaw + y)
+        let r = Quat.axis(F3(0, 1, 0), -y)
+        for b in 0..<n { snapQ[b] = animQ[b]; snapT[b] = animT[b] }
+        snapQ[asset.iPelvis] = Quat.norm(Quat.mul(r, animQ[asset.iPelvis]))
+        snapT[asset.iPelvis] = Quat.rotate(r, animT[asset.iPelvis])
+        snapW = 1
+        turnSide = 0
+        turnW = 0
+        turnYawApplied = 0
+    }
+
+    /// The legs' yaw for this frame: moving, they follow the aim (the spine leads, the hips catch up); standing, they hold
+    /// until the twist passes ±70° (a turn on the spot) or a smaller twist is held a while (a foot shuffle); the twist
+    /// never exceeds ±110°.
+    private func updateLegs(_ I: RigInput, dt: Float, fullBody: Bool) {
+        let aim = I.yaw
+        if !feetInit { feetYaw = aim; feetInit = true }
+        let sp = (I.vel.x * I.vel.x + I.vel.y * I.vel.y).squareRoot()
+        let moving = min(1, max(0, (sp - 0.15) / 0.6))
+        if fullBody {
+            if turnSide != 0 { endTurn() }
+            feetYaw = aim
+            settleClock = 0; shuffling = false
+        } else if moving > 0.02 {
+            if turnSide != 0 { endTurn() }
+            let d = wrapPi(aim - feetYaw)
+            feetYaw = wrapPi(feetYaw + d * min(1, dt * (5 + 7 * moving)))
+            settleClock = 0; shuffling = false
+        } else if turnSide != 0 {
+            let s = turnSide > 0 ? 0 : 1
+            let dur = asset.clips[iTurn[s]].duration
+            turnT += dt * turnRate
+            // the aim came back past the legs: no need to finish the step round
+            let need = wrapPi(aim - feetYaw) - turnYaw(s, turnT)
+            if turnT >= dur || (need * Float(turnSide) < -0.6 && turnT > 0.35 * dur) { endTurn() }
+        } else {
+            let d = wrapPi(aim - feetYaw)
+            if abs(d) > MarineRig.twistSoft && iTurn[d > 0 ? 0 : 1] >= 0 {
+                startTurn(d > 0 ? 1 : -1, urgency: min(1, (abs(d) - MarineRig.twistSoft) / 0.7))
+                settleClock = 0; shuffling = false
+            } else {
+                settleClock = abs(d) > MarineRig.settleTwist ? settleClock + dt : 0
+                if settleClock > MarineRig.settleAfter && !shuffling { shuffling = true; turnCount += 1 }
+                if shuffling {
+                    let st = min(abs(d), 2.0 * tempo * dt)
+                    feetYaw = wrapPi(feetYaw + (d > 0 ? st : -st))
+                    if abs(wrapPi(aim - feetYaw)) < 0.06 { shuffling = false; settleClock = 0 }
+                }
+            }
+        }
+        // the turn clip blends in over 0.18 s; the spine carries what the legs have not turned yet
+        if turnSide != 0 {
+            turnW = min(1, turnW + dt / 0.18)
+            turnYawApplied = turnYaw(turnSide > 0 ? 0 : 1, turnT) * smooth01(turnW)
+        } else {
+            turnYawApplied = 0
+        }
+        var tw = wrapPi(aim - feetYaw) - turnYawApplied
+        if tw > MarineRig.twistHard { feetYaw = wrapPi(feetYaw + tw - MarineRig.twistHard); tw = MarineRig.twistHard }
+        if tw < -MarineRig.twistHard { feetYaw = wrapPi(feetYaw + tw + MarineRig.twistHard); tw = -MarineRig.twistHard }
+        twist = fullBody ? 0 : tw
+        twistMax = max(twistMax, abs(twist))
+    }
+
+    // ---------------------------------------------------------------- springs
+    /// One spring tip step (world space, semi-implicit Euler; two substeps below 45 frames/s): the tip chases where the bone puts it,
+    /// damped against the target's own motion (steady running leaves no offset; the antenna's air drag does); returns
+    /// the world rotation taking the target direction onto the tip's, clamped.
+    private func stepSpring(_ s: inout Spring, origin O: F3, target T: F3, dt: Float) -> Q? {
+        if !s.on || dt <= 0 {
+            s.p = T; s.v = .zero; s.tPrev = T; s.on = true
+            return nil
+        }
+        let vT = (T - s.tPrev) / dt
+        s.tPrev = T
+        let w = 2 * Float.pi * s.freq * tempo
+        let steps = dt > 1 / 45 ? 2 : 1
+        let h = dt / Float(steps)
+        for _ in 0..<steps {
+            let a = (T - s.p) * (w * w) - (s.v - vT) * (2 * s.zeta * w) - s.v * s.drag
+            s.v += a * h
+            s.p += s.v * h
+        }
+        let L = len3(T - O)
+        if L < 1e-4 { return nil }
+        let t0 = (T - O) / L
+        var t1 = unit3(s.p - O)
+        let c = min(1, max(-1, (t0 * t1).sum()))
+        if acosf(c) > s.maxAng {
+            let ax = Mat4.cross(t0, t1)
+            if len3(ax) > 1e-6 { t1 = Quat.rotate(Quat.axis(unit3(ax), s.maxAng), t0) }
+            s.v *= 0.6
+        }
+        s.p = O + t1 * L
+        return Quat.between(t0, t1)
+    }
+
+    /// World → model rotation (the instance yaw taken out).
+    @inline(__always) private func toModel(_ q: Q) -> Q {
+        Quat.norm(Quat.mul(Quat.mul(Quat.conj(yawQ), q), yawQ))
+    }
+
+    @inline(__always) private func worldPoint(_ p: F3) -> F3 {
+        origin + Quat.rotate(yawQ, p)
+    }
+
     // ---------------------------------------------------------------- the frame
     /// Advance and pose this marine for the frame (world space input), dt seconds since the last drawn frame.
     func update(_ I: RigInput, dt dt0: Float) {
         let dt = min(0.1, max(0, dt0))
         origin = I.pos
-        yaw = I.yaw
-        world = Mat4.translation(I.pos.x, I.pos.y, I.pos.z) * Mat4.rotationY(I.yaw)
-        // velocity in the model frame (+z = facing, +x = the marine's left)
-        let c = cosf(I.yaw), s = sinf(I.yaw)
+        // a jump in position (lift, spawn, revive warp): no lock or spring survives it
+        var jumped = false
+        if hasPrev {
+            let j = I.pos - prevPos
+            if (j.x * j.x + j.z * j.z) > 0.8 * 0.8 { jumped = true }
+        }
+        let fullBody = I.downed || I.clip != nil || overrideW > 0.5 || dashClock < 10 || getUpClock < 10
+        updateLegs(I, dt: dt, fullBody: fullBody)
+        yaw = feetYaw
+        yawQ = Quat.axis(F3(0, 1, 0), yaw)
+        world = Mat4.translation(I.pos.x, I.pos.y, I.pos.z) * Mat4.rotationY(yaw)
+        // velocity in the legs' frame (+z = the legs' facing, +x = the marine's left)
+        let c = cosf(yaw), s = sinf(yaw)
         let lx = I.vel.x * c - I.vel.y * s, lz = I.vel.x * s + I.vel.y * c
         let sp = (lx * lx + lz * lz).squareRoot()
         speedSm += (sp - speedSm) * min(1, dt * 10)
@@ -660,7 +967,7 @@ final class MarineRig {
         let wRun = min(1, max(0, (v - walkV) / max(0.1, runV - walkV)))
         gaitRun += (wRun - gaitRun) * min(1, dt * 8)
         let moveW = min(1, max(0, (v - 0.08) / 0.7))
-        // 8-way: the angle of the movement relative to the aim (0 = forward, +90 = toward the marine's left)
+        // 8-way: the angle of the movement relative to the legs (0 = forward, +90 = toward the marine's left)
         var ang = atan2f(dir.x, dir.y) * 180 / Float.pi
         if ang < 0 { ang += 360 }
         let sect = ang / 45
@@ -673,10 +980,10 @@ final class MarineRig {
         let strideR = C[iDirs[1][i0]].stride * (1 - fa) + C[iDirs[1][i1]].stride * fa
         let stride = strideW + (strideR - strideW) * gaitRun
         // the phase runs on the distance actually covered this frame (raw speed: a smoothed one lags the body when it
-        // speeds up, and the planted foot would be dragged)
+        // speeds up, and the planted foot would be dragged); each marine starts at its own phase
         phase += sp * dt / max(0.2, stride)
         phase -= floorf(phase)
-        idleClock += dt
+        idleClock += dt * tempo
         beginAcc()
         acc(iIdle, time: idleClock, 1 - moveW)
         if moveW > 1e-3 {
@@ -688,7 +995,38 @@ final class MarineRig {
         endAcc(into: &lq, &lt)
         var ctrl = ctrlAcc / max(1e-6, accW)
         var vis = ctrlVisor / max(1e-6, accW)
-        state = moveW < 0.5 ? "idle" : (gaitRun > 0.5 ? "run" : "walk")
+        state = moveW < 0.5 ? (shuffling ? "shuffle" : "idle") : (gaitRun > 0.5 ? "run" : "walk")
+        // ---- the turn on the spot (legs and hips from the clip; the spine's twist keeps the chest on the aim)
+        if turnSide != 0 {
+            let side = turnSide > 0 ? 0 : 1
+            let ci = iTurn[side]
+            let dur = asset.clips[ci].duration
+            let t = min(turnT, dur - 1e-3)
+            beginAcc()
+            acc(ci, time: t, 1)
+            let tc = ctrlAcc / max(1e-6, accW), tv = ctrlVisor / max(1e-6, accW)
+            endAcc(into: &oq, &ot)
+            let e = smooth01(t / dur)
+            ot[asset.iPelvis].x -= turnDrift[side].x * e
+            ot[asset.iPelvis].z -= turnDrift[side].z * e
+            let w = smooth01(turnW)
+            for b in 0..<n where b != asset.iCtrl {
+                lq[b] = Quat.nlerp(lq[b], oq[b], w)
+                lt[b] += (ot[b] - lt[b]) * w
+            }
+            ctrl += (tc - ctrl) * w
+            vis += (tv - vis) * w
+            state = "turn"
+        }
+        // ---- the snapshot of a finished turn, fading out
+        if snapW > 0 {
+            let w = smooth01(snapW)
+            for b in 0..<n where b != asset.iCtrl {
+                lq[b] = Quat.nlerp(lq[b], snapQ[b], w)
+                lt[b] += (snapT[b] - lt[b]) * w
+            }
+            snapW = max(0, snapW - dt / 0.3)
+        }
         // ---- full-body overrides
         var want: Float = 0
         beginAcc()
@@ -743,6 +1081,7 @@ final class MarineRig {
                 let dx = I.dashDir.x * c - I.dashDir.y * s, dz = I.dashDir.x * s + I.dashDir.y * c
                 dashRel = SIMD2<Float>(dx, dz)
                 lockOn = [false, false]
+                fatigue = min(1, fatigue + 0.1)
             }
             if dashClock < 10 && want < 0.5 {
                 dashClock += dt
@@ -776,7 +1115,10 @@ final class MarineRig {
             overrideW = 0
         }
         wasDowned = I.downed
-        // ---- additive layers
+        // the animation pose of this frame (a turn's end crossfades from it)
+        for b in 0..<n { animQ[b] = lq[b]; animT[b] = lt[b] }
+        let upright = 1 - overrideW
+        // ---- additive layers: the per-weapon recoil
         if !I.downed {
             switch asset.cls {
             case .assault:
@@ -789,16 +1131,120 @@ final class MarineRig {
                 fireLoopT += dt
                 additive(iFire, time: fireLoopT, fireLoopW)
             }
-            if I.hurtT > prevHurt + 0.05 {
-                flinchClock = 0
-                let kx = I.knock.x * c - I.knock.y * s, kz = I.knock.x * s + I.knock.y * c
-                flinchBack = kz > 0.05 && abs(kz) > abs(kx) * 0.5   // pushed forward: hit from behind
-            }
-            flinchClock += dt
-            if flinchClock < 0.34 { additive(flinchBack ? iFlinchB : iFlinchF, time: flinchClock, 1) }
         }
         prevMuzzle = I.muzzle
+        // ---- hit reactions: a directional impulse up the spine, each bone a beat later; heavy hits shove the hips
+        if I.hurtT > prevHurt + 0.05 && !I.downed {
+            let kx = I.knock.x * c - I.knock.y * s, kz = I.knock.x * s + I.knock.y * c
+            let km = (kx * kx + kz * kz).squareRoot()
+            // the push's direction (model frame); acid (no knock) reads as a hit from the front of the aim
+            hitDir = km > 0.05 ? SIMD2<Float>(kx, kz) / km : SIMD2<Float>(-sinf(twist), -cosf(twist))
+            // a bite (knock 0.6) ≈ 0.38, a boomer (7) ≈ 1.3, a brute's ram (13) 1.5
+            hitMag = min(1.5, 0.3 + km / 7)
+            hitClock = 0
+            hitFired = 0
+            hitCount += 1
+        }
         prevHurt = I.hurtT
+        hitClock += dt
+        let hw = 2 * Float.pi * 2.3 * tempo, hz: Float = 0.3
+        let gains = MarineRig.hitGain
+        for i in 0..<5 {
+            if hitFired & (1 << i) == 0 && hitClock >= Float(i) * 0.035 / tempo {
+                hitFired |= 1 << i
+                if hitClock < 1 { hitVel[i] += hitDir * (2.7 * hitMag * gains[i]) }
+                if i == 0 && hitClock < 1 {
+                    shoveV += F3(hitDir.x, 0, hitDir.y) * (0.55 * hitMag) + F3(0, -0.45 * max(0, hitMag - 0.5), 0)
+                }
+            }
+            let steps = dt > 1 / 45 ? 2 : 1
+            let h = dt / Float(steps)
+            for _ in 0..<steps {
+                hitVel[i] += (-hitTilt[i] * (hw * hw) - hitVel[i] * (2 * hz * hw)) * h
+                hitTilt[i] += hitVel[i] * h
+            }
+            let l = (hitTilt[i] * hitTilt[i]).sum().squareRoot()
+            if l > 0.45 { hitTilt[i] *= 0.45 / l }
+        }
+        do {
+            let w = 2 * Float.pi * 2.0, z: Float = 0.55
+            let steps = dt > 1 / 45 ? 2 : 1
+            let h = dt / Float(steps)
+            for _ in 0..<steps {
+                shoveV += (-shoveP * (w * w) - shoveV * (2 * z * w)) * h
+                shoveP += shoveV * h
+            }
+        }
+        if I.downed { for i in 0..<5 { hitTilt[i] = .zero; hitVel[i] = .zero }; shoveP = .zero; shoveV = .zero }
+        // ---- breathing / fatigue: a per-marine rate, faster and deeper when hurt or blown after a sprint
+        hurtSm += ((1 - min(1, max(0, I.hp))) - hurtSm) * min(1, dt * 0.8)
+        let runK = gaitRun * moveW * upright
+        fatigue = min(1, max(0, fatigue + dt * 0.085 * runK - dt * 0.03 * (1 - runK)))
+        let rate = 0.24 * tempo * (1 + 1.1 * fatigue + 0.8 * hurtSm)
+        breathPh += dt * rate
+        breathPh -= floorf(breathPh)
+        // inhale over 40 % of the breath, a longer exhale
+        let bx = breathPh
+        let breath = bx < 0.4 ? smooth01(bx / 0.4) : 1 - smooth01((bx - 0.4) / 0.6)
+        let bAmp = (1 + 1.6 * fatigue + 0.9 * hurtSm) * (1 - 0.5 * moveW) * upright
+        let deg = Float.pi / 180
+        let bPitch = -breath * bAmp * deg            // the chest lifts (leans back a touch) on the inhale
+        let hunch = fatigue * fatigue * (1 - moveW) * upright * 4 * deg   // blown: bent over a little, catching breath
+        // ---- head look-at: the nearest threat within ±60° of the aim and −12…+28° of pitch, else the aim
+        var ly: Float = 0, lp: Float = 0
+        if let L = I.look, upright > 0.5 {
+            let r = Quat.rotate(Quat.axis(F3(0, 1, 0), -yaw), L - I.pos)
+            let hd = (r.x * r.x + r.z * r.z).squareRoot()
+            if hd > 0.5 {
+                ly = min(1.05, max(-1.05, wrapPi(atan2f(r.x, r.z) - twist)))
+                lp = min(0.49, max(-0.21, atan2f(1.6 - r.y, hd) - 0.12))
+            }
+        }
+        lookYaw += (ly - lookYaw) * min(1, dt * 7)
+        lookPitch += (lp - lookPitch) * min(1, dt * 6)
+        // ---- the spine chain: twist (pelvis → chest), look (neck, head), hit tilt, breath — each a model-space rotation
+        // applied in its parent's frame of the animation pose, so the children inherit it (one FK pass after)
+        do {
+            let up = F3(0, 1, 0)
+            let lat = F3(cosf(twist), 0, -sinf(twist))        // the chest's left axis: pitch turns about it
+            // root … head of the animation pose (model space): pelvis, spine1, spine2, chest, neck, head each the child of
+            // the one before, the pelvis of the root
+            chainW[0] = lq[0]
+            for j in 0..<6 { chainW[j + 1] = Quat.norm(Quat.mul(chainW[j], lq[chainBones[j]])) }
+            for j in 0..<6 {
+                let b = chainBones[j]
+                var D = Quat.identity
+                if j < 4 { D = Quat.axis(up, twist * MarineRig.twistShare[j]) }
+                if j >= 1 {
+                    let i = j - 1
+                    let t = hitTilt[i]
+                    let tl = (t * t).sum().squareRoot()
+                    if tl > 1e-5 { D = Quat.mul(Quat.axis(F3(t.y, 0, -t.x) / tl, tl * upright), D) }
+                }
+                var pitch: Float = 0
+                switch j {
+                case 1: pitch = hunch * 0.6
+                case 2: pitch = bPitch * 0.45 + hunch * 0.4
+                case 3: pitch = bPitch
+                case 4: pitch = lookPitch * 0.35 - bPitch * 0.4 - hunch * 0.3
+                case 5: pitch = lookPitch * 0.65 - bPitch * 0.5 - hunch * 0.5
+                default: break
+                }
+                if j == 4 || j == 5 {
+                    let k: Float = j == 4 ? 0.4 : 0.6
+                    D = Quat.mul(Quat.axis(up, lookYaw * k * upright), D)
+                }
+                if pitch != 0 { D = Quat.mul(Quat.axis(lat, pitch), D) }
+                let pw = chainW[j]                               // the parent's animation-pose rotation
+                lq[b] = Quat.norm(Quat.mul(Quat.mul(Quat.mul(Quat.conj(pw), D), pw), lq[b]))
+            }
+            // shoulders rise on the inhale (clavicles roll about the chest's forward axis)
+            let sh = breath * bAmp * 1.7 * deg
+            lq[iClav.0] = Quat.norm(Quat.mul(Quat.axis(F3(0, 0, 1), sh), lq[iClav.0]))
+            lq[iClav.1] = Quat.norm(Quat.mul(Quat.axis(F3(0, 0, 1), -sh), lq[iClav.1]))
+            // the hips' shove and dip (heavy hits)
+            lt[asset.iPelvis] += shoveP * upright
+        }
         // ---- the spinning part of the weapon
         switch asset.cls {
         case .gunner: auxAngle += I.spin * dt * 40
@@ -811,9 +1257,25 @@ final class MarineRig {
         plant = SIMD2<Float>(min(1, max(0, ctrl.z)), min(1, max(0, ctrl.w)))
         visor = min(1, max(0, vis))
         fk()
+        if jumped {
+            for i in 0..<springs.count { springs[i].on = false }
+            gunSpring.on = false
+        }
+        // ---- the weapon lags the chest a beat (a spring on the chest's forward tip, applied to the gun): the hands follow
+        if upright > 0.5 {
+            let ch = asset.iChest
+            let O = worldPoint(wt[ch]), T = worldPoint(wt[ch] + Quat.rotate(wq[ch], gunSpring.tip))
+            if let q = stepSpring(&gunSpring, origin: O, target: T, dt: dt) {
+                let wb = asset.iWeapon
+                setWorld(wb, Quat.norm(Quat.mul(toModel(q), wq[wb])))
+                fkOne(wb)
+                fkOne(asset.iAux)
+            }
+        } else {
+            gunSpring.on = false
+        }
         // ---- hands on the grips
-        let grips: [(String, String, String)] = [("grip_L", "grip_L_y", "grip_L_z"), ("grip_R", "grip_R_y", "grip_R_z")]
-        let handAxes: [(String, String)] = [("hand_L_y", "hand_L_z"), ("hand_R_y", "hand_R_z")]
+        let grips = MarineRig.grips, handAxes = MarineRig.handAxes
         for side in 0..<2 {
             let w = side == 0 ? ikGun : ikSup
             guard w > 1e-3, let g = asset.sockets[grips[side].0], let gy = asset.sockets[grips[side].1], let gz = asset.sockets[grips[side].2],
@@ -835,12 +1297,8 @@ final class MarineRig {
             if w > 0.99 { gripErrMax = max(gripErrMax, err) }
         }
         // ---- feet: planted balls stay put in the world (leg IK); a turning idle marine re-steps
-        let inv = Mat4.rotationY(-I.yaw)
-        // a jump in position (lift, spawn, revive warp): no lock survives it
-        if hasPrev {
-            let j = I.pos - prevPos
-            if (j.x * j.x + j.z * j.z) > 0.8 * 0.8 { lockOn = [false, false]; lastPlanted = [false, false]; slideAcc = [0, 0] }
-        }
+        let inv = Mat4.rotationY(-yaw)
+        if jumped { lockOn = [false, false]; lastPlanted = [false, false]; slideAcc = [0, 0] }
         prevPos = I.pos
         hasPrev = true
         // the planted targets of this frame (model space ball positions), and the pelvis drop that keeps them in reach
@@ -849,7 +1307,7 @@ final class MarineRig {
         for side in 0..<2 {
             let (th, sh, ft, toe) = asset.iLeg[side]
             let ballM = wt[toe]
-            let ballW = I.pos + Quat.rotate(Quat.axis(F3(0, 1, 0), I.yaw), ballM)
+            let ballW = I.pos + Quat.rotate(yawQ, ballM)
             let planted = plant[side] > 0.5 && overrideW < 0.5 && !I.treadmill
             if !planted {
                 lockOn[side] = false
@@ -861,9 +1319,9 @@ final class MarineRig {
                 stepClock[side] = 1
                 slideAcc[side] = 0
             }
-            // a re-step instead of a drag: too far from where the clip wants it (a turn on the spot), or the lock out of
-            // the leg's reach (a reversal, a sharp turn, the walk ↔ run blend) — the foot lifts and steps to the clip's
-            // ball, it never slides along the deck
+            // a re-step instead of a drag: too far from where the clip wants it (the legs' frame turned under a planted
+            // foot: the settle shuffle steps one foot at a time, early), or the lock out of the leg's reach (a reversal,
+            // a sharp turn, the walk ↔ run blend) — the foot lifts and steps to the clip's ball, it never slides
             let dx = lockPos[side] - F3(ballW.x, lockPos[side].y, ballW.z)
             if stepClock[side] >= 1 {
                 let l4 = inv.point(lockPos[side].x - I.pos.x, lockPos[side].y - I.pos.y, lockPos[side].z - I.pos.z)
@@ -871,10 +1329,12 @@ final class MarineRig {
                 let r0 = (len3(wt[sh] - wt[th]) + len3(wt[ft] - wt[sh])) * 0.995
                 let dxz = h0.x * h0.x + h0.z * h0.z
                 let outOfReach = dxz >= r0 * r0 || (-h0.y) - (r0 * r0 - dxz).squareRoot() > 0.07
-                if (len3(dx) > 0.32 && moveW < 0.3) || outOfReach {
+                let otherDown = stepClock[1 - side] >= 1
+                let thr: Float = shuffling ? 0.07 : 0.32
+                if (len3(dx) > thr && moveW < 0.3 && (otherDown || !shuffling)) || outOfReach {
                     stepFrom[side] = lockPos[side]
                     stepClock[side] = 0
-                    stepDur[side] = moveW < 0.3 ? 0.2 : 0.12
+                    stepDur[side] = moveW < 0.3 ? (shuffling ? 0.17 : 0.2) : 0.12
                     restepCount += 1
                 }
             }
@@ -920,12 +1380,12 @@ final class MarineRig {
             if len3(h) > reach {
                 ankle = hip + unit3(h) * reach
                 let ball = ankle + Quat.rotate(wq[ft], lt[toe])
-                let bw = I.pos + Quat.rotate(Quat.axis(F3(0, 1, 0), I.yaw), ball)
+                let bw = I.pos + Quat.rotate(yawQ, ball)
                 lockPos[side] = F3(bw.x, lockPos[side].y, bw.z)
             }
             twoBone(th, sh, ft, ankle, endRot: nil, weight: 1)
             // diagnostics: how far the planted ball moved in the world over this contact
-            let now = I.pos + Quat.rotate(Quat.axis(F3(0, 1, 0), I.yaw), wt[toe])
+            let now = I.pos + Quat.rotate(yawQ, wt[toe])
             if lastPlanted[side] && stepClock[side] >= 1 {
                 let d = now - lastBall[side]
                 slideAcc[side] += (d.x * d.x + d.z * d.z).squareRoot()
@@ -949,6 +1409,17 @@ final class MarineRig {
             }
         }
         fk()
+        // ---- springs: pauldrons, pack (then its antenna), tassets — each chases where the pose puts it and overshoots
+        for i in 0..<springs.count {
+            let b = springs[i].bone
+            if b == iAntenna { fkOne(b) }                 // the pack just moved
+            let O = worldPoint(wt[b]), T = worldPoint(wt[b] + Quat.rotate(wq[b], springs[i].tip))
+            if upright < 0.5 && springs[i].on { springs[i].on = false }
+            guard upright >= 0.5, let q = stepSpring(&springs[i], origin: O, target: T, dt: dt) else { continue }
+            setWorld(b, Quat.norm(Quat.mul(toModel(q), wq[b])))
+            fkOne(b)
+        }
+        fkOne(iAntenna)
     }
 
     /// The muzzle (and other sockets) in world space on the posed rig.

@@ -6,8 +6,12 @@ import IceHiveCore
 //  WORLD SQUAD (owned by WP4 «Отряд») — the four marines: skinned
 //  IHV1 models from the Blender pipeline (tools/blender/characters),
 //  one per class, animated on the CPU by MarineRig (8-way locomotion
-//  with planted feet, dash, fire / flinch layers, down → crawl →
-//  revive → death, hands on the grips by IK) and drawn as one skinned
+//  with planted feet, dash, fire layers, down → crawl → revive →
+//  death, hands on the grips by IK; since the feel build A2 a live rig:
+//  the legs turn on their own under the aiming chest, springs, hit
+//  impulses, breathing, head look-at, every marine its own tempo —
+//  each rig gets its slot as the seed, its health and its nearest
+//  threat from here) and drawn as one skinned
 //  draw each (opaque item 205; shadow casters item 105, so the player's
 //  and the squad's flashlights cast their silhouettes). Every frame:
 //  the interpolated feet and the smoothed aim of each marine → its rig
@@ -26,7 +30,8 @@ import IceHiveCore
 //  its clips (idle, run, strafe, fire, dash, down, crawl, revive); with
 //  -closeup the camera frames them (MetalWorld asks closeUpCamera).
 //  `hb squad` (diagnostics, once a second): rig CPU per frame, the worst
-//  planted-foot slide over one contact (stride), hand-to-grip error, states.
+//  planted-foot slide over one contact (stride), hand-to-grip error, turns on
+//  the spot / settle shuffles, hits, the largest spine twist, states.
 // ================================================================
 
 /// Per-draw constants of a marine (`struct MarineDraw` in Characters.metal), 112 bytes.
@@ -114,6 +119,9 @@ final class WorldSquad {
     private var rigCls = [Int](repeating: -1, count: 4)
     private var aimVis: [Float] = [0, 0, 0, 0]
     private var aimInit = false
+    // the nearest live bug of each marine (head look-at), refreshed every third frame, staggered per marine
+    private var threat = [F3?](repeating: nil, count: 4)
+    private var threatTick = 0
     private var palettes = [Region](repeating: Region(), count: 4)
     private var draws = [MarineDraw](repeating: MarineDraw(hue: .zero, trim: .zero, flash: .zero, params: .zero), count: 4)
     private var drawn: [Int] = []
@@ -213,6 +221,7 @@ final class WorldSquad {
         let lost = game.phase == .lost
         let high = renderer?.frameTier == .high
         if lookDev.on { lookDev.anchorOnce(game: game, level: level) }
+        threatTick &+= 1
         for (k, m) in game.marines.enumerated() where k < 4 {
             let x = m.px + (m.x - m.px) * alpha, z = m.pz + (m.z - m.pz) * alpha
             let y = level.groundY(x, z) + (liftOn && level.onLift(m.x, m.z) ? rise : 0)
@@ -235,11 +244,14 @@ final class WorldSquad {
             I.revive = m.revive
             I.dead = lost && m.downed
             I.invulnerable = m.invulnerable
+            I.hp = m.hp / max(1, m.maxHp)
+            if (threatTick + k) % 3 == 0 { threat[k] = m.downed ? nil : nearestThreat(game, x: x, z: z, y: y) }
+            I.look = threat[k]
             if lookDev.on { lookDev.script(&I, k, time: time, level: level) }
             poses[k] = MetalEffects.MarinePose(x: I.pos.x, y: I.pos.y, z: I.pos.z)
             guard let a = assets[m.cls.rawValue] else { continue }
             if rigs[k] == nil || rigCls[k] != m.cls.rawValue {
-                rigs[k] = MarineRig(asset: a)
+                rigs[k] = MarineRig(asset: a, seed: k)
                 rigCls[k] = m.cls.rawValue
             }
             guard let rig = rigs[k] else { continue }
@@ -263,6 +275,20 @@ final class WorldSquad {
         cpuAcc += ms
         cpuFrames += 1
         heartbeat(game: game)
+    }
+
+    /// The nearest live bug within 12 m (world, at its body's height), nil when none: where the marine's head turns.
+    private func nearestThreat(_ game: Game, x: Float, z: Float, y: Float) -> F3? {
+        let b = game.bugs
+        let X = b.xs, Z = b.zs, Y = b.heights
+        var best: Float = 12 * 12
+        var bi = -1
+        for i in 0..<b.count where !b.isDead(i) {
+            let dx = X[i] - x, dz = Z[i] - z
+            let d = dx * dx + dz * dz
+            if d < best { best = d; bi = i }
+        }
+        return bi >= 0 ? F3(X[bi], y + 0.35 + Y[bi], Z[bi]) : nil
     }
 
     // ---------------------------------------------------------------- weapon flashes
@@ -431,20 +457,28 @@ final class WorldSquad {
         if now - lastLog < 1 { return }
         lastLog = now
         var slide: Float = 0, grip: Float = 0
-        var steps = 0
+        var steps = 0, turns = 0, hits = 0
+        var twist: Float = 0
         var st: [String] = []
         for r in rigs {
             guard let r = r else { continue }
             slide = max(slide, r.slideMax)
             grip = max(grip, r.gripErrMax)
             steps += r.restepCount
+            turns += r.turnCount
+            hits += r.hitCount
+            twist = max(twist, r.twistMax)
             r.slideMax = 0
             r.gripErrMax = 0
             r.restepCount = 0
+            r.turnCount = 0
+            r.hitCount = 0
+            r.twistMax = 0
             st.append(r.state)
         }
-        AppLog.info(String(format: "hb squad cpu=%.3fms slide=%.1fcm grip=%.1fmm draws=%d restep=%d flashes=%d ", cpuAcc / Double(max(1, cpuFrames)),
-                           slide * 100, grip * 1000, drawn.count, steps, flashes.count) + "states=" + st.joined(separator: ","))
+        AppLog.info(String(format: "hb squad cpu=%.3fms slide=%.1fcm grip=%.1fmm draws=%d restep=%d flashes=%d turns=%d hits=%d twist=%.0fdeg ",
+                           cpuAcc / Double(max(1, cpuFrames)), slide * 100, grip * 1000, drawn.count, steps, flashes.count, turns, hits,
+                           twist * 180 / Float.pi) + "states=" + st.joined(separator: ","))
         cpuAcc = 0
         cpuFrames = 0
     }
@@ -468,12 +502,16 @@ final class WorldSquad {
 }
 
 // ================================================================ look-dev
-/// `-squadSheet`: the squad lined up across the game camera's view, facing it, each marine cycling through its clips
-/// (offset per marine, so one frame shows several); `-closeup` frames the line, `-closeupTight` the player's marine;
-/// `-squadFire`: all four hold and fire, their bores turned across the camera (the weapon flashes side-on).
-/// `-squadLoco` (feel build A1): the motion-capture locomotion on a treadmill (no world foot lock: the clips' own
-/// feet), each marine on its own 10 s cycle — idle, walk, run, a turn on the spot (turn_l), dash — offset so that from
-/// 3.0 s to 3.8 s marine 0 walks, 1 runs, 2 turns and 3 dashes (the CI bursts burst-loco / burst-loco-game).
+/// `-squadSheet`: the squad lined up across the game camera's view, facing it; for the first 2.4 s all four stand idle
+/// (feel build A2: their own tempo and phases, breathing — marine 2 hurt, so faster; the CI burst burst-anim from 1.0 s),
+/// then each cycles through its clips (offset per marine, so one frame shows several); `-closeup` frames the line,
+/// `-closeupTight` the player's marine; `-squadFire`: all four hold and fire, their bores turned across the camera (the
+/// weapon flashes side-on).
+/// `-squadLoco` (feel build A2, the rig showcase; A1 used it for the bare mocap locomotion): on a 10 s cycle, from 3.0 s
+/// to 3.8 s (the CI bursts burst-loco / burst-loco-game) marine 0 turns on the spot (its aim swung 100° left at 2.6 s:
+/// the chest is on it at once, the legs step round with turn_l), marine 1 strafes on a treadmill while its aim sweeps
+/// (a reversal at 3.5 s), marine 2 takes a heavy hit from the front at 3.1 s and looks at a threat ahead-left, marine 3
+/// (hurt) a hit from behind at 3.1 s.
 final class SquadLookDev {
     let on: Bool
     let closeUp: Bool
@@ -524,18 +562,28 @@ final class SquadLookDev {
         I.dead = false
         I.invulnerable = false
         if loco {
-            I.treadmill = true
-            let t = fmodf(time + [0, 1.8, 3.4, 4.6][k % 4], 10)
-            switch t {
-            case ..<2.0: break                                   // idle (idle / idle_b by class)
-            case ..<4.0: I.vel = fwd * 1.5                       // walk toward the camera
-            case ..<6.0: I.vel = fwd * 5.3                       // run
-            case ..<7.7: I.clip = "turn_l"; I.clipTime = t - 6.0 // a 90° turn on the spot
-            case ..<7.92:                                        // dash (0.22 s at 17 m/s), then the landing
-                I.dashT = 0.22 - (t - 7.7)
-                I.dashDir = fwd
-                I.vel = fwd * 17
-            default: break
+            let t = fmodf(time, 10)
+            func hit(_ at: Float, _ push: SIMD2<Float>) {
+                if t >= at && t < at + 0.22 {
+                    I.hurtT = 0.22 - (t - at)
+                    I.knock = push * (I.hurtT / 0.22)
+                }
+            }
+            switch k % 4 {
+            case 0:                                              // aim 100° left from 2.6 s to 7 s: a turn on the spot each way
+                I.yaw = face + (t >= 2.6 && t < 7.0 ? 1.75 : 0)
+            case 1:                                              // strafe left / right, the aim sweeping ±32°
+                I.treadmill = true
+                I.yaw = face + 0.55 * sinf(t * 1.9)
+                if t >= 1.0 && t < 6.0 { I.vel = left * (fmodf(t - 1.0, 2.5) < 1.25 ? 2.2 : -2.2) }
+            case 2:                                              // a brute's ram from the front; a threat ahead-left to look at
+                hit(3.1, -fwd * 9)
+                let L = SIMD2<Float>(I.pos.x, I.pos.z) + fwd * 4 + left * 2.5
+                I.look = F3(L.x, I.pos.y + 0.35, L.y)
+            default:                                             // hurt (faster breathing), bitten from behind, then a lighter hit
+                I.hp = 0.3
+                hit(3.1, fwd * 6)
+                hit(5.6, left * 0.6)
             }
             return
         }
@@ -554,8 +602,12 @@ final class SquadLookDev {
             I.muzzle = r > 0 ? (ph < 0.5 ? 1 - ph * 2 : 0) : 0
             return
         }
+        if time < 2.4 {                                          // all four idle (A2: tempo, phases, breathing)
+            I.hp = k % 4 == 2 ? 0.4 : 1
+            return
+        }
         let cyc: Float = 12
-        let t = fmodf(time + Float(k) * 3.1, cyc)
+        let t = fmodf(time - 2.4 + Float(k) * 3.1, cyc)
         switch t {
         case ..<2.0:
             break                                                // idle
