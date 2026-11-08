@@ -300,8 +300,8 @@ TURNS = {
 # face = s into the segment whose facing becomes +z), the weapon's modes by frame, the ctrl curves (frame, value)
 _DOWN_W = [(0, 'hand'), (14, 'ground')]
 ACTIONS = {
-    'stagger_f': dict(segs=[('cmu_104_13', 0.5, 2.0, dict(face=0.0, rate=1.15))], weapon='carry', keep=0.6),
-    'stagger_b': dict(segs=[('cmu_22_12', 0.0, 1.6, dict(face=0.0, rate=1.2))], weapon='carry', keep=0.6),
+    'stagger_f': dict(segs=[('cmu_104_13', 0.5, 2.0, dict(face=0.0, rate=1.15))], weapon='carry', keep=0.6, blade=True),
+    'stagger_b': dict(segs=[('cmu_22_12', 0.0, 1.6, dict(face=0.0, rate=1.2))], weapon='carry', keep=0.6, blade=True),
     'knockdown': dict(segs=[('cmu_90_18', 0.45, 1.5, dict(face=0.0)), ('cmu_140_08', 2.6, 5.7, dict(face=0.0, rate=1.35))],
                       weapon=[(0, 'hand'), (82, 'carry')], ik_sup=[(0, 1), (5, 0), (84, 0), (91, 1)]),
     'down': dict(segs=[('cmu_90_18', 0.45, 2.0, dict(face=0.0))], weapon=_DOWN_W, ground_end=True, ik_gun=[(10, 1), (14, 0)],
@@ -316,10 +316,10 @@ ACTIONS = {
     'help': dict(segs=[('ual_fixing_kneeling', 0.0, 5.2, dict(face=0.0))], weapon='low', ik_sup=[(0, 1), (8, 0), (148, 0), (156, 1)]),
 }
 CASTS = {
-    'assault': dict(segs=[('cmu_111_33', 1.3, 2.8, dict(face=0.6, rate=1.2))], weapon='low', ik_sup=[(0, 1), (4, 0), (30, 0), (37, 1)]),
-    'pyro': dict(segs=[('cmu_111_33', 6.0, 7.5, dict(face=0.65, rate=1.2))], weapon='low', ik_sup=[(0, 1), (4, 0), (30, 0), (37, 1)]),
-    'cryo': dict(segs=[('cmu_113_24', 2.2, 3.7, dict(face=0.7, rate=1.2))], weapon='low', ik_sup=[(0, 1), (4, 0), (30, 0), (37, 1)]),
-    'gunner': dict(segs=[('cmu_113_24', 6.4, 7.9, dict(face=0.6, rate=1.2))], weapon='low', ik_sup=[(0, 1), (4, 0), (30, 0), (37, 1)]),
+    'assault': dict(segs=[('cmu_111_33', 1.3, 2.8, dict(face=0.6, rate=1.2))], weapon='low', blade=True, ik_sup=[(0, 1), (4, 0), (30, 0), (37, 1)]),
+    'pyro': dict(segs=[('cmu_111_33', 6.0, 7.5, dict(face=0.65, rate=1.2))], weapon='low', blade=True, ik_sup=[(0, 1), (4, 0), (30, 0), (37, 1)]),
+    'cryo': dict(segs=[('cmu_113_24', 2.2, 3.7, dict(face=0.7, rate=1.2))], weapon='low', blade=True, ik_sup=[(0, 1), (4, 0), (30, 0), (37, 1)]),
+    'gunner': dict(segs=[('cmu_113_24', 6.4, 7.9, dict(face=0.6, rate=1.2))], weapon='low', blade=True, ik_sup=[(0, 1), (4, 0), (30, 0), (37, 1)]),
 }
 _CYC = {}
 
