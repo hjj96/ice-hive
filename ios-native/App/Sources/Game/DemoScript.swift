@@ -152,10 +152,16 @@ final class DemoScript {
             // third straight over the lift's rim), a horde every 18–24 s; the extraction shot keeps its crowd (gore on the
             // lift as it rises)
             target = name == "extract-cine" ? crowd(260) : 0
-            // (extract-cine: on the lift's far side from the extraction camera, 4–9 m out — on the deck, not beyond the rim,
-            // where the bugs walked round to the ramp on the camera's side)
-            let n = target <= 0 ? 0 : crowdSector == nil ? game.debugSpawn(target, type: nil, minRadius: 5, maxRadius: 18)
-                : game.debugSpawn(target, type: nil, minRadius: 4, maxRadius: 9, sector: crowdSector)
+            // (extract-cine: on the lift's two flanks as the extraction camera sees them, 4–9 m out — `crowdFlanks`)
+            var n = 0
+            if target > 0 {
+                if let fl = crowdFlanks {
+                    n = game.debugSpawn(target / 2, type: nil, minRadius: 4, maxRadius: 9, sector: fl.0)
+                        + game.debugSpawn(target - target / 2, type: nil, minRadius: 4, maxRadius: 9, sector: fl.1)
+                } else {
+                    n = game.debugSpawn(target, type: nil, minRadius: 5, maxRadius: 18)
+                }
+            }
             AppLog.info("demo \(name): stage \(game.stage.rawValue), spawned \(n) bugs around the lift (bug cap \(game.bugCap))")
         case "coach":
             // a novice who does not touch the screen: every step ends by its timeout
@@ -282,8 +288,9 @@ final class DemoScript {
             let alive = game.bugsAlive
             if alive < target - 10 {
                 let k = min(300, target - alive)
-                // (extract-cine: the top-ups climb over the lift's far rim, the hold's own entrance)
-                let n = crowdSector.map { game.debugClimbLiftRim(k, sector: $0) }
+                // (extract-cine: the top-ups climb over the lift's rim on either flank in turn, the hold's own entrance)
+                flankTurn.toggle()
+                let n = crowdFlanks.map { game.debugClimbLiftRim(k, sector: flankTurn ? $0.0 : $0.1) }
                     ?? game.debugSpawn(k, type: nil, minRadius: 12, maxRadius: 30)
                 spawned += n
             }
@@ -297,16 +304,20 @@ final class DemoScript {
     }
     private var spawned = 0
     private var logT: Float = 5
-    /// extract-cine: the crowd (on the deck) and its top-ups (over the rim) on the far side of the lift from the extraction
-    /// camera (Cinematics: the eye on the shaft wall at MetalCamera.yaw + 20°), ±75°. (58e10b3 spawned the top-ups 12–30 m
-    /// out on that side: off the lift, they walked round to the ramp on the camera's side and filled the foreground.) native-vx-feel: with the crowd all round, the squad's
-    /// flashlights swept the eye and the shot dodged them to its −45° / +12° limit, looking down on the lit deck or along
-    /// the cryo beam (median 62.8 on 01c636a, clip 1.24 % on c500515's first shot); the squad now fires away from the lens.
-    private var crowdSector: (angle: Float, half: Float)? {
+    /// extract-cine: the crowd (on the deck, 4–9 m out) and its top-ups (over the rim, the hold's own entrance) on the
+    /// lift's two flanks as seen from the extraction camera (Cinematics: the eye on the shaft wall at MetalCamera.yaw + 20°),
+    /// ±50° around the perpendiculars: the squad fires across the frame, lit side-on, as in the shots before the wave pacing.
+    /// (native-vx-feel: with the crowd all round, the squad's flashlights swept the eye and the shot dodged them to its
+    /// −45° / +12° limit — median 62.8 on 01c636a, clip 1.24 % on c500515's first shot —; with the crowd on the far side the
+    /// squad turned its back and lit only the far deck — near-black 40.9 % on 25f5e4a's first shot; 58e10b3 spawned the
+    /// top-ups 12–30 m out, off the lift, and they walked round to the ramp on the camera's side.)
+    private var crowdFlanks: ((angle: Float, half: Float), (angle: Float, half: Float))? {
         guard name == "extract-cine" else { return nil }
         let yaw = MetalCamera.yaw + Cinematics.extraction.yawOffDeg * .pi / 180
-        return (atan2f(-cosf(yaw), -sinf(yaw)), 75 * .pi / 180)
+        let toEye = atan2f(cosf(yaw), sinf(yaw)), half: Float = 50 * .pi / 180
+        return ((toEye + .pi / 2, half), (toEye - .pi / 2, half))
     }
+    private var flankTurn = false
     private var lockSet = false
 
     /// coach: time almost stops after a moment (the step on screen stays for the screenshot, the card's ghost thumb
