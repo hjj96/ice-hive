@@ -79,8 +79,12 @@ final class DemoScript {
     private func crowd(_ n: Int) -> Int { override ?? min(n, cap) }
 
     private let options: LaunchOptions
-    /// Seconds since «scene ready» (the scene sets it before every frame; -1 while loading).
-    var sinceReady: Double = -1
+    /// Seconds since «scene ready» (the scene sets it before every frame; -1 while loading). Also published as
+    /// `sceneClock` for the squad look-dev (feel build A2): its scripted beats then land in the CI bursts' windows, which
+    /// count from «scene ready» too (the render clock starts under the loading cover, a few seconds earlier).
+    var sinceReady: Double = -1 { didSet { DemoScript.sceneClock = sinceReady } }
+    /// The running demo's `sinceReady` (-1 with no demo or while loading).
+    private(set) static var sceneClock: Double = -1
     private var queenSet = false, coachStepped = false
     /// `-demo report`: the fixture whose outcome the mission gets.
     let reportFixture: DemoFixtures.Report?

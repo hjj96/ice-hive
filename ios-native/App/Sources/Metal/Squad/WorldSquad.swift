@@ -543,8 +543,10 @@ final class SquadLookDev {
         return SIMD2<Float>(anchor.x + RIGHT_X * o, anchor.z + RIGHT_Z * o)
     }
 
-    /// Override marine k's input with its script at `time`.
-    func script(_ I: inout RigInput, _ k: Int, time: Float, level: Level) {
+    /// Override marine k's input with its script at `time` — the seconds since «scene ready» when a demo runs (the CI
+    /// bursts' clock), else the render clock.
+    func script(_ I: inout RigInput, _ k: Int, time renderTime: Float, level: Level) {
+        let time = DemoScript.sceneClock >= 0 ? Float(DemoScript.sceneClock) : renderTime
         let s = spot(k)
         I.pos = F3(s.x, level.groundY(s.x, s.y), s.y)
         // facing the camera (it looks along FWD from behind-right), turned a little per marine
