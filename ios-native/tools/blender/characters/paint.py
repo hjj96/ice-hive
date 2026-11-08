@@ -50,7 +50,7 @@ def srgb(c):
     return np.where(c <= 0.0031308, c * 12.92, 1.055 * np.power(c, 1 / 2.4) - 0.055).astype(np.float32)
 
 
-FIELD = lin((116, 120, 121))        # cold field-grey paint (the ceramic and the class shells alike)
+FIELD = lin((120, 124, 125))        # cold field-grey paint (the ceramic and the class shells alike)
 PRIMER = lin((46, 47, 47))          # the dark primer under chipped paint
 STEEL = np.array([0.52, 0.52, 0.54], np.float32)    # bare steel (linear; metallic)
 STENCIL = np.array([0.02, 0.021, 0.023], np.float32)
@@ -229,12 +229,14 @@ def generate(cls, V, I, bone_names, nmap, orm, mats, accent_srgb, slots):
     top = smooth(0.05, 0.45, nb[:, 1])
     accent = np.where(paint_slot & head, 1.0, 0.0) + np.where(paint_slot & pauld, top, 0.0)
     accent = np.clip(np.maximum(accent, cls_mark * plate), 0.0, 1.0).astype(np.float32)
-    acc = lin(accent_srgb)
+    # the accent is a small area now (helmet + pauldron tops): a touch lighter than the M1 field paint so the class
+    # still reads at the game camera on every phone (the hue unchanged)
+    acc = np.clip(lin(accent_srgb) * np.float32(1.3), 0.0, 1.0)
     base = mix(FIELD[None], acc[None], accent[:, None])
     drift = (0.93 + 0.12 * bh) * (0.92 + 0.15 * big) * (0.96 + 0.07 * mid)
     base = base * drift[:, None]
     # faded paint: the class accent a little lighter and greyer where it is most exposed (sun / frost bleaching)
-    fade = 0.25 * smooth(0.55, 0.8, big) * accent
+    fade = 0.12 * smooth(0.55, 0.8, big) * accent
     base = mix(base, (base.mean(-1, keepdims=True) * 1.12), fade[:, None])
     # wear: the baked worn chamfers (metal on painted slots) widened by noise into chips → primer → steel
     edge = smooth(0.15, 0.7, metal0) * plate
@@ -297,9 +299,9 @@ def generate(cls, V, I, bone_names, nmap, orm, mats, accent_srgb, slots):
     # ---- grime: the cavities, streaks running down from the shoulders, soot and slush up the legs
     streak = fbm(p * np.array([24.0, 2.2, 24.0], np.float32) + np.float32(8.0), 3)
     soot = (1.0 - smooth(0.05, 0.75, y)) * (0.5 + 0.5 * big)
-    g = np.clip(cav * 0.9 + 0.3 * smooth(0.6, 0.8, streak) * (1.0 - smooth(1.2, 1.9, y)) + soot * 0.6, 0.0, 1.0)
+    g = np.clip(cav * 0.75 + 0.3 * smooth(0.6, 0.8, streak) * (1.0 - smooth(1.2, 1.9, y)) + soot * 0.6, 0.0, 1.0)
     g = np.where(keep, 0.0, g) * np.where(glass, 0.0, 1.0)
-    A = mix(A, A * 0.4 + GRIME[None] * 0.6, (g * 0.7)[:, None])
+    A = mix(A, A * 0.4 + GRIME[None] * 0.6, (g * 0.6)[:, None])
     R = mix(R, 0.88, g * 0.5)
     M = M * (1.0 - 0.6 * g)
 
@@ -310,7 +312,7 @@ def generate(cls, V, I, bone_names, nmap, orm, mats, accent_srgb, slots):
     frost = np.clip(upf * smooth(0.5, 0.66, frn) * 0.55 + cav * smooth(0.58, 0.72, frn) * 0.4
                     + (1.0 - smooth(0.04, 0.2, y)) * smooth(0.48, 0.64, frn) * 0.6, 0.0, 1.0)
     # the weapon and the mechanics run warm (less rime), the soles scrape it off
-    frost = np.where(keep, 0.0, frost) * np.where(sole, 0.3, 1.0) * np.where(mech, 0.35, 1.0)
+    frost = np.where(keep, 0.0, frost) * np.where(sole, 0.3, 1.0) * np.where(mech, 0.35, 1.0) * (1.0 - 0.5 * accent)
     A = mix(A, FROST[None], (frost * 0.6)[:, None])
     R = mix(R, 0.5, frost)
     M = M * (1.0 - frost)
