@@ -15,6 +15,7 @@ extension Game {
             if m.hurtT > 0 { m.hurtT -= dt }
             if m.dashCd > 0 { m.dashCd -= dt }
             if m.abCd > 0 { m.abCd -= dt }
+            if m.dropGrace > 0 { m.dropGrace -= dt }
             if m.muzzle > 0 { m.muzzle -= dt * 10 }
             m.bite = min(3, m.bite + dt * 5.5)
             if m.downed {
@@ -86,6 +87,7 @@ extension Game {
         let l = hypotf2(dx, dz)
         if !(l >= 0.1) { dx = m.ax; dz = m.az } else { dx /= l; dz /= l }
         m.dashX = dx; m.dashZ = dz; m.dashT = 0.22; m.inv = max(m.inv, 0.32); m.dashCd = 3 * m.mods.dashCd
+        m.dropGrace = DROP_GRACE
         if !simOnly {
             emit(.dash(marine: m.index, dir: Vec2(dx, dz)))
             sound(.dash, m.x, m.z)
@@ -137,7 +139,7 @@ extension Game {
             }
             m.revive = helped ? m.revive + dt / 3 : max(0, m.revive - dt * 0.25)
             if m.revive >= 1 {
-                m.downed = false; m.hp = m.maxHp * difficulty.reviveHp; m.inv = 1.6; m.revive = 0
+                m.downed = false; m.hp = m.maxHp * difficulty.reviveHp; m.inv = 1.6; m.revive = 0; m.dropGrace = DROP_GRACE
                 if !simOnly {
                     emit(.revived(marine: m.index))
                     toast(.upToast(m.name), .gold)
@@ -148,14 +150,16 @@ extension Game {
     }
 
     // ---------- projectiles ----------
-    func fireBolt(_ ox: Float, _ oz: Float, _ ang: Float, _ spd: Float, _ dmg: Float, _ pierce: Int, _ own: Int, _ col: UInt8, _ playerShot: Bool) {
+    /// `up`: aimed at a bug on the overhead (Stage 1 R2): the round strikes only bugs up there, at their footprint.
+    func fireBolt(_ ox: Float, _ oz: Float, _ ang: Float, _ spd: Float, _ dmg: Float, _ pierce: Int, _ own: Int, _ col: UInt8, _ playerShot: Bool,
+                  up: Bool = false) {
         let P = projectiles
         if P.count >= Projectiles.capacity { return }
         let k = P.count
         P.count += 1
         P.x[k] = ox; P.z[k] = oz; P.dx[k] = sinf2(ang); P.dz[k] = cosf2(ang); P.spd[k] = spd; P.life[k] = 0.42
         P.dmg[k] = dmg; P.pierce[k] = UInt8(clamping: pierce); P.own[k] = Int8(truncatingIfNeeded: own); P.col[k] = col; P.last[k] = 0
-        P.flags[k] = playerShot ? 1 : 0
+        P.flags[k] = (playerShot ? 1 : 0) | (up ? 4 : 0)
         if playerShot { shots += 1 }
     }
 
@@ -170,7 +174,10 @@ extension Game {
             var guardN = 4
             while alive && guardN > 0 {
                 guardN -= 1
-                let (b, segT) = hash.segmentHit(S, sx, sz, dx, dz, len, P.last[k])
+                // the overhead (Stage 1 R2): a round aimed up strikes bugs on the routes at their footprint (radius × 1.3) and
+                // flies over the deck; one aimed at the deck passes under the routes
+                let (b, segT) = (P.flags[k] & 4) != 0 ? overheadSegmentHit(sx, sz, dx, dz, len, P.last[k])
+                    : hash.segmentHit(S, sx, sz, dx, dz, len, P.last[k])
                 if b < 0 { break }
                 let own = Int(P.own[k])
                 let hx = sx + dx * segT, hz = sz + dz * segT
@@ -208,7 +215,8 @@ extension Game {
                 var shotsN = 0
                 while m.fireCd <= 0 && m.ammo > 0 && shotsN < 3 {
                     let mp = muzzlePosition(m)
-                    fireBolt(mp.x, mp.y, m.aim + (rng.next() - 0.5) * C.spread * 2, C.pspeed, C.dmg * md.dmg, C.pierce + md.pierce, m.index, 0, m.isPlayer)
+                    fireBolt(mp.x, mp.y, m.aim + (rng.next() - 0.5) * C.spread * 2, C.pspeed, C.dmg * md.dmg, C.pierce + md.pierce, m.index, 0, m.isPlayer,
+                             up: m.aimUp)
                     m.ammo -= 1; m.fireCd += 1 / (C.rof * md.rof); m.muzzle = 1; shotsN += 1
                     if !simOnly { emit(.muzzle(marine: m.index)); sound(.pulse, m.x, m.z, m.isPlayer) }
                 }
@@ -229,7 +237,8 @@ extension Game {
                 var shotsN = 0
                 while m.fireCd <= 0 && shotsN < 4 {
                     let mp = muzzlePosition(m)
-                    fireBolt(mp.x, mp.y, m.aim + (rng.next() - 0.5) * C.spread * 2, C.pspeed, C.dmg * md.dmg, C.pierce + md.pierce, m.index, 1, m.isPlayer)
+                    fireBolt(mp.x, mp.y, m.aim + (rng.next() - 0.5) * C.spread * 2, C.pspeed, C.dmg * md.dmg, C.pierce + md.pierce, m.index, 1, m.isPlayer,
+                             up: m.aimUp)
                     m.fireCd += 1 / rate; m.muzzle = 1; shotsN += 1
                     if !simOnly { emit(.muzzle(marine: m.index)); sound(.mg, m.x, m.z, m.isPlayer) }
                 }
@@ -286,6 +295,8 @@ extension Game {
                 hitBug(b, C.dps * md.dmg * md.rof * dt * (1 - 0.35 * d / range), m.index, true)
             }
         }
+        // the torch reaches up to the overhead (Stage 1 R2): a burning bug up there lets go after GRIP_T s
+        if hash.overheadCount > 0 && overheadFlame(m, ox, oz, range, cosC, C.dps * md.dmg * md.rof, C.burn, dt) { hitAny = true }
         if m.isPlayer && hitAny { hits += 1.0 / 6.0 }
     }
 
@@ -315,6 +326,8 @@ extension Game {
                 hitBug(b, C.dps * md.dmg * md.rof * dt, m.index, true)
             }
         }
+        // the beam reaches up to the overhead (Stage 1 R2): frozen, a bug up there falls and shatters on the deck
+        if hash.overheadCount > 0 && overheadBeam(m, ox, oz, len, C.chill * md.chill, C.dps * md.dmg * md.rof, dt) { hitAny = true }
         m.beamLen = len
         if m.isPlayer && hitAny { hits += 1.0 / 6.0 }
     }
@@ -374,6 +387,8 @@ extension Game {
                     hitBug(b, 30 * md.dmg, m.index)
                 }
             }
+            // the Ice Wave freezes the overhead too: everything up there in the radius falls (Stage 1 R2)
+            if hash.overheadCount > 0 { overheadNova(m, r, 30 * md.dmg) }
             if !simOnly {
                 emit(.ability(marine: m.index, kind: .nova, pos: Vec2(m.x, m.z), radius: r))
                 teleRing(m.x, m.z, 0.5, 0.3, 0.6, 0.8, 0.55, r1: r, pulse: false, cause: .nova)
@@ -458,6 +473,11 @@ extension Game {
                             if d < bd { bd = d; turret.target = b }
                         }
                     }
+                    // the turret watches the racks (Stage 1 R2): a coiling bug up there first
+                    if hash.overheadCount > 0 {
+                        let ob = overheadTurretTarget(&bd)
+                        if ob >= 0 { turret.target = ob }
+                    }
                     if turret.target >= 0 { turret.tuid = S.uid[turret.target] }
                 }
                 let b = turret.target
@@ -470,7 +490,7 @@ extension Game {
                         let md = marines[turret.owner].mods
                         turret.cd = 1 / (10 * md.turretRof)
                         fireBolt(turret.x + sinf2(turret.angle) * 0.7, turret.z + cosf2(turret.angle) * 0.7, turret.angle + (rng.next() - 0.5) * 0.05,
-                                 90, 11 * md.dmg, 0, turret.owner, 2, false)
+                                 90, 11 * md.dmg, 0, turret.owner, 2, false, up: S.up[b] != 0)
                         turret.laser = 1
                         if !simOnly { emit(.turretShot(pos: Vec2(turret.x, turret.z), angle: turret.angle)); sound(.tur, turret.x, turret.z) }
                     }

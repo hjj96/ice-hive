@@ -99,6 +99,16 @@ jobs:
           .build/release/icehive-calib --preset drills --jobs 3 --out "$GITHUB_WORKSPACE/results/calib-drills.jsonl" \
             --summary "$GITHUB_WORKSPACE/results/calib-drills.txt" > /dev/null 2>&1 || true
           tail -n 16 "$GITHUB_WORKSPACE/results/calib-drills.txt" || true
+      # Stage 1 R2 (the overhead): generated stations 1–4 with the routes of their post-pass and the director sending 20 %
+      # of its packs up (Veteran): informational until package R5 turns the overhead on for the classic mission
+      - name: Calibration with the overhead on (informational)
+        if: success() || failure()
+        continue-on-error: true
+        working-directory: ios-native/IceHiveCore
+        run: |
+          .build/release/icehive-calib --preset overhead --jobs 3 --out "$GITHUB_WORKSPACE/results/calib-overhead.jsonl" \
+            --summary "$GITHUB_WORKSPACE/results/calib-overhead.txt" > /dev/null 2>&1 || true
+          tail -n 9 "$GITHUB_WORKSPACE/results/calib-overhead.txt" || true
       - name: Collect log
         if: always()
         run: |
@@ -344,7 +354,7 @@ jobs:
     env:
       # every frame-gated demo, all landscape (the app is landscape-only); `layout` (the four-phone layout check)
       # runs as well but builds ~40 screens in one go, so it is not gated
-      DEMOS: firstlaunch combat beacon waves swarmshot swarmshot-dots swarm swarm3x calm squad squadclose squadtight squadfire fxsheet fxsheet-high fxpeak stress1400 punchin extract-cine title title-fresh title-return title-nm title-left probe hold extract holdhint queen queenlock coach coach3 pressure pressure-amber levelup pause pause-nm end report-first report-win report-loss report-chip release-combat swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud
+      DEMOS: firstlaunch combat beacon waves overhead swarmshot swarmshot-dots swarm swarm3x calm squad squadclose squadtight squadfire fxsheet fxsheet-high fxpeak stress1400 punchin extract-cine title title-fresh title-return title-nm title-left probe hold extract holdhint queen queenlock coach coach3 pressure pressure-amber levelup pause pause-nm end report-first report-win report-loss report-chip release-combat swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud
       MENUS: levelup,pause,pause-nm,end,report-first,report-win,report-loss,report-chip
     steps:
       - uses: actions/checkout@v4
@@ -443,6 +453,10 @@ jobs:
           # native-vx-feel: the wave director's own swarm (no forced crowd): the defence of beacon Beta — its opening horde
           # from 3–4 sides and the hive's first push — time almost frozen at 6.5 s for the screenshot
           run_demo waves 8 "-demo waves -seed 7" 0
+          # Stage 1 R2: the overhead's demo route on «Кельвин-9» (a rack on the far rail of the pad → hub bridge, drawn by
+          # WorldLevel's stand-in): packs climb the riser and pour out of the duct mouth, ride the rack and drop on the squad
+          # (the `.dropZone` rings), the squad shoots them off it; time almost frozen on a telegraph for the screenshot
+          run_demo overhead 10 "-demo overhead -seed 7" 0
           # the App Store 2-swarm moment staged in the app (gunner at the crossing, the store's 600 bugs under the live cap
           # — 350 on High since native-vx-feel —, firing, time ~frozen), now in landscape (874x402 @3x)
           run_demo swarmshot 4 "-demo swarmshot -seed 7" 0
@@ -523,6 +537,9 @@ jobs:
           pull_burst burst-mix
           run_demo burst-mixold 6 "-demo swarmmix -seed 7 -hideHUD -swarmLegacy -burst mixold 0.6 24 3"
           pull_burst burst-mixold
+          # Stage 1 R2: the overhead demo's first drops (the climb, the ride, the telegraph, the drop), every 4th present
+          run_demo burst-overhead 9 "-demo overhead -seed 7 -hideHUD -burst overhead 4.6 24 4"
+          pull_burst burst-overhead
           # WP5 effects look-dev: every effect staged around the squad and frozen mid-air (-fxSheet: blasts, napalm, the
           # flamer jet, the cryo beam, hits, kills, a frozen shatter, acid, a nova, casings, a row of every stain), on
           # Efficient and on High (wet decals, heat haze); the plan's scripted peak (three chained boomers + napalm +
@@ -740,7 +757,8 @@ jobs:
           for d in title-fresh title-return title-nm layout holdhint queenlock coach coach3 pressure pressure-amber pause-nm report-first report-win report-loss report-chip stress1400 punchin extract-cine bugsheet calm-bright \
                    layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo banner-beacon banner-queen banner-pseudo \
                    swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud calm-deckmask calm-bright-nohud \
-                   burst-fire burst-tight burst-combat burst-anim burst-loco burst-loco-game burst-acta burst-actb burst-actc burst-defeat burst-win burst-bugs burst-pack burst-packold burst-mix burst-mixold validate-stress validate-fxpeak validate-extract lifecycle; do
+                   burst-fire burst-tight burst-combat burst-anim burst-loco burst-loco-game burst-acta burst-actb burst-actc burst-defeat burst-win burst-bugs burst-pack burst-packold burst-mix burst-mixold validate-stress validate-fxpeak validate-extract lifecycle \
+                   overhead burst-overhead; do
             grep -q 'scene ready' "results/app-$d.log" || { fail "$d: no 'scene ready'"; }
             if grep -q 'ERROR' "results/app-$d.log"; then fail "$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; fi
           done
@@ -803,6 +821,13 @@ jobs:
           need burst-packold 'burst packold written \(24 frames\)'
           need burst-mix 'burst mix written \(24 frames\)'
           need burst-mixold 'burst mixold written \(24 frames\)'
+          # Stage 1 R2: the overhead demo — bugs up on the demo route, drop telegraphs, drops landing, the freeze on a telegraph
+          need overhead 'demo overhead: routes 4 edges, 2 entries'
+          need overhead 'hb route alive=[0-9]+ up=[1-9]'
+          need overhead 'route: drop warned from'
+          need overhead 'route: drop landed at'
+          need overhead 'demo overhead: frozen td='
+          need burst-overhead 'burst overhead written \(24 frames\)'
           need burst-pack 'demo swarmpack: spawned [1-9][0-9]* bugs .*swarm life'
           need burst-packold 'demo swarmpack: spawned [1-9][0-9]* bugs .*swarm legacy'
           # native-vx-fix: the mission's live-bug cap is the tier's under the device class's (the simulator stands in for the

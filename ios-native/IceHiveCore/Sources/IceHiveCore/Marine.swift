@@ -97,6 +97,12 @@ public final class Marine {
     /// Melee bite slots (small bugs need one each).
     var bite: Float = 3
     var ai = BotAI()
+    /// The overhead's fairness (Stage 1 R2): seconds of grace after a dash or a revive (no drop aimed at this marine), and
+    /// the sim times of the last two drops aimed at it (at most DROP_PER_MARINE within DROP_WINDOW s).
+    var dropGrace: Float = 0
+    var dropT0: Float = -99, dropT1: Float = -99
+    /// Its weapon is aimed at a bug up on the overhead this tick (its rounds fly up there, over the deck).
+    var aimUp = false
 
     init(index: Int, cls: MarineClass, name: NameRef, isPlayer: Bool, botDamage: Float) {
         self.index = index

@@ -399,6 +399,8 @@ final class WorldSwarm {
         let ST = S.states, TT = S.stateTimers, VR = S.variations, U = S.uids
         let VX = S.velocityX, VZ = S.velocityZ, MD = S.moods
         let swell = BugState.swell.rawValue, wind = BugState.wind.rawValue, climb = BugState.climb.rawValue, leapState = BugState.leap.rawValue
+        // the overhead (Stage 1 R2): in these states the core's height is ABSOLUTE (a route over the void has no floor)
+        let high = BugState.high.rawValue, riser = BugState.riser.rawValue, dropSt = BugState.drop.rawValue
         let brute = UInt8(BugType.brute.rawValue)
         let queenUid: Int32 = game.queen.alive ? game.queen.uid : -1
         let marines = game.marines
@@ -423,7 +425,9 @@ final class WorldSwarm {
                 continue
             }
             let bx = PX[i] + (X[i] - PX[i]) * alpha, bz = PZ[i] + (Z[i] - PZ[i]) * alpha
-            let gy = level.groundY(bx, bz) + Y[i]
+            let st = ST[i]
+            let up = st >= high
+            let gy = up ? Y[i] : level.groundY(bx, bz) + Y[i]
             let vty = WorldSwarm.variety(VR[i])
             let sc = SC[i] * WorldSwarm.sizeK[t] * vty.size
             // CPU frustum cull: a point at mid-body height (15 % margin covers the body size)
@@ -437,7 +441,6 @@ final class WorldSwarm {
                 if near > 0 { nearCount += 1 }
             }
             var s = sc, sy = sc
-            let st = ST[i]
             if st == swell {
                 let p = 1 - TT[i] / 0.8
                 s *= 1 + p * 0.3 + sinf(time * 40) * 0.03 * p
@@ -453,6 +456,14 @@ final class WorldSwarm {
                 let p = max(0, min(1, 1 - TT[i] / LEAP_T))
                 let a = 0.55 * (0.45 - p)
                 sp = sinf(a); cp = cosf(a)
+            } else if st == riser {
+                // up a riser (an abyss column, a deck post), nose up like a bug scaling a deck edge
+                sp = sinf(1.35); cp = cosf(1.35)
+            } else if st == dropSt {
+                // the drop: nose down into the landing (a stand-in until the overhead render package's own clips)
+                let p = max(0, min(1, 1 - TT[i] / DROP_T))
+                let a = -0.5 * p
+                sp = sinf(a); cp = cosf(a)
             }
             let vr = VR[i]
             var flash = max(0, FL[i]) / 0.6
@@ -464,7 +475,13 @@ final class WorldSwarm {
             }
             let frozen = FR[i] > 0
             let frz: Float = frozen ? 1 : CH[i] * 0.55
-            let o = A.live(type: t, uid: U[i], st: st, stT: TT[i], ph: PH[i], x: bx, z: bz, y: Y[i], hd: HD[i], scale: s, flash: FL[i],
+            // the overhead's states through the animator's existing modes: a riser climbs, a drop pounces, the rest walk
+            var aSt = st, aT = TT[i], aY = Y[i]
+            if up {
+                aY = st == riser ? -1 : 0
+                if st == riser { aSt = climb } else if st == dropSt { aSt = leapState; aT = LEAP_T * max(0, TT[i]) / DROP_T } else { aSt = BugState.move.rawValue }
+            }
+            let o = A.live(type: t, uid: U[i], st: aSt, stT: aT, ph: PH[i], x: bx, z: bz, y: aY, hd: HD[i], scale: s, flash: FL[i],
                            frozen: frozen, dt: dt, mood: MD[i], vx: VX[i], vz: VZ[i], time: time) { self.impactDir(bx, bz, marines) }
             let hdR = HD[i] + o.yaw
             // per-bug value / hue (no even «carpet»): ±28 % value, a slight warm / cool shift

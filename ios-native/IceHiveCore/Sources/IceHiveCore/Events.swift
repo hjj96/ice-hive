@@ -110,6 +110,15 @@ public enum GameEvent {
     case queenEnraged(pos: Vec2)
     /// She died (emitted before its `.hitStop`: the app resets its hit-stop cooldown so this one always plays).
     case queenKilled(pos: Vec2)
+
+    // --- Stage 1 R2: the overhead ---
+    /// A bug up on a route committed to a drop: from its place (x, absolute y, z) onto the deck point `to`, landing in
+    /// `eta` s (its closing ring is the telegraph `.dropZone`; `Game.dropZones` holds the same warning).
+    case dropWarned(from: SIMD3<Float>, to: Vec2, eta: Float)
+    /// The drop landed; `hit`: a marine stood inside the ring.
+    case dropLanded(pos: Vec2, hit: Bool)
+    /// A bug was knocked off a route (fire, frost, a blast) and falls from `height` m above the deck under it.
+    case routeKnockdown(pos: Vec2, height: Float)
     /// The coach moved to step `index` (0…4).
     case coachStep(index: Int)
     /// The coach was seen far enough (end of step 4, skip, early end): the app stores `tut = 1`. Once per Game.
@@ -154,6 +163,9 @@ public enum TelegraphCause: Int {
     case acidTarget, bruteLane, boomerSwell, napalm, nova, pulse, other
     /// v1.1: where the Матка will climb up (red, 2 s) / her acid volley (one ring + fill per marine).
     case queenRim, queenVolley
+    /// Stage 1 R2: something drops from the overhead HERE — a closing ring (DROP_RING0 → DROP_RING) for the whole warning,
+    /// in the pink-white of the hive's pores (the telegraph lexicon's «lands here», design §1.1.4).
+    case dropZone
 }
 
 public struct Telegraph {

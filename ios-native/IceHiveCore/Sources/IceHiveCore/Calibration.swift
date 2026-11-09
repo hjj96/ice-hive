@@ -72,6 +72,23 @@ public struct CalibQueen {
     public var downs = 0
 }
 
+/// The overhead in one run (Stage 1 R2; only in runs where it was on — the classic rows keep their bytes).
+public struct CalibOverhead: Equatable {
+    public var packs = 0, spawns = 0, drops = 0, landed = 0, hits = 0, downs = 0, hurt = 0
+    public var kills = 0, knockdowns = 0, shattered = 0, hops = 0, maxUp = 0, maxZones = 0
+    public init() {}
+    init(_ s: OverheadStats) {
+        packs = s.packs; spawns = s.spawns; drops = s.drops; landed = s.landed; hits = s.hits; downs = s.downs
+        hurt = Int(s.hurt.rounded()); kills = s.kills; knockdowns = s.knockdowns; shattered = s.shattered; hops = s.hops
+        maxUp = s.maxUp; maxZones = s.maxZones
+    }
+    /// Field names and values in JSON order.
+    var fields: [(String, Int)] {
+        [("packs", packs), ("spawns", spawns), ("drops", drops), ("landed", landed), ("hits", hits), ("downs", downs), ("hurt", hurt),
+         ("kills", kills), ("knock", knockdowns), ("shatter", shattered), ("hops", hops), ("maxUp", maxUp), ("maxZones", maxZones)]
+    }
+}
+
 /// One result row (web run.mjs '[R]' line).
 public struct CalibRow {
     public var tag = "", cls = "assault", q = "med", mode = "auto"
@@ -112,6 +129,8 @@ public struct CalibRow {
     public var hurtBy = [Int](repeating: 0, count: 6)
     /// Squad downs per source of each marine's last hit.
     public var downBy4 = [Int](repeating: 0, count: 6)
+    /// The overhead's numbers (Stage 1 R2), only when it was on in the run (written as a trailing `"oh"` object).
+    public var oh: CalibOverhead? = nil
     public var error: String? = nil
 
     public init() {}
@@ -174,8 +193,9 @@ extension CalibRow {
         } else {
             s += "\"queen\":null,"
         }
-        s += "\"hurtBy\":\(jints(hurtBy)),\"downBy4\":\(jints(downBy4))}"
-        return s
+        s += "\"hurtBy\":\(jints(hurtBy)),\"downBy4\":\(jints(downBy4))"
+        if let o = oh { s += ",\"oh\":{" + o.fields.map { jstr($0.0) + ":\($0.1)" }.joined(separator: ",") + "}" }
+        return s + "}"
     }
 
     /// Back from a JSONL line (native or web rows): every field the aggregate reads. nil = not a row.
@@ -230,6 +250,14 @@ extension CalibRow {
         }
         if let a = ia("hurtBy"), a.count == 6 { hurtBy = a }
         if let a = ia("downBy4"), a.count == 6 { downBy4 = a }
+        if let oo = o["oh"] as? [String: Any] {
+            func v(_ k: String) -> Int { Int(d(oo[k]) ?? 0) }
+            var c = CalibOverhead()
+            c.packs = v("packs"); c.spawns = v("spawns"); c.drops = v("drops"); c.landed = v("landed"); c.hits = v("hits")
+            c.downs = v("downs"); c.hurt = v("hurt"); c.kills = v("kills"); c.knockdowns = v("knock"); c.shattered = v("shatter")
+            c.hops = v("hops"); c.maxUp = v("maxUp"); c.maxZones = v("maxZones")
+            oh = c
+        }
     }
 }
 
@@ -369,6 +397,8 @@ public enum Calibration {
         row.downSt = downSt
         row.hurtBy = g.hurtBy.map { Int($0.rounded()) }
         row.downBy4 = g.squadDownBy
+        // the overhead (Stage 1 R2): its numbers only when its channel was open (the classic rows are unchanged)
+        if g.overheadOn || g.overheadStats.spawns > 0 { row.oh = CalibOverhead(g.overheadStats) }
         return row
     }
 
@@ -434,9 +464,13 @@ public enum Calibration {
     }
 
     /// The fixed presets; a template id is a preset too (`icehive-calib --preset drill-switch`).
-    public static let presetNames = ["gate", "full", "stations", "legacy", "drills"]
+    public static let presetNames = ["gate", "full", "stations", "legacy", "drills", "overhead"]
 
-    /// gate: CI (≈ 212 runs, 64 of them the informational low-quality rows); full: tuning; stations: generated seeds 0–4; legacy: the v1.0 port check.
+    /// The overhead preset's share of packs sent up (Stage 1 R2; the tiers keep `routes` = 0 until package R5).
+    public static let overheadRoutes: Double = 0.2
+
+    /// gate: CI (≈ 212 runs, 64 of them the informational low-quality rows); full: tuning; stations: generated seeds 0–4; legacy:
+    /// the v1.0 port check; overhead: generated stations 1–4 with their routes and the overhead channel on (informational).
     public static func preset(_ name: String, seed0: UInt32 = 1000, th: [String: Double] = [:], tag: String? = nil) -> [CalibRun]? {
         switch name {
         case "gate":
@@ -474,6 +508,16 @@ public enum Calibration {
             return out
         case "legacy":
             return batch(tier: -1, mode: .auto, n: 8, seed0: seed0, tag: tag)
+        case "overhead":
+            // Stage 1 R2 (informational): the routes the post-pass gives generated stations 1–4, Ветеран, the director sending
+            // `routes` of its packs up (--th can change it, or the caps); compare with `stations` (the same seeds, the overhead off)
+            var t = th
+            if t["routes"] == nil { t["routes"] = overheadRoutes }
+            var out: [CalibRun] = []
+            for s in 1...4 {
+                out += batch(tier: 1, mode: .auto, n: 2, seed0: seed0, tag: (tag.map { $0 + "-" } ?? "") + "oh-st\(s)", th: t, station: UInt32(s))
+            }
+            return out
         default:
             return MissionTemplate.named(name).flatMap { templateRuns($0, th: th) }
         }
@@ -584,6 +628,33 @@ public enum Calibration {
         }
         out.append("(downs = squad downs per run, all four marines; pDn1: median time of the first player down, * = some runs had none; "
                    + "Qkil% is of the runs that reached her.)")
+        let ohRows = rows.filter { $0.error == nil && $0.oh != nil }
+        if !ohRows.isEmpty { out.append(""); out.append(overheadTable(ohRows)) }
+        return out.joined(separator: "\n")
+    }
+
+    /// The overhead's numbers per group (Stage 1 R2): per run — packs up, bugs spawned up there, drops, landings, hits on a
+    /// marine, marine downs by a drop, HP lost to drops, kills up there, knock-downs, shattered falls, hops down; the most up
+    /// at once and drop telegraphs at once (max over the runs); the share of the squad's downs a drop caused (informational
+    /// band on Ветеран: ≤ 20 %, tech.md §2.3).
+    static func overheadTable(_ rows: [CalibRow]) -> String {
+        var g: [String: [CalibRow]] = [:]
+        for r in rows { g[r.tag + " " + r.mode, default: []].append(r) }
+        var out = ["overhead per run".padding(toLength: 18, withPad: " ", startingAt: 0) + " "
+                   + ["n", "packs", "up", "drops", "land", "hits", "dnDrop", "hurt", "kills", "knock", "shat", "hops", "maxUp", "maxZn", "drop%dn"]
+                   .map { pad($0, 6) }.joined(separator: " ")]
+        for k in g.keys.sorted() {
+            let rs = g[k]!
+            let n = Float(rs.count)
+            func m(_ f: (CalibOverhead) -> Int) -> String { fmt(Float(rs.reduce(0) { $0 + f($1.oh!) }) / n, 1) }
+            let downs = rs.reduce(0) { $0 + $1.squadDowns }, dd = rs.reduce(0) { $0 + $1.oh!.downs }
+            let cols = [pad("\(rs.count)", 6), pad(m { $0.packs }, 6), pad(m { $0.spawns }, 6), pad(m { $0.drops }, 6), pad(m { $0.landed }, 6),
+                        pad(m { $0.hits }, 6), pad(m { $0.downs }, 6), pad(m { $0.hurt }, 6), pad(m { $0.kills }, 6), pad(m { $0.knockdowns }, 6),
+                        pad(m { $0.shattered }, 6), pad(m { $0.hops }, 6), pad("\(rs.map { $0.oh!.maxUp }.max() ?? 0)", 6),
+                        pad("\(rs.map { $0.oh!.maxZones }.max() ?? 0)", 6), pad(fmt(pct(dd, downs)), 6)]
+            out.append(k.padding(toLength: 18, withPad: " ", startingAt: 0) + " " + cols.joined(separator: " "))
+        }
+        out.append("(drop%dn: squad downs a drop's bite caused, of all squad downs — informational band on Veteran ≤ 20 %)")
         return out.joined(separator: "\n")
     }
 

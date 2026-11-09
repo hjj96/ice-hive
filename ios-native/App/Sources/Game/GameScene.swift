@@ -202,7 +202,8 @@ final class GameScene: SKScene {
     /// view), the HUD / input / audio meanwhile.
     private func loadMetal() {
         let t0 = FrameTimer.now()
-        let lv = Level(source: KelvinStation(), seed: 1)
+        // (the overhead demo plays «Кельвин-9» with the overhead's demo route laid; every other run the classic station)
+        let lv = Level(source: demo?.levelSource ?? KelvinStation(), seed: 1)
         level = lv
         cameraCtl.node.addChild(hud.root)
         cameraCtl.node.addChild(titleScreen.root)
@@ -981,6 +982,17 @@ final class GameScene: SKScene {
                 if diag { AppLog.info("v11 coach seen") }
             case .coachEnded:
                 if diag { AppLog.info("v11 coach end") }
+            // Stage 1 R2: the overhead (the overhead demo's log lines; CI greps «route: drop landed»)
+            case .dropWarned(let from, let to, let eta):
+                if diag {
+                    AppLog.info(String(format: "route: drop warned from (%.1f, %.1f, %.1f) to (%.1f, %.1f) eta %.2f s", from.x, from.y, from.z, to.x, to.y, eta))
+                }
+            case .dropLanded(let pos, let hit):
+                if diag { AppLog.info(String(format: "route: drop landed at (%.1f, %.1f) hit=%d", pos.x, pos.y, hit ? 1 : 0)) }
+            case .routeKnockdown(let pos, let h):
+                if diag { AppLog.info(String(format: "route: knocked down at (%.1f, %.1f) from %.1f m", pos.x, pos.y, h)) }
+            case .bugKilled(_, let pos, _, let src, _, _, let h) where h > 2:
+                if diag { AppLog.info(String(format: "route: killed up there at (%.1f, %.1f) %.1f m, source %d", pos.x, pos.y, h, src)) }
             default:
                 break
             }

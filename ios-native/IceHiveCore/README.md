@@ -59,6 +59,11 @@ switch game.phase { case .won, .lost: /* экран итогов: game.stats */ 
   скорость, HP, ранен/подъём, рывок, неуязвимость, вспышка выстрела, нагрев/энергия/патроны (`bar`), раскрутка.
 - `game.projectiles`, `game.globs` (кислота в полёте), `game.grenades`, `game.napalms`, `game.turret`, `game.medkits`.
 - `game.telegraphs` — предупреждения на полу со временем жизни: кольца, полосы тарана, заполняющиеся круги.
+- Верхний ярус (Stage 1 R2, `Overhead.swift` / `GameOverhead.swift`): маршруты — `game.level.layout.overhead` (узлы с
+  абсолютной высотой, рёбра) и `game.level.overhead` (длины, окна прыжка, входы); у жуков в состояниях `high`…`fall`
+  `heights` — абсолютная высота (`bugs.hasAbsoluteHeight(i)`), `isOverhead(i)`, `routeEdges` / `routeParams`;
+  `game.dropZones` (телеграфы прыжков: точка, радиус, время, откуда), `game.routeAlive`, `game.overheadStats`,
+  `projectiles.aimedUp(k)` (выстрел вверх).
 - `game.mission` (план), `game.missionStep`, `game.stepPhase`, `game.switches`, `game.missionZone`, `game.objectiveKey`,
   `game.beacons`, `game.stage`, `game.objective`, `game.objectiveProgress`, `game.objectiveMarker`,
   `game.contextHint`, `game.liftRise`, `game.kills`, `game.time`, `game.comboShown`, `game.xpLevel`, `game.xp/xpNext`.
@@ -76,7 +81,8 @@ switch game.phase { case .won, .lost: /* экран итогов: game.stats */ 
 ### Отладка (аналог `window.__dbg`)
 `debugState`, `debugSpawn(n, type:)`, `debugSkip()`, `godMode`, `autopilot`, `fastForward(seconds:)`,
 `debugLevelUp()`, `debugHorde(n)`, `debugTeleport(x, z)`, `benchmark(counts:)`, `setQuality(_:)`,
-`directorEnabled`. Замедление/ускорение времени — на стороне приложения (сколько тиков вызвать за кадр).
+`directorEnabled`; верхний ярус — `debugRoutePack(n, entry:)`, `debugSpawnRouteBug(entry:)`,
+`debugSetNoDropZones(_:)`, `debugHoldFire`. Замедление/ускорение времени — на стороне приложения (сколько тиков вызвать за кадр).
 
 ### Детерминизм
 Вся случайность идёт через один `SeededRNG` (mulberry32). Одинаковые seed, класс, конфигурация и
