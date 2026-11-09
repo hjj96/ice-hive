@@ -26,7 +26,8 @@
     },
     "punchin": {
       "shots": ["punchin-nohud-0s.png", "punchin-0s.png"],
-      "gates": {"clip": [null, 1.5], "dark": [12, 35], "p95_p50": [3.6, null]},
+      "gates": {"clip": [null, 1.5], "dark": [12, 40], "p95_p50": [3.6, null]},
+      "_review_note": "feel-build review: near-black ceiling 35 -> 40. Since the feel build the crowd in the punch-in is the game's own chunky, dark-chitin bugs (package F's look variety, B1's bodies) rather than the small pink ones, and the held moment decides how many sit right under the lens: on identical code the HUD-off shot measured 24.3-35.5 % (native-metal 9c93169 35.0, e765953 37.7 after a 35.8 first shot, 8f1e677 33.8, 73ec579 35.5 after 37.4; branch runs 25.0-34.9). Both of 73ec579's frames over 35 checked by eye at phone size: a deck full of black bodies under the lit mast, no veil, no crushed blacks. The floor (12 %, the grey-veil regression) and p95/p50 >= 3.6 are unchanged.",
       "_median_note": "a close-up: its median follows the framing (the lit deck around the squad fills the frame), so it is reported, not gated; the shot EV keeps the deck from going milky. native-vx-fix: contrast gated (p95/p50 ≥ 3.6, near-black ≥ 12 %) — native-metal 2d38dfd passed at median 66.7, p95/p50 3.31, dark 9.6 % under a grey veil (the effects' lights of a weapon firing near the lens; LightGrid.punchInFxLightCut)",
       "_feel_note": "native-vx-feel: gates unchanged. c6029ec's HUD-off punch-in failed on a grey veil over the middle of the frame (near-black 3.5 %, p95/p50 3.32 — the same flake as native-vx-marine-look 893760b, p95/p50 3.49, before package F): the pyro's flamer smoke hanging lit in its own flashlight cone at the held, frozen moment; the flamer smoke is thinner since (6 puffs/s at alpha 0.5, was 10 at 0.7). c500515 (thinner smoke): median 37.6, p95/p50 5.31, near-black 28.6 %; its HUD-off shot is the reference frame. A HUD-off shot that fails a gate is shot once more in sim-smoke (gate-reruns.txt) before this job gates it.",
       "feel_baseline": {"median": 37.6, "p95_p50": 5.31, "dark": 28.6, "clip": 0.26},
@@ -36,7 +37,8 @@
     },
     "extract": {
       "shots": ["extract-cine-nohud-0s.png", "extract-cine-0s.png", "extract-nohud-0s.png", "extract-0s.png"],
-      "gates": {"median": [30, 50], "clip": [null, 1.0], "dark": [null, 35]},
+      "gates": {"median": [30, 50], "clip": [null, 1.0], "dark": [null, 42]},
+      "_review_note": "feel-build review: near-black ceiling 35 -> 42. The extraction frame is darker by design since M1 / M2 (matte field-grey armour, only visors and lamps glow) and F / B1 (dark-chitin bugs on the deck): on identical code the HUD-off shot measured 24.9-41.1 % across 19 runs (first shots over 35 on 79eef3f, 9c93169, e765953, 45cc4c2, 8f1e677, 067cd21, eaf5b4d; native-metal e765953 / 8f1e677 red on it after the re-shoot). The 36.5-40.1 % frames of native-metal 8f1e677 / e765953 and eaf5b4d were checked at phone size: the squad lit side-on against the dark shaft, a brute on the deck in silhouette, nothing crushed. The median band (the hazy, looking-down failure) and the clip ceiling are unchanged.",
       "feel_baseline": {"median": 42.1, "p95_p50": 3.74, "dark": 28.7, "clip": 0.53, "specks": 574},
       "today": "today-extract.jpg",
       "concept": "concept-extract.jpg",
