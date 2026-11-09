@@ -9,7 +9,10 @@ import Foundation
 //     (an amber ring, the lane under its span), then the scald curtain for
 //     VALVE_VENT s: deck bugs under the span take CURTAIN_BUG_DPS, marines in
 //     it CURTAIN_MARINE_DPS, the bugs up on the span die, no drop lands in it;
-//     ready again 25 s after the burst. The bots (and the autopilot) pop one
+//     ready again 25 s after the burst. A coolant line (the cold variant)
+//     bursts into COOLANT_MIST s of freezing mist instead: the bugs in it
+//     freeze (COOLANT_CHILL a second), those up on the span fall and shatter,
+//     marines are not hurt. The bots (and the autopilot) pop one
 //     when VALVE_BOT_CROWD deck bugs stand under it and no marine does; the
 //     player's aim assist finds it where it is drawn; the bots step out of it.
 //   · LIGHT CIRCUITS: the station's lamps (Level.lamps) on their circuits. A
@@ -54,9 +57,10 @@ public struct ValveState: Equatable {
     public internal(set) var src = -1
     public init(site: ValveSite) { self.site = site }
     /// The amber gauge 0…1: full while ready, empty through the burst and the curtain, filling during the recharge.
-    public var gauge: Float { phase == .ready ? 1 : (phase == .recharge ? 1 - max(0, t) / VALVE_COOL : 0) }
-    /// The curtain is up (the burst's warning included: nothing drops into it, the bots keep out).
-    public var hot: Bool { phase == .burst || phase == .venting }
+    public var gauge: Float { phase == .ready ? 1 : (phase == .recharge ? 1 - max(0, t) / site.coolTime : 0) }
+    /// A steam curtain is up (the burst's warning included: nothing drops into it, the bots keep out; a coolant mist hurts
+    /// no marine and blocks no drop).
+    public var hot: Bool { site.kind == .steam && (phase == .burst || phase == .venting) }
 }
 
 /// A light circuit now.
@@ -103,8 +107,9 @@ public struct LockerState: Equatable {
 
 /// What the props did in a mission (debug logs, tests, calibration rows).
 public struct PropStats: Equatable {
-    /// Valves burst, bugs the curtains killed on the deck and up on the spans, squad HP lost to the steam.
-    public internal(set) var bursts = 0, curtainKills = 0, upKills = 0
+    /// Valves burst, bugs the curtains killed on the deck and up on the spans, bugs a coolant mist froze, squad HP lost to
+    /// the steam.
+    public internal(set) var bursts = 0, curtainKills = 0, upKills = 0, freezes = 0
     public internal(set) var steamHurt: Float = 0
     /// Lamps the hive broke, spits it aimed at lamps, circuits brought back (rings and switches), lockers opened.
     public internal(set) var lampsBroken = 0, lampSpits = 0, restores = 0, lockers = 0
@@ -239,7 +244,7 @@ extension Game {
                 props.valves[k].t -= dt
                 curtainTick(k, dt)
                 if props.valves[k].t <= 0 {
-                    props.valves[k].phase = .recharge; props.valves[k].t = VALVE_COOL; props.dirty = true
+                    props.valves[k].phase = .recharge; props.valves[k].t = props.valves[k].site.coolTime; props.dirty = true
                     for j in 0..<4 { props.steamAcc[j] = 0 }
                 }
             case .recharge:
@@ -268,15 +273,18 @@ extension Game {
         let s = props.valves[k].site, c = s.mid
         if !simOnly {
             let dx = s.bx - s.ax, dz = s.bz - s.az, len = max(0.1, hypotf2(dx, dz))
-            teleRing(c.x, c.y, 0.6, 1.0, 0.45, 0.1, VALVE_WARN + 0.15, r1: s.width + len * 0.5, pulse: false, cause: .steam)
-            teleSteam(s.ax, s.az, dx / len, dz / len, len, s.width * 2, VALVE_WARN, VALVE_VENT)
+            let cold = s.kind == .coolant
+            // (steam: the amber ring of «it explodes»; a coolant line's in frost blue)
+            teleRing(c.x, c.y, 0.6, cold ? 0.35 : 1.0, cold ? 0.75 : 0.45, cold ? 1.0 : 0.1, VALVE_WARN + 0.15, r1: s.width + len * 0.5,
+                     pulse: false, cause: .steam)
+            teleSteam(s.ax, s.az, dx / len, dz / len, len, s.width * 2, VALVE_WARN, s.ventTime, cold: cold)
             emit(.valveBurst(index: k))
-            sound(.overheat, c.x, c.y)
+            sound(cold ? .freeze : .overheat, c.x, c.y)
         }
     }
 
     func startCurtain(_ k: Int) {
-        props.valves[k].phase = .venting; props.valves[k].t = VALVE_VENT
+        props.valves[k].phase = .venting; props.valves[k].t = props.valves[k].site.ventTime
         if !simOnly {
             let c = props.valves[k].site.mid
             emit(.valveVented(index: k))
@@ -287,6 +295,7 @@ extension Game {
     /// One tick of a curtain: the deck bugs under the span scald (CURTAIN_BUG_DPS, a damage over time), the bugs up on the
     /// span die (they are all light bugs up there), the marines in it take CURTAIN_MARINE_DPS in 2.5 HP steps.
     func curtainTick(_ k: Int, _ dt: Float) {
+        if props.valves[k].site.kind == .coolant { mistTick(k, dt); return }
         let v = props.valves[k], s = v.site, S = bugs
         var i = 0
         let n = S.count
@@ -314,6 +323,35 @@ extension Game {
                 hurtMarine(m, props.steamAcc[j], 0, 0, .environment)
                 props.stats.steamHurt += max(0, hp0 - max(0, m.hp))
                 props.steamAcc[j] = 0
+            }
+        }
+    }
+
+    /// One tick of a coolant line's freezing mist: the deck bugs under the span chill (COOLANT_CHILL a second) and freeze,
+    /// the bugs up on the span freeze and fall (they shatter on the deck); the Queen never freezes; no marine is hurt.
+    func mistTick(_ k: Int, _ dt: Float) {
+        let v = props.valves[k], s = v.site, S = bugs
+        var i = 0
+        let n = S.count
+        while i < n {
+            defer { i += 1 }
+            if S.dead[i] != 0 || S.uid[i] == queen.uid { continue }
+            let st = S.st[i]
+            if st == S_FALL { continue }
+            if st >= S_HIGH || S.up[i] != 0 {
+                if !s.spanCovers(S.x[i], S.z[i]) && !s.covers(S.x[i], S.z[i]) { continue }
+                S.frz[i] = 3.2; S.chill[i] = 1
+                knockDown(i, src: v.src)
+                props.stats.freezes += 1
+                continue
+            }
+            if S.frz[i] > 0 || !s.covers(S.x[i], S.z[i], pad: S.r[i] * 0.5) { continue }
+            if st == S_CLIMB && S.y[i] < -0.6 { continue }
+            S.chill[i] = minf(1, S.chill[i] + COOLANT_CHILL * dt)
+            if S.chill[i] >= 1 {
+                S.frz[i] = S.type[i] == T_BRUTE ? 1.3 : 2.6; S.vx[i] = 0; S.vz[i] = 0
+                props.stats.freezes += 1
+                if !simOnly { emit(.bugFrozen(pos: Vec2(S.x[i], S.z[i]))); sound(.freeze, S.x[i], S.z[i]) }
             }
         }
     }
@@ -364,13 +402,15 @@ extension Game {
         }
     }
 
-    /// A lane telegraph in steam white (the curtain's strip on the deck: pulsing through the warning, fading over the curtain).
-    func teleSteam(_ x: Float, _ z: Float, _ dx: Float, _ dz: Float, _ len: Float, _ w: Float, _ wind: Float, _ charge: Float) {
+    /// A lane telegraph in steam white (frost blue: a coolant mist) — the curtain's strip on the deck, pulsing through the
+    /// warning, fading over the curtain.
+    func teleSteam(_ x: Float, _ z: Float, _ dx: Float, _ dz: Float, _ len: Float, _ w: Float, _ wind: Float, _ charge: Float,
+                   cold: Bool = false) {
         if simOnly { return }
         let k = teleAlloc(); if k < 0 { return }
         var e = Telegraph()
         e.active = true; e.shape = .lane; e.cause = .steam; e.x = x; e.z = z; e.dx = dx; e.dz = dz; e.len = len; e.w = w
-        e.r = 0.62; e.g = 0.86; e.b = 1.0; e.t = 0; e.life = wind + charge; e.wind = wind; e.pulse = true
+        e.r = cold ? 0.3 : 0.62; e.g = cold ? 0.7 : 0.86; e.b = 1.0; e.t = 0; e.life = wind + charge; e.wind = wind; e.pulse = true
         telegraphs[k] = e
         events.append(.telegraph(index: k, shape: .lane, cause: .steam, pos: Vec2(x, z)))
     }

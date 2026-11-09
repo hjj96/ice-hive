@@ -73,12 +73,14 @@ import IceHiveCore
 //                   fire at 6.0 s (`route: killed up there`); time almost frozen (×0.02) on a drop telegraph from 7.0 s (at
 //                   9.0 s at the latest) for the screenshot. Once a second `hb route alive=… up=… states=… drops=…`.
 //  Stage 1 R6 «Valves, light, lockers»:
-//    -demo interactives  «Кельвин-9» with its interactives laid (PropLayout.kelvin: steam valves, seven light circuits with
-//                   breakers, a supply locker) and the overhead's demo slice (the rack the bridge valve sits on), the
+//    -demo interactives  «Кельвин-9» with its interactives laid (PropLayout.kelvinDemo: Kelvin-9's steam valves, seven light
+//                   circuits with breakers, a supply locker, plus a coolant line on the hub → A catwalk) and the overhead's
+//                   demo slice (the rack the bridge valve sits on), the
 //                   director off, the player idle at the hub end of the pad → hub bridge, the squad firing. 0.8 s after
 //                   «scene ready» a runner pack spawns at the pad end of the bridge under the valve's span and runs along
 //                   it; the gunner pops the valve once 6 are under it (the demo pops it at 1.8 s if nobody has): the
-//                   burst, then the 5 s scald curtain (CI burst burst-valve). At 8.0 s the hub's circuit is cut (its lamps
+//                   burst, then the 5 s scald curtain (CI burst burst-valve); at 3.0 s a second pack on the catwalk under
+//                   the coolant line, popped at 3.6 s unless the squad did: 2 s of freezing mist. At 8.0 s the hub's circuit is cut (its lamps
 //                   die), from 8.5 s the player walks into the hub breaker's ring and stands there; 6 s in the ring bring
 //                   the lights back, lamp by lamp from the breaker (CI burst burst-lights). `-ixLights`: the lights only —
 //                   no pack, no valve, the cut at 1.0 s and the walk from 1.5 s (a shorter burst run). `props: …` lines on
@@ -156,7 +158,7 @@ final class DemoScript {
     /// The station the demo plays (nil = the classic «Кельвин-9»): the overhead demo lays the overhead's demo route.
     var levelSource: LevelSource? {
         // (R6: the interactives demo lays «Кельвин-9»'s props and the slice its bridge valve hangs on)
-        if name == "interactives" { return KelvinStation(overhead: .kelvinSlice, props: .kelvin) }
+        if name == "interactives" { return KelvinStation(overhead: .kelvinSlice, props: .kelvinDemo) }
         return name == "overhead" ? KelvinStation(overhead: .kelvinSlice) : nil
     }
 
@@ -545,6 +547,7 @@ final class DemoScript {
 
     // ---------------------------------------------------------------- Stage 1 R6: the interactive props
     private var ixStep = 0
+    private var ixCool = 0
     private var ixArrived = false
     /// `-ixLights`: the lights part only, 7 s earlier.
     private var ixLightsOnly: Bool { options.unknown.contains("-ixLights") }
@@ -567,6 +570,21 @@ final class DemoScript {
                 ixStep = 2
                 game.debugBurstValve(0, by: 3)
                 AppLog.info(String(format: "demo interactives: the demo popped the valve td=%.2f (%d bugs under it)", sinceReady, v.crowd))
+            }
+        }
+        // the coolant line on the catwalk (valve 4 of the demo's set): a pack under it at 3.0 s, popped at 3.6 s
+        let cool = game.valves.firstIndex { $0.site.kind == .coolant }
+        if !ixLightsOnly, let c = cool {
+            if ixCool == 0 && sinceReady >= 3.0 {
+                ixCool = 1
+                let s = game.valves[c].site
+                let n = game.debugSpawnLine(8, type: .runner, from: Vec2(s.ax + 0.5, s.az), to: Vec2(s.bx - 0.5, s.bz))
+                AppLog.info(String(format: "demo interactives: a pack of %d under the coolant line td=%.2f", n, sinceReady))
+            }
+            if ixCool == 1 && (game.valves[c].phase != .ready || sinceReady >= 3.6) {
+                ixCool = 2
+                if game.valves[c].phase == .ready { game.debugBurstValve(c, by: 3) }
+                AppLog.info(String(format: "demo interactives: the coolant line burst (marine %d) td=%.2f", game.valves[c].src, sinceReady))
             }
         }
         if ixStep == 2 && sinceReady >= lightsAt && game.circuits.count > 1 {

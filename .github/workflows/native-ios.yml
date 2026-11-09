@@ -467,9 +467,9 @@ jobs:
           # WorldLevel's stand-in): packs climb the riser and pour out of the duct mouth, ride the rack and drop on the squad
           # (the `.dropZone` rings), the squad shoots them off it; time almost frozen on a telegraph for the screenshot
           run_demo overhead 10 "-demo overhead -seed 7" 0
-          # Stage 1 R6: «Кельвин-9» with its interactives (PropLayout.kelvin) and the overhead slice: a pack along the bridge
-          # valve's span, the valve popped (the scald curtain), the hub's lights cut, the player in the breaker's ring, the
-          # lights back lamp by lamp (`props: …` lines); the screenshot after it
+          # Stage 1 R6: «Кельвин-9» with its interactives (PropLayout.kelvinDemo) and the overhead slice: a pack along the bridge
+          # valve's span, the valve popped (the scald curtain), a pack frozen by the catwalk's coolant line, the hub's lights cut,
+          # the player in the breaker's ring, the lights back lamp by lamp (`props: …` lines); the screenshot after it
           run_demo interactives 18 "-demo interactives -seed 7" 0
           # the App Store 2-swarm moment staged in the app (gunner at the crossing, the store's 600 bugs under the live cap
           # — 350 on High since native-vx-feel —, firing, time ~frozen), now in landscape (874x402 @3x)
@@ -850,9 +850,10 @@ jobs:
           need burst-overhead 'burst overhead written \(24 frames\)'
           # Stage 1 R6: the interactives demo — the props laid, the valve burst and its curtain, the hub's circuit cut and
           # brought back by its breaker ring, every circuit lit again
-          need interactives 'demo interactives: 4 valves, 7 circuits, 48 lamps, 1 lockers; lit 7/7'
+          need interactives 'demo interactives: 5 valves, 7 circuits, 48 lamps, 1 lockers; lit 7/7'
           need interactives 'props: valve 0 burst by'
           need interactives 'props: valve 0 curtain up'
+          need interactives 'props: valve 4 \(coolant\) mist up'
           need interactives 'props: circuit 1 cut'
           need interactives 'props: circuit 1 restored, lamps 6/6, lit circuits 7/7'
           need interactives 'hb props lit=7/7 lamps=48/48 valves=c'

@@ -12,7 +12,9 @@ import IceHiveCore
 //                  curtain, hangers from the deck edge, the valve body, a
 //                  red handwheel (turns while it vents) and a gauge (amber:
 //                  ready; red flicker: bursting; white: venting; filling
-//                  while it recharges)
+//                  while it recharges); a coolant line: the same in frost
+//                  blue, its gauge cold, its mist sinking ice
+
 //    breaker       a waist-high cabinet facing the camera, a lever, a lamp
 //                  on top (green: lit; red blinking: dark; amber: charging)
 //    supply locker a cabinet against the rail, its door (swings open when
@@ -61,6 +63,7 @@ final class WorldProps {
         static let steelD: UInt32 = 0x29313a, steel: UInt32 = 0x46515c, steelL: UInt32 = 0x6a7784, girder: UInt32 = 0x1f262e
         static let insul: UInt32 = 0x6f767d, brass: UInt32 = 0x8a6a3a, wheel: UInt32 = 0xb3312a, cabinet: UInt32 = 0x3d4652
         static let locker: UInt32 = 0x4f6b92, door: UInt32 = 0x5b7aa3, cross: UInt32 = 0xc8cdd2, lamp: UInt32 = 0xffffff
+        static let frost: UInt32 = 0x8fb8d4
     }
 
     /// The props of `L`'s level into its station cells (nothing on a station without props).
@@ -90,7 +93,8 @@ final class WorldProps {
         let off = F3(v.x - foot.x, 0, v.z - foot.z) + n * 0.22
         let A = F3(v.ax, ys, v.az) + off, B = F3(v.bx, ys, v.bz) + off
         let m = L.cell(v.x, v.z)
-        let pipeMat = KitMat(tint: Col.insul, metal: 0.55, layer: Trim.pipes, flags: KitFlag.frost, uv: .strip(Trim.pipe, u))
+        let cold = v.kind == .coolant
+        let pipeMat = KitMat(tint: cold ? Col.frost : Col.insul, metal: 0.55, layer: Trim.pipes, flags: KitFlag.frost, uv: .strip(Trim.pipe, u))
         let brassMat = KitMat(tint: Col.brass, metal: 0.8, layer: Trim.pipes, uv: .strip(Trim.flange, u))
         let steelMat = KitMat(tint: Col.steel, metal: 0.7, layer: Trim.rails, flags: KitFlag.chamfer, uv: .strip(Trim.column, F3(0, 1, 0)))
         m.tube(A, B, r: 0.075, seg: 8, pipeMat)
@@ -123,7 +127,7 @@ final class WorldProps {
                 KitMat(tint: Col.steelL, metal: 0.75, layer: Trim.pipes, flags: KitFlag.chamfer, uv: .strip(Trim.flange, F3(0, 1, 0))))
         // the handwheel: a flat ring and three spokes (a head: it turns while the valve vents)
         let wc = c + F3(0, 0.33, 0)
-        let wheelMat = KitMat(tint: Col.wheel, metal: 0.35, layer: Trim.none, uv: .none)
+        let wheelMat = KitMat(tint: cold ? 0x3a6fa8 : Col.wheel, metal: 0.35, layer: Trim.none, uv: .none)
         let w0 = m.vertices.count
         m.lathe(o: wc, [(0.14, 0), (0.21, 0), (0.21, 0.035), (0.14, 0.035), (0.14, 0)], seg: 14, wheelMat)
         for k in 0..<3 {
@@ -145,7 +149,7 @@ final class WorldProps {
         m.tube(gc, gc + cam * 0.035, r: 0.075, seg: 10, KitMat(tint: Col.lamp, metal: 0, emis: 2.4, layer: Trim.none, uv: .none))
         if let hk = L.allocHead() {
             m.markHead(from: g0, hk, paint: true)
-            L.setHead(hk, pivot: F4(gc.x, gc.y, gc.z, 0), color: F3(1.0, 0.55, 0.08))
+            L.setHead(hk, pivot: F4(gc.x, gc.y, gc.z, 0), color: cold ? F3(0.25, 0.75, 1.2) : F3(1.0, 0.55, 0.08))
             H.valveGauge.append(hk)
         } else { H.valveGauge.append(-1) }
     }
@@ -237,14 +241,16 @@ final class WorldProps {
                 L.setHead(H.valveWheel[k], pivot: F4(p.x, p.y, p.z, wheelAngle[k]))
             }
             if k < H.valveGauge.count && H.valveGauge[k] >= 0 {
+                // (steam: amber when ready; a coolant line: ice blue)
+                let ready: F3 = v.site.kind == .coolant ? F3(0.25, 0.75, 1.2) : F3(1.0, 0.55, 0.08)
                 let c: F3
                 switch v.phase {
-                case .ready: c = F3(1.0, 0.55, 0.08) * (0.9 + 0.1 * sinf(time * 3 + Float(k)))
-                case .burst: c = F3(1.3, 0.12, 0.05) * (sinf(time * 40) > 0 ? 1 : 0.2)
-                case .venting: c = F3(1.2, 1.0, 0.8)
+                case .ready: c = ready * (0.9 + 0.1 * sinf(time * 3 + Float(k)))
+                case .burst: c = (v.site.kind == .coolant ? F3(1.2, 1.3, 1.4) : F3(1.3, 0.12, 0.05)) * (sinf(time * 40) > 0 ? 1 : 0.2)
+                case .venting: c = v.site.kind == .coolant ? F3(0.7, 1.1, 1.4) : F3(1.2, 1.0, 0.8)
                 case .recharge:
                     let g = v.gauge
-                    c = (F3(0.5, 0.06, 0.02) * (1 - g) + F3(1.0, 0.55, 0.08) * g) * (0.2 + 0.5 * g)
+                    c = (F3(0.5, 0.06, 0.02) * (1 - g) + ready * g) * (0.2 + 0.5 * g)
                 }
                 L.setHead(H.valveGauge[k], color: c)
             }
@@ -348,6 +354,7 @@ final class WorldProps {
         let off = F3(s.x - foot.x, 0, s.z - foot.z) + n * 0.22
         let deckY = level.groundY(s.mid.x, s.mid.y)
         let k2 = max(0.4, fx.fxK)
+        if s.kind == .coolant { mist(k, s, v, dt, fx, ys: ys, off: off, n: n, nl: nl, deckY: deckY, k2: k2); return }
         if v.phase == .burst {
             steamAcc[k] += dt * 40 * k2
             while steamAcc[k] >= 1 {
@@ -376,6 +383,39 @@ final class WorldProps {
         }
     }
 
+    /// A coolant line: frost-blue puffs as it bursts; then a freezing mist pouring from the nozzles and sinking over its strip
+    /// (ice glints in it).
+    private func mist(_ k: Int, _ s: ValveSite, _ v: ValveState, _ dt: Float, _ fx: MetalEffects, ys: Float, off: F3, n: F3, nl: Float,
+                      deckY: Float, k2: Float) {
+        let dx = s.bx - s.ax, dz = s.bz - s.az
+        if v.phase == .burst {
+            steamAcc[k] += dt * 40 * k2
+            while steamAcc[k] >= 1 {
+                steamAcc[k] -= 1
+                let c = F3(s.x, ys + 0.1, s.z) + n * 0.22
+                fx.gpu.burst(.steam, 2, at: c, jitter: F3(0.08, 0.05, 0.08), vel: F3(0, 0.8, 0) + n * 1.2, velJitter: F3(1.0, 0.6, 1.0),
+                             life: (0.35, 0.6), size: (0.12, 0.55), color: F4(0.6, 0.8, 1.0, 0.45), gravity: 0.4, drag: 2.2, spin: 0.8)
+            }
+            return
+        }
+        steamAcc[k] += dt * 30 * k2
+        while steamAcc[k] >= 1 {
+            steamAcc[k] -= 1
+            let a = rng.next()
+            let p = F3(s.ax + dx * a, ys - 0.08, s.az + dz * a) + off + n * 0.18
+            let drop = max(1.0, ys - deckY)
+            fx.gpu.burst(.steam, 2, at: p, jitter: F3(0.12, 0.06, 0.12), vel: n * (0.7 + nl * 0.5) + F3(0, -drop * 0.9, 0),
+                         velJitter: F3(0.4, 0.5, 0.4), life: (0.7, 1.1), size: (0.2, 1.1), color: F4(0.62, 0.8, 1.0, 0.32),
+                         gravity: 0.8, drag: 1.4, spin: 0.5)
+            let b = rng.next(), w = (rng.next() * 2 - 1) * s.width * 0.8
+            let q = F3(s.ax + dx * b, deckY + 0.15 + rng.next() * 0.6, s.az + dz * b) + n * w
+            fx.gpu.burst(.steam, 1, at: q, jitter: F3(0.25, 0.1, 0.25), vel: F3(0, -0.1, 0), velJitter: F3(0.4, 0.1, 0.4),
+                         life: (1.0, 1.6), size: (0.6, 1.8), color: F4(0.55, 0.75, 0.95, 0.24), gravity: 0.3, drag: 1.2, spin: 0.3)
+            fx.gpu.burst(.ice, 1, at: q + F3(0, 0.6, 0), jitter: F3(0.3, 0.3, 0.3), vel: F3(0, -0.4, 0), velJitter: F3(0.3, 0.3, 0.3),
+                         life: (0.5, 0.9), size: (0.04, 0.02), color: F4(0.7, 1.0, 1.3, 1), gravity: 1, drag: 1)
+        }
+    }
+
     // ================================================================ events
     func handle(_ e: GameEvent, game: Game, fx: MetalEffects) {
         let diag = AppLog.diagnostics
@@ -391,7 +431,11 @@ final class WorldProps {
             fx.flash(F3(s.x, s.y - 0.3, s.z), F3(1.0, 0.55, 0.15), peak: 40, dur: 0.3, range: 6, priority: 18)
             if diag { AppLog.info(String(format: "props: valve %d burst by %d at t=%.2f", k, game.valves[k].src, game.time)) }
         case .valveVented(let k):
-            if diag { AppLog.info(String(format: "props: valve %d curtain up, %d bugs under it", k, game.valves[max(0, k)].crowd)) }
+            guard k >= 0 && k < game.valves.count else { return }
+            if diag {
+                AppLog.info(String(format: "props: valve %d %@ up, %d bugs under it", k, game.valves[k].site.kind == .coolant ? "(coolant) mist" : "curtain",
+                                   game.valves[k].crowd))
+            }
         case .valveReady(let k):
             if diag { AppLog.info("props: valve \(k) ready") }
         case .lampBroken(let k):

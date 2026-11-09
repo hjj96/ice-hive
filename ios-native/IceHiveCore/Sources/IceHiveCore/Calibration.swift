@@ -93,18 +93,18 @@ public struct CalibOverhead: Equatable {
 
 /// The interactive props in one run (Stage 1 R6; only on a station that had them — the classic rows keep their bytes).
 public struct CalibProps: Equatable {
-    public var bursts = 0, curtainKills = 0, upKills = 0, steamHurt = 0, lampsBroken = 0, lampSpits = 0, restores = 0, lockers = 0
+    public var bursts = 0, curtainKills = 0, upKills = 0, freezes = 0, steamHurt = 0, lampsBroken = 0, lampSpits = 0, restores = 0, lockers = 0
     /// Light circuits lit at the end, of the station's.
     public var lights = 0, circuits = 0
     public init() {}
     init(_ s: PropStats, lights: Int, circuits: Int) {
-        bursts = s.bursts; curtainKills = s.curtainKills; upKills = s.upKills; steamHurt = Int(s.steamHurt.rounded())
+        bursts = s.bursts; curtainKills = s.curtainKills; upKills = s.upKills; freezes = s.freezes; steamHurt = Int(s.steamHurt.rounded())
         lampsBroken = s.lampsBroken; lampSpits = s.lampSpits; restores = s.restores; lockers = s.lockers
         self.lights = lights; self.circuits = circuits
     }
     /// Field names and values in JSON order.
     var fields: [(String, Int)] {
-        [("bursts", bursts), ("curtainKills", curtainKills), ("upKills", upKills), ("steamHurt", steamHurt), ("lampsBroken", lampsBroken),
+        [("bursts", bursts), ("curtainKills", curtainKills), ("upKills", upKills), ("freezes", freezes), ("steamHurt", steamHurt), ("lampsBroken", lampsBroken),
          ("lampSpits", lampSpits), ("restores", restores), ("lockers", lockers), ("lights", lights), ("circuits", circuits)]
     }
 }
@@ -284,7 +284,7 @@ extension CalibRow {
         if let po = o["props"] as? [String: Any] {
             func v(_ k: String) -> Int { Int(d(po[k]) ?? 0) }
             var c = CalibProps()
-            c.bursts = v("bursts"); c.curtainKills = v("curtainKills"); c.upKills = v("upKills"); c.steamHurt = v("steamHurt")
+            c.bursts = v("bursts"); c.curtainKills = v("curtainKills"); c.upKills = v("upKills"); c.freezes = v("freezes"); c.steamHurt = v("steamHurt")
             c.lampsBroken = v("lampsBroken"); c.lampSpits = v("lampSpits"); c.restores = v("restores"); c.lockers = v("lockers")
             c.lights = v("lights"); c.circuits = v("circuits")
             props = c
@@ -683,18 +683,19 @@ public enum Calibration {
         var g: [String: [CalibRow]] = [:]
         for r in rows { g[r.tag + " " + r.mode, default: []].append(r) }
         var out = ["props per run".padding(toLength: 18, withPad: " ", startingAt: 0) + " "
-                   + ["n", "bursts", "kills", "upKill", "steam", "broken", "spits", "restor", "locker", "lights"].map { pad($0, 6) }.joined(separator: " ")]
+                   + ["n", "bursts", "kills", "upKill", "freeze", "steam", "broken", "spits", "restor", "locker", "lights"].map { pad($0, 6) }.joined(separator: " ")]
         for k in g.keys.sorted() {
             let rs = g[k]!
             let n = Float(rs.count)
             func m(_ f: (CalibProps) -> Int) -> String { fmt(Float(rs.reduce(0) { $0 + f($1.props!) }) / n, 1) }
             let lights = m { $0.lights } + "/\(rs.first?.props?.circuits ?? 0)"
             let cols = [pad("\(rs.count)", 6), pad(m { $0.bursts }, 6), pad(m { $0.curtainKills }, 6), pad(m { $0.upKills }, 6),
-                        pad(m { $0.steamHurt }, 6), pad(m { $0.lampsBroken }, 6), pad(m { $0.lampSpits }, 6), pad(m { $0.restores }, 6),
+                        pad(m { $0.freezes }, 6), pad(m { $0.steamHurt }, 6), pad(m { $0.lampsBroken }, 6), pad(m { $0.lampSpits }, 6), pad(m { $0.restores }, 6),
                         pad(m { $0.lockers }, 6), pad(lights, 6)]
             out.append(k.padding(toLength: 18, withPad: " ", startingAt: 0) + " " + cols.joined(separator: " "))
         }
-        out.append("(kills: deck bugs the scald curtains killed; steam: squad HP lost in them; lights: circuits lit at the end)")
+        out.append("(kills: deck bugs the scald curtains killed; freeze: bugs a coolant mist froze; steam: squad HP lost in the curtains; "
+                   + "lights: circuits lit at the end)")
         return out.joined(separator: "\n")
     }
 

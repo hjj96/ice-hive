@@ -16,6 +16,9 @@ import Foundation
 //                   a breaker brings the whole circuit back, a lit beacon
 //                   lights its deck for good; the report counts the circuits
 //                   lit at extraction
+//    COOLANT LINE   the cold variant of the valve (design §1.3 B): shot, a
+//                   freezing mist under its span for 2 s — the bugs in it
+//                   freeze (the ones up on the span fall and shatter)
 //    SUPPLY LOCKER  a 2 s ring: one medkit and the opener's ability ready,
 //                   once per mission
 //  The lamps are the station's own lamp posts: WorldLevel puts one every
@@ -34,6 +37,9 @@ public let VALVE_WARN: Float = 0.35
 public let VALVE_VENT: Float = 5
 /// The recharge after the curtain (s): ready again 25 s after it burst.
 public let VALVE_COOL: Float = 25 - VALVE_VENT - VALVE_WARN
+/// A coolant line's freezing mist (s) and the chill it gives a bug in it per second (a bug freezes in ≈ 0.45 s).
+public let COOLANT_MIST: Float = 2
+public let COOLANT_CHILL: Float = 2.2
 /// Rounds aimed up strike a valve whose footprint (its plan position) they pass within this radius (m; the valve body, its
 /// wheel and flanges — a chunky target next to a bug's 0.35–0.6 m footprint).
 public let VALVE_HIT_R: Float = 0.75
@@ -58,17 +64,27 @@ public let LOCKER_R: Float = 1.6
 public let LOCKER_TIME: Float = 2
 
 // ---------- the sites ----------
-/// A steam valve on a pipe: the valve body (plan position + absolute height; rounds aimed up strike its footprint) and
-/// the span its scald curtain stands under — a strip on the deck from a to b (plan), `width` m to either side of it.
+/// What a valve vents: steam (the scald curtain) or coolant (a coolant line's freezing mist).
+public enum ValveKind: UInt8 {
+    case steam, coolant
+}
+
+/// A steam valve (or a coolant line's valve) on a pipe: the valve body (plan position + absolute height; rounds aimed up
+/// strike its footprint) and the span its curtain stands under — a strip on the deck from a to b (plan), `width` m to
+/// either side of it.
 public struct ValveSite: Equatable {
     public var x: Float, y: Float, z: Float
     public var ax: Float, az: Float, bx: Float, bz: Float
     public var width: Float
-    public init(x: Float, y: Float, z: Float, from a: Vec2, to b: Vec2, width: Float = 1.5) {
+    public var kind: ValveKind
+    public init(x: Float, y: Float, z: Float, from a: Vec2, to b: Vec2, width: Float = 1.5, kind: ValveKind = .steam) {
         self.x = x; self.y = y; self.z = z
         ax = a.x; az = a.y; bx = b.x; bz = b.y
-        self.width = width
+        self.width = width; self.kind = kind
     }
+    /// Seconds its curtain stands (steam 5, coolant mist 2) and its recharge after it (ready 25 s after the burst).
+    public var ventTime: Float { kind == .coolant ? COOLANT_MIST : VALVE_VENT }
+    public var coolTime: Float { 25 - ventTime - VALVE_WARN }
     /// The curtain's centre on the deck.
     public var mid: Vec2 { Vec2((ax + bx) / 2, (az + bz) / 2) }
     /// Plan distance from (x, z) to the curtain's centre line.
@@ -166,6 +182,15 @@ public struct PropLayout: Equatable {
         // (on the hub's north rail, between its lamp at x −5 and the crates at x 4)
         let lockers = [LockerSite(x: 0, z: 36.4, yaw: Float.pi)]
         return PropLayout(valves: valves, circuits: circuits, lockers: lockers)
+    }()
+
+    /// The interactives demo's set: `kelvin` plus a coolant line on the far rail of the hub → beacon A catwalk (4 m, its mist
+    /// over the catwalk's far half) — the coolant line belongs to the Reactor Ring arena (design §1.3 B); Kelvin-9's own
+    /// set has steam valves only.
+    public static let kelvinDemo: PropLayout = {
+        var p = kelvin
+        p.valves.append(ValveSite(x: -15, y: 4.0, z: 24.4, from: Vec2(-20, 26.3), to: Vec2(-10, 26.3), width: 1.3, kind: .coolant))
+        return p
     }()
 }
 

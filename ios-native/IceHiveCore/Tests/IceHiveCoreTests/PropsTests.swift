@@ -206,6 +206,51 @@ final class ValveTests: XCTestCase {
         XCTAssertEqual(h.valves[0].phase, .ready)
     }
 
+    func testACoolantLineFreezesInsteadOfScalding() {
+        // Kelvin-9's set with its bridge valve a coolant line (the hub's lamps keep drops off the player)
+        var P = PropLayout.kelvin
+        P.valves[0].kind = .coolant
+        var c = GameConfig()
+        c.god = true
+        c.levelSource = KelvinStation(overhead: .kelvinSlice, props: P)
+        let g = Game(seed: 7, playerClass: .assault, config: c)
+        g.directorEnabled = false
+        g.debugHoldFire = true
+        // (the player at the strip's west end: the bug up there waits over it, so its frost shatter on landing — a blast
+        // that kills frozen runners — lands away from the pack)
+        g.playerAlone(8.5, 28.4)
+        let up = g.debugSpawnRouteBug(entry: SL_DUCT)
+        let upUid = g.bugs.uid[up]
+        g.step(180)
+        var deck: [Int32] = []
+        for k in 0..<5 { let i = g.spawnBug(T_RUN, 15 + Float(k) * 0.7, 28.2); deck.append(g.bugs.uid[i]) }
+        g.debugBurstValve(0, by: 0)
+        XCTAssertTrue(g.dropSpotOK(17, 28.4), "a coolant mist blocks no drop")
+        XCTAssertFalse(g.valves[0].hot, "nor do the bots keep out of it")
+        g.step(Int(VALVE_WARN / SIM_DT) + 1 + 45)
+        // every runner of the pack frozen (one that leapt at the player may have died frozen in the frost shatter of the bug
+        // falling from the span — the frost combo); none died unfrozen, none scalded
+        var frozen = 0
+        for u in deck {
+            let i = g.slotOf(u)
+            if i >= 0 { XCTAssertGreaterThan(g.bugs.frz[i], 0, "frozen"); frozen += 1 }
+        }
+        XCTAssertGreaterThanOrEqual(frozen, 3)
+        XCTAssertFalse(g.events.contains { e in
+            if case .bugKilled(let ty, _, let fz, _, _, _, _) = e { return ty == .runner && !fz }
+            return false
+        }, "nothing died unfrozen")
+        XCTAssertFalse(g.aliveUid(upUid), "the bug up on the span froze, fell and shattered")
+        XCTAssertGreaterThanOrEqual(g.propStats.freezes, 6)
+        XCTAssertEqual(g.propStats.curtainKills, 0)
+        XCTAssertEqual(g.propStats.steamHurt, 0)
+        // 2 s of mist; ready again 25 s after the burst
+        g.step(Int(COOLANT_MIST / SIM_DT))
+        XCTAssertEqual(g.valves[0].phase, .recharge)
+        g.step(Int((25 - COOLANT_MIST - VALVE_WARN) / SIM_DT) + 4)
+        XCTAssertEqual(g.valves[0].phase, .ready)
+    }
+
     func testBotsStepOutOfTheCurtain() {
         let g = propsGame(god: true)
         g.place(0, 2, 30)
