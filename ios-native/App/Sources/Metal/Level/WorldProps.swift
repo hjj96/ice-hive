@@ -256,10 +256,14 @@ final class WorldProps {
             }
             steam(game, k, v, dt, fx)
         }
-        // breakers: the lamp on top, the gold ring when the circuit needs it
+        // breakers: the lamp on top, the gold ring when the circuit needs it (a SWITCH step's breaker switch standing on it:
+        // the switch's progress — the step's ring is the one, R1's seam)
         for (k, c) in game.circuits.enumerated() {
+            var prog = c.progress
+            for sw in game.switches where sw.state != 2 && sw.site.kind == .breaker
+                && abs(sw.site.x - c.site.x) < 1.5 && abs(sw.site.z - c.site.z) < 1.5 { prog = sw.progress }
             let col: F3
-            if c.progress > 0.01 { col = F3(1.2, 0.7, 0.12) * (0.6 + 0.4 * sinf(time * 14)) }
+            if prog > 0.01 { col = F3(1.2, 0.7, 0.12) * (0.6 + 0.4 * sinf(time * 14)) }
             else if c.lit { col = c.needsRestore ? F3(1.0, 0.62, 0.12) * 0.7 : F3(0.2, 1.0, 0.45) }
             else { col = F3(1.1, 0.12, 0.06) * blink }
             if k < H.breakerLamp.count && H.breakerLamp[k] >= 0 { L.setHead(H.breakerLamp[k], color: col) }
@@ -267,7 +271,7 @@ final class WorldProps {
                 let s = c.site
                 let gy = level.groundY(s.x, s.z)
                 glyphs.extra.append(GlyphInstance(center: F4(s.x, gy + 0.045, s.z, s.radius), color: F4(1.0, 0.62, 0.12, 2),
-                                                  a: F4(c.progress, 12, time * 0.2, c.progress > 0 ? 1 : 0.55 + 0.35 * blink), b: F4(time, 0, 0, 0)))
+                                                  a: F4(prog, 12, time * 0.2, prog > 0 ? 1 : 0.55 + 0.35 * blink), b: F4(time, 0, 0, 0)))
             }
         }
         // lockers: the light strip, the door, the ring while it is stocked
