@@ -13,6 +13,10 @@
 //                    eyes, translucent sacs, value bands live / corpse,
 //                    frost (albedo ≤ 0.6, no white ghosts), char + embers,
 //                    hit flash; height fog
+//   fs_chitin_near   (R0 film fixes) the same behind the extraction shot's
+//                    near-lens fade: a body that would fill the frame
+//                    dissolves through an ordered dither (instance flags
+//                    bits 2–7, WorldSwarm.nearLevel); its own pipeline
 //   vs_swarm_glint   the dorsal pores of every live bug once more as
 //                    tiny HDR dots at their socket points (one draw, all
 //                    four types): steady sparkle at phone size
@@ -200,10 +204,9 @@ vertex CreatureOut vs_creature(uint vid [[vertex_id]], uint iid [[instance_id]],
 // polish: albedo lift of the living shell per type (runner, spitter, brute, boomer)
 constant float kBodyLift[4] = {1.9, 1.7, 1.15, 1.2};
 
-fragment float4 fs_chitin(CreatureOut in [[stage_in]],
-                          constant Frame& F [[buffer(1)]],
-                          constant SwarmParams& SP [[buffer(3)]],
-                          LIGHTING_PARAMS) {
+/// The chitin's colour (fs_chitin; fs_chitin_near after its fade).
+static float4 chitin(CreatureOut in, constant SwarmParams& SP, constant Frame& F, constant LightBlock& LB,
+                     depth2d<float> shadowAtlas, texturecube<half> envProbe, texture2d<half> occupancy) {
     float3 N = normalize(in.normal);
     float3 V = normalize(F.camPos.xyz - in.world);
     float NoV = saturate(dot(N, V));
@@ -279,6 +282,31 @@ fragment float4 fs_chitin(CreatureOut in [[stage_in]],
     return float4(heightFog(F, LB, c, in.world, in.depth), 1.0);
 }
 
+fragment float4 fs_chitin(CreatureOut in [[stage_in]],
+                          constant Frame& F [[buffer(1)]],
+                          constant SwarmParams& SP [[buffer(3)]],
+                          LIGHTING_PARAMS) {
+    return chitin(in, SP, LIGHTING_ARGS);
+}
+
+/// R0 (film fixes): the extraction shot's near-lens fade. A body that would fill too much of the frame dissolves as a
+/// whole through an ordered 4 × 4 dither — its level (0 solid … 63 gone) rides in the instance flags' bits 2–7
+/// (WorldSwarm.nearLevel); no dark blob filling the frame. Its own pipeline (WorldSwarm uses it only while the shot is on).
+constant float kNearDither[16] = {0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0};
+
+/// The dissolve of an instance (its flags byte): 0 solid … 1 gone.
+static inline float nearDissolve(uint instFlags) { return float((instFlags >> 2) & 63u) * (1.0 / 63.0); }
+
+fragment float4 fs_chitin_near(CreatureOut in [[stage_in]],
+                               constant Frame& F [[buffer(1)]],
+                               constant SwarmParams& SP [[buffer(3)]],
+                               LIGHTING_PARAMS) {
+    float d = nearDissolve(in.flags >> 16);
+    uint2 q = uint2(in.position.xy) & 3u;
+    if (d > (kNearDither[q.y * 4u + q.x] + 0.5) * (1.0 / 16.0)) discard_fragment();
+    return chitin(in, SP, LIGHTING_ARGS);
+}
+
 // ================================================================ glints
 struct GlintOut {
     float4 position [[position]];
@@ -330,6 +358,10 @@ vertex GlintOut vs_swarm_glint(uint vid [[vertex_id]], uint iid [[instance_id]],
     col += float3(1.0, 0.55, 0.75) * (min(dot(spotInScatter(F, w), float3(0.333)), 3.0) * 0.08 * k);
     w += normalize(F.camPos.xyz - w) * (0.05 * b.pos.w);
     float z = max(0.05, -(F.view * float4(w, 1.0)).z);
+    // R0: the extraction shot's near-lens fade (fs_chitin_near) takes the pores of a dissolving body with it
+    float nk = 1.0 - nearDissolve(b.anim.w >> 24);
+    col *= nk;
+    k *= nk;
     float diam = max(gs.info.x * 2.0 * SP.info.w * b.pos.w * F.misc.x / z, SP.info.z);   // drawable px
     float hp = 0.5 * diam + 0.75;
     float hs = hp * z / F.misc.x;

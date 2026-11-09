@@ -377,8 +377,9 @@ final class LightGrid {
         // the effects' pooled light (flame / napalm / the player's muzzle; also the frame-only point light 0)
         let l0 = fx.lights[0]
         if l0.intensity > 0.01 { add(l0.pos, l0.color, intensity: l0.intensity * fk, range: 18, priority: 40) }
-        // flames and the cryo beam of the AI marines (every round's muzzle light is MetalEffects' own short grid light)
-        for (k, m) in game.marines.enumerated() where k < 4 && k < poses.count && !m.downed {
+        // flames and the cryo beam of the AI marines (every round's muzzle light is MetalEffects' own short grid light; R0: none
+        // once the mission is over — the core's last `firing` stands still)
+        for (k, m) in game.marines.enumerated() where k < 4 && k < poses.count && !m.downed && game.phase == .playing {
             let p = poses[k]
             if m.firing && m.cls == .pyro && !m.isPlayer {
                 add(F3(p.x + m.ax * 3.5, p.y + 1.4, p.z + m.az * 3.5), linearRGB(0xff7a28), intensity: 62 * fk * (0.8 + 0.2 * sinf(time * 37 + Float(k))), range: 13, priority: 12)
@@ -387,9 +388,10 @@ final class LightGrid {
                 add(F3(p.x + m.ax * m.beamLen * 0.5, p.y + 1.2, p.z + m.az * m.beamLen * 0.5), linearRGB(0x60c8ff), intensity: 40 * fk, range: 12, priority: 10)
             }
         }
-        // napalm fires
+        // napalm fires (R0 film fixes: 110 / 16 m → 60 / 13 m — with the pooled light and the deck glow the field flooded the
+        // defended platform orange, the loudest effect in the feel build's film)
         for nap in game.napalms where nap.active {
-            add(F3(nap.x, game.level.groundY(nap.x, nap.z) + 1.5, nap.z), linearRGB(0xff6a20), intensity: 110 * fk * (0.8 + 0.2 * sinf(time * 29 + nap.x)), range: 16, priority: 20)
+            add(F3(nap.x, game.level.groundY(nap.x, nap.z) + 1.5, nap.z), linearRGB(0xff6a20), intensity: 60 * fk * (0.8 + 0.2 * sinf(time * 29 + nap.x)), range: 13, priority: 20)
         }
         // beacon lamps: amber while charging, teal when lit
         for (k, b) in game.beacons.enumerated() where b.state >= 1 {

@@ -89,15 +89,18 @@ struct SkinVertex {
     uchar4 weights;   // sum 255
 };
 
-// Swift: WorldSquad.swift MarineDraw (112 bytes)
+// Swift: WorldSquad.swift MarineDraw (144 bytes)
 struct MarineDraw {
     float4 hue;       // rgb class hue (linear), w = visor glow multiplier (the clip's ctrl curve × flicker)
     float4 trim;      // rgb class paint (linear), w = texture layer (class index)
     float4 flash;     // rgb added emissive (hurt / invulnerable), w = downed dimming 0…1
-    float4 params;    // x = class rim strength (M1: 0), y = emissive gain, z = lamp gain, w = 1 on the High tier
+    float4 params;    // x = class rim strength (M1: 0; R0: faint in a close cinematic shot), y = emissive gain, z = lamp gain,
+                      // w = 1 on the High tier
     float4 muzzle;    // xyz the weapon's muzzle (world), w = its flash as a light on the marine (0 = none)
     float4 fx;        // rgb the flash light's colour (linear), w = barrel / nozzle heat 0…1
     float4 key;       // rgb the squad's readability key light (linear colour × intensity), w = AO cavity on the albedo
+    float4 accent;    // R0: rgb the class read colour of the accent paint (linear), w = how far the accent moves to it
+    float4 accentFx;  // R0: x = the accent's own lift (× the read colour), yzw unused
 };
 
 #define MARINE_PALETTE 2
@@ -201,6 +204,19 @@ fragment float4 fs_marine(MarineOut in [[stage_in]],
     float ao = float(om.r), rough = float(om.g), metal = float(om.b), frost = float(om.a);
     float3 albedo = float3(at.rgb);
     bool fabric = (in.flags & 16u) != 0u;
+    // R0 (film fixes): the class accent read at phone size. The class paint of the helmet and the pauldron tops is found by
+    // its chroma along the class trim (field grey, primer, steel, the undersuit and the stencils have next to none) and
+    // moves toward a lighter, cleaner class colour (D.accent.w: the game camera, a close cinematic shot; 0 in the material
+    // close-ups); at the game camera it also lifts on its own a little (D.accentFx.x, after the light) so the class reads
+    // outside the beams. Not on the emitters (visor, lamp, strobe: their own vertex colour).
+    float accentM = 0.0;
+    if (D.accent.w > 0.0 && (in.flags & 2u) == 0u) {
+        float3 lw = float3(0.2126, 0.7152, 0.0722);
+        float3 tc = D.trim.rgb - dot(D.trim.rgb, lw);
+        float3 ac = albedo - dot(albedo, lw);
+        accentM = smoothstep(0.3, 0.85, dot(ac, tc) / max(dot(tc, tc), 1e-5)) * D.accent.w;
+        albedo = mix(albedo, D.accent.rgb, accentM);
+    }
     // cavity: the baked AO also darkens the albedo a little (grime in the seams: panel lines, bolts and vents read in
     // direct light too)
     albedo *= mix(1.0, ao, D.key.w);
@@ -250,6 +266,8 @@ fragment float4 fs_marine(MarineOut in [[stage_in]],
     // fill (the armour never sinks into the fog colour outside the beams)
     if (D.params.x > 0.0) c += D.hue.rgb * pow(1.0 - saturate(dot(N0, V)), 3.0) * D.params.x;
     c += albedo * ao * 0.035;
+    // R0: the accent's own lift at the game camera (a hi-vis class paint, dimmed with a downed marine)
+    if (accentM > 0.0) c += D.accent.rgb * (accentM * D.accentFx.x * (1.0 - 0.6 * dim));
     // emission: the visor in the class hue (× the visor curve), lamps white; the IFF strobe (bit5) flashes the class hue
     // for 70 ms every 1.6 s, each marine on its own beat (phase from the class layer)
     if ((in.flags & 2u) != 0u) {

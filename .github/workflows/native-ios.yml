@@ -520,6 +520,11 @@ jobs:
           # (the screenshot when the demo is done)
           run_demo burst-defeat 9 "-demo defeat -seed 7 -burst defeat 3.3 16 10" 0
           pull_burst burst-defeat
+          # R0 (film fixes): the win (-demo win) — the ride plays out, the report comes up at once and the world keeps
+          # animating under it (the lift eases to a stop with the extraction camera on it, the squad's victory, the
+          # effects): every 6th present from 0.85 s before the win to 1.45 s after it, HUD off (the world under the report)
+          run_demo burst-win 9 "-demo win -seed 3 -hideHUD -burst win 4.8 24 6"
+          pull_burst burst-win
           # every bug type × clip (WorldSwarm's sheet: walk, run, attack, hit, deaths, specials), every 3rd frame over 0.6 s
           run_demo burst-bugs 5 "-demo bugsheet -hideHUD -burst bugs 1.5 12 3"
           pull_burst burst-bugs
@@ -763,7 +768,7 @@ jobs:
           for d in title-fresh title-return title-nm layout holdhint queenlock coach coach3 pressure pressure-amber pause-nm report-first report-win report-loss report-chip stress1400 punchin extract-cine bugsheet calm-bright \
                    layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo banner-beacon banner-queen banner-pseudo \
                    swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud calm-deckmask calm-bright-nohud \
-                   burst-fire burst-tight burst-combat burst-anim burst-loco burst-loco-game burst-acta burst-actb burst-actc burst-defeat burst-bugs burst-pack burst-packold burst-mix burst-mixold validate-stress validate-fxpeak validate-extract lifecycle \
+                   burst-fire burst-tight burst-combat burst-anim burst-loco burst-loco-game burst-acta burst-actb burst-actc burst-defeat burst-win burst-bugs burst-pack burst-packold burst-mix burst-mixold validate-stress validate-fxpeak validate-extract lifecycle \
                    overhead burst-overhead burst-parallax overhead-nohud; do
             grep -q 'scene ready' "results/app-$d.log" || { fail "$d: no 'scene ready'"; }
             if grep -q 'ERROR' "results/app-$d.log"; then fail "$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; fi
@@ -816,6 +821,12 @@ jobs:
           need burst-defeat 'burst defeat written \(16 frames\)'
           need burst-defeat 'defeat beat start'
           need burst-defeat 'mission over won=false'
+          # R0: the win — the report over a live world: world frames keep being built a second and two after the win
+          need burst-win 'burst win written \(24 frames\)'
+          need burst-win 'mission over won=true'
+          need burst-win 'victory: the world keeps animating under the report'
+          need burst-win 'hb victory t=1\.[0-9] world=[1-9][0-9]* frames'
+          need burst-win 'hb victory t=2\.[0-9] world=[1-9][0-9]* frames'
           need burst-bugs 'burst bugs written \(12 frames\)'
           need burst-pack 'burst pack written \(24 frames\)'
           need burst-packold 'burst packold written \(24 frames\)'
@@ -927,6 +938,8 @@ jobs:
                   "pause|3|-demo pause -seed 5" "levelup|3|-demo levelup -seed 5" "report-win|3|-demo report -report win -seed 5"
                   "beacon|8|-demo beacon -seed 7 -holdBanner" "report-loss|3|-demo report -report loss -seed 5" "report-first|3|-demo report -report first -seed 5")
             if [ "$tag" = se ]; then runs+=("title-pseudo|3|-demo title -profile veteran -pseudoLoc 1.35"); fi
+            # (R0 film fixes: the four classes at the game camera on the smallest screen — the class accent read)
+            if [ "$tag" = se ]; then runs+=("squad|3|-demo calm -squadSheet"); fi
             for d in "${runs[@]}"; do
               label="other-$tag-${d%%|*}"; rest="${d#*|}"; secs="${rest%%|*}"; args="${rest#*|}"
               # shellcheck disable=SC2086

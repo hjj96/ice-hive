@@ -119,8 +119,9 @@ fragment float4 fs_decal_wet(DecalOut in [[stage_in]],
         alpha = cov * 0.92;
         emit = float3(1.0, 0.32, 0.06) * t.b * exp(-age / 1.6) * 2.5;
     } else if (kind == 3) {
-        // frost: pale rime, glints where the crystals face the light
-        albedo = float3(0.42, 0.52, 0.62);
+        // frost: pale rime, glints where the crystals face the light (R0 film fixes: a step darker — a cryo's work rimed the
+        // defended deck into a white carpet in the feel build's film)
+        albedo = float3(0.35, 0.44, 0.54);
         rough = t.b > 0.6 ? 0.12 : 0.55;
         alpha = cov * (1.0 - smoothstep(25.0, 45.0, age) * 0.6);
     } else {
