@@ -70,15 +70,15 @@ extension Game {
 
     // ---------- spawning ----------
     /// A route bug at entry node `n`: up the riser (abyss column, deck post, mast) from its foot, or straight onto the
-    /// route out of a duct mouth, on the edge that leads toward the squad. Runners only for now («cable runners»; the
-    /// Dropper and the perched spitter are package R4's). Returns its slot, -1 when the arrays are full.
+    /// route out of a duct mouth, on the edge that leads toward the squad. The director sends runners («cable runners»;
+    /// the Dropper and the perched spitter are package R4's `type`s). Returns its slot, -1 when the arrays are full.
     @discardableResult
-    func spawnRouteBug(entry n: Int) -> Int {
+    func spawnRouteBug(entry n: Int, type: UInt8 = T_RUN) -> Int {
         guard let G = level.overhead, n >= 0 && n < G.nodeCount, !G.nodeEdges[n].isEmpty else { return -1 }
         let node = G.layout.nodes[n]
         let c = squadCenter()
         let e = G.bestEdge(at: n, c.x, c.y)
-        let i = spawnBug(T_RUN, node.p.x, node.p.z, mode: 0)
+        let i = spawnBug(type, node.p.x, node.p.z, mode: 0)
         if i < 0 { return -1 }
         let S = bugs
         let fwd = G.ea[e] == n
@@ -102,10 +102,10 @@ extension Game {
     /// Queue `n` runners up entry node `entry` at `rate` per second (the overhead's own queue: it pours with or without the
     /// director). The tier's route cap holds: returns how many were queued.
     @discardableResult
-    func queueRoutePack(_ n: Int, entry: Int, rate: Float, delay: Float = 0) -> Int {
+    func queueRoutePack(_ n: Int, entry: Int, rate: Float, delay: Float = 0, type: UInt8 = T_RUN) -> Int {
         let k = min(n, difficulty.routeCap - routeAlive - queuedRouteBugs)
         if k <= 0 { return 0 }
-        oh.queue.append(RouteBurst(entry: entry, n: k, rate: rate, acc: -rate * delay))
+        oh.queue.append(RouteBurst(entry: entry, n: k, rate: rate, acc: -rate * delay, type: type))
         oh.stats.packs += 1
         return k
     }
@@ -117,7 +117,7 @@ extension Game {
             while oh.queue[q].acc >= 1 && oh.queue[q].n > 0 {
                 oh.queue[q].acc -= 1; oh.queue[q].n -= 1
                 if capLeft() <= 0 || routeAlive >= difficulty.routeCap { continue }
-                spawnRouteBug(entry: oh.queue[q].entry)
+                spawnRouteBug(entry: oh.queue[q].entry, type: oh.queue[q].type)
             }
             if oh.queue[q].n <= 0 { oh.queue.remove(at: q) } else { q += 1 }
         }
@@ -423,8 +423,9 @@ extension Game {
         if S.t[i] <= 0 { landDrop(i) }
     }
 
-    /// It lands: a marine still inside the ring (the nearest standing one) takes the runner's bite × dropK and a knock along
-    /// the flight; the bug fights on as a deck bug.
+    /// It lands: a marine still inside the ring (the nearest standing one) takes the bug's bite (× the tier's `bite` for
+    /// runners and spitters, as on the deck) × dropK and a knock along the flight; the bug fights on as a deck bug.
+    /// (Package R4's pin hooks in here.)
     func landDrop(_ i: Int) {
         let S = bugs
         let lx = S.ax[i], lz = S.az[i]
@@ -440,13 +441,14 @@ extension Game {
             if d2 < bd { bd = d2; hit = m }
         }
         if let m = hit {
-            let bk: Float = difficulty.waves ? difficulty.bite : 1
+            let ty = S.type[i]
+            let bk: Float = difficulty.waves && (ty == T_RUN || ty == T_SPIT) ? difficulty.bite : 1
             let hp0 = m.hp
-            hurtMarine(m, BUG_SPECS[0].dmg * dmgMul * bk * difficulty.dropK, dx / dl * 4, dz / dl * 4, .runner)
+            hurtMarine(m, BUG_SPECS[Int(ty)].dmg * dmgMul * bk * difficulty.dropK, dx / dl * 4, dz / dl * 4, DamageSource(bugType: ty))
             oh.stats.hits += 1
             oh.stats.hurt += maxf(0, hp0 - maxf(0, m.hp))
             if m.downed { oh.stats.downs += 1 }
-            S.cd[i] = BUG_SPECS[0].atkCd
+            S.cd[i] = BUG_SPECS[Int(ty)].atkCd
         } else {
             S.cd[i] = 0.1
         }
@@ -772,16 +774,16 @@ extension Game {
     /// per second. Works with the tier's `routes` = 0 and without the director; the route cap holds. Returns how many
     /// were queued.
     @discardableResult
-    public func debugRoutePack(_ n: Int, entry: Int? = nil, rate: Float = 3) -> Int {
+    public func debugRoutePack(_ n: Int, entry: Int? = nil, rate: Float = 3, type: BugType = .runner) -> Int {
         guard let G = level.overhead else { return 0 }
         let e = entry ?? routeEntry(near: squadCenter())
         guard e >= 0 && e < G.nodeCount && !G.nodeEdges[e].isEmpty else { return 0 }
-        return queueRoutePack(n, entry: e, rate: rate)
+        return queueRoutePack(n, entry: e, rate: rate, type: UInt8(type.rawValue))
     }
 
     /// One route bug at entry node `entry` now (tests). Returns its slot or -1.
     @discardableResult
-    public func debugSpawnRouteBug(entry: Int) -> Int { spawnRouteBug(entry: entry) }
+    public func debugSpawnRouteBug(entry: Int, type: BugType = .runner) -> Int { spawnRouteBug(entry: entry, type: UInt8(type.rawValue)) }
 
     /// Deck circles (x, z, r) no drop lands in (package R6's lit deck will set these from its lamps).
     public func debugSetNoDropZones(_ circles: [SIMD3<Float>]) { oh.noDrop = circles }

@@ -214,6 +214,8 @@ struct RouteBurst {
     var rate: Float
     /// Spawn accumulator: starts negative for a delayed pack (−rate × delay).
     var acc: Float
+    /// The bug type (the director sends runners; package R4 adds the Dropper, the perched spitter).
+    var type: UInt8 = T_RUN
 }
 
 /// The overhead's runtime state (GameOverhead.swift); reset with the world.
