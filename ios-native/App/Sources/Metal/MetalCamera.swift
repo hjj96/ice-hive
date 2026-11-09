@@ -63,7 +63,7 @@ final class MetalCamera {
         let ex = extract
         let yaw = MetalCamera.yaw + (title ? sinf(time * 0.06) * 0.35 : 0)
         let pitch = MetalCamera.pitch - (title ? 0.08 : 0) + 0.12 * ex
-        let dist = camDist * (title ? 1.12 : max(1, min(1.2, zoom))) * (1 + 0.35 * ex)
+        let dist = camDist * (title ? 1.12 : max(1, min(1.2, zoom)) * FilmZoom.factor) * (1 + 0.35 * ex)
         place(f, yaw: yaw, pitch: pitch, dist: dist, shake: shake)
         if title {
             // composed title: the ray through the squad's screen spot hits the deck `d` away from the focus — look at

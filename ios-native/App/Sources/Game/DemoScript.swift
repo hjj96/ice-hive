@@ -68,6 +68,16 @@ import IceHiveCore
 //    (`crowd(_:)`; the wave pacing's High 350 / Medium 250 / Low 220 under the device class), the hold demos play the
 //    director's own hold. Only the declared renderer stress runs go past it — stress1400 (1400) and an explicit
 //    `-bugs N` (CI `swarm` / `swarm3x`: 1400).
+//  `-video` (film branch native-vx-film only, FilmCapture; never merged): the demos play out for a gameplay film instead
+//  of stopping for a screenshot, every one on High. combat / stress1400 / punchin play the game's own swarm (the wave
+//  director: nothing spawned around the squad, no top-ups) and stage only the objective: combat with `-videoAt k` — the
+//  defence of beacon k (0 Alpha, 1 Beta, 2 Gamma) charged to `-videoCharge` (0.2) so the hive's first push lands inside
+//  the film; stress1400 — the third beacon (two done, mission time 200 s) charged to 0.84 plus a horde 2.5 s in, the
+//  heaviest moment of the pacing; punchin — the defence of Alpha until the beacon comes on at `-punchAt` s (9), the shot
+//  plays once; queen — the finale: the hold's own swarm, the Queen climbs up at `-queenAt` s (7) with `-queenHp` (1100),
+//  dies by the squad's guns (or at `-queenKillBy` s (9) after she came), the lift leaves `-liftDelay` s (2.5) after her
+//  death and the extraction plays out. The look-dev demos (calm -squadSheet …, swarmpack / swarmmix, defeat) keep their
+//  own scripts and only get High.
 // ================================================================
 final class DemoScript {
     let name: String
@@ -95,10 +105,29 @@ final class DemoScript {
     /// `-demo report`: the fixture whose outcome the mission gets.
     let reportFixture: DemoFixtures.Report?
 
+    /// `-video`: the film timings (see the header).
+    private let video: Bool
+    private let punchAt: Double, queenAt: Double, queenKillBy: Double, liftDelay: Double
+    private let videoAt: Int
+    private let videoCharge: Float
+    private var videoCharged = false, videoHorde = false
+
     private init(name: String, options: LaunchOptions, bugs: Int? = nil) {
         self.name = name
         self.options = options
         override = bugs
+        let u = options.unknown
+        func num(_ k: String, _ d: Double) -> Double {
+            guard let i = u.firstIndex(of: k), i + 1 < u.count, let v = Double(u[i + 1]) else { return d }
+            return v
+        }
+        video = u.contains("-video")
+        punchAt = num("-punchAt", 9)
+        queenAt = num("-queenAt", 7)
+        queenKillBy = num("-queenKillBy", 9)
+        liftDelay = num("-liftDelay", 2.5)
+        videoAt = Int(num("-videoAt", -1))
+        videoCharge = Float(num("-videoCharge", name == "stress1400" ? 0.84 : 0.2))
         reportFixture = name == "report" ? DemoFixtures.report(options.report) : nil
         if name == "report" && reportFixture == nil { AppLog.error("unknown -report \(options.report ?? "?")") }
     }
@@ -133,7 +162,7 @@ final class DemoScript {
     /// Graphics tier the demo forces without touching the saved setting (the store shots and the WP7 cinematics are
     /// taken on «высокая»; stress1400 is the plan's High budget run).
     var preferredQuality: String? {
-        ["swarmshot", "stress1400", "punchin", "extract-cine"].contains(name) ? "high" : nil
+        video || ["swarmshot", "stress1400", "punchin", "extract-cine"].contains(name) ? "high" : nil
     }
 
     /// World time scale the scene applies on top of hit-stop: the demo's freeze (swarmshot, coach, the held punch-in:
@@ -153,6 +182,19 @@ final class DemoScript {
         game.autopilot = true
         game.autoPickUpgrades = true
         Cinematics.shared.reset()
+        if video && (name == "combat" || name == "stress1400") && videoAt >= 0 && videoAt < game.beacons.count {
+            let b = game.beacons[videoAt]
+            if name == "stress1400" { game.debugSetRun(time: 200, beaconsDone: videoAt) }
+            game.debugTeleport(b.x + 2, b.z - 2.5)
+            AppLog.info("demo \(name) (video): squad at beacon \(b.name.logID), beacons done \(game.beaconsDone)")
+        }
+        if video && (name == "combat" || name == "stress1400" || name == "punchin") {
+            // the game's own swarm (wave pacing): nothing spawned around the squad, no top-ups
+            target = 0
+            if name == "punchin", let b = game.beacons.first { game.debugTeleport(b.x + 1.5, b.z - 1.5) }
+            AppLog.info("demo \(name) (video): the wave director's own swarm, bug cap \(game.bugCap)")
+            return
+        }
         switch name {
         case "calm", "layout", "bugsheet":
             game.autopilot = false
@@ -298,12 +340,14 @@ final class DemoScript {
                 AppLog.info("demo defeat: marine \(k) down")
             }
         }
-        if (name == "queen" || name == "queenlock") && !queenSet && sinceReady >= 2 {
+        if (name == "queen" || name == "queenlock") && !queenSet && sinceReady >= (video ? queenAt : 2) {
             queenSet = true
             // (the scene logs «v11 queen spawn …» from her event)
-            let uid = game.debugQueen(hp: options.queenHp ?? 1_000_000)
+            let uid = game.debugQueen(hp: options.queenHp ?? (video ? 1100 : 1_000_000))
             if uid == 0 { AppLog.info("demo \(name): the Queen did not come (stage \(game.stage.rawValue))") }
+            if video { AppLog.info(String(format: "demo queen (video): the Queen climbs up td=%.2f uid=%d", sinceReady, Int(uid))) }
         }
+        if video && name == "queen" && queenSet { finale(game) }
         if name == "queenlock" && !lockSet && queenSet && sinceReady >= 3.5 {
             lockSet = true
             game.debugSetLiftTime(0.01)
@@ -319,6 +363,22 @@ final class DemoScript {
         if name == "probe" && probeIndex < probeSteps.count && t >= Float(4 * (probeIndex + 1)) {
             probe = probeSteps[probeIndex]
             probeIndex += 1
+        }
+        if video && (name == "combat" || name == "stress1400" || name == "punchin" || name == "queen") {
+            // the defended beacon charged so the hive's pushes land inside the film; stress: one more horde 2.5 s in
+            if !videoCharged && game.activeBeacon >= 0 && (name == "combat" || name == "stress1400") {
+                videoCharged = true
+                game.debugBeaconProgress(videoCharge)
+                AppLog.info(String(format: "demo %@ (video): beacon charged to %.2f td=%.2f alive %d", name, videoCharge, sinceReady, game.bugsAlive))
+            }
+            if !videoHorde && name == "stress1400" && sinceReady >= 2.5 {
+                videoHorde = true
+                game.debugHorde(70)
+                AppLog.info(String(format: "demo stress1400 (video): horde td=%.2f alive %d", sinceReady, game.bugsAlive))
+            }
+            logT -= dt
+            if logT <= 0 { logT = 2; AppLog.info(String(format: "demo %@ (video): alive %d td=%.1f stage %d", name, game.bugsAlive, sinceReady, game.stage.rawValue)) }
+            return
         }
         topUpT -= dt
         if target > 0 && topUpT <= 0 {
@@ -457,14 +517,14 @@ final class DemoScript {
     private func punchIn(_ game: Game) {
         let c = Cinematics.shared
         switch cineStep {
-        case 0 where sinceReady >= 1.5:
+        case 0 where sinceReady >= (video ? punchAt : 1.5):
             cineStep = 1
             if game.stage == .beacons { game.debugSkip() }
             AppLog.info(String(format: "demo punchin: beacon on at td=%.2f (beacons done %d)", sinceReady, game.beaconsDone))
         case 1 where c.kind == .punchIn:
             cineStep = 2
             AppLog.info(String(format: "demo punchin: shot started td=%.2f", sinceReady))
-        case 2 where sinceReady >= 4.6:
+        case 2 where sinceReady >= 4.6 && !video:
             cineStep = 3
             c.replayPunchIn()
             AppLog.info(String(format: "demo punchin: replay + hold td=%.2f", sinceReady))
@@ -491,5 +551,29 @@ final class DemoScript {
         default: break
         }
         if cineStep == 2 { game.debugPinExtract(2.8) }
+    }
+
+    /// `-video` queen: once the Queen is dead (shot down, or killed at queenAt + queenKillBy), the lift leaves
+    /// `liftDelay` s later (the squad stands on it: the extraction shot follows, then the mission is won).
+    private var queenDeadAt: Double = -1
+    private var liftSent = false
+    private func finale(_ game: Game) {
+        if queenDeadAt < 0 {
+            if game.queen.spawned && !game.queen.alive {
+                queenDeadAt = sinceReady
+                AppLog.info(String(format: "demo queen (video): the Queen died td=%.2f (lived %.1f s)", sinceReady, game.queen.killT))
+            } else if game.queen.alive && sinceReady >= queenAt + queenKillBy {
+                game.debugKillQueen()
+                queenDeadAt = sinceReady
+                AppLog.info(String(format: "demo queen (video): the Queen killed by the script td=%.2f", sinceReady))
+            } else if !game.queen.spawned && sinceReady >= queenAt + 1 {
+                queenDeadAt = sinceReady
+                AppLog.info("demo queen (video): no Queen (stage \(game.stage.rawValue)), the lift goes anyway")
+            }
+        } else if !liftSent && sinceReady >= queenDeadAt + liftDelay {
+            liftSent = true
+            game.debugSetLiftTime(0.01)
+            AppLog.info(String(format: "demo queen (video): the lift leaves td=%.2f stage %d", sinceReady, game.stage.rawValue))
+        }
     }
 }
