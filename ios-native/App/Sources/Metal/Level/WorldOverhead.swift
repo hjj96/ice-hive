@@ -102,6 +102,8 @@ final class WorldOverhead {
     private var farRuns: [(Int, Int)] = [], nearRuns: [(Int, Int)] = [], casterRuns: [(Int, Int)] = []
     private var visibleChunks = 0, nearChunks = 0, points = 0
     private var casterCall = 0
+    /// The caster draws / triangles this frame (High, the player's flashlight tile on; `hb overhead … casters=`).
+    private var casterDraws = 0, casterTris = 0
     /// Last frame's stats (hb overhead), the build summary.
     private var lastDraws = (0, 0), lastTris = 0, lastLog: Double = 0
     /// The CPU cost of build() (ms, smoothed; `hb overhead … cpu=`).
@@ -212,6 +214,7 @@ final class WorldOverhead {
         nearRuns.removeAll(keepingCapacity: true)
         casterRuns.removeAll(keepingCapacity: true)
         casterCall = 0
+        casterDraws = 0; casterTris = 0
         region = Region()
         frameIB = nil
         guard hasGeometry, let r = renderer else { return }
@@ -421,6 +424,8 @@ final class WorldOverhead {
         for (start, count) in casterRuns {
             enc.drawIndexedPrimitives(type: .triangle, indexCount: count, indexType: .uint32, indexBuffer: ib, indexBufferOffset: start * 4)
             r.count(triangles: count / 3)
+            casterDraws += 1
+            casterTris += count / 3
         }
         enc.setDepthBias(0, slopeScale: 0, clamp: 0)
     }
@@ -439,7 +444,7 @@ final class WorldOverhead {
         lastLog = now
         let swing = cables.values.map { (swayNow[$0.slot] * swayNow[$0.slot]).sum().squareRoot() }.max() ?? 0
         AppLog.info("hb overhead draws=\(lastDraws.0)+\(lastDraws.1) tris=\(lastTris) chunks=\(visibleChunks)/\(chunks.count) near=\(nearChunks)"
-                    + " pts=\(points)" + String(format: " sway=%.2fm cpu=%.3fms", swing, buildMs) + " casters=\(casterRuns.count)"
+                    + " pts=\(points)" + String(format: " sway=%.2fm cpu=%.3fms", swing, buildMs) + " casters=\(casterDraws)/\(casterTris)"
                     + " tier=" + (renderer.frameTier == .high ? "high" : "efficient") + (WorldOverhead.noDraw ? " off" : ""))
     }
 

@@ -545,8 +545,9 @@ jobs:
           # Stage 1 R3: the parallax — the player walks the bridge under the overhead (-ohWalk), the camera follows and the
           # abyss, the deck, the routes and the upper truss slide at their own speeds (every 5th present from 2.0 s); the
           # app's visibility metric runs alongside (-ohVis: the deck the overhead covers, any marine it hides — gated below
-          # by ci/overhead_vis.py)
-          run_demo burst-parallax 8 "-demo overhead -ohWalk -seed 7 -hideHUD -ohVis -burst parallax 2.0 24 5"
+          # by ci/overhead_vis.py). On «высокая» (-ohHigh): the flashlight shadows, the overhead's casters drawn into the
+          # player's tile (the other overhead runs are on the default tier)
+          run_demo burst-parallax 8 "-demo overhead -ohWalk -ohHigh -seed 7 -hideHUD -ohVis -burst parallax 2.0 24 5"
           pull_burst burst-parallax
           # WP5 effects look-dev: every effect staged around the squad and frozen mid-air (-fxSheet: blasts, napalm, the
           # flamer jet, the cryo beam, hits, kills, a frozen shatter, acid, a nova, casings, a row of every stain), on
@@ -846,6 +847,7 @@ jobs:
           need burst-parallax 'burst parallax written \(24 frames\)'
           need burst-parallax 'demo overhead: walking td='
           need burst-parallax 'oh vis: on \(pipelines ok'
+          need burst-parallax 'hb overhead draws=.* casters=[1-9][0-9]*/[1-9][0-9]* tier=high'
           need overhead-nohud 'oh vis: on \(pipelines ok'
           python3 ios-native/ci/overhead_vis.py results overhead-nohud burst-parallax > results/overhead-vis.txt 2>&1 || fail "overhead visibility: $(tail -n 1 results/overhead-vis.txt)"
           cat results/overhead-vis.txt

@@ -75,7 +75,8 @@ import IceHiveCore
 //                   almost frozen (×0.02) on a drop telegraph from 7.0 s (at 9.0 s at the latest) for the screenshot. Once
 //                   a second `hb route alive=… up=… states=… drops=…`. `-ohWalk` (the parallax burst): the squad starts at
 //                   the pad end and the player walks the bridge toward the hub from 1.0 s (no freeze) — the camera follows,
-//                   the deck, the routes and the upper truss slide past at their three speeds.
+//                   the deck, the routes and the upper truss slide past at their three speeds. `-ohHigh`: on «высокая»
+//                   (the flashlight shadows: the overhead's casters in the player's tile — the CI parallax burst).
 //  R0 (film fixes):
 //    -demo win      like hold; 1 s after «scene ready» the lift leaves and the ride plays out to the win (4.6 s): the
 //                   report comes up at once and the world keeps animating under it (the lift eases to a stop with the
@@ -156,7 +157,8 @@ final class DemoScript {
     /// Graphics tier the demo forces without touching the saved setting (the store shots and the WP7 cinematics are
     /// taken on «высокая»; stress1400 is the plan's High budget run).
     var preferredQuality: String? {
-        ["swarmshot", "stress1400", "punchin", "extract-cine", "win"].contains(name) ? "high" : nil
+        if name == "overhead" && options.unknown.contains("-ohHigh") { return "high" }
+        return ["swarmshot", "stress1400", "punchin", "extract-cine", "win"].contains(name) ? "high" : nil
     }
 
     /// World time scale the scene applies on top of hit-stop: the demo's freeze (swarmshot, coach, the held punch-in:
