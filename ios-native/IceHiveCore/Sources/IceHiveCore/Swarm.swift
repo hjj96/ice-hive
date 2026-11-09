@@ -43,6 +43,13 @@ public final class Swarm {
     let mood: UnsafeMutablePointer<UInt8>
     let mt: UnsafeMutablePointer<Float>, mdx: UnsafeMutablePointer<Float>, mdz: UnsafeMutablePointer<Float>
     let lt: UnsafeMutablePointer<Float>
+    /// The overhead (GameOverhead.swift): the route edge and travel direction (+(e + 1) heading a → b, −(e + 1) heading
+    /// b → a, 0 = not on a route), the distance along that edge from its node a, the start of a drop / fall (x, absolute
+    /// y, z), and `up`: 1 = filed under the spatial hash's sentinel bucket (out of reach of every deck query).
+    let re: UnsafeMutablePointer<Int16>
+    let rs: UnsafeMutablePointer<Float>
+    let rx: UnsafeMutablePointer<Float>, ry: UnsafeMutablePointer<Float>, rz: UnsafeMutablePointer<Float>
+    let up: UnsafeMutablePointer<UInt8>
     // byte arrays
     let type: UnsafeMutablePointer<UInt8>, st: UnsafeMutablePointer<UInt8>, dead: UnsafeMutablePointer<UInt8>
     /// Brute charge: bit k = marine k already hit by this charge.
@@ -61,17 +68,20 @@ public final class Swarm {
         x = f(); z = f(); px = f(); pz = f(); vx = f(); vz = f(); y = f(); hp = f(); hpMax = f(); r = f(); spd = f(); sc = f(); t = f(); cd = f()
         chill = f(); frz = f(); burn = f(); ph = f(); hd = f(); fl = f(); ax = f(); az = f(); vr = f(); ms = f()
         mt = f(); mdx = f(); mdz = f(); lt = f()
-        type = b(); st = b(); dead = b(); hit = b(); mood = b()
+        rs = f(); rx = f(); ry = f(); rz = f()
+        type = b(); st = b(); dead = b(); hit = b(); mood = b(); up = b()
         bsrc = .allocate(capacity: capacity); bsrc.initialize(repeating: -1, count: capacity)
         uid = .allocate(capacity: capacity); uid.initialize(repeating: 0, count: capacity)
-        floats = [x, z, px, pz, vx, vz, y, hp, hpMax, r, spd, sc, t, cd, chill, frz, burn, ph, hd, fl, ax, az, vr, ms, mt, mdx, mdz, lt]
-        bytes = [type, st, dead, hit, mood]
+        re = .allocate(capacity: capacity); re.initialize(repeating: 0, count: capacity)
+        floats = [x, z, px, pz, vx, vz, y, hp, hpMax, r, spd, sc, t, cd, chill, frz, burn, ph, hd, fl, ax, az, vr, ms, mt, mdx, mdz, lt,
+                  rs, rx, ry, rz]
+        bytes = [type, st, dead, hit, mood, up]
     }
 
     deinit {
         for p in floats { p.deallocate() }
         for p in bytes { p.deallocate() }
-        bsrc.deallocate(); uid.deallocate()
+        bsrc.deallocate(); uid.deallocate(); re.deallocate()
     }
 
     /// Remove dead bugs by swapping the last live one into each hole.
@@ -87,7 +97,7 @@ public final class Swarm {
                 if rr != l {
                     for A in floats { A[rr] = A[l] }
                     for A in bytes { A[rr] = A[l] }
-                    bsrc[rr] = bsrc[l]; uid[rr] = uid[l]
+                    bsrc[rr] = bsrc[l]; uid[rr] = uid[l]; re[rr] = re[l]
                 }
             }
             rr -= 1
@@ -118,6 +128,7 @@ public final class Swarm {
         var bytes: [[UInt8]]
         var bsrc: [Int8]
         var uid: [Int32]
+        var re: [Int16]
     }
     func snapshot() -> Snapshot {
         let n = count
@@ -125,13 +136,14 @@ public final class Swarm {
                         floats: floats.map { Array(UnsafeBufferPointer(start: $0, count: n)) },
                         bytes: bytes.map { Array(UnsafeBufferPointer(start: $0, count: n)) },
                         bsrc: Array(UnsafeBufferPointer(start: bsrc, count: n)),
-                        uid: Array(UnsafeBufferPointer(start: uid, count: n)))
+                        uid: Array(UnsafeBufferPointer(start: uid, count: n)),
+                        re: Array(UnsafeBufferPointer(start: re, count: n)))
     }
     func restore(_ s: Snapshot) {
         count = s.count; deadPending = s.deadPending
         for (k, A) in floats.enumerated() { for i in 0..<s.count { A[i] = s.floats[k][i] } }
         for (k, A) in bytes.enumerated() { for i in 0..<s.count { A[i] = s.bytes[k][i] } }
-        for i in 0..<s.count { bsrc[i] = s.bsrc[i]; uid[i] = s.uid[i] }
+        for i in 0..<s.count { bsrc[i] = s.bsrc[i]; uid[i] = s.uid[i]; re[i] = s.re[i] }
     }
 
     // ---------- read-only render access ----------
@@ -172,4 +184,14 @@ public final class Swarm {
     public var moods: UnsafePointer<UInt8> { UnsafePointer(mood) }
     public var deadFlags: UnsafePointer<UInt8> { UnsafePointer(dead) }
     public var uids: UnsafePointer<Int32> { UnsafePointer(uid) }
+    // the overhead (Stage 1 R2): states ≥ BugState.high keep an ABSOLUTE height in `heights`
+    /// The bug is up on the overhead (on a route, climbing a riser, coiling, early in a drop / fall).
+    @inline(__always) public func isOverhead(_ i: Int) -> Bool { up[i] != 0 }
+    /// `heights[i]` is an absolute world height (the overhead states), not the offset from the floor under the bug.
+    @inline(__always) public func hasAbsoluteHeight(_ i: Int) -> Bool { st[i] >= S_HIGH }
+    /// Route edge and direction of each bug: +(e + 1) heading a → b, −(e + 1) heading b → a, 0 = not on a route.
+    public var routeEdges: UnsafePointer<Int16> { UnsafePointer(re) }
+    /// Distance along that edge from its node a (m).
+    public var routeParams: UnsafePointer<Float> { UnsafePointer(rs) }
+    public var overheadFlags: UnsafePointer<UInt8> { UnsafePointer(up) }
 }

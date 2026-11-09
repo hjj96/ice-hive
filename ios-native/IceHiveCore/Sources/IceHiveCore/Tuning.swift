@@ -40,10 +40,48 @@ let T_RUN: UInt8 = 0, T_SPIT: UInt8 = 1, T_BRUTE: UInt8 = 2, T_BOOM: UInt8 = 3
 public enum BugState: UInt8 {
     /// `leap`: a runner's pounce (wave pacing) — airborne for `LEAP_T` s, its height arcs over the deck.
     case move = 0, climb = 1, wind = 2, charge = 3, swell = 4, leap = 5
+    // ---- the overhead (Stage 1 R2, GameOverhead.swift). In these states `Swarm.heights` is the ABSOLUTE world height
+    // (every other state: the offset from the floor under the bug): a route over the void has no floor under it.
+    /// On an overhead route, riding on top of it (moving or waiting above its marine).
+    case high = 6
+    /// Climbing a riser (an abyss column, a deck post, a mast) up to its route, nose up.
+    case riser = 7
+    /// The drop's telegraph (tech.md «dropWind», design «coil»): committed to a landing point, the closing `.dropZone`
+    /// ring on the deck under it (`Game.dropZones`); `DROP_T` before the landing it lets go.
+    case coil = 8
+    /// The drop in flight onto its fixed landing point (it does not home: a step or a dash out of the ring saves you).
+    case drop = 9
+    /// Knocked off a route (fire, frost, a blast) or hopping down: it falls without attacking — a frozen one shatters.
+    case fall = 10
 }
 let S_MOVE: UInt8 = 0, S_CLIMB: UInt8 = 1, S_WIND: UInt8 = 2, S_CHARGE: UInt8 = 3, S_SWELL: UInt8 = 4, S_LEAP: UInt8 = 5
+let S_HIGH: UInt8 = 6, S_RISER: UInt8 = 7, S_COIL: UInt8 = 8, S_DROP: UInt8 = 9, S_FALL: UInt8 = 10
 /// Seconds a runner's leap lasts (its state timer counts it down; height peaks halfway).
 public let LEAP_T: Float = 0.36
+
+// ---------- the overhead's drop (design.md §1.1.4 drop language, §1.1.6 fairness; tech.md §2.3) ----------
+/// The flight of a drop (s): it lets go DROP_T before landing; the warning before that is the coil.
+public let DROP_T: Float = 0.3
+/// The landing ring: it closes from DROP_RING0 to DROP_RING (m); a marine inside DROP_RING at the landing is hit.
+public let DROP_RING0: Float = 2.0
+public let DROP_RING: Float = 1.4
+/// A drop is aimed at a marine DROP_MIN…DROP_MAX m away in plan (the drop windows of the routes use the same band).
+public let DROP_MIN: Float = 1.5
+public let DROP_MAX: Float = 6.5
+/// Fairness: no drop is aimed at a marine for DROP_GRACE s after its dash or revive, and at most DROP_PER_MARINE drops
+/// start on one marine within DROP_WINDOW s.
+public let DROP_GRACE: Float = 2
+public let DROP_WINDOW: Float = 3
+public let DROP_PER_MARINE = 2
+/// Footprint hits: bullets strike a bug up on a route at its plan position with its radius × FOOTPRINT_K (the core stays
+/// 2-D); blasts reach the overhead at BLAST_UP × their radius; a burning bug loses its grip after GRIP_T s.
+public let FOOTPRINT_K: Float = 1.3
+public let BLAST_UP: Float = 0.6
+public let GRIP_T: Float = 0.8
+/// A bug that found no drop for this long hops down to the deck (s).
+public let ROUTE_PATIENCE: Float = 10
+/// The bots and the turret start answering a drop telegraph this long into its coil (s): a human reaction time.
+public let BOT_REACT: Float = 0.35
 
 /// What a bug feels on the wave pacing (`Swarm.moods`): calm, a hesitation before a surge, a feint (backing off), a surge
 /// (a sudden burst of speed), flight from a blast, the panic of a burning bug.
@@ -248,6 +286,23 @@ public struct Difficulty: Equatable {
     public var bite: Float = 1
     /// Wave pacing: × the XP of a kill (fewer kills, the same rhythm of level-ups).
     public var xpK: Float = 1
+    // ---- the overhead (Stage 1 R2; GameOverhead.swift). Caps follow the tier, never the graphics tier, so every graphics
+    // tier plays the same. `routes` = 0 on every tier until package R5 turns the overhead on for the classic mission:
+    // the director never sends a pack up and draws no extra random number (calibration byte-identical).
+    /// Share of the director's packs sent up an overhead route (the third way in, design §1.1.6); needs a station with
+    /// routes and the wave pacing.
+    public var routes: Float = 0
+    /// Bugs up on the overhead at once, at most (design: ≤ 18).
+    public var routeCap: Int = 18
+    /// Drop telegraphs (coiling or in flight) at once, at most (design: ≤ 3 on screen).
+    public var dropCap: Int = 3
+    /// The warning of a drop, from its ring appearing to the landing (s; the coil is dropWarn − DROP_T; design: ≥ 0.9 s,
+    /// Recruit + 0.3 s).
+    public var dropWarn: Float = 0.9
+    /// × a runner's bite when it lands a drop on a marine.
+    public var dropK: Float = 1.4
+    /// Seconds between two drop telegraphs starting (the whole squad).
+    public var dropGap: Float = 0.8
 
     public init() {}
 
@@ -261,6 +316,7 @@ public struct Difficulty: Equatable {
         d.stallTime = 90; d.pressureGrace = 40; d.runnerHp = 15
         d.queen = QueenTuning(at: 35, hp: 2500, speed: 1.5, ramT: 9, volleyT: 6, broodT: 8, broodN: 6, horde: 80, trickle: 0.4)
         d.waves = true; d.popK = 2.3; d.mix = 1.8; d.bite = 1.8; d.xpK = 1.6; d.runnerHp = 22
+        d.routes = 0; d.routeCap = 12; d.dropCap = 2; d.dropWarn = 1.2; d.dropK = 1.2; d.dropGap = 1.0
         return d
     }()
     /// Ветеран — as designed; the default after the first evacuation.
@@ -273,6 +329,7 @@ public struct Difficulty: Equatable {
         d.stallTime = 60; d.pressureGrace = 25; d.runnerHp = 15
         d.queen = QueenTuning(at: 35, hp: 3500, speed: 1.5, ramT: 9, volleyT: 6, broodT: 8, broodN: 6, horde: 80, trickle: 0.4)
         d.waves = true; d.popK = 2.5; d.mix = 1.8; d.bite = 2.25; d.xpK = 1.6; d.runnerHp = 22
+        d.routes = 0; d.routeCap = 15; d.dropCap = 3; d.dropWarn = 0.9; d.dropK = 1.4; d.dropGap = 0.8
         return d
     }()
     /// Кошмар — the swarm is merciless, the squad weaker.
@@ -285,6 +342,7 @@ public struct Difficulty: Equatable {
         d.stallTime = 40; d.pressureGrace = 15; d.runnerHp = 15
         d.queen = QueenTuning(at: 30, hp: 6000, speed: 1.6, ramT: 8, volleyT: 5, broodT: 7, broodN: 8, horde: 150, trickle: 0.6)
         d.waves = true; d.popK = 2.6; d.mix = 1.8; d.bite = 2.5; d.xpK = 1.6; d.runnerHp = 22
+        d.routes = 0; d.routeCap = 18; d.dropCap = 3; d.dropWarn = 0.9; d.dropK = 1.5; d.dropGap = 0.6
         return d
     }()
     /// v1.0 exactly (hidden; calibration port check and the v1.0 regression test).
@@ -300,7 +358,8 @@ public struct Difficulty: Equatable {
     public static let overrideKeys: [String] = ["hp", "dmg", "trickle", "horde", "step", "spec", "specCap", "bot", "botGrow", "regen", "regenT",
                                                 "regenCap", "heal", "revive", "medkit", "edge", "pulse", "pulseT", "pulseFall", "stall", "grace",
                                                 "runHp", "qAt", "qHp", "qSpd", "qRamT", "qVolleyT", "qBroodT", "qBroodN", "qHorde", "qTrickle", "mul",
-                                                "waves", "popK", "mix", "bite", "xpK"]
+                                                "waves", "popK", "mix", "bite", "xpK",
+                                                "routes", "routeCap", "dropCap", "dropWarn", "dropK", "dropGap"]
 
     /// Set fields by their web names (`trickle`, `qHp`, …; `bot` is the factor on BOT_DMG like the web row).
     /// Returns the keys it did not know (the caller treats them as an error).
@@ -347,6 +406,12 @@ public struct Difficulty: Equatable {
             case "mix": mix = v
             case "bite": bite = v
             case "xpK": xpK = v
+            case "routes": routes = v
+            case "routeCap": routeCap = max(0, Int(v0.rounded()))
+            case "dropCap": dropCap = max(0, Int(v0.rounded()))
+            case "dropWarn": dropWarn = max(DROP_T + 0.05, v)
+            case "dropK": dropK = v
+            case "dropGap": dropGap = v
             default: unknown.append(k)
             }
         }

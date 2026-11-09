@@ -110,6 +110,8 @@ public struct GeneratedStation {
         L.pad = SIMD4<Float>(Float(pad[0]), Float(pad[1]), Float(pad[2]), Float(pad[3]))
         L.attempts = attempts
         L.isGenerated = true
+        // the overhead post-pass (Stage 1 R2): its own random stream after genTry — the layout above is untouched
+        L.overhead = OverheadPlanner.plan(L)
         return L
     }
 }

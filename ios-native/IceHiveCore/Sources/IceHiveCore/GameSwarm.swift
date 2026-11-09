@@ -25,6 +25,7 @@ extension Game {
         }
         let k = 0.88 + rng.next() * 0.24
         S.type[i] = type; S.ms[i] = T.mass; S.dead[i] = 0; S.hit[i] = 0; S.bsrc[i] = -1; S.uid[i] = S.uidSeq; S.uidSeq &+= 1
+        S.up[i] = 0; S.re[i] = 0   // (not on the overhead: GameOverhead.spawnRouteBug sets these after)
         S.r[i] = T.radius * k; S.sc[i] = T.scale * k; S.spd[i] = T.speed * (0.85 + rng.next() * 0.3)
         // fodder is fodder: runners keep the tier's flat runner HP (13.2–16.8), so one rifle bolt always kills them; every
         // other type scales with the director's HP multiplier (the bench keeps its 1e5 multiplier on every type; the legacy
@@ -70,6 +71,9 @@ extension Game {
 
     func killBug(_ i: Int, _ src: Int) {
         let S = bugs
+        // the overhead (Stage 1 R2): its drop telegraph goes with it; its height is absolute up there
+        let routeSt = S.st[i] >= S_HIGH
+        if routeSt { overheadBugDied(i) }
         S.dead[i] = 1; S.deadPending += 1
         let x = S.x[i], z = S.z[i], ty = S.type[i]
         let frozen = S.frz[i] > 0
@@ -85,7 +89,7 @@ extension Game {
         }
         if !simOnly {
             events.append(.bugKilled(type: BugType(rawValue: Int(ty)) ?? .runner, pos: Vec2(x, z), frozen: frozen, source: src,
-                                     heading: S.hd[i], scale: S.sc[i], height: S.y[i]))
+                                     heading: S.hd[i], scale: S.sc[i], height: routeSt ? S.y[i] - level.groundY(x, z) : S.y[i]))
             if frozen { sound(.shatter, x, z) }
             else {
                 if ty == T_BRUTE { sound(.thud, x, z) }
@@ -130,6 +134,8 @@ extension Game {
                         hitBug(b, e.dmg * f, e.src)
                     }
                 }
+                // the overhead (Stage 1 R2): blasts reach up at BLAST_UP × their radius and knock the bugs up there down
+                if H_overheadReach(e.kind) && hash.overheadCount > 0 { overheadBlast(e) }
                 // wave pacing: the survivors around a blast scatter — a short flight away from it, then back in
                 if difficulty.waves && (e.kind == .frag || e.kind == .boomer || e.kind == .mini) {
                     let fr = e.r * 1.9
@@ -276,6 +282,8 @@ extension Game {
             if DEAD[i] != 0 { continue }
             let ty = TY[i]
             if FL[i] > 0 { FL[i] -= dt * 4 }
+            // --- up on the overhead (Stage 1 R2): its own update (GameOverhead); never true on a station without routes ---
+            if ST[i] >= S_HIGH { routeTick(i, dt); continue }
             // --- status effects ---
             if BURN[i] > 0 {
                 BURN[i] -= dt
@@ -591,6 +599,10 @@ extension Game {
             PH[i] += sp2.squareRoot() * dt * 8 / SC[i]
         }
     }
+
+    /// The explosions that reach the overhead: the squad's frag and its bomblets (not a boomer's, not the frost shatter, not
+    /// the lift's deck circuit).
+    @inline(__always) func H_overheadReach(_ k: ExplosionKind) -> Bool { k == .frag || k == .mini }
 
     /// A smooth periodic wave in [-1, 1] of phase `p` (one period per unit) from basic arithmetic only (a shaped triangle:
     /// no libm, so a mission plays bit-identically on every platform).

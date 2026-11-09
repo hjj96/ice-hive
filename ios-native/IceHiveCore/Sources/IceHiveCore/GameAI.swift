@@ -98,6 +98,11 @@ extension Game {
                 if s > bs { bs = s; best = b }
             }
         }
+        // the overhead (Stage 1 R2): bugs up on the routes, found where they are drawn, a coiling one preferred
+        if hash.overheadCount > 0 {
+            let ob = overheadAssist(m, dx, dz, &bs)
+            if ob >= 0 { best = ob }
+        }
         return best
     }
 
@@ -114,11 +119,12 @@ extension Game {
         let wx = inMove.x, wz = inMove.y
         let fire = inFire
         var aimed = false
+        var assistUp = false
         if let a = inAim {
             var ang = a
             if inAssist > 0 {
                 let b = aimAssistTarget(from: m, dir: Vec2(sinf2(a), cosf2(a)))
-                if b >= 0 { ang += angDiff(ang, atan2f2(bugs.x[b] - m.x, bugs.z[b] - m.z)) * inAssist }
+                if b >= 0 { ang += angDiff(ang, atan2f2(bugs.x[b] - m.x, bugs.z[b] - m.z)) * inAssist; assistUp = bugs.up[b] != 0 }
             }
             m.aim = ang; aimed = true
         } else if fire {
@@ -126,6 +132,8 @@ extension Game {
         }
         if !aimed && abs(wx) + abs(wz) > 0.15 { m.aim += angDiff(m.aim, atan2f2(wx, wz)) * 0.25 }
         m.ax = sinf2(m.aim); m.az = cosf2(m.aim)
+        // the overhead (Stage 1 R2): the shots go up when the assist picked a bug up there
+        m.aimUp = assistUp
         if inAbility {
             inAbility = false
             var tx = m.x + m.ax * 9, tz = m.z + m.az * 9
@@ -168,6 +176,11 @@ extension Game {
                 if m.cls == .cryo && S.frz[b] > 0 { s += 4 }
                 if s < bs { bs = s; best = b }
             }
+        }
+        // the overhead (Stage 1 R2): a bug coiling up there (after a reaction time) before the deck's; walkers are not targets
+        if hash.overheadCount > 0 {
+            let ob = overheadAITarget(m, range, &bs)
+            if ob >= 0 { best = ob }
         }
         return best
     }
@@ -295,6 +308,8 @@ extension Game {
                 if d < 1.9 { m.ai.sideX = d > 0.05 ? dx / d : 1; m.ai.sideZ = d > 0.05 ? dz / d : 0; m.ai.sideT = 0.35 }
             }
         }
+        // ... and out of a drop ring about to land (the overhead, Stage 1 R2)
+        if level.overhead != nil { dropDodge(m) }
         if m.ai.sideT > 0 { m.ai.sideT -= dt; mx = m.ai.sideX; mz = m.ai.sideZ }
         // stuck detection: wants to move but barely moves -> rely on the flow field for a while
         if abs(mx) + abs(mz) > 0.5 && hypotf2(m.x - m.ai.lx, m.z - m.ai.lz) < 1.2 * dt { m.ai.stuck = min(2, m.ai.stuck + dt * 2) }
@@ -303,8 +318,9 @@ extension Game {
         if m.hp < m.maxHp * 0.3 && crowd[m.index] > 4 && m.dashCd <= 0 {
             tryDash(m, -m.vx != 0 ? -m.vx : m.ax, -m.vz != 0 ? -m.vz : m.az)
         }
-        // aim + fire
+        // aim + fire (a target up on the overhead: the rounds go up — Stage 1 R2)
         var fire = false
+        m.aimUp = valid && S.up[t] != 0
         if valid {
             let d = hypotf2(S.x[t] - m.x, S.z[t] - m.z)
             let lead: Float = (m.cls == .pyro || m.cls == .cryo) ? 0 : d / 80
@@ -317,8 +333,8 @@ extension Game {
         } else if abs(mx) + abs(mz) > 0.2 {
             m.aim += clampf(angDiff(m.aim, atan2f2(mx, mz)), -6 * dt, 6 * dt)
         }
-        // the first-run coach leaves the practice groups to the player
-        if coachHoldFire(m) { fire = false }
+        // the first-run coach leaves the practice groups to the player (the overhead demo stages its drops the same way)
+        if coachHoldFire(m) || oh.holdFire { fire = false }
         return (mx, mz, fire)
     }
 }

@@ -3,9 +3,17 @@ import Foundation
 // ================================================================
 //  SPATIAL HASH — uniform 1 m grid rebuilt every tick with a counting sort
 //  (hStart / hItems / hCell of 05-sim.js), plus circle / ray / segment queries.
+//  Stage 1 R2: bugs up on the overhead (`Swarm.up`) are filed under one
+//  SENTINEL bucket past the grid (cell GG = GRID²). Every query reads grid
+//  cells only, so bullets' deck tests, blasts, cones, bot targeting, aim
+//  assist, separation, contact and burn spread never see them (nothing at
+//  deck level reaches 4.5 m up); the overhead's own rules (GameOverhead)
+//  walk the sentinel bucket instead — it is the overhead list for free.
 // ================================================================
 final class SpatialHash {
-    /// hStart[c] ..< hStart[c+1] = slice of `items` for cell c.
+    /// The sentinel bucket of the overhead (one past the last grid cell).
+    static let sentinel = GRID * GRID
+    /// hStart[c] ..< hStart[c+1] = slice of `items` for cell c (c = sentinel: the overhead).
     let start: UnsafeMutablePointer<Int>
     let cursor: UnsafeMutablePointer<Int>
     let items: UnsafeMutablePointer<Int>
@@ -20,8 +28,8 @@ final class SpatialHash {
     init(capacity: Int = MAX_BUGS) {
         self.capacity = capacity
         let n = GRID * GRID
-        start = .allocate(capacity: n + 1); start.initialize(repeating: 0, count: n + 1)
-        cursor = .allocate(capacity: n); cursor.initialize(repeating: 0, count: n)
+        start = .allocate(capacity: n + 2); start.initialize(repeating: 0, count: n + 2)
+        cursor = .allocate(capacity: n + 1); cursor.initialize(repeating: 0, count: n + 1)
         items = .allocate(capacity: capacity); items.initialize(repeating: 0, count: capacity)
         cell = .allocate(capacity: capacity); cell.initialize(repeating: 0, count: capacity)
         qb = .allocate(capacity: capacity); qb.initialize(repeating: 0, count: capacity)
@@ -29,27 +37,27 @@ final class SpatialHash {
     deinit { start.deallocate(); cursor.deallocate(); items.deallocate(); cell.deallocate(); qb.deallocate() }
 
     func clear() {
-        start.update(repeating: 0, count: GRID * GRID + 1)
+        start.update(repeating: 0, count: GRID * GRID + 2)
         hashedCount = 0
     }
 
     func rebuild(_ S: Swarm) {
         let GG = GRID * GRID
         let hs = start, hc = cell, cur = cursor, it = items
-        hs.update(repeating: 0, count: GG + 1)
+        hs.update(repeating: 0, count: GG + 2)
         let n = S.count
-        let X = S.x, Z = S.z
+        let X = S.x, Z = S.z, UP = S.up
         var i = 0
         while i < n {
-            let c = Level.cellClamp(X[i], Z[i])
+            let c = UP[i] != 0 ? GG : Level.cellClamp(X[i], Z[i])
             hc[i] = c
             hs[c &+ 1] &+= 1
             i &+= 1
         }
         var acc = 0
         var c = 0
-        while c <= GG { acc &+= hs[c]; hs[c] = acc; c &+= 1 }
-        cur.update(from: hs, count: GG)
+        while c <= GG + 1 { acc &+= hs[c]; hs[c] = acc; c &+= 1 }
+        cur.update(from: hs, count: GG + 1)
         i = 0
         while i < n {
             let cc = hc[i]
@@ -59,6 +67,11 @@ final class SpatialHash {
         }
         hashedCount = n
     }
+
+    /// Bugs filed under the sentinel bucket at the last rebuild (the overhead): `items[overheadStart ..< overheadEnd]`.
+    @inline(__always) var overheadStart: Int { start[SpatialHash.sentinel] }
+    @inline(__always) var overheadEnd: Int { start[SpatialHash.sentinel + 1] }
+    @inline(__always) var overheadCount: Int { overheadEnd - overheadStart }
 
     /// All live bugs whose body overlaps the circle -> qb[0..<count).
     func queryCircle(_ S: Swarm, _ x: Float, _ z: Float, _ r: Float) -> Int {

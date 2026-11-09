@@ -171,6 +171,68 @@ public struct Medkit {
     public internal(set) var t: Float = 0
 }
 
+/// A drop telegraph of the overhead (Stage 1 R2): where a bug up on a route will land and when. The renderer draws the
+/// ring (also the telegraph `.dropZone`) and the dust column from `from` down to it; the bots step out of it.
+public struct DropZone {
+    public internal(set) var active = false
+    /// The landing point (deck) and the ring's final radius.
+    public internal(set) var x: Float = 0, z: Float = 0
+    public internal(set) var r: Float = DROP_RING
+    /// Seconds until the landing / the whole warning.
+    public internal(set) var t: Float = 0, warn: Float = 0.9
+    /// The bug (uid) and the marine it is aimed at.
+    public internal(set) var uid: Int32 = 0
+    public internal(set) var marine: Int = -1
+    /// Where it lets go from (world x, absolute y, z).
+    public internal(set) var from = SIMD3<Float>(0, 0, 0)
+    /// The pool slot of its ring telegraph (-1 none: simOnly).
+    var tele = -1
+    /// 0…1 over the warning.
+    public var progress: Float { warn > 0 ? min(1, max(0, 1 - t / warn)) : 1 }
+    /// The ring's radius now (closing DROP_RING0 → r).
+    public var radius: Float { DROP_RING0 + (r - DROP_RING0) * progress }
+}
+
+/// What the overhead did in a mission (debug logs, tests, calibration rows).
+public struct OverheadStats: Equatable {
+    /// Route packs queued by the director (or a debug call), bugs spawned onto the routes.
+    public internal(set) var packs = 0, spawns = 0
+    /// Drop telegraphs started, drops landed, landings on a marine, marine downs by a drop, squad HP lost to drops.
+    public internal(set) var drops = 0, landed = 0, hits = 0, downs = 0
+    public internal(set) var hurt: Float = 0
+    /// Bugs killed while up, knocked down (fire / frost / blast), shattered by their fall, hopped down to the deck.
+    public internal(set) var kills = 0, knockdowns = 0, shattered = 0, hops = 0
+    /// Most bugs up at once, most drop telegraphs at once.
+    public internal(set) var maxUp = 0, maxZones = 0
+    public init() {}
+}
+
+/// A pack pouring onto the overhead from one entry (GameOverhead), its own queue: it spawns with or without the director.
+struct RouteBurst {
+    var entry: Int
+    var n: Int
+    var rate: Float
+    /// Spawn accumulator: starts negative for a delayed pack (−rate × delay).
+    var acc: Float
+}
+
+/// The overhead's runtime state (GameOverhead.swift); reset with the world.
+struct OverheadState {
+    var zones = [DropZone](repeating: DropZone(), count: 8)
+    var queue: [RouteBurst] = []
+    /// Sim time of the last drop telegraph started.
+    var lastDrop: Float = -99
+    /// Route bugs spawned since the last hash rebuild (the sentinel bucket counts the rest).
+    var tickSpawns = 0
+    /// The anti-camping clock (design §1.1.6): the spot the squad lingers at and for how long.
+    var campX: Float = 0, campZ: Float = 0, campT: Float = 0
+    /// Deck circles (x, z, r) no drop lands in — the seam for package R6's lit deck («never over lit deck»).
+    var noDrop: [SIMD3<Float>] = []
+    var stats = OverheadStats()
+    /// Debug / demo: the bots hold their fire.
+    var holdFire = false
+}
+
 /// Projectiles (pulse bolts, minigun & turret rounds) as SoA.
 public final class Projectiles {
     public static let capacity = 700
@@ -183,7 +245,8 @@ public final class Projectiles {
     /// Colour index: 0 red pulse, 1 minigun, 2 turret.
     let col: UnsafeMutablePointer<UInt8>
     let last: UnsafeMutablePointer<Int32>
-    /// bit 0: player shot, bit 1: already counted as a hit.
+    /// bit 0: player shot, bit 1: already counted as a hit, bit 2: aimed up at the overhead (Stage 1 R2: it strikes only
+    /// bugs up on the routes, at their footprint; a shot at the deck passes under them).
     let flags: UnsafeMutablePointer<UInt8>
 
     init() {
@@ -215,6 +278,8 @@ public final class Projectiles {
     /// 0 red pulse (assault), 1 minigun, 2 turret.
     @inline(__always) public func colorIndex(_ k: Int) -> Int { Int(col[k]) }
     @inline(__always) public func owner(_ k: Int) -> Int { Int(own[k]) }
+    /// Aimed up at a bug on the overhead (the renderer tilts its tracer up).
+    @inline(__always) public func aimedUp(_ k: Int) -> Bool { (flags[k] & 4) != 0 }
 }
 
 /// Spitter acid globs in flight (SoA, capacity 64).
@@ -383,6 +448,9 @@ public final class Game {
     var coachReviveArmed = false
     var coachSeenSent = false
 
+    // ---------- Stage 1 R2: the overhead (GameOverhead.swift) ----------
+    var oh = OverheadState()
+
     // ---------- v1.1: calibration ledger (fixed arrays, index = DamageSource.rawValue + 1) ----------
     /// Damage taken by the whole squad per source.
     public internal(set) var hurtBy = [Float](repeating: 0, count: 6)
@@ -446,6 +514,7 @@ public final class Game {
         for k in medkits.indices { medkits[k].active = false }
         for k in telegraphs.indices { telegraphs[k].active = false }
         turret.active = false
+        oh = OverheadState()
         setupSquad()
         resetDirector()
         phase = .playing
@@ -508,6 +577,7 @@ public final class Game {
         processBooms()
         tickMarines(dt)
         simBugs(dt)
+        if level.overhead != nil { overheadTick(dt) }
         updateProjectiles(dt)
         updateGlobs(dt)
         updateAbilities(dt)
@@ -553,15 +623,17 @@ public final class Game {
         for k in 0..<telegraphs.count where !telegraphs[k].active { return k }
         return -1
     }
-    /// Ring (pulsing warning or expanding shock ring).
-    func teleRing(_ x: Float, _ z: Float, _ r: Float, _ cr: Float, _ cg: Float, _ cb: Float, _ life: Float, r1: Float? = nil, pulse: Bool = true, cause: TelegraphCause) {
-        if simOnly { return }
-        let k = teleAlloc(); if k < 0 { return }
+    /// Ring (pulsing warning or expanding shock ring). Returns its pool slot (-1: none).
+    @discardableResult
+    func teleRing(_ x: Float, _ z: Float, _ r: Float, _ cr: Float, _ cg: Float, _ cb: Float, _ life: Float, r1: Float? = nil, pulse: Bool = true, cause: TelegraphCause) -> Int {
+        if simOnly { return -1 }
+        let k = teleAlloc(); if k < 0 { return -1 }
         var e = Telegraph()
         e.active = true; e.shape = .ring; e.cause = cause; e.x = x; e.z = z; e.r0 = r; e.r1 = r1 ?? r
         e.r = cr; e.g = cg; e.b = cb; e.t = 0; e.life = life; e.pulse = pulse
         telegraphs[k] = e
         events.append(.telegraph(index: k, shape: .ring, cause: cause, pos: Vec2(x, z)))
+        return k
     }
     /// Disc that fills up as the impact approaches (acid globs).
     func teleFill(_ x: Float, _ z: Float, _ r: Float, _ cr: Float, _ cg: Float, _ cb: Float, _ life: Float, cause: TelegraphCause) {

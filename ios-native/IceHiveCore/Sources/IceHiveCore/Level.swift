@@ -107,6 +107,9 @@ public struct LevelLayout {
     public var attempts: Int = 0
     /// Built by the seeded station generator (v1.1).
     public var isGenerated: Bool = false
+    /// The overhead: routes above the decks only the hive walks on (Stage 1 R2, Overhead.swift). Empty on the classic
+    /// «Кельвин-9» until package R5 authors its routes; generated stations get theirs from `OverheadPlanner`.
+    public var overhead = OverheadLayout()
 
     public init(name: NameRef, seed: UInt32, rects: [FloorRect], crates: [CrateSpec], pillars: [Vec2], start: Vec2, lift: LiftSpec,
                 beacons: [BeaconSite], vents: [Vec2], pipes: [PipeRun]) {
@@ -122,7 +125,11 @@ public protocol LevelSource {
 
 /// The hand-made v1.0 station (04-level.js RECTS / CRATES / PILLARS / LV).
 public struct KelvinStation: LevelSource {
-    public init() {}
+    /// Overhead routes laid over the hand-made station (none for the classic mission; the overhead demo and the core
+    /// tests use `OverheadLayout.kelvinSlice`).
+    public var overhead: OverheadLayout
+    public init() { overhead = OverheadLayout() }
+    public init(overhead: OverheadLayout) { self.overhead = overhead }
     public static let liftY: Float = -6
 
     public func makeLayout(seed: UInt32) -> LevelLayout {
@@ -159,11 +166,13 @@ public struct KelvinStation: LevelSource {
         let vents: [Vec2] = [Vec2(-27, 21), Vec2(-37, 33), Vec2(26, -13), Vec2(35, -3), Vec2(-39, -14), Vec2(-29, -4), Vec2(7, -9), Vec2(-9, -1)]
         let pipes: [PipeRun] = [PipeRun(-8, 38.3, 6, 38.3, 0), PipeRun(-12, -12.3, -6, -12.3, -3), PipeRun(22, -16.3, 38, -16.3, -3),
                                 PipeRun(-42, -18.3, -26, -18.3, -3), PipeRun(38.3, 22, 38.3, 38, 0)]
-        return LevelLayout(
+        var L = LevelLayout(
             name: .kelvin, seed: seed, rects: rects, crates: crates, pillars: pillars,
             start: Vec2(30, 30), lift: LiftSpec(x: -3, z: -42, r: 10, y: LY),
             beacons: [BeaconSite(x: -32, z: 27, name: .beacon(0)), BeaconSite(x: 30, z: -8, name: .beacon(1)), BeaconSite(x: -34, z: -9, name: .beacon(2))],
             vents: vents, pipes: pipes)
+        L.overhead = overhead
+        return L
     }
 }
 
@@ -197,6 +206,8 @@ public final class Level {
 
     public var lift: LiftSpec { layout.lift }
     public var start: Vec2 { layout.start }
+    /// The runtime index of the layout's overhead routes (nil when the station has none).
+    public private(set) var overhead: OverheadGraph? = nil
 
     public convenience init(source: LevelSource = KelvinStation(), seed: UInt32 = 0) {
         self.init(layout: source.makeLayout(seed: seed))
@@ -212,6 +223,8 @@ public final class Level {
         hgt = .allocate(capacity: n); hgt.initialize(repeating: 0, count: n)
         hgz = .allocate(capacity: n); hgz.initialize(repeating: 0, count: n)
         raster()
+        // (built after the raster: the drop windows are measured against the walk grid)
+        if !layout.overhead.isEmpty { overhead = OverheadGraph(layout: layout.overhead, level: self) }
     }
 
     deinit {

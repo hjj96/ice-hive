@@ -36,7 +36,10 @@ extension Game {
                 default:
                     beatT = 6 + rng.next() * 3
                     let c = squadCenter()
-                    surge(Int(((13 + 5 * done + 2.5 * minutes) * D.horde * D.popK).rounded()), sides: 2, near: c, dmin: 14, dmax: 30, rate: 8)
+                    let n = Int(((13 + 5 * done + 2.5 * minutes) * D.horde * D.popK).rounded())
+                    // the overhead (Stage 1 R2): the two-flank surge gets a third direction, from above (35 %)
+                    let up = overheadSurgeShare(n, near: c, chance: 0.35, share: 0.33)
+                    surge(n - up, sides: 2, near: c, dmin: 14, dmax: 30, rate: 8)
                 }
             }
             switch beat {
@@ -86,7 +89,9 @@ extension Game {
         if beaconPushes < 3 && b.progress >= marks[beaconPushes] {
             let last = beaconPushes == 2
             let n = ((last ? 42 + 6 * done : 30 + 5 * done) * D.horde * D.popK).rounded()
-            surge(Int(n), sides: last ? 3 : 2, near: Vec2(b.x, b.z), dmin: 12, dmax: 28, rate: 10)
+            // the overhead (Stage 1 R2): at the 62 % push one side may pour along the routes and drop in a line — «the rain»
+            let up = beaconPushes == 1 ? overheadSurgeShare(Int(n), near: Vec2(b.x, b.z), chance: 0.5, share: 0.5) : 0
+            surge(Int(n) - up, sides: up > 0 ? 1 : (last ? 3 : 2), near: Vec2(b.x, b.z), dmin: 12, dmax: 28, rate: 10)
             beaconPushes += 1
             lullT = 8
             waveT = max(waveT, 6)
@@ -106,7 +111,9 @@ extension Game {
 
     /// A pack of `n` from one entry near `c`: a vent 7–18 m away now and then (an ambush out of the grates), else one
     /// stretch of rail `dmin`…`dmax` m away.
-    func pack(_ n: Int, near c: Vec2, dmin: Float, dmax: Float, rate: Float, delay: Float = 0) {
+    func pack(_ n0: Int, near c: Vec2, dmin: Float, dmax: Float, rate: Float, delay: Float = 0) {
+        // the overhead (Stage 1 R2): with the tier's `routes` chance the pack climbs an overhead route instead
+        let n = n0 - overheadPackShare(n0, near: c, rate: rate, delay: delay)
         if n <= 0 { return }
         if rng.next() < 0.22 {
             var pick: Vec2? = nil
@@ -167,6 +174,8 @@ extension Game {
         var size = Float(size0)
         let c = squadCenter()
         if stage == .hold {
+            // the overhead (Stage 1 R2): 15 % of each hold horde slides down the routes over the lift (its cables)
+            size -= Float(overheadSurgeShare(size0, near: Vec2(level.lift.x, level.lift.z), chance: 1, share: 0.15))
             // a third climbs straight over the lift's rim from below, in two packs on different sides (the ramp alone made
             // the hold one long column)
             let L = level.lift

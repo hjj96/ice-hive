@@ -6,7 +6,7 @@ import IceHiveCore
 //    swift run -c release icehive-calib --preset gate --jobs 3 --out calib.jsonl --summary calib.txt --gate
 //    swift run -c release icehive-calib --tiers 1 --n 8 --mode auto --th '{"trickle":1.3}' --tag t13 --out t.jsonl
 //    swift run -c release icehive-calib --agg a.jsonl b.jsonl        (aggregate only; web rows work too)
-//  Options: --preset gate|full|stations|legacy · --tiers 0,1,2 (-1 = legacy v1.0 row) · --n runs per class and tier
+//  Options: --preset gate|full|stations|legacy|overhead · --tiers 0,1,2 (-1 = legacy v1.0 row) · --n runs per class and tier
 //  · --classes assault,pyro,cryo,gunner · --mode auto|passive|afk|afkbeacon · --maxs s · --seed0 1000 · --station N
 //  · --th JSON (web tier field names) · --tag t · --q low|med|high (gameplay bug cap) · --jobs N
 //  · --out file.jsonl (appends) · --summary file.txt · --gate
