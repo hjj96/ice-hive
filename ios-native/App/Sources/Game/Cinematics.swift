@@ -387,7 +387,9 @@ final class Cinematics {
     }
 
     /// The eye outside every flashlight cone: keep the current yaw offset while it is clear, else find the nearest clear
-    /// one (±15° steps to ±45°, then the same with the pitch 12° higher) and ease toward it (90°/s).
+    /// one (±15° steps to ±45°, then the same with the pitch 6° higher) and ease toward it (90°/s).
+    /// (feel-build review: the lift was 12° — the raised eye looked down on the lit deck, the extraction's median-62
+    /// look shots; the yaw search stays at ±45°, wider swings put the eye beside the bugs climbing the lift's rim)
     private func keepOutOfCones(_ p: Pose, kind: Kind, dt: Float) -> Pose {
         let o = shotOrbit
         func eye(_ yawDeg: Float, _ pitchDeg: Float) -> F3 {
@@ -398,7 +400,7 @@ final class Cinematics {
         if coneInside >= (t < 0.1 ? 0 : Cinematics.coneDwell) && coneInside > 0 {
             coneInside = 0
             var found = false
-            search: for pitch in [Float(0), 12] {
+            search: for pitch in [Float(0), 6] {
                 for off in [Float(0), 15, -15, 30, -30, 45, -45] where !inCone(eye(off, pitch)) {
                     coneWantDeg = off; conePitchDeg = pitch; found = true
                     break search

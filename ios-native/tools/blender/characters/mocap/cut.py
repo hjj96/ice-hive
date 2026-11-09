@@ -20,6 +20,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(HERE)))
 MARGIN = 0.25          # s kept around each used range
 CMU_URL = 'https://raw.githubusercontent.com/meshula/cmu-mocap/master/data/{s:03d}/{take}.bvh'
 STYLE_URL = 'https://raw.githubusercontent.com/aether-lang-dev/ae3d/main/tests/fixtures/people/100style/{name}.bvh'
+UAL_URL = 'https://raw.githubusercontent.com/aether-lang-dev/ae3d/main/tests/fixtures/people/ual1_rigify.glb'
+UAL_SHA = '1b7bf67866360665426bb99e4c71bd619f19b408453c24e30f0c3071601eee5c'   # of the downloaded glTF (ual_cut.py exports the BVHs from it)
 CMU_LIC = ('CMU Graphics Lab Motion Capture Database (mocap.cs.cmu.edu), cgspeed 2010 BVH conversion: free to use in '
            'research and commercial products; the data itself may not be resold, even converted')
 STYLE_LIC = 'CC BY 4.0 — «The 100STYLE Dataset - Ian Mason» (https://creativecommons.org/licenses/by/4.0/)'
@@ -100,8 +102,8 @@ def main():
             # (exported whole by ual_cut.py from the CC0 glTF: kept as they are)
             dst = os.path.join(out_dir, take + '.bvh')
             man[take] = old[take]
-            rows.append(f'| `sources/{take}.bvh` | Quaternius Universal Animation Library, `{old[take]["original"]}` | CC0 1.0 | '
-                        f'all {old[take]["frames"]} frames at {1 / old[take]["frame_time"]:.0f} fps (`ual_cut.py`) | — | `{sha(dst)}` | '
+            rows.append(f'| `sources/{take}.bvh` | {UAL_URL} (Quaternius Universal Animation Library, `{old[take]["original"]}`) | CC0 1.0 | '
+                        f'all {old[take]["frames"]} frames at {1 / old[take]["frame_time"]:.0f} fps (`ual_cut.py`) | `{UAL_SHA}` (the glTF) | `{sha(dst)}` | '
                         f'{", ".join(sorted(by_take.get(take, [])))} |')
             continue
         src = os.path.realpath(os.path.join(dl, take + '.bvh'))

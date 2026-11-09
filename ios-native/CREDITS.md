@@ -2,9 +2,10 @@
 
 Everything not listed here (code, models, textures, sounds, effects) is the project's own.
 
-## Motion capture (the marines' locomotion, idles and turns)
+## Motion capture (the marines' locomotion, idles, turns and actions)
 
-The squad's walk, run, idle and turn-on-the-spot clips are retargeted from motion capture by the asset pipeline
+The squad's walk, run, idle, turn-on-the-spot and action clips (staggers, knock-down and get-up, going down, revive,
+deaths, ability casts, the kneeling helper) are retargeted from motion capture by the asset pipeline
 (`tools/blender/characters/mocap/`; the exact source ranges, download URLs and sha256 sums are in
 `tools/blender/characters/mocap/SOURCES.md`). Only the baked clips ship in the app (`Characters/marine_*.ihv`); the
 source files are build inputs and are never shipped or redistributed as data.
@@ -19,8 +20,8 @@ source files are build inputs and are never shipped or redistributed as data.
   International (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/). Attribution: «The 100STYLE Dataset - Ian
   Mason». Changes: Neutral-style cycles retargeted onto the marines' skeleton, stride-warped, re-timed, mirrored, with a
   rifle stance and procedural hand / foot placement layered on.
-- **Quaternius — Universal Animation Library** — CC0 1.0 (public domain dedication); credited voluntarily. Used by the
-  motion tools as reference; no shipped clip of the feel build's locomotion package is taken from it.
+- **Quaternius — Universal Animation Library** — CC0 1.0 (public domain dedication); credited voluntarily. Two
+  animations (Death01 and Fixing_Kneeling) are retargeted into the marines' `death_stand` and `help` clips.
 
 The same credits are in the string catalog (`credits.*` keys) for the in-game Settings › Credits panel and in the last
 line of the App Store description (`store/app-store-en.md`).

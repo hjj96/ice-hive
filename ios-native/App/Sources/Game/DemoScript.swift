@@ -329,7 +329,7 @@ final class DemoScript {
                 // (extract-cine: the top-ups climb over the lift's rim on either flank in turn, the hold's own entrance)
                 flankTurn.toggle()
                 let pack = name == "swarmpack" || name == "swarmmix"
-                let n = crowdFlanks.map { game.debugClimbLiftRim(k, sector: flankTurn ? $0.0 : $0.1) }
+                let n = climbFlanks.map { game.debugClimbLiftRim(k, sector: flankTurn ? $0.0 : $0.1) }
                     ?? game.debugSpawn(k, type: packType, minRadius: pack ? 11 : 12, maxRadius: pack ? 17 : 30)
                 spawned += n
             }
@@ -355,6 +355,16 @@ final class DemoScript {
         let yaw = MetalCamera.yaw + Cinematics.extraction.yawOffDeg * .pi / 180
         let toEye = atan2f(cosf(yaw), sinf(yaw)), half: Float = 50 * .pi / 180
         return ((toEye + .pi / 2, half), (toEye - .pi / 2, half))
+    }
+    /// extract-cine: the top-ups' rim climbs on the far part of each flank, 75–145° from the camera's bearing (the deck
+    /// crowd keeps `crowdFlanks`). (feel-build review: climbing 40° from the bearing, with the shot's cone dodge swinging
+    /// the eye up to 45° round, a brute came over the rim beside the lens and blacked out a fifth of the frame — the
+    /// extraction's near-black 36–41 % first shots on 79eef3f, 9c93169, e765953, 45cc4c2, 8f1e677, 067cd21.)
+    private var climbFlanks: ((angle: Float, half: Float), (angle: Float, half: Float))? {
+        guard name == "extract-cine" else { return nil }
+        let yaw = MetalCamera.yaw + Cinematics.extraction.yawOffDeg * .pi / 180
+        let toEye = atan2f(cosf(yaw), sinf(yaw)), off: Float = 110 * .pi / 180, half: Float = 35 * .pi / 180
+        return ((toEye + off, half), (toEye - off, half))
     }
     private var flankTurn = false
     private var lockSet = false
