@@ -37,6 +37,17 @@ final class GameScene: SKScene {
     private var surrendered = false
     /// Seconds of the defeat beat played (A3: the report waits for the deaths and the push-in).
     private var defeatBeat: Float = 0
+    /// R0 (film fixes): seconds since the mission was won (-1: not won). The world keeps animating after a win — the lift
+    /// eases to a stop with the extraction camera on it (Cinematics.afterRise), the squad holds its victory pose and
+    /// breathes, the effects live out their lives — under the report, which still comes up at once. (The core stops
+    /// ticking at the win: in the feel build the world stood still behind the report, and the film's demo, which brings
+    /// no report up, showed the dead stop for ~2 s.) 60 Hz while the lift settles (`victorySmooth` s), then the menus'
+    /// 30 Hz; a report left up for `victoryIdle` s lets the world's clock run down over `victoryHalt` s, then the
+    /// frozen-world path takes over (no world frames).
+    private var wonT: Float = -1
+    static let victorySmooth: Float = 3, victoryIdle: Float = 20, victoryHalt: Float = 2.5
+    private var victoryBuilds = 0
+    private var lastVictoryLog: Double = 0
     /// Settings and records (UserDefaults, v1 values migrated on the first launch). Demos keep the v1.1 meta keys
     /// (profile, tier pick, coach flag, stick seconds) in memory, seeded by `-profile` / `-report` (DemoFixtures).
     private let settings: SettingsStore
@@ -286,8 +297,10 @@ final class GameScene: SKScene {
     /// last resort. Asked on every mode change and every 0.25 s (update).
     func applyFrameRate() {
         let menuUp = mode == .paused || mode == .ended || mode == .levelUp
+        // R0: a won mission's world keeps animating under the report — at the game's rate while the lift eases to a stop
+        let settling = mode == .ended && wonT >= 0 && wonT < GameScene.victorySmooth
         var fps = 60
-        if menuUp {
+        if menuUp && !settling {
             fps = 30
         } else if let q = world?.renderer.quality {
             fps = q.frameRate(now: FrameTimer.now(), highSetting: qualityName == "high")
@@ -413,6 +426,7 @@ final class GameScene: SKScene {
         world?.reset()
         cameraCtl.reset()
         acc = 0
+        wonT = -1
         mode = .title
         input.reset()
         taps.removeAll()
@@ -437,6 +451,7 @@ final class GameScene: SKScene {
         game = g
         surrendered = false
         defeatBeat = 0
+        wonT = -1
         report = nil
         rankUpHapticAt = -1
         threatLogged = -1
@@ -539,6 +554,10 @@ final class GameScene: SKScene {
         }
         let q = !run.queenSpawned ? "none" : (run.queenDone ? "killed" : "alive")
         AppLog.info("mission over won=\(won) time=\(formatTime(g.time)) kills=\(g.kills) record=\(res.record)")
+        if won {
+            AppLog.info(String(format: "victory: the world keeps animating under the report (lift +%.2f m easing, %.0f s at the game's rate, then the menus')",
+                               Cinematics.shared.afterRise, GameScene.victorySmooth))
+        }
         AppLog.info("v11 run tier=\(g.difficulty.id) won=\(won ? 1 : 0) surrendered=\(run.surrendered ? 1 : 0) downs=\(run.downs) "
                     + "downBy=\(run.downBy.rawValue) stage=\(run.stage.rawValue) beacons=\(run.beaconsDone) queen=\(q) score=\(res.score.total) "
                     + "xp=\(res.xp) rank=\(res.rank0)→\(res.rank1) medal=\(res.medal ? 1 : 0) recTip=\(res.recTip ? 1 : 0) record=\(res.record ? 1 : 0) "
@@ -793,6 +812,9 @@ final class GameScene: SKScene {
             while acc >= step && steps < 4 { g.tick(); acc -= step; steps += 1 }
             if acc > step { acc = step * 0.5 }
         }
+        // R0: won — the scripted camera and the lift's eased overrun keep running under the report
+        let wonLive = mode == .ended && g.phase == .won
+        if wonLive { Cinematics.shared.update(game: g, dt: dt, by: .scene) }
         let t1 = FrameTimer.now()
         simMs += ((t1 - t0) * 1000 - simMs) * 0.05
         sceneTimer.mark()
@@ -809,9 +831,10 @@ final class GameScene: SKScene {
         }
         if rankUpHapticAt > 0 && lastTime >= rankUpHapticAt { rankUpHapticAt = -1; haptics.play(.success) }
         if mode == .playing && g.wantsLevelUp && !g.autoPickUpgrades { openLevelUp() }
-        // the report comes up over the frozen world, like the web endGame(); a lost squad first gets its defeat beat (feel
-        // build A3: the deaths and Cinematics' push-in, `Cinematics.defeatLength` s — `-demo defeat` plays it too)
-        if mode == .playing && g.phase != .playing && (demo == nil || demo?.name == "defeat") {
+        // the report comes up over the world, like the web endGame(); a lost squad first gets its defeat beat (feel build A3:
+        // the deaths and Cinematics' push-in, `Cinematics.defeatLength` s — `-demo defeat` plays it too); a won mission's
+        // world keeps animating under it (R0, `wonT` — `-demo win` plays it)
+        if mode == .playing && g.phase != .playing && (demo == nil || demo?.name == "defeat" || demo?.name == "win") {
             if g.phase == .lost && !surrendered && defeatBeat < Cinematics.defeatLength {
                 if defeatBeat == 0 { AppLog.info("defeat beat start") }
                 defeatBeat += max(dt, 1e-4)
@@ -829,17 +852,34 @@ final class GameScene: SKScene {
             audio?.play(.heart, pos: nil, listener: listener())
         }
 
-        let live = mode == .playing || mode == .title
-        let alpha: Float = live ? Float(max(0, min(1, acc / Double(SIM_DT)))) : 1
-        let vdt: Float = live ? dt * ts : 0
+        // (the simulation runs in play and in attract mode; R0: the world is drawn live after a win too — under the report —
+        // its clock running down once the report has been left up for `victoryIdle` s)
+        if g.phase == .won {
+            if wonT < 0 { wonT = 0; victoryBuilds = r.builds; lastVictoryLog = currentTime } else { wonT += dt }
+        } else {
+            wonT = -1
+        }
+        let simLive = mode == .playing || mode == .title
+        let wonK: Float = wonT < 0 ? 1 : 1 - smooth01f((wonT - GameScene.victoryIdle) / GameScene.victoryHalt)
+        let live = simLive || (mode == .ended && g.phase == .won && wonK > 0)
+        let alpha: Float = simLive ? Float(max(0, min(1, acc / Double(SIM_DT)))) : 1
+        let vdt: Float = live ? dt * ts * wonK : 0
         renderTime += vdt
         let P = g.player
         let feet = (P.px + (P.x - P.px) * alpha, g.level.groundY(P.x, P.z), P.pz + (P.z - P.pz) * alpha)
         let near = g.bugCountNear(Vec2(cameraCtl.tx, cameraCtl.tz))
-        cameraCtl.update(game: g, feet: feet, dt: max(dt, 0.0001), viewSize: size, title: mode == .title, liftRise: g.liftRise, bugsNear: near)
+        cameraCtl.update(game: g, feet: feet, dt: max(dt, 0.0001), viewSize: size, title: mode == .title, liftRise: Cinematics.shared.liftRise(g),
+                         bugsNear: near)
         sceneTimer.mark()
         let t1r = FrameTimer.now()
         r.update(game: g, alpha: alpha, dt: vdt, time: renderTime, camera: cameraCtl, viewSize: size, frozen: !live)
+        if AppLog.diagnostics && wonT >= 0 && currentTime - lastVictoryLog >= 1 {
+            // R0: the world after a win — frames built in the last second (0 = a frozen world), the lift's overrun, the clock
+            lastVictoryLog = currentTime
+            AppLog.info(String(format: "hb victory t=%.1f world=%d frames lift+%.2fm clock=%.2f ", wonT, r.builds - victoryBuilds,
+                               Cinematics.shared.afterRise, wonK) + "mode=\(mode.rawValue)")
+            victoryBuilds = r.builds
+        }
         if currentTime - lastRateCheck >= 0.25 { lastRateCheck = currentTime; applyFrameRate() }
         sceneTimer.mark()
         if mode != .title {
@@ -847,7 +887,7 @@ final class GameScene: SKScene {
             hud.update(game: g, dt: dt, projection: r, input: input, keyboard: input.keyboardMode)
         }
         sceneTimer.mark()
-        audio?.update(dt: dt, game: g, bugsNear: near, listener: listener(), title: mode == .title, live: live)
+        audio?.update(dt: dt, game: g, bugsNear: near, listener: listener(), title: mode == .title, live: simLive)
         sceneTimer.mark()
         let t2 = FrameTimer.now()
         renderMs += ((t2 - t1r) * 1000 - renderMs) * 0.05

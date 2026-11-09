@@ -54,7 +54,7 @@ struct SwarmType {
 struct SwarmParams {
     SwarmType types[4];
     float4 info;    // x = time, y = 1 bug-sheet studio light, z = glint min size (drawable px), w = glint size scale
-    float4 queen;   // rgb rim of the Матка, w = unused
+    float4 queen;   // rgb rim of the Матка, w = the extraction shot's near-lens fade: its outer edge in m, 0 = off (R0)
 };
 
 /// A gland drawn as a glint sprite (WorldSwarm uploads the four types' tables, 32 bytes each).

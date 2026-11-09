@@ -64,6 +64,10 @@ import IceHiveCore
 //                   after «scene ready» (0.6 s apart, the player last, invulnerability off for it): the core loses the
 //                   mission, GameScene plays the defeat beat (the deaths, Cinematics' push-in, 2.8 s) and the report
 //                   comes up — the CI burst burst-defeat and the screenshot after it
+//  R0 (film fixes):
+//    -demo win      like hold; 1 s after «scene ready» the lift leaves and the ride plays out to the win (4.6 s): the
+//                   report comes up at once and the world keeps animating under it (the lift eases to a stop with the
+//                   extraction camera, the squad's victory, the effects) — the CI burst burst-win (HUD off: the world)
 //    No demo shows more live bugs than the game itself can: every forced crowd is clamped to the mission's live cap
 //    (`crowd(_:)`; the wave pacing's High 350 / Medium 250 / Low 220 under the device class), the hold demos play the
 //    director's own hold. Only the declared renderer stress runs go past it — stress1400 (1400) and an explicit
@@ -91,6 +95,8 @@ final class DemoScript {
     /// The running demo's `sinceReady` (-1 with no demo or while loading).
     private(set) static var sceneClock: Double = -1
     private var queenSet = false, coachStepped = false
+    /// `-demo win`: the hold has been ended (the lift leaves on the next ticks).
+    private var winLeft = false
     private var defeatStep = 0
     /// `-demo report`: the fixture whose outcome the mission gets.
     let reportFixture: DemoFixtures.Report?
@@ -109,7 +115,7 @@ final class DemoScript {
         case "combat", "smoke", "default": return DemoScript(name: d == "default" ? "combat" : d, options: options, bugs: options.bugs)
         case "beacon": return DemoScript(name: d, options: options, bugs: options.bugs)
         case "title", "calm", "probe", "hold", "holdhint", "extract", "queen", "queenlock", "coach", "pressure", "report", "levelup", "pause", "end",
-             "swarmshot", "layout", "bugsheet", "punchin", "extract-cine", "waves", "swarmpack", "swarmmix", "defeat":
+             "swarmshot", "layout", "bugsheet", "punchin", "extract-cine", "waves", "swarmpack", "swarmmix", "defeat", "win":
             return DemoScript(name: d, options: options)
         case "stress1400": return DemoScript(name: d, options: options, bugs: options.bugs ?? 1400)
         default:
@@ -133,7 +139,7 @@ final class DemoScript {
     /// Graphics tier the demo forces without touching the saved setting (the store shots and the WP7 cinematics are
     /// taken on «высокая»; stress1400 is the plan's High budget run).
     var preferredQuality: String? {
-        ["swarmshot", "stress1400", "punchin", "extract-cine"].contains(name) ? "high" : nil
+        ["swarmshot", "stress1400", "punchin", "extract-cine", "win"].contains(name) ? "high" : nil
     }
 
     /// World time scale the scene applies on top of hit-stop: the demo's freeze (swarmshot, coach, the held punch-in:
@@ -159,7 +165,7 @@ final class DemoScript {
             game.directorEnabled = false
             target = 0
             AppLog.info("demo \(name): director off, squad idle")
-        case "hold", "holdhint", "extract", "queen", "queenlock", "extract-cine":
+        case "hold", "holdhint", "extract", "queen", "queenlock", "extract-cine", "win":
             var guardN = 0
             while game.stage == .beacons && guardN < 6 { game.debugSkip(); guardN += 1 }
             if game.stage == .toLift { game.debugSkip() }
@@ -315,6 +321,12 @@ final class DemoScript {
         if name == "extract" {
             if game.stage == .hold && t >= 6 { game.debugSkip() }
             if game.stage == .extract { game.debugPinExtract(2.0) }
+        }
+        if name == "win" && !winLeft && game.stage == .hold && sinceReady >= 1 {
+            // (R0: the ride is not pinned — it plays out to the win, and the scene brings the report up over the live world)
+            winLeft = true
+            game.debugSkip()
+            AppLog.info(String(format: "demo win: lift leaves td=%.2f stage %d", sinceReady, game.stage.rawValue))
         }
         if name == "probe" && probeIndex < probeSteps.count && t >= Float(4 * (probeIndex + 1)) {
             probe = probeSteps[probeIndex]

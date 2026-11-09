@@ -13,7 +13,11 @@ import IceHiveCore
 //                the game camera's side (+20°), 3 m outside the
 //                platform and 2.6 m above its deck, and rides up with it
 //                — a little slower, so at the top it looks up across the
-//                railing at the squad (until the mission ends); fov 36°
+//                railing at the squad; fov 36°. Won (R0 film fixes):
+//                the core stops with the ride, but the lift — and the
+//                camera on it — eases to a stop (`afterRise`: the ride's
+//                last speed decaying over `afterTau` s) instead of
+//                halting dead, under the report
 //    defeat      (feel build A3) the squad is lost: the world stops,
 //                the marines die where they lie (MarineRig's deaths),
 //                and the camera pushes in on the player's marine (a
@@ -95,6 +99,19 @@ final class Cinematics {
     var drivenByScene: Bool { sceneDrives }
     /// Shots started since the last reset (logs / CI).
     private(set) var started = 0
+    /// R0 (film fixes): the weight of a close scripted shot on screen (punch-in, extraction, defeat; not the title's orbit)
+    /// — the squad's faint class rim and the brighter accent read in it (WorldSquad).
+    var closeShotWeight: Float { camerasOn && kind != nil && kind != .title ? weight : 0 }
+    /// R0: the extraction shot's weight — the bugs' near-lens fade (WorldSwarm).
+    var extractionWeight: Float { camerasOn && kind == .extraction ? weight : 0 }
+    /// R0: how far the lift has gone past the core's rise since the mission was won on it (m). The core stops ticking at
+    /// the win and the lift — with the extraction camera riding it — halted dead for the ~2 s before the report in the
+    /// feel build's film; now it keeps the ride's last speed, decaying over `afterTau` s. Every reader of the rise takes
+    /// `liftRise(_:)`.
+    private(set) var afterRise: Float = 0
+    static let afterTau: Float = 0.8
+    /// The lift's rise as drawn: the core's, plus the eased overrun after a win.
+    func liftRise(_ g: Game) -> Float { g.liftRise + afterRise }
     /// The eye's yaw offset that keeps it out of the beams (degrees, eased) and how often it had to move.
     private(set) var coneYawDeg: Float = 0
     private(set) var coneMoves = 0
@@ -113,6 +130,10 @@ final class Cinematics {
     private var conePitchDeg: Float = 0
     private var clock: Float = 0
     private var logT: Float = 0
+    // R0: the ride's speed (m/s, the chord over the last core tick) and the time since the win on the lift
+    private var riseV: Float = 0
+    private var riseE: Float = -1, riseR: Float = 0
+    private var afterT: Float = 0
 
     // ---- the game, as of the last update
     private var beaconPos = F3(0, 0, 0)
@@ -155,6 +176,7 @@ final class Cinematics {
         coneYawDeg = 0; coneWantDeg = 0; conePitchDeg = 0; coneLift = 0; coneMoves = 0
         started = 0
         mood = "gameplay"; carryEV = 0; shotEV = launchEV
+        riseV = 0; riseE = -1; riseR = 0; afterT = 0; afterRise = 0
     }
 
     // ---------------------------------------------------------------- per tick
@@ -179,6 +201,18 @@ final class Cinematics {
         }
         beaconStates = g.beacons.map { $0.state }
         known = true
+        // R0: the ride's speed while it runs; won on the lift, the eased overrun (the core's rise stands still from then on)
+        if g.stage == .extract && g.phase == .playing {
+            let e = g.extractT
+            if riseE >= 0 && e > riseE + 1e-4 { riseV = max(0, (g.liftRise - riseR) / (e - riseE)) }
+            if e != riseE { riseE = e; riseR = g.liftRise }
+            afterT = 0; afterRise = 0
+        } else if g.phase == .won && g.stage == .extract {
+            afterT += dt
+            afterRise = riseV * Cinematics.afterTau * (1 - expf(-afterT / Cinematics.afterTau))
+        } else if g.phase != .won {
+            riseE = -1; afterT = 0; afterRise = 0
+        }
         observe(g)
         advance(dt)
         setMood(g, dt)
@@ -187,7 +221,9 @@ final class Cinematics {
             if logT <= 0 {
                 logT = 1
                 AppLog.info(String(format: "hb cine %@ t=%.2f w=%.2f ts=%.2f mood=%@ ev=%+.2f coneYaw=%+.0f pitch+%.0f moves=%d",
-                                   k.rawValue, t, weight, timeScale, mood, shotEV, coneYawDeg, conePitchDeg, coneMoves))
+                                   k.rawValue, t, weight, timeScale, mood, shotEV, coneYawDeg, conePitchDeg, coneMoves)
+                            + (g.phase == .won && k == .extraction ? String(format: " won+%.1fs lift+%.2fm v=%.2fm/s", afterT, afterRise,
+                                                                             riseV * expf(-afterT / Cinematics.afterTau)) : ""))
             }
         }
     }
@@ -269,7 +305,7 @@ final class Cinematics {
             let b = g.beacons[beaconIndex]
             beaconPos = F3(b.x, L.groundY(b.x, b.z), b.z)
         }
-        rise = g.liftRise
+        rise = liftRise(g)
         extractU = g.stage == .extract ? smooth01f(g.extractT / 4.5) : 0
         let ls = L.lift
         lift = (F3(ls.x, ls.y + rise, ls.z), ls.r)

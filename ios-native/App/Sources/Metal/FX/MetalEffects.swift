@@ -370,9 +370,11 @@ final class MetalEffects {
                       color: F4(0.8, 1.05, 1.4, 1), gravity: 12, drag: 0.6, bounce: 0.3)
             gpu.burst(.debris, num(3), at: p, sphere: 4.5, upper: true, life: (0.8, 1.4), size: (0.14 * s, 0.1 * s),
                       color: F4(0.5, 0.62, 0.75, 1), gravity: 13, drag: 0.3, spin: 8)
-            gpu.burst(.steam, 2, at: p, jitter: F3(0.2, 0.1, 0.2), vel: F3(0, 0.6, 0), life: (0.7, 1.1), size: (0.5 * s, 1.4 * s),
-                      color: F4(0.6, 0.72, 0.85, 0.45), drag: 1.2)
-            decals.add(x, z, size: s * 0.9, cell: .frost, kind: .frost, tint: F3(0.72, 0.84, 0.98), opacity: 0.85)
+            // (R0: one darker, thinner puff — a cryo freezing a pack shattered into a white haze over the fight in the film —
+            // and fainter rime)
+            gpu.burst(.steam, 1, at: p, jitter: F3(0.2, 0.1, 0.2), vel: F3(0, 0.6, 0), life: (0.6, 1.0), size: (0.45 * s, 1.1 * s),
+                      color: F4(0.4, 0.5, 0.6, 0.3), drag: 1.2)
+            decals.add(x, z, size: s * 0.9, cell: .frost, kind: .frost, tint: F3(0.72, 0.84, 0.98), opacity: 0.6)
             return
         }
         let ich = MetalEffects.ichor(ty)
@@ -608,9 +610,10 @@ final class MetalEffects {
         // across the whole swarm and past it); the close-ups keep the modelled beam (squad camera distance: gameK)
         let gk = squad?.gameK ?? 1
         // (native-vx-feel: a calmer stream at the game camera — a narrower, dimmer sheath; it read as a white smear across the
-        // fight in the first film)
-        ribbons.cryoBeam(from: o, ax: ax, az: az, len: len, time: frameTime, seed: Float(k) * 1.7, intensity: env * env * (1 - 0.4 * gk),
-                         widthK: 1 + 0.55 * gk, soft: gk, coreEnd: 1 - gk * (1 - hitU))
+        // fight in the first film. R0 film fixes: the cryo's mist was still the loudest thing in the feel build's film —
+        // narrower and dimmer again, less and darker vapour, fainter rime)
+        ribbons.cryoBeam(from: o, ax: ax, az: az, len: len, time: frameTime, seed: Float(k) * 1.7, intensity: env * env * (1 - 0.52 * gk),
+                         widthK: 1 + 0.35 * gk, soft: gk, coreEnd: 1 - gk * (1 - hitU))
         let ni = rate(&acc[k][3], 24, dt)
         if ni > 0 {
             let t = rr(0.5, len)
@@ -618,22 +621,23 @@ final class MetalEffects {
                       life: (0.3, 0.6), size: (0.06, 0.03), color: F4(0.7, 1.0, 1.45, 1), gravity: 3, drag: 2)
         }
         let end = F3(o.x + ax * len, gy(o.x + ax * len, o.z + az * len) + 0.3, o.z + az * len)
-        let nm = rate(&acc[k][4], 5, dt)
+        let nm = rate(&acc[k][4], 3, dt)
         if nm > 0 {
-            gpu.burst(.steam, nm, at: end, jitter: F3(0.4, 0.1, 0.4), vel: F3(0, 0.5, 0), velJitter: F3(0.5, 0.3, 0.5), life: (0.8, 1.3),
-                      size: (0.6, 1.7), color: F4(0.3, 0.42, 0.55, 0.3), drag: 1, spin: 0.6)
+            gpu.burst(.steam, nm, at: end, jitter: F3(0.4, 0.1, 0.4), vel: F3(0, 0.5, 0), velJitter: F3(0.5, 0.3, 0.5), life: (0.8, 1.2),
+                      size: (0.5, 1.3), color: F4(0.2, 0.28, 0.37, 0.2), drag: 1, spin: 0.6)
         }
-        // frost vapour shed along the beam (more of it from the game camera: the stream's body)
-        let nv = rate(&acc[k][5], 5 + 3 * gk, dt)
+        // frost vapour shed along the beam (more of it from the game camera: the stream's body) — dark enough that the
+        // cryo's own flashlight, which runs along the beam, does not light it into a white band
+        let nv = rate(&acc[k][5], 3 + 1.5 * gk, dt)
         if nv > 0 {
             let t = rr(0.8, len)
             gpu.burst(.steam, nv, at: o + d * t - F3(0, 0.3, 0), jitter: F3(0.2, 0.1, 0.2), vel: F3(0, 0.3, 0), velJitter: F3(0.3, 0.2, 0.3),
-                      life: (0.5, 0.9), size: (0.35, 0.8), color: F4(0.22, 0.33, 0.45, 0.18), drag: 1.5, spin: 0.6)
+                      life: (0.5, 0.85), size: (0.3, 0.65), color: F4(0.15, 0.22, 0.3, 0.12), drag: 1.5, spin: 0.6)
         }
         scorchT[k] -= dt
         if scorchT[k] <= 0 {
-            scorchT[k] = 0.35
-            decals.add(end.x, end.z, size: rr(1.0, 1.6), cell: .frost, kind: .frost, tint: F3(0.8, 0.9, 1.0), opacity: 0.7)
+            scorchT[k] = 0.45
+            decals.add(end.x, end.z, size: rr(0.9, 1.4), cell: .frost, kind: .frost, tint: F3(0.8, 0.9, 1.0), opacity: 0.45)
         }
     }
 
@@ -652,10 +656,11 @@ final class MetalEffects {
         case .frost:
             gpu.burst(.ice, num(12), at: p, sphere: 7, upper: true, life: (0.4, 0.9), size: (0.1, 0.04), color: F4(0.8, 1.05, 1.45, 1),
                       gravity: 10, drag: 0.8)
-            gpu.burst(.steam, num(3), at: p, jitter: F3(0.4, 0.2, 0.4), radial: 1.5, life: (0.8, 1.3), size: (0.7, 2.0),
-                      color: F4(0.6, 0.72, 0.85, 0.4), drag: 1.2)
-            floorTimed(x, z, radius: r * 0.9, mode: .frost, color: F3(0.5, 1.3, 2.2), life: 0.45, thickness: 0.1)
-            decals.add(x, z, size: r * 0.8, cell: .frost, kind: .frost, tint: F3(0.75, 0.86, 0.98), opacity: 0.8)
+            // (R0: a thinner, darker frost puff and a fainter ring — the cryo's mist was the loudest thing in the film)
+            gpu.burst(.steam, num(2), at: p, jitter: F3(0.4, 0.2, 0.4), radial: 1.5, life: (0.8, 1.2), size: (0.6, 1.5),
+                      color: F4(0.38, 0.47, 0.58, 0.26), drag: 1.2)
+            floorTimed(x, z, radius: r * 0.9, mode: .frost, color: F3(0.36, 0.92, 1.55), life: 0.45, thickness: 0.1)
+            decals.add(x, z, size: r * 0.8, cell: .frost, kind: .frost, tint: F3(0.75, 0.86, 0.98), opacity: 0.55)
             return
         default:
             break
@@ -768,16 +773,18 @@ final class MetalEffects {
                   color: F4(0.35, 0.37, 0.4, 0.4), drag: 2)
     }
 
+    /// (R0 film fixes: the napalm ring was the loudest effect in the feel build's film — a smaller burst, a softer flash
+    /// and shock ring; the burning field below likewise)
     private func napalmBurst(_ x: Float, _ z: Float, _ r: Float) {
         let p = F3(x, gy(x, z) + 0.4, z)
-        let n = flameBudget(num(32))
+        let n = flameBudget(num(22))
         if n > 0 {
-            gpu.burst(.fire, n, at: p, ring: r * 0.5, vel: F3(0, 0.6, 0), radial: r * 1.4, radialJitter: 0.4, life: (0.4, 0.8), size: (0.6, 2.0),
-                      color: F4(1, 0.72, 0.46, 0.85), gravity: -1.5, drag: 2.4, spin: 2)
+            gpu.burst(.fire, n, at: p, ring: r * 0.5, vel: F3(0, 0.6, 0), radial: r * 1.3, radialJitter: 0.4, life: (0.4, 0.75), size: (0.5, 1.6),
+                      color: F4(0.95, 0.66, 0.42, 0.8), gravity: -1.5, drag: 2.4, spin: 2)
         }
-        flash(p + F3(0, 1.1, 0), F3(1.0, 0.45, 0.15), peak: 160, dur: 0.5, range: r * 2.6, priority: 25)
-        floorTimed(x, z, radius: r * 1.4, mode: .shock, color: F3(2.6, 1.0, 0.25), life: 0.4, thickness: 0.07)
-        heatTimed(p, radius: r * 1.5, strength: 0.6, mode: 1, life: 0.45)
+        flash(p + F3(0, 1.1, 0), F3(1.0, 0.45, 0.15), peak: 105, dur: 0.45, range: r * 2.3, priority: 25)
+        floorTimed(x, z, radius: r * 1.4, mode: .shock, color: F3(1.6, 0.62, 0.16), life: 0.4, thickness: 0.07)
+        heatTimed(p, radius: r * 1.4, strength: 0.45, mode: 1, life: 0.45)
         decals.add(x, z, size: r * 1.8, cell: .scorch, kind: .scorch, tint: F3(0.12, 0.08, 0.06), flecks: 1)
     }
 
@@ -785,36 +792,39 @@ final class MetalEffects {
     private func napalmField(_ x: Float, _ z: Float, _ r: Float, dt: Float, k: Int) {
         let g = gy(x, z)
         let kk = k % napalmAcc.count
-        napalmAcc[kk] += 120 * fxK * dt * (r / 5)
+        napalmAcc[kk] += 75 * fxK * dt * (r / 5)
         let n0 = Int(napalmAcc[kk])
         napalmAcc[kk] -= Float(n0)
         let n = flameBudget(n0)
         if n > 0 {
-            gpu.burst(.fire, n, at: F3(x, g + 0.15, z), jitter: F3(0.3, 0, 0.3), ring: r * 0.9, vel: F3(0, 1.3, 0), velJitter: F3(0.3, 0.4, 0.3),
-                      life: (0.45, 0.75), size: (0.45, 1.35), color: F4(1, 0.95, 0.9, 0.8), gravity: -1.2, drag: 1, spin: 2)
+            gpu.burst(.fire, n, at: F3(x, g + 0.15, z), jitter: F3(0.3, 0, 0.3), ring: r * 0.9, vel: F3(0, 1.1, 0), velJitter: F3(0.3, 0.35, 0.3),
+                      life: (0.4, 0.7), size: (0.4, 1.05), color: F4(0.85, 0.78, 0.72, 0.72), gravity: -1.2, drag: 1, spin: 2)
         }
         if rnd() < 7 * fxK * dt {
             gpu.burst(.smoke, 1, at: F3(x, g + 1.2, z), jitter: F3(r * 0.6, 0.3, r * 0.6), vel: F3(0, 1.4, 0), life: (1.6, 2.4), size: (1.2, 3.2),
                       color: F4(0.06, 0.055, 0.05, 0.38), gravity: -0.4, drag: 0.6, spin: 0.3)
         }
-        if rnd() < 7 * fxK * dt {
+        if rnd() < 5 * fxK * dt {
             gpu.burst(.ember, 1, at: F3(x, g + 0.3, z), jitter: F3(r * 0.8, 0.1, r * 0.8), vel: F3(0, 2.2, 0), velJitter: F3(0.8, 0.8, 0.8),
                       life: (0.8, 1.6), size: (0.05, 0.02), color: F4(2.2, 0.7, 0.15, 1), gravity: 0.6, drag: 1)
         }
-        floorNow(x, g + 0.05, z, radius: r * 1.2, mode: .fire, color: F3(1.2, 0.42, 0.08) * (0.18 + 0.05 * rnd()), seed: Float(k))
-        heatNow(F3(x, g + 0.8, z), radius: r * 0.8, strength: 0.28, mode: 2)
+        // (R0: the deck glow under it — with the field's lights it flooded the whole defended platform orange)
+        floorNow(x, g + 0.05, z, radius: r * 1.05, mode: .fire, color: F3(1.2, 0.42, 0.08) * (0.1 + 0.03 * rnd()), seed: Float(k))
+        heatNow(F3(x, g + 0.8, z), radius: r * 0.8, strength: 0.22, mode: 2)
     }
 
     private func nova(_ x: Float, _ z: Float, _ r: Float) {
         let g = gy(x, z)
-        floorTimed(x, z, radius: r * 1.1, mode: .frost, color: F3(0.6, 1.4, 2.4), life: 0.55, thickness: 0.09)
-        gpu.burst(.ice, num(28), at: F3(x, g + 0.5, z), ring: r * 0.25, vel: F3(0, 1, 0), velJitter: F3(0.5, 1, 0.5), radial: r * 2.2,
-                  life: (0.4, 0.8), size: (0.08, 0.04), color: F4(0.7, 1.0, 1.45, 1), gravity: 4, drag: 1.2)
+        // (R0 film fixes: still the loudest pale thing in the feel build's film — a fainter ring, fewer shards, a thinner and
+        // darker cloud, a smaller, fainter rime disc and a softer light)
+        floorTimed(x, z, radius: r * 1.1, mode: .frost, color: F3(0.4, 0.95, 1.6), life: 0.5, thickness: 0.09)
+        gpu.burst(.ice, num(20), at: F3(x, g + 0.5, z), ring: r * 0.25, vel: F3(0, 1, 0), velJitter: F3(0.5, 1, 0.5), radial: r * 2.2,
+                  life: (0.4, 0.75), size: (0.08, 0.04), color: F4(0.7, 1.0, 1.45, 1), gravity: 4, drag: 1.2)
         // (native-vx-feel: a thinner frost cloud — the bots' novas left a white disk over the fight in the second film)
-        gpu.burst(.steam, num(5), at: F3(x, g + 0.3, z), ring: r * 0.7, radial: 2, life: (0.9, 1.4), size: (0.8, 2.0),
-                  color: F4(0.55, 0.7, 0.88, 0.22), drag: 1.2, spin: 0.5)
-        decals.add(x, z, size: r * 1.5, cell: .frost, kind: .frost, tint: F3(0.75, 0.86, 0.98), opacity: 0.8)
-        flash(F3(x, g + 2, z), F3(0.45, 0.8, 1.0), peak: 110, dur: 0.4, range: r * 2.4, priority: 20)
+        gpu.burst(.steam, num(3), at: F3(x, g + 0.3, z), ring: r * 0.7, radial: 2, life: (0.8, 1.2), size: (0.6, 1.5),
+                  color: F4(0.36, 0.46, 0.58, 0.14), drag: 1.2, spin: 0.5)
+        decals.add(x, z, size: r * 1.2, cell: .frost, kind: .frost, tint: F3(0.75, 0.86, 0.98), opacity: 0.5)
+        flash(F3(x, g + 2, z), F3(0.45, 0.8, 1.0), peak: 80, dur: 0.4, range: r * 2.2, priority: 20)
     }
 
     private func turretDrop(_ x: Float, _ z: Float) {
@@ -949,26 +959,29 @@ final class MetalEffects {
         blasts.removeAll(where: { $0 > 1.1 })
         look.step(self, game: game, focus: focus, time: time)
         if let sq = squad, sq.lookDev.fire { squadFireLook(sq, game: game, dt: dt) }
-        // the weapons' continuous effects
+        // the weapons' continuous effects (R0: silent once the mission is over — the core stops ticking with its last
+        // `firing` states, and the world keeps animating after a win: no flame jet or beam pouring on at nothing)
+        let armed = game.phase == .playing
         for (k, m) in game.marines.enumerated() where k < 4 {
             // a downed marine's beam is gone at once (no fading full-length ghost beam on the revive)
             if m.downed { beamEnv[k] = 0; beamLen[k] = 0; continue }
-            if m.firing && m.cls == .pyro && dt > 0 {
+            let firing = m.firing && armed
+            if firing && m.cls == .pyro && dt > 0 {
                 flameJet(muzzle(m, k), ax: m.ax, az: m.az, vel: F3(m.vx, 0, m.vz), dt: dt, k: k)
             }
             if m.cls == .cryo {
                 // the beam's envelope (native-vx-squad): an AI cryo's `firing` drops for single ticks while it re-picks a
                 // target, and the beam blinked on and off frame to frame (burst combat 00–04: a lone white line in one frame
                 // of four, a laser strobe); now it ramps in over 60 ms and dies out over 160 ms at its last length
-                if m.firing { beamLen[k] = m.beamLen }
-                beamEnv[k] = m.firing ? min(1, beamEnv[k] + dt / 0.06) : max(0, beamEnv[k] - dt / 0.16)
+                if firing { beamLen[k] = m.beamLen }
+                beamEnv[k] = firing ? min(1, beamEnv[k] + dt / 0.06) : max(0, beamEnv[k] - dt / 0.16)
                 if beamEnv[k] > 0 && beamLen[k] > 0.3 {
                     let o = muzzle(m, k)
                     // where the beam meets the first bug body: the white core ends there at the game camera (the frost
                     // sheath goes on — the core's damage pierces); without a bug the whole length
                     let hit = game.raycastBugs(origin: Vec2(o.x, o.z), dir: Vec2(m.ax, m.az), maxDistance: beamLen[k])
                     let hitU: Float = hit.bug >= 0 ? max(0.15, min(1, hit.distance / beamLen[k])) : 1
-                    cryoStream(o, ax: m.ax, az: m.az, len: beamLen[k], dt: m.firing ? dt : 0, k: k, env: beamEnv[k], hitU: hitU)
+                    cryoStream(o, ax: m.ax, az: m.az, len: beamLen[k], dt: firing ? dt : 0, k: k, env: beamEnv[k], hitU: hitU)
                 }
             }
         }
@@ -1097,7 +1110,10 @@ final class MetalEffects {
                                             params: F4(FloorMode.ring.rawValue, u, 0, inten), axis: .zero))
                 } else {
                     let rad = e.r0 + (e.r1 - e.r0) * smooth01f(u)
-                    floorMax.append(FloorFx(center: F4(e.x, y, e.z, rad), color: F4(col.x, col.y, col.z, max(0, 1 - u)),
+                    // (R0: the napalm zone's edge and the Ice Wave's fronts quieter — the loudest effects in the film; a
+                    // help, not a danger telegraph)
+                    let q: Float = e.cause == .napalm ? 0.55 : (e.cause == .nova ? 0.7 : 1)
+                    floorMax.append(FloorFx(center: F4(e.x, y, e.z, rad), color: F4(col.x * q, col.y * q, col.z * q, max(0, 1 - u)),
                                             params: F4(FloorMode.wave.rawValue, u, 0, 1), axis: .zero))
                 }
             }
@@ -1213,7 +1229,8 @@ final class MetalEffects {
         var pyro: Marine? = nil, pyroK = 0
         for (k, m) in game.marines.enumerated() where m.cls == .pyro { pyro = m; pyroK = k }
         let nap = game.napalms.first(where: { $0.active })
-        if let py = pyro, py.firing, !py.downed, pyroK < poses.count {
+        let armed = game.phase == .playing
+        if let py = pyro, py.firing, armed, !py.downed, pyroK < poses.count {
             let p = poses[pyroK]
             l0.pos = F3(p.x + py.ax * 3.5, p.y + 1.4, p.z + py.az * 3.5)
             l0.color = linearRGB(0xff7a28)
@@ -1221,15 +1238,16 @@ final class MetalEffects {
         } else if let n = nap {
             l0.pos = F3(n.x, gy(n.x, n.z) + 1.5, n.z)
             l0.color = linearRGB(0xff6a20)
-            l0.intensity = 140 * (0.8 + 0.2 * sinf(time * 29))
-        } else if let P = game.marines.first, !P.downed, P.muzzle > 0, P.cls == .assault || P.cls == .gunner, !poses.isEmpty {
+            // (R0: 140 → 75 — with the field's grid light and its deck glow it flooded the platform orange in the film)
+            l0.intensity = 75 * (0.8 + 0.2 * sinf(time * 29))
+        } else if let P = game.marines.first, armed, !P.downed, P.muzzle > 0, P.cls == .assault || P.cls == .gunner, !poses.isEmpty {
             // the player's muzzle: a hard pop on each round (the core's muzzle value falls 1 → 0 in 0.1 s)
             let o = muzzle(P, 0)
             l0.pos = F3(o.x + P.ax * 0.4, o.y + 0.1, o.z + P.az * 0.4)
             l0.color = linearRGB(P.cls == .assault ? 0xff6040 : 0xffc060)
             let pop = P.muzzle * P.muzzle
             l0.intensity = 80 * pop * (0.85 + 0.15 * rnd())
-        } else if let P = game.marines.first, !P.downed, P.firing, P.cls == .cryo, let p = poses.first {
+        } else if let P = game.marines.first, armed, !P.downed, P.firing, P.cls == .cryo, let p = poses.first {
             l0.pos = F3(p.x + P.ax * P.beamLen * 0.5, p.y + 1.2, p.z + P.az * P.beamLen * 0.5)
             l0.color = linearRGB(0x60c8ff)
             l0.intensity = 60 * (0.85 + 0.15 * sinf(time * 40))

@@ -34,7 +34,7 @@ import IceHiveCore
 //  the spot / settle shuffles, hits, the largest spine twist, states.
 // ================================================================
 
-/// Per-draw constants of a marine (`struct MarineDraw` in Characters.metal), 112 bytes.
+/// Per-draw constants of a marine (`struct MarineDraw` in Characters.metal), 144 bytes.
 struct MarineDraw {
     /// rgb class hue (linear), w = visor glow multiplier.
     var hue: F4
@@ -50,6 +50,11 @@ struct MarineDraw {
     var fx: F4 = .zero
     /// rgb the squad's readability key light (linear colour × intensity), w = AO cavity strength on the albedo.
     var key: F4 = .zero
+    /// R0 (film fixes): rgb the class read colour of the accent paint (linear), w = how far the helmet / pauldron accent
+    /// moves to it (0 in the material close-ups).
+    var accent: F4 = .zero
+    /// R0: x = the accent's own lift (× the read colour; the game camera), yzw unused.
+    var accentFx: F4 = .zero
 }
 
 /// One weapon flash (`struct FlashInstance` in Characters.metal), 80 bytes.
@@ -94,6 +99,24 @@ final class WorldSquad {
     /// The class-hue Fresnel rim (fs_marine params.x): off since M1 — every silhouette edge glowed in the toy colour
     /// (0.12–0.26); the class reads from the visor, the helmet and pauldron paint, the IFF strobe and the deck rings.
     static let classRim: Float = 0
+    /// R0 (film fixes, the owner's film: «Cryo weakest; the extraction close-up shows dark silhouettes»). The class read
+    /// colour of the accent paint (helmet shell, pauldron tops; sRGB): a lighter, cleaner class colour than the M2 field
+    /// paint (`trim`) — the deck ring's hue toned down. Cryo's #386a90 sank into the cold grade and the navy deck; its ice
+    /// blue is the lightest of the four.
+    static let accentRead: [UInt32] = [0xd8412f, 0xe8922c, 0x62c2f8, 0x62c452]
+    /// How far the accent moves to its read colour at the game camera (assault, pyro, cryo, gunner: Cryo first, the pyro's
+    /// orange already reads) and in a close cinematic shot (punch-in, extraction, defeat); the material close-ups keep M2.
+    static let accentGame: [Float] = [0.8, 0.55, 1.0, 0.75]
+    static let accentCine: Float = 0.5
+    /// The accent's own lift at the game camera (linear, × the read colour × accentGame): the class colour reads outside
+    /// the beams too, a hi-vis paint — not a glow (the close-ups get none).
+    static let accentGlow: Float = 0.07
+    /// The faint class-hue rim (fs_marine params.x) in a close cinematic shot, and the readability key's boost there: the
+    /// backlit squad on the extraction lift read as four dark silhouettes.
+    static let cineRim: Float = 0.16
+    static let cineKey: Float = 0.35
+    /// How much of a close cinematic shot is on (MetalWorld: Cinematics.closeShotWeight).
+    var cineK: Float = 0
     /// Weapon flash size from the game camera (polish), × the modelled size; close-ups draw it at 1.
     /// (native-vx-feel: crisp but smaller — 1.45 → 1.1; the spark fans of the flash thinned out below)
     static let flashGameScale: Float = 1.1
@@ -143,6 +166,8 @@ final class WorldSquad {
     private var prevMuzzle: [Float] = [0, 0, 0, 0]
     private var shotAge: [Float] = [9, 9, 9, 9]
     private var heat: [Float] = [0, 0, 0, 0]
+    /// The rotary's spin as drawn (R0: it winds down once the mission is over, instead of spinning on at the core's last value).
+    private var spinVis: [Float] = [0, 0, 0, 0]
     /// Marine k fired a new round this frame (rifle / rotary; the scripted `-squadFire` too): MetalEffects gives the
     /// look-dev rounds their light pop, sparks, casing and tracer from it.
     private(set) var newRound: [Bool] = [false, false, false, false]
@@ -224,6 +249,9 @@ final class WorldSquad {
         drawn.removeAll(keepingCapacity: true)
         flashes.removeAll(keepingCapacity: true)
         let lost = game.phase == .lost
+        // R0: the mission is over — the core no longer ticks, so its last firing / moving / hurt states stand still: the
+        // weapons fall silent and the rig settles (the world keeps animating after a win, GameScene)
+        let armed = game.phase == .playing
         let high = renderer?.frameTier == .high
         if lookDev.on { lookDev.anchorOnce(game: game, level: level) }
         threatTick &+= 1
@@ -237,13 +265,14 @@ final class WorldSquad {
             var I = RigInput()
             I.pos = F3(x, y, z)
             I.yaw = aimVis[k]
-            I.vel = SIMD2<Float>(m.vx, m.vz)
-            I.firing = m.firing
+            I.vel = armed ? SIMD2<Float>(m.vx, m.vz) : .zero
+            I.firing = m.firing && armed
             I.muzzle = m.muzzle
-            I.spin = m.spin
-            I.dashT = m.dashT
+            spinVis[k] = armed ? m.spin : max(0, spinVis[k] - dt * 1.2)
+            I.spin = spinVis[k]
+            I.dashT = armed ? m.dashT : 0
             I.dashDir = SIMD2<Float>(m.dashX, m.dashZ)
-            I.hurtT = m.hurtT
+            I.hurtT = armed ? m.hurtT : 0
             I.knock = SIMD2<Float>(m.kx, m.kz)
             I.downed = m.downed
             I.revive = m.revive
@@ -282,17 +311,25 @@ final class WorldSquad {
             rig.update(I, dt: dt)
             WorldSquad.torches[k] = rig.worldSocket("torch")
             // hurt flash (red, fading), the invulnerable shimmer (after a revive), downed dimming
-            let hurt = max(0, min(1, m.hurtT / 0.22))
-            let inv: Float = I.invulnerable ? 0.035 + 0.03 * sinf(time * 20) : 0
+            let hurt = armed ? max(0, min(1, m.hurtT / 0.22)) : 0
+            let inv: Float = I.invulnerable && armed ? 0.035 + 0.03 * sinf(time * 20) : 0
             let visor = rig.visor * (1 - 0.5 * hurt) * (m.downed ? 0.75 + 0.25 * sinf(time * 7 + Float(k)) : 1)
             let hue = linearRGB(m.spec.laser)
             let tr = linearRGB(WorldSquad.trim[m.cls.rawValue])
+            // R0: the class accent read — at the game camera (gameK) and in a close cinematic shot (cineK, with the faint
+            // class rim and a stronger readability key there); the material close-ups (both 0) keep M2's look
+            let gk = gameK, ck = cineK * (1 - gk)
+            let ci = m.cls.rawValue
             draws[k] = MarineDraw(hue: F4(hue.x, hue.y, hue.z, visor),
-                                  trim: F4(tr.x, tr.y, tr.z, Float(m.cls.rawValue)),
+                                  trim: F4(tr.x, tr.y, tr.z, Float(ci)),
                                   flash: F4(0.55 * hurt + inv * 0.4, 0.04 * hurt + inv * 0.9, 0.03 * hurt + inv, m.downed && !I.dead ? 0.6 : (I.dead ? 1 : 0)),
-                                  params: F4(WorldSquad.classRim, 5.5 + 2 * gameK, 3.5, high ? 1 : 0))
-            draws[k].key = F4(WorldSquad.keyLight.x, WorldSquad.keyLight.y, WorldSquad.keyLight.z, WorldSquad.cavity)
-            weaponFx(k, m, I, rig, dt: dt, coreHeat: lookDev.on ? -1 : m.heat)
+                                  params: F4(WorldSquad.classRim + WorldSquad.cineRim * ck, 5.5 + 2 * gk, 3.5, high ? 1 : 0))
+            let key = WorldSquad.keyLight * (1 + WorldSquad.cineKey * ck)
+            draws[k].key = F4(key.x, key.y, key.z, WorldSquad.cavity)
+            let ar = linearRGB(WorldSquad.accentRead[ci])
+            draws[k].accent = F4(ar.x, ar.y, ar.z, max(gk * WorldSquad.accentGame[ci], ck * WorldSquad.accentCine))
+            draws[k].accentFx = F4(WorldSquad.accentGlow * WorldSquad.accentGame[ci] * gk, 0, 0, 0)
+            weaponFx(k, m, I, rig, dt: dt, coreHeat: lookDev.on ? -1 : (armed ? m.heat : 0))
             drawn.append(k)
         }
         let ms = (FrameTimer.now() - c0) * 1000

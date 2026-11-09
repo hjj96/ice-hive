@@ -80,6 +80,8 @@ final class MetalWorld: HUDProjection {
     let timer = FrameTimer(["cam", "mar", "bug", "fx", "up"])
 
     private var lastStats = WorldStats()
+    /// World frames built (R0: GameScene's `hb victory` line counts them — the world keeps animating after a win).
+    private(set) var builds = 0
     /// Effect time of ticks without a drawn frame, added to the next drawn one (effects keep their speed).
     private var dtCarry: Float = 0
     /// Camera of the last built frame: a frozen world (menus) is not rebuilt while it holds still.
@@ -239,8 +241,13 @@ final class MetalWorld: HUDProjection {
         }
         renderer.post.setMood(cine.mood)
         renderer.post.shotEV = cine.shotEV
+        // R0 (film fixes): a close scripted shot lights the squad's class rim and accent; the extraction shot dissolves the
+        // bugs at its lens
+        squad.cineK = cine.closeShotWeight
+        swarm.nearFade = cine.extractionWeight
         timer.mark()
-        let rise = game.liftRise
+        // (R0: the lift as drawn — the core's rise plus its eased overrun after a win on it, Cinematics.afterRise)
+        let rise = cine.liftRise(game)
         // no free frame slot (the GPU is behind): nothing to build; the effects catch up on the next drawn frame
         guard renderer.frameOpen else {
             dtCarry = min(0.25, dtCarry + dt0)
@@ -277,6 +284,7 @@ final class MetalWorld: HUDProjection {
         frameUniforms(game: game, time: time, rise: rise)
         timer.mark()
         renderer.built = true
+        builds &+= 1
 
         var s = WorldStats()
         s.visibleBugs = swarm.visible
