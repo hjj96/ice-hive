@@ -809,7 +809,7 @@ final class MetalEffects {
                       life: (0.8, 1.6), size: (0.05, 0.02), color: F4(2.2, 0.7, 0.15, 1), gravity: 0.6, drag: 1)
         }
         // (R0: the deck glow under it — with the field's lights it flooded the whole defended platform orange)
-        floorNow(x, g + 0.05, z, radius: r * 1.05, mode: .fire, color: F3(1.2, 0.42, 0.08) * (0.1 + 0.03 * rnd()), seed: Float(k))
+        floorNow(x, g + 0.05, z, radius: r * 1.05, mode: .fire, color: F3(1.2, 0.42, 0.08) * (0.085 + 0.025 * rnd()), seed: Float(k))
         heatNow(F3(x, g + 0.8, z), radius: r * 0.8, strength: 0.22, mode: 2)
     }
 
@@ -1112,7 +1112,7 @@ final class MetalEffects {
                     let rad = e.r0 + (e.r1 - e.r0) * smooth01f(u)
                     // (R0: the napalm zone's edge and the Ice Wave's fronts quieter — the loudest effects in the film; a
                     // help, not a danger telegraph)
-                    let q: Float = e.cause == .napalm ? 0.55 : (e.cause == .nova ? 0.7 : 1)
+                    let q: Float = e.cause == .napalm ? 0.45 : (e.cause == .nova ? 0.7 : 1)
                     floorMax.append(FloorFx(center: F4(e.x, y, e.z, rad), color: F4(col.x * q, col.y * q, col.z * q, max(0, 1 - u)),
                                             params: F4(FloorMode.wave.rawValue, u, 0, 1), axis: .zero))
                 }
@@ -1154,8 +1154,10 @@ final class MetalEffects {
         let B = game.bugs
         let L = MetalEffects.sightGlintLength
         let rdt = dt
+        // (R0: nothing once the mission is over — the core's last `firing` stands still under the report)
+        let armed = game.phase == .playing
         for (k, m) in game.marines.enumerated() where k < poses.count && k < sightLevel.count {
-            let want: Float = m.firing && !m.downed ? 1 : 0
+            let want: Float = m.firing && !m.downed && armed ? 1 : 0
             let rt: Float = want > sightLevel[k] ? 14 : 5
             sightLevel[k] += (want - sightLevel[k]) * min(1, rt * rdt)
             if m.downed { sightLevel[k] = 0 }
@@ -1190,7 +1192,7 @@ final class MetalEffects {
             }
         }
         let T = game.turret
-        let tWant: Float = T.active ? 1 : 0
+        let tWant: Float = T.active && armed ? 1 : 0
         turretSight += (tWant - turretSight) * min(1, (tWant > turretSight ? 14 : 5) * rdt)
         if T.active && turretSight > 0.02 {
             let ax = sinf(T.angle), az = cosf(T.angle)

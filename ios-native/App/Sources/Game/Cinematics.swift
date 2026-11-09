@@ -110,6 +110,9 @@ final class Cinematics {
     /// `liftRise(_:)`.
     private(set) var afterRise: Float = 0
     static let afterTau: Float = 0.8
+    /// Won on the lift, the shot drifts on under the report: a slow orbit round the squad and a lift of the eye, eased in
+    /// and out over `time` s (with the camera riding the platform the world would otherwise stand nearly still in frame).
+    static let afterDrift = (time: Float(5), yawDeg: Float(9), rise: Float(1.1))
     /// The lift's rise as drawn: the core's, plus the eased overrun after a win.
     func liftRise(_ g: Game) -> Float { g.liftRise + afterRise }
     /// The eye's yaw offset that keeps it out of the beams (degrees, eased) and how often it had to move.
@@ -134,6 +137,9 @@ final class Cinematics {
     private var riseV: Float = 0
     private var riseE: Float = -1, riseR: Float = 0
     private var afterT: Float = 0
+    /// The camera observes the game before the frame's ticks, so during the ride it trails the drawn lift by one tick of
+    /// travel; after the win that trail fades with the speed instead of snapping shut (a framing jump at the win).
+    private var afterLag: Float = 0
 
     // ---- the game, as of the last update
     private var beaconPos = F3(0, 0, 0)
@@ -176,7 +182,7 @@ final class Cinematics {
         coneYawDeg = 0; coneWantDeg = 0; conePitchDeg = 0; coneLift = 0; coneMoves = 0
         started = 0
         mood = "gameplay"; carryEV = 0; shotEV = launchEV
-        riseV = 0; riseE = -1; riseR = 0; afterT = 0; afterRise = 0
+        riseV = 0; riseE = -1; riseR = 0; afterT = 0; afterRise = 0; afterLag = 0
     }
 
     // ---------------------------------------------------------------- per tick
@@ -206,12 +212,14 @@ final class Cinematics {
             let e = g.extractT
             if riseE >= 0 && e > riseE + 1e-4 { riseV = max(0, (g.liftRise - riseR) / (e - riseE)) }
             if e != riseE { riseE = e; riseR = g.liftRise }
-            afterT = 0; afterRise = 0
+            afterT = 0; afterRise = 0; afterLag = 0
         } else if g.phase == .won && g.stage == .extract {
             afterT += dt
-            afterRise = riseV * Cinematics.afterTau * (1 - expf(-afterT / Cinematics.afterTau))
+            let fade = expf(-afterT / Cinematics.afterTau)
+            afterRise = riseV * Cinematics.afterTau * (1 - fade)
+            afterLag = riseV * SIM_DT * fade
         } else if g.phase != .won {
-            riseE = -1; afterT = 0; afterRise = 0
+            riseE = -1; afterT = 0; afterRise = 0; afterLag = 0
         }
         observe(g)
         advance(dt)
@@ -305,7 +313,7 @@ final class Cinematics {
             let b = g.beacons[beaconIndex]
             beaconPos = F3(b.x, L.groundY(b.x, b.z), b.z)
         }
-        rise = liftRise(g)
+        rise = liftRise(g) - afterLag
         extractU = g.stage == .extract ? smooth01f(g.extractT / 4.5) : 0
         let ls = L.lift
         lift = (F3(ls.x, ls.y + rise, ls.z), ls.r)
@@ -389,10 +397,13 @@ final class Cinematics {
     private func extractionPose() -> Pose {
         let X = Cinematics.extraction
         let u = extractU
-        let yaw = MetalCamera.yaw + X.yawOffDeg * .pi / 180
+        // (R0: won on the lift — the slow drift under the report)
+        let D = Cinematics.afterDrift
+        let dw = afterT > 0 ? smooth01f(afterT / D.time) : 0
+        let yaw = MetalCamera.yaw + (X.yawOffDeg + D.yawDeg * dw) * .pi / 180
         let dir = F3(sinf(yaw), 0, cosf(yaw))
         let wall = lift.c + dir * (lift.r + X.out)
-        let eye = F3(wall.x, lift.c.y + X.relY0 + (X.relY1 - X.relY0) * u * u, wall.z)
+        let eye = F3(wall.x, lift.c.y + X.relY0 + (X.relY1 - X.relY0) * u * u + D.rise * dw, wall.z)
         let target = centroid + (lift.c - centroid) * 0.3 + F3(0, 0.7 + 0.5 * u, 0)
         let d = eye - target
         let hd = (d.x * d.x + d.z * d.z).squareRoot()

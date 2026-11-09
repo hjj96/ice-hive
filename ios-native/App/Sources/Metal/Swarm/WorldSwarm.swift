@@ -153,13 +153,23 @@ final class WorldSwarm {
     private var animator: SwarmAnimator?
     private var psCreature: MTLRenderPipelineState?, psGlint: MTLRenderPipelineState?, psProxy: MTLRenderPipelineState?
     private var psCreatureNear: MTLRenderPipelineState?
-    /// R0 (film fixes): the extraction shot's near-lens fade, 0…1 (MetalWorld: the shot's weight). A body nearer the lens
-    /// than `nearFadeM` dissolves through an ordered dither (Swarm.metal fs_chitin_near; its pores with it), gone at 38 %
-    /// of that distance — the owner's film had bugs climbing the lift's rim fill the frame as dark blobs at the lens.
+    /// R0 (film fixes): the extraction shot's near-lens fade, 0…1 (MetalWorld: the shot's weight). A body that would fill
+    /// more than `nearFrac.from` of the frame's height (its length on screen) dissolves as a whole through an ordered
+    /// dither (Swarm.metal fs_chitin_near, its pores with it: the level rides in the instance flags' bits 2–7) and is not
+    /// drawn at all past `nearFrac.to` — the owner's film had bugs climbing the lift's rim fill the frame as dark blobs at
+    /// the lens; the squad's own fight (a brute beside a marine ≈ 0.22 of the height) stays solid.
     var nearFade: Float = 0
-    static let nearFadeM: Float = 3.4
-    /// Bodies inside the near-lens fade this frame / the most in the last second (`hb swarm near=`).
-    private var nearCount = 0, nearMax = 0
+    static let nearFrac: (from: Float, to: Float) = (0.3, 0.5)
+    /// Bodies dissolving / gone this frame, the most in the last second (`hb swarm near=`).
+    private var nearCount = 0, nearGone = 0, nearMax = 0, nearGoneMax = 0
+    private var nearH: Float = 1
+
+    /// The near-lens dissolve of a body `px` drawable pixels long on screen: 0 solid … 63 gone (instance flag bits 2–7).
+    @inline(__always) private func nearLevel(_ px: Float, _ frameH: Float) -> UInt32 {
+        let a = WorldSwarm.nearFrac.from * frameH, b = WorldSwarm.nearFrac.to * frameH
+        let u = max(0, min(1, (px - a) / (b - a)))
+        return UInt32((u * u * (3 - 2 * u) * nearFade * 63).rounded())
+    }
     private var proxyVB: MTLBuffer?, proxyIB: MTLBuffer?
     private var proxyIndexCount = 0
     // per type scratch: instances, screen size, LOD hint / choice, animator slot (-1 corpse)
@@ -348,13 +358,14 @@ final class WorldSwarm {
         let c0 = AppLog.diagnostics ? CPUTime.thread() : 0
         for t in 0..<4 { for l in 0..<3 { regions[t][l] = Region() }; liveN[t] = 0; allN[t] = 0 }
         glintRegion = Region(); glintCount = 0; proxies = Region()
-        visible = 0; corpsesDrawn = 0; swarmTriangles = 0; nearCount = 0
+        visible = 0; corpsesDrawn = 0; swarmTriangles = 0; nearCount = 0; nearGone = 0
         for l in 0..<3 { lodCounts[l] = 0 }
         guard let lib = library, let A = animator, let r = renderer else { return }
         clock += dt
         A.beginFrame()
         let high = r.frameTier == .high
         let eye = camera.eye, fwd = camera.forward, pxScale = camera.pxScale
+        nearH = Float(max(1, r.targetHeight))
         let corps: Corpses? = Corpses.active.flatMap { $0.level === level ? $0 : nil }
         corps?.advance(dt)
 
@@ -368,7 +379,7 @@ final class WorldSwarm {
         writeRegions(lib, high: high)
         if sheet == nil { buildProxies(r, high: high, squad: spot != nil) }
         buildParams(time: time)
-        nearMax = max(nearMax, nearCount)
+        nearMax = max(nearMax, nearCount); nearGoneMax = max(nearGoneMax, nearGone)
         let wallMs = (FrameTimer.now() - t0) * 1000
         buildMs += (wallMs - buildMs) * 0.1
         if AppLog.diagnostics && wallMs > WorldSwarm.slowBuildMs {
@@ -417,6 +428,14 @@ final class WorldSwarm {
             let sc = SC[i] * WorldSwarm.sizeK[t] * vty.size
             // CPU frustum cull: a point at mid-body height (15 % margin covers the body size)
             if !camera.visible(bx, gy + 0.3 * sc, bz) { continue }
+            // R0: the extraction shot dissolves a body at the lens (none fully gone is drawn)
+            var near: UInt32 = 0
+            if nearFade > 0.001 {
+                let dv = max(0.05, (F3(bx - eye.x, gy + 0.3 * sc - eye.y, bz - eye.z) * fwd).sum())
+                near = nearLevel(sc * lens[t] * pxScale / dv, nearH)
+                if near >= 63 { nearGone += 1; continue }
+                if near > 0 { nearCount += 1 }
+            }
             var s = sc, sy = sc
             let st = ST[i]
             if st == swell {
@@ -452,7 +471,7 @@ final class WorldSwarm {
             let v = 0.72 + vr * 0.56
             let h = (vr * 7.31 - floorf(vr * 7.31)) - 0.5
             let queen = U[i] == queenUid
-            let flags: UInt32 = queen ? 1 : 0
+            let flags: UInt32 = (queen ? 1 : 0) | near << 2
             if st == wind && types[i] == brute { sy = s * (1 + sinf(time * 30) * 0.04) }
             let tv = vty.tint
             let tint = queen ? F4(0.75, 0.40, 2.6, sy) : F4(v * (1 + 0.14 * h) * tv.x, v * tv.y, v * (1 - 0.14 * h) * tv.z, sy)
@@ -463,7 +482,6 @@ final class WorldSwarm {
                 fx: SIMD4(unorm8(flash) | unorm8(burn) << 8 | unorm8(frz) << 16, snorm16(o.leanX) | snorm16(o.leanZ) << 16,
                           unorm16(vr) | unorm16(o.boost) << 16, WorldSwarm.packLook(o.lookY, o.lookP, o.sway)))
             let depth = max(0.5, (F3(bx - eye.x, gy - eye.y, bz - eye.z) * fwd).sum())
-            if nearFade > 0.001 && depth < WorldSwarm.nearFadeM * nearFade { nearCount += 1 }
             pxs[t][k] = s * lens[t] * pxScale / depth
             lodHint[t][k] = o.lodPrev
             slots[t][k] = Int32(o.slot)
@@ -516,6 +534,13 @@ final class WorldSwarm {
             for c in ring {
                 if !camera.visible(c.x, c.y + 0.2 * c.scale, c.z) { continue }
                 let t = Int(min(3, c.type))
+                var near: UInt32 = 0
+                if nearFade > 0.001 {
+                    let dv = max(0.05, (F3(c.x - eye.x, c.y + 0.2 * c.scale - eye.y, c.z - eye.z) * fwd).sum())
+                    near = nearLevel(c.scale * lens[t] * pxScale / dv, nearH)
+                    if near >= 63 { nearGone += 1; continue }
+                    if near > 0 { nearCount += 1 }
+                }
                 let k = allN[t]
                 if k >= WorldSwarm.scratchCap { continue }
                 let age = clockC - c.born
@@ -537,10 +562,9 @@ final class WorldSwarm {
                 scratch[t][k] = CreatureInstance(
                     pos: F4(c.x, c.y - sink + c.hop, c.z, c.scale), rot: F4(cosf(c.heading), sinf(c.heading), c.pitchS, c.pitchC),
                     tint: F4(cv * tv.x, cv * 0.97 * tv.y, cv * 0.95 * tv.z, c.scale),
-                    anim: SIMD4(o.a.rows, o.b.rows, unorm16(o.a.frac) | unorm16(o.b.frac) << 16, unorm16(o.wB) | UInt32(t) << 16 | 2 << 24),
+                    anim: SIMD4(o.a.rows, o.b.rows, unorm16(o.a.frac) | unorm16(o.b.frac) << 16, unorm16(o.wB) | UInt32(t) << 16 | (2 | near << 2) << 24),
                     fx: SIMD4(unorm8(burnC) << 8 | unorm8(frostC) << 16 | unorm8(dead) << 24, 0, unorm16(c.seed), 0))
                 let depth = max(0.5, (F3(c.x - eye.x, c.y - eye.y, c.z - eye.z) * fwd).sum())
-                if nearFade > 0.001 && depth < WorldSwarm.nearFadeM * nearFade { nearCount += 1 }
                 pxs[t][k] = c.scale * lens[t] * pxScale / depth
                 // settled bodies drop to LOD2; until then the LOD the bug died with (no mesh change while it dies)
                 lodHint[t][k] = age > dur + 0.6 ? 2 : (c.lod <= 2 ? c.lod : 254)
@@ -829,8 +853,7 @@ final class WorldSwarm {
         params.types = (ty(0, params.types.0.glint), ty(1, params.types.1.glint), ty(2, params.types.2.glint), ty(3, params.types.3.glint))
         if glintCount == 0 { for t in 0..<4 { setGlint(t, first: 0, per: 0, start: 0, bug: 0) } }
         params.info = F4(time, (sheet?.studio ?? false) ? 1 : 0, 1.5, 1.1)
-        // (w, R0: the near-lens fade's outer edge in m, 0 = off — fs_chitin_near, vs_swarm_glint)
-        params.queen = F4(0.55, 0.22, 1.1, nearFade > 0.001 ? WorldSwarm.nearFadeM * nearFade : 0)
+        params.queen = F4(0.55, 0.22, 1.1, 0)
     }
 
     private func heartbeat(_ corps: Corpses?, high: Bool) {
@@ -842,8 +865,8 @@ final class WorldSwarm {
                     + " corpses=\(corpsesDrawn)/\(corps?.count ?? 0) glints=\(glintCount) proxies=\(proxies.count)"
                     + String(format: " build=%.2fms tier=", buildMs) + (high ? "high" : "efficient")
                     + (sheet != nil ? " sheet" : "") + (forcedLOD.map { " forced=LOD\($0)" } ?? "") + (WorldSwarm.noDraw ? " off" : "")
-                    + (nearFade > 0.001 || nearMax > 0 ? String(format: " near=%d fade=%.1fm", nearMax, WorldSwarm.nearFadeM * nearFade) : ""))
-        nearMax = 0
+                    + (nearFade > 0.001 || nearMax + nearGoneMax > 0 ? String(format: " near=%d/%d fade=%.2f", nearMax, nearGoneMax, nearFade) : ""))
+        nearMax = 0; nearGoneMax = 0
     }
 
     // ---------------------------------------------------------------- WP5: where a shot meets the chitin
@@ -883,7 +906,7 @@ final class WorldSwarm {
     /// Opaque item 300: one instanced draw per type × LOD (live bugs and corpses together).
     private func encodeBugs(_ enc: MTLRenderCommandEncoder) {
         guard !WorldSwarm.noDraw, let ps0 = psCreature, let lib = library else { return }
-        let ps = params.queen.w > 0 ? (psCreatureNear ?? ps0) : ps0
+        let ps = nearFade > 0.001 ? (psCreatureNear ?? ps0) : ps0
         let r = renderer!
         r.use(enc, ps)
         var P = params

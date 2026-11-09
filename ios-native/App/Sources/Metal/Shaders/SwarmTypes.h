@@ -30,7 +30,8 @@ struct CreatureInstance {
     float4 rot;     // cos(heading), sin(heading), sin(pitch), cos(pitch)
     float4 tint;    // rgb albedo tint (value / hue variation), w = vertical scale
     uint4  anim;    // x = clip A rows (r0 | r1 << 16), y = clip B rows, z = unorm16 frac A | frac B << 16,
-                    // w = unorm16 weight of B | type << 16 | flags << 24 (CI_QUEEN, CI_CORPSE)
+                    // w = unorm16 weight of B | type << 16 | flags << 24 (CI_QUEEN, CI_CORPSE; bits 2–7: the extraction
+                    //     shot's near-lens dissolve 0…63, R0 — Swarm.metal fs_chitin_near)
     uint4  fx;      // x = unorm8 ×4: hit flash, burn, frost, dead (0 live → 1 the corpse value band)
                     // y = snorm16 ×2: lean (world x, z tilt in radians — the hit recoil away from the impact)
                     // z = unorm16 seed | unorm16 glow boost << 16 (the attack's gland flare, swell pulse)
@@ -54,7 +55,7 @@ struct SwarmType {
 struct SwarmParams {
     SwarmType types[4];
     float4 info;    // x = time, y = 1 bug-sheet studio light, z = glint min size (drawable px), w = glint size scale
-    float4 queen;   // rgb rim of the Матка, w = the extraction shot's near-lens fade: its outer edge in m, 0 = off (R0)
+    float4 queen;   // rgb rim of the Матка, w = unused
 };
 
 /// A gland drawn as a glint sprite (WorldSwarm uploads the four types' tables, 32 bytes each).
