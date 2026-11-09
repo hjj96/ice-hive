@@ -1,0 +1,9 @@
+LOOK (ci/look_metrics.py; gates: ci/golden/thresholds.json — HUD-off shots gated, HUD-on shots masked and reported)
+swarmshot  swarmshot-nohud-0s.png       median  38.4 (plan 40–55) mean  47.7 p95 128.1 p95/p50 3.34 dark 13.1% clip 0.06% specks  991 R-B hi +18.2 lo -33.3 colorf 48.0 [gated] FAIL: warm 18.23 not ≥ 25
+beacon     beacon-nohud-0s.png          median  44.0 mean  50.9 p95 125.1 p95/p50 2.84 dark  7.9% clip 0.03% specks  968 R-B hi +23.9 lo -37.3 colorf 46.1 [gated] ok
+punchin    punchin-nohud-0s.png         median  23.7 mean  53.2 p95 200.7 p95/p50 8.45 dark 36.5% clip 0.35% specks  998 R-B hi +17.9 lo -13.2 colorf 46.7 [gated] ok
+extract    extract-cine-nohud-0s.png    median  36.3 mean  45.7 p95 174.4 p95/p50 4.81 dark 30.6% clip 0.41% specks   36 R-B hi -19.8 lo -31.7 colorf 35.6 [gated] ok
+title      title-nohud-0s.png           median  35.4 mean  47.9 p95 163.2 p95/p50 4.61 dark 21.7% clip 0.07% specks  275 R-B hi +42.9 lo -26.3 colorf 44.7 [gated] ok
+calm       calm-nohud-0s.png            median  37.3 mean  44.7 p95 114.0 p95/p50 3.06 dark 10.7% clip 0.01% specks   18 R-B hi -29.3 lo -37.5 colorf 35.7 deck 39.5 (23 % of frame) snow 10107 px, 0 off deck [gated] ok
+brightness gamma 1.3: frame median 37.3 → 56.7 (+19.4, need ≥ +15) [gated] ok
+LOOK GATE: FAILED — swarmshot: warm 18.23 not ≥ 25
