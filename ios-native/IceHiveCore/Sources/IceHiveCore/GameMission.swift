@@ -355,7 +355,8 @@ extension Game {
     func startHold(_ h: HoldStep) {
         enterPhase(.active)
         liftT = h.time; liftDur = h.time; hordeT = h.firstHorde.value(difficulty); pulseT = 4
-        let n = Int(h.time)
+        // (an endless hold — a holdout — has no countdown to name)
+        let n = h.time.isFinite ? Int(h.time) : 0
         if !simOnly {
             emit(.holdStarted)
             if let b = h.holdBanner { banner(stepLine(b.title, [.int(n)]), stepLine(b.sub, [.int(n)]), false) }

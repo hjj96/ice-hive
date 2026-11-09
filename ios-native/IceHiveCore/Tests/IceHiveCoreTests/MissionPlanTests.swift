@@ -199,6 +199,20 @@ final class MissionPlanTests: XCTestCase {
         XCTAssertEqual(g.phase, .won)
     }
 
+    /// An endless hold (a holdout like R10's «Dig In»): no countdown to name, no progress bar, it only ends with the squad.
+    func testEndlessHold() {
+        var h = HoldStep(zone: .circle(x: 30, z: 25, r: 3), time: .infinity)
+        h.openHorde = PacingValue(legacy: 0, waves: 0)
+        let g = planGame(MissionPlan(id: "t-holdout", steps: [.hold(h)]))
+        g.debugTeleport(30, 25)
+        run(g, seconds: 3, until: { false })
+        XCTAssertTrue(g.holdActive)
+        XCTAssertEqual(g.phase, .playing)
+        XCTAssertEqual(g.objective, GameText(.objHoldArea, [.clock(0)]))
+        XCTAssertEqual(g.objectiveProgress, -1)
+        _ = g.objectiveKey
+    }
+
     func testBossStep() {
         let g = planGame(MissionPlan(id: "t-boss", steps: [.boss(BossStep(.queen, zone: .lift, delay: 2))]), autopilot: true) { $0.queenHp = 400 }
         XCTAssertEqual(g.stage, .boss); XCTAssertEqual(g.objective, GameText(.objReach)); XCTAssertEqual(g.calibStage, "toBoss")

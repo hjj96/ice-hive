@@ -171,7 +171,7 @@ public struct BossRider: Equatable {
 /// marine is inside. The lift adds its shock pulse; a boss rider comes in and locks the hold.
 public struct HoldStep: Equatable {
     public var zone: MissionZone
-    /// Seconds of counted hold.
+    /// Seconds of counted hold (∞: a holdout that only ends with the squad — no countdown on the HUD, no progress bar).
     public var time: Float
     /// The lift's shock pulse (the tier's pulseDamage / pulseInterval) while a marine stands in the zone.
     public var pulse: Bool
@@ -279,7 +279,7 @@ public enum MissionModifier: String, CaseIterable {
     case dark, storm, timed, heavyOverhead
 }
 
-/// A mission: its steps in order, its modifiers, the briefing banner at the drop.
+/// A mission: its steps in order (at least one), its modifiers, the briefing banner at the drop.
 public struct MissionPlan: Equatable {
     public var id: String
     public var steps: [MissionStep]

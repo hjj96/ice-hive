@@ -78,7 +78,7 @@ extension Game {
     /// countdown second.
     public var objectiveKey: Int {
         if attract { return -1 }
-        let hold = holdActive ? Int(liftT.rounded(.up)) : 0
+        let hold = holdActive && liftT.isFinite ? Int(liftT.rounded(.up)) : 0
         var k = missionStep * 2 + stepPhase.rawValue
         k = k * 16 + (activeBeacon + 1)
         k = k * 32 + min(31, beaconsDone)
@@ -97,7 +97,7 @@ extension Game {
         switch currentStep {
         case .ring?: if activeBeacon >= 0 { return beacons[activeBeacon].progress }
         case .switches?: if activeSwitch >= 0 { return switches[activeSwitch].progress }
-        case .hold?: if stepPhase == .active { return 1 - liftT / liftDur }
+        case .hold?: if stepPhase == .active && liftDur.isFinite { return 1 - liftT / liftDur }
         default: break
         }
         return -1
