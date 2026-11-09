@@ -74,16 +74,18 @@ import IceHiveCore
 //                   9.0 s at the latest) for the screenshot. Once a second `hb route alive=… up=… states=… drops=…`.
 //  Stage 1 R6 «Valves, light, lockers»:
 //    -demo interactives  «Кельвин-9» with its interactives laid (PropLayout.kelvinDemo: Kelvin-9's steam valves, seven light
-//                   circuits with breakers, a supply locker, plus a coolant line on the hub → A catwalk) and the overhead's
+//                   circuits with breakers, a supply locker, plus a coolant line on the hub's west rail) and the overhead's
 //                   demo slice (the rack the bridge valve sits on), the
-//                   director off, the player idle at the hub end of the pad → hub bridge, the squad firing. 0.8 s after
+//                   director off, the player idle on the near side of the pad → hub bridge's hub end (the valve's whole
+//                   span, the coolant line, the hub breaker and the locker in frame), the squad firing. 0.8 s after
 //                   «scene ready» a runner pack spawns at the pad end of the bridge under the valve's span and runs along
 //                   it; the gunner pops the valve once 6 are under it (the demo pops it at 1.8 s if nobody has): the
-//                   burst, then the 5 s scald curtain (CI burst burst-valve); at 3.0 s a second pack on the catwalk under
-//                   the coolant line, popped at 3.6 s unless the squad did: 2 s of freezing mist. At 8.0 s the hub's circuit is cut (its lamps
+//                   burst, then the 5 s scald curtain (CI burst burst-valve); at 3.0 s a second pack on the hub's west strip
+//                   under the coolant line, popped at 3.6 s unless the squad did: 2 s of freezing mist. At 8.0 s the hub's circuit is cut (its lamps
 //                   die), from 8.5 s the player walks into the hub breaker's ring and stands there; 6 s in the ring bring
 //                   the lights back, lamp by lamp from the breaker (CI burst burst-lights). `-ixLights`: the lights only —
-//                   no pack, no valve, the cut at 1.0 s and the walk from 1.5 s (a shorter burst run). `props: …` lines on
+//                   the squad on the hub's centre, no pack, no valve, the cut at 1.0 s and the walk from 1.5 s (a shorter
+//                   burst run: the lights back ≈ 8.5 s in). `props: …` lines on
 //                   every prop event, `hb props …` and `demo interactives: …` once a second.
 //  R0 (film fixes):
 //    -demo win      like hold; 1 s after «scene ready» the lift leaves and the ride plays out to the win (4.6 s): the
@@ -271,13 +273,14 @@ final class DemoScript {
             let G = game.level.overhead
             AppLog.info("demo overhead: routes \(G?.edgeCount ?? 0) edges, \(G?.entries.count ?? 0) entries, squad mid-bridge, director off, bots holding fire")
         case "interactives":
-            // Stage 1 R6: the hub end of the pad → hub bridge, in line with the bridge valve's curtain; the squad fires
+            // Stage 1 R6: the near side of the pad → hub bridge's hub end, off the valve's curtain; the squad fires
             game.autopilot = false
             game.directorEnabled = false
-            game.debugTeleport(4, 28.4)
+            // (-ixLights: the hub's centre, 6 m from its breaker)
+            if ixLightsOnly { game.debugTeleport(0.5, 28) } else { game.debugTeleport(8, 31.5) }
             target = 0
             AppLog.info("demo interactives: \(game.valves.count) valves, \(game.circuits.count) circuits, \(game.lamps.count) lamps, "
-                        + "\(game.lockers.count) lockers; lit \(game.lightsLit)/\(game.circuits.count); squad at the hub end of the bridge")
+                        + "\(game.lockers.count) lockers; lit \(game.lightsLit)/\(game.circuits.count); squad on the bridge's hub end")
         case "waves":
             // the wave director's own swarm: the squad in a beacon's ring, its defence starts on the first tick
             let k = max(0, min(game.beacons.count - 1, Int(demoNum("-waveBeacon", 1))))
@@ -572,13 +575,15 @@ final class DemoScript {
                 AppLog.info(String(format: "demo interactives: the demo popped the valve td=%.2f (%d bugs under it)", sinceReady, v.crowd))
             }
         }
-        // the coolant line on the catwalk (valve 4 of the demo's set): a pack under it at 3.0 s, popped at 3.6 s
+        // the coolant line on the hub's west rail (valve 4 of the demo's set): a pack under it at 3.0 s, popped at 3.6 s
         let cool = game.valves.firstIndex { $0.site.kind == .coolant }
         if !ixLightsOnly, let c = cool {
             if ixCool == 0 && sinceReady >= 3.0 {
                 ixCool = 1
                 let s = game.valves[c].site
-                let n = game.debugSpawnLine(8, type: .runner, from: Vec2(s.ax + 0.5, s.az), to: Vec2(s.bx - 0.5, s.bz))
+                let ux = s.bx - s.ax, uz = s.bz - s.az, ul = max(0.01, (ux * ux + uz * uz).squareRoot())
+                let n = game.debugSpawnLine(8, type: .runner, from: Vec2(s.ax + ux / ul * 0.5, s.az + uz / ul * 0.5),
+                                            to: Vec2(s.bx - ux / ul * 0.5, s.bz - uz / ul * 0.5))
                 AppLog.info(String(format: "demo interactives: a pack of %d under the coolant line td=%.2f", n, sinceReady))
             }
             if ixCool == 1 && (game.valves[c].phase != .ready || sinceReady >= 3.6) {

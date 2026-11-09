@@ -184,12 +184,12 @@ public struct PropLayout: Equatable {
         return PropLayout(valves: valves, circuits: circuits, lockers: lockers)
     }()
 
-    /// The interactives demo's set: `kelvin` plus a coolant line on the far rail of the hub → beacon A catwalk (4 m, its mist
-    /// over the catwalk's far half) — the coolant line belongs to the Reactor Ring arena (design §1.3 B); Kelvin-9's own
-    /// set has steam valves only.
+    /// The interactives demo's set: `kelvin` plus a coolant line 0.6 m outside the hub's west rail (4 m, its mist over the
+    /// hub's west strip) — the coolant line belongs to the Reactor Ring arena (design §1.3 B); Kelvin-9's own set has steam
+    /// valves only.
     public static let kelvinDemo: PropLayout = {
         var p = kelvin
-        p.valves.append(ValveSite(x: -15, y: 4.0, z: 24.4, from: Vec2(-20, 26.3), to: Vec2(-10, 26.3), width: 1.3, kind: .coolant))
+        p.valves.append(ValveSite(x: -8.6, y: 4.0, z: 34.4, from: Vec2(-6.8, 31.6), to: Vec2(-6.8, 37.2), width: 1.2, kind: .coolant))
         return p
     }()
 }

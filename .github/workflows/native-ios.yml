@@ -470,7 +470,7 @@ jobs:
           # Stage 1 R6: «Кельвин-9» with its interactives (PropLayout.kelvinDemo) and the overhead slice: a pack along the bridge
           # valve's span, the valve popped (the scald curtain), a pack frozen by the catwalk's coolant line, the hub's lights cut,
           # the player in the breaker's ring, the lights back lamp by lamp (`props: …` lines); the screenshot after it
-          run_demo interactives 18 "-demo interactives -seed 7" 0
+          run_demo interactives 20 "-demo interactives -seed 7" 0
           # the App Store 2-swarm moment staged in the app (gunner at the crossing, the store's 600 bugs under the live cap
           # — 350 on High since native-vx-feel —, firing, time ~frozen), now in landscape (874x402 @3x)
           run_demo swarmshot 4 "-demo swarmshot -seed 7" 0
@@ -555,10 +555,11 @@ jobs:
           run_demo burst-overhead 9 "-demo overhead -seed 7 -hideHUD -burst overhead 4.6 24 4"
           pull_burst burst-overhead
           # Stage 1 R6: the steam valve bursting over the pack and its scald curtain (every 8th present ≈ 3 s), and the hub's
-          # breaker bringing its lamps back (-ixLights: the lights part only, its restore ≈ 9 s in; every 5th present ≈ 2 s)
+          # breaker bringing its lamps back (-ixLights: the lights part only from the hub's centre, its restore ≈ 8.5 s in;
+          # every 5th present ≈ 2 s)
           run_demo burst-valve 6 "-demo interactives -seed 7 -hideHUD -burst valve 1.3 24 8"
           pull_burst burst-valve
-          run_demo burst-lights 11 "-demo interactives -seed 7 -hideHUD -ixLights -burst lights 8.6 24 5"
+          run_demo burst-lights 11 "-demo interactives -seed 7 -hideHUD -ixLights -burst lights 7.9 24 5"
           pull_burst burst-lights
           # WP5 effects look-dev: every effect staged around the squad and frozen mid-air (-fxSheet: blasts, napalm, the
           # flamer jet, the cryo beam, hits, kills, a frozen shatter, acid, a nova, casings, a row of every stain), on
