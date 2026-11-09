@@ -808,8 +808,10 @@ final class MetalEffects {
             gpu.burst(.ember, 1, at: F3(x, g + 0.3, z), jitter: F3(r * 0.8, 0.1, r * 0.8), vel: F3(0, 2.2, 0), velJitter: F3(0.8, 0.8, 0.8),
                       life: (0.8, 1.6), size: (0.05, 0.02), color: F4(2.2, 0.7, 0.15, 1), gravity: 0.6, drag: 1)
         }
-        // (R0: the deck glow under it — with the field's lights it flooded the whole defended platform orange)
-        floorNow(x, g + 0.05, z, radius: r * 1.05, mode: .fire, color: F3(1.2, 0.42, 0.08) * (0.085 + 0.025 * rnd()), seed: Float(k))
+        // (R0: the deck glow under it — with the field's lights it flooded the whole defended platform orange; CI f5abdb7 at
+        // 0.085–0.11 and a ×0.45 zone rim left the field's inside dark and the store moment without warm highlights,
+        // swarmshot R − B +18 / +21 against its +25 gate — 69cbf43's 0.10–0.13 / ×0.55 kept +36)
+        floorNow(x, g + 0.05, z, radius: r * 1.05, mode: .fire, color: F3(1.2, 0.42, 0.08) * (0.1 + 0.03 * rnd()), seed: Float(k))
         heatNow(F3(x, g + 0.8, z), radius: r * 0.8, strength: 0.22, mode: 2)
     }
 
@@ -1112,7 +1114,7 @@ final class MetalEffects {
                     let rad = e.r0 + (e.r1 - e.r0) * smooth01f(u)
                     // (R0: the napalm zone's edge and the Ice Wave's fronts quieter — the loudest effects in the film; a
                     // help, not a danger telegraph)
-                    let q: Float = e.cause == .napalm ? 0.45 : (e.cause == .nova ? 0.7 : 1)
+                    let q: Float = e.cause == .napalm ? 0.55 : (e.cause == .nova ? 0.7 : 1)
                     floorMax.append(FloorFx(center: F4(e.x, y, e.z, rad), color: F4(col.x * q, col.y * q, col.z * q, max(0, 1 - u)),
                                             params: F4(FloorMode.wave.rawValue, u, 0, 1), axis: .zero))
                 }
