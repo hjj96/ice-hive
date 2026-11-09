@@ -497,7 +497,7 @@ fragment OverheadCutOut fs_overhead_cut(OVERHEAD_FS_PARAMS) {
 
 /// The deck cells and the marine proxies: world xyz + a code in w (1 deck, 2…5 marine 0…3).
 vertex QuadOut vs_overhead_vis_flat(uint vid [[vertex_id]],
-                                    constant float4* V [[buffer(0)]],
+                                    const device float4* V [[buffer(0)]],
                                     constant Frame& F [[buffer(1)]]) {
     float4 v = V[vid];
     QuadOut o;

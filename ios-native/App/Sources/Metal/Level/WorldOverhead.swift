@@ -79,6 +79,12 @@ final class WorldOverhead {
     }
     private var chunks: [Chunk] = []
     private var vbuf: MTLBuffer?, ibuf: MTLBuffer?
+    /// Per-frame index lists, one per arena slot (FrameLoop keeps at most two frames on the GPU, as with the arena): this
+    /// frame's visible far chunks back to back, then the near ones — one solid and one cutaway draw whatever the layout
+    /// (tech estimate «+2 draws»), hidden chunks not drawn at all. Without them (allocation failed) the runs over the
+    /// static index buffer are drawn instead.
+    private var frameIdx: [MTLBuffer] = []
+    private var frameIB: MTLBuffer?
     /// Cables: edge → (slot, perpendicular), edge lengths (the sway weight of a bug riding one).
     private var cables: [Int: (slot: Int, perp: F3)] = [:]
     private var edgeLength: [Float] = []
@@ -91,16 +97,22 @@ final class WorldOverhead {
     /// The per-frame block, its arena region this frame, and a copy for the visibility pass.
     private(set) var block = [F4](repeating: .zero, count: Block.count)
     private var region = Region()
-    /// This frame's draw runs (index ranges): far, near; and the caster runs (High).
+    /// This frame's draw runs (index ranges into frameIB — one each — or, without it, into ibuf): far, near; and the caster
+    /// runs into ibuf (High).
     private var farRuns: [(Int, Int)] = [], nearRuns: [(Int, Int)] = [], casterRuns: [(Int, Int)] = []
     private var visibleChunks = 0, nearChunks = 0, points = 0
     private var casterCall = 0
     /// Last frame's stats (hb overhead), the build summary.
     private var lastDraws = (0, 0), lastTris = 0, lastLog: Double = 0
+    /// The CPU cost of build() (ms, smoothed; `hb overhead … cpu=`).
+    private var buildMs: Double = 0
     private(set) var summary = ""
     /// Drop zones whose let-go flash already fired (bug uid).
     private var flashed: Set<Int32> = []
     private var trailAcc: Float = 0
+    /// Emission accumulators of the drop warnings (dust stream, eye glints): by the effects' dt, so a frozen look-dev shot
+    /// (the world ×0.02) does not pile particles up at one place.
+    private var streamAcc: Float = 0, glintAcc: Float = 1
     /// The visibility metric (`-ohVis`), when on.
     private(set) var visibility: OverheadVisibility?
 
@@ -138,6 +150,7 @@ final class WorldOverhead {
         let t0 = FrameTimer.now()
         chunks.removeAll()
         vbuf = nil; ibuf = nil
+        frameIdx = []; frameIB = nil
         cables = [:]
         lights = []
         let L = level.layout.overhead
@@ -171,13 +184,18 @@ final class WorldOverhead {
         let dev = renderer.device
         if !verts.isEmpty {
             vbuf = verts.withUnsafeBytes { dev.makeBuffer(bytes: $0.baseAddress!, length: $0.count, options: []) }
-            ibuf = idx.withUnsafeBytes { dev.makeBuffer(bytes: $0.baseAddress!, length: $0.count, options: []) }
+            ibuf = idx.withUnsafeBytes { dev.makeBuffer(bytes: $0.baseAddress!, length: $0.count, options: [.storageModeShared]) }
             vbuf?.label = "overhead.v"
             ibuf?.label = "overhead.i"
+            let lists = (0..<MetalRenderer.arenaSlots).compactMap { _ in
+                dev.makeBuffer(length: idx.count * 4, options: [.storageModeShared, .cpuCacheModeWriteCombined])
+            }
+            frameIdx = lists.count == MetalRenderer.arenaSlots ? lists : []
+            for (k, b) in frameIdx.enumerated() { b.label = "overhead.i\(k)" }
         }
         if !lights.isEmpty { LightingHub.current?.setStationLamps(stationLamps + lights) }
         let tris = idx.count / 3
-        let mb = Double(verts.count * MemoryLayout<KitVertex>.stride + idx.count * 4) / 1_048_576
+        let mb = Double(verts.count * MemoryLayout<KitVertex>.stride + idx.count * 4 * (1 + frameIdx.count)) / 1_048_576
         let names = ["pipes", "cables", "trays", "catwalks", "ducts"]
         summary = String(format: "overhead: %d vertices, %d triangles in %d chunks (%.2f MB; %.0f ms) | ", verts.count, tris, chunks.count, mb,
                          (FrameTimer.now() - t0) * 1000)
@@ -195,11 +213,14 @@ final class WorldOverhead {
         casterRuns.removeAll(keepingCapacity: true)
         casterCall = 0
         region = Region()
+        frameIB = nil
         guard hasGeometry, let r = renderer else { return }
+        let t0 = FrameTimer.now()
+        defer { buildMs += ((FrameTimer.now() - t0) * 1000 - buildMs) * 0.1 }
         fillBlock(game: game, camera: camera, poses: poses, time: time, dt: dt, high: r.frameTier == .high)
         region = r.upload(block)
         classify(camera: camera, playerAt: poses.first.map { F3($0.x, $0.y, $0.z) }, truss: fx.fxK >= 0.5, high: r.frameTier == .high)
-        effects(game: game, fx: fx, dt: dt, time: time)
+        effects(game: game, fx: fx, dt: dt, time: time, eye: camera.eye)
         visibility?.frame(game: game, camera: camera, poses: poses)
     }
 
@@ -281,8 +302,10 @@ final class WorldOverhead {
             visibleChunks += 1
             if near(c, camera) { kinds[k] = 2; nearChunks += 1 } else { kinds[k] = 1 }
         }
-        farRuns = WorldOverhead.runs(chunks.map { ($0.start, $0.count) }, kinds, want: 1)
-        nearRuns = WorldOverhead.runs(chunks.map { ($0.start, $0.count) }, kinds, want: 2)
+        if !compact(kinds) {
+            farRuns = WorldOverhead.runs(chunks.map { ($0.start, $0.count) }, kinds, want: 1)
+            nearRuns = WorldOverhead.runs(chunks.map { ($0.start, $0.count) }, kinds, want: 2)
+        }
         if high, let p = playerAt {
             var ck = [UInt8](repeating: 0, count: chunks.count)
             for (k, c) in chunks.enumerated() where c.cls == 0 {
@@ -291,6 +314,28 @@ final class WorldOverhead {
             }
             casterRuns = WorldOverhead.runs(chunks.map { ($0.start, $0.count) }, ck, want: 1)
         }
+    }
+
+    /// The visible chunks into this frame's index list, far ones first, then the near ones: farRuns / nearRuns become one
+    /// range each (a copy of ≈ 65–95 KB of indices in the showcase's views: tens of microseconds). False without the
+    /// lists.
+    private func compact(_ kinds: [UInt8]) -> Bool {
+        guard frameIdx.count == MetalRenderer.arenaSlots, let ib = ibuf, let r = renderer else { return false }
+        let dst = frameIdx[r.arenaSlot]
+        let src = ib.contents().assumingMemoryBound(to: UInt32.self)
+        let out = dst.contents().assumingMemoryBound(to: UInt32.self)
+        var n = 0
+        for want: UInt8 in 1...2 {
+            let first = n
+            for (k, c) in chunks.enumerated() where kinds[k] == want {
+                (out + n).update(from: src + c.start, count: c.count)
+                n += c.count
+            }
+            let run = n > first ? [(first, n - first)] : []
+            if want == 1 { farRuns = run } else { nearRuns = run }
+        }
+        frameIB = dst
+        return true
     }
 
     /// A chunk is near when its screen box comes within reach of a cut point (or of the eye). (What hangs below the decks
@@ -344,7 +389,7 @@ final class WorldOverhead {
         let r = renderer!
         if !near { lastDraws = (0, 0); lastTris = 0 }
         defer { if near { heartbeat() } }
-        guard !WorldOverhead.noDraw, let vb = vbuf, let ib = ibuf, region.count > 0, let ps = near ? psNear : psFar, let k = kit else { return }
+        guard !WorldOverhead.noDraw, let vb = vbuf, let ib = frameIB ?? ibuf, region.count > 0, let ps = near ? psNear : psFar, let k = kit else { return }
         let runs = near ? nearRuns : farRuns
         if runs.isEmpty { return }
         r.use(enc, ps)
@@ -382,7 +427,7 @@ final class WorldOverhead {
 
     /// The overhead's geometry for the visibility pass: vertex / index buffers and this frame's visible runs (far + near).
     var visDraw: (MTLBuffer, MTLBuffer, [(Int, Int)])? {
-        guard let vb = vbuf, let ib = ibuf else { return nil }
+        guard let vb = vbuf, let ib = frameIB ?? ibuf else { return nil }
         return (vb, ib, farRuns + nearRuns)
     }
 
@@ -394,14 +439,14 @@ final class WorldOverhead {
         lastLog = now
         let swing = cables.values.map { (swayNow[$0.slot] * swayNow[$0.slot]).sum().squareRoot() }.max() ?? 0
         AppLog.info("hb overhead draws=\(lastDraws.0)+\(lastDraws.1) tris=\(lastTris) chunks=\(visibleChunks)/\(chunks.count) near=\(nearChunks)"
-                    + " pts=\(points)" + String(format: " sway=%.2fm", swing) + " casters=\(casterRuns.count)"
+                    + " pts=\(points)" + String(format: " sway=%.2fm cpu=%.3fms", swing, buildMs) + " casters=\(casterRuns.count)"
                     + " tier=" + (renderer.frameTier == .high ? "high" : "efficient") + (WorldOverhead.noDraw ? " off" : ""))
     }
 
     // ================================================================ the drop language and the dust (design §1.1.4)
     /// Per frame: frost dust shed by moving bugs on the routes; for every live drop warning the dust stream from the coiling
-    /// bug to its ring, its eyes flaring, and the flash when it lets go.
-    private func effects(game: Game, fx: MetalEffects, dt: Float, time: Float) {
+    /// bug to its ring, the red glint on its head, and the flash when it lets go.
+    private func effects(game: Game, fx: MetalEffects, dt: Float, time: Float, eye: F3) {
         guard dt > 0 else { return }
         let S = game.bugs
         let n = S.count
@@ -420,6 +465,12 @@ final class WorldOverhead {
             }
         }
         // the drop warnings
+        streamAcc += dt * 110 * k
+        let streamN = Int(streamAcc)
+        streamAcc -= Float(streamN)
+        glintAcc += dt
+        let glint = glintAcc >= 0.05
+        if glint { glintAcc = 0 }
         var live: Set<Int32> = []
         for z in game.dropZones where z.active {
             live.insert(z.uid)
@@ -433,24 +484,26 @@ final class WorldOverhead {
             let p = z.progress
             if coiling || (!found && z.t > DROP_T) {
                 // the frost-dust stream from the bug down to its ring (the 0.65·h image shift hides the landing spot: the
-                // stream joins them on screen)
-                let m = Int(ceilf(dt * 70 * k))
+                // stream joins them on screen): ≈ 110 specks a second of 7 cm, stretched along their fall — what reads at
+                // phone size in motion (the proof's ≈ 100 specks at 1.6–2.5 m/s)
                 let d = land - from
-                for _ in 0..<min(6, m) {
+                for _ in 0..<min(8, streamN) {
                     let u = Float.random(in: 0..<1)
                     let q = from + d * u
                     fx.gpu.burst(.ice, 1, at: q, jitter: F3(0.12, 0.05, 0.12), vel: d * 0.35 + F3(0, -1.2, 0), velJitter: F3(0.2, 0.3, 0.2),
-                                 life: (0.45, 0.7), size: (0.045, 0.02), color: F4(0.75, 0.9, 1.15, 0.95), gravity: 2, drag: 0.6)
+                                 life: (0.5, 0.8), size: (0.075, 0.035), color: F4(0.85, 1.0, 1.3, 1), gravity: 2, drag: 0.6)
                 }
-                // the eyes flare: two hot points on the head (bloom makes them read at phone size)
-                if found {
-                    let f = F3(sinf(hd), 0, cosf(hd)), side = F3(cosf(hd), 0, -sinf(hd))
+                // the glint: a red four-ray star on its head, hotter as the drop nears — HDR into the bloom, the first thing
+                // the eye catches at phone size (the proof's red glint; the bugs' own glints are pink dots). Nudged 0.3 m
+                // toward the eye so the head does not swallow it.
+                if found && glint {
+                    let f = F3(sinf(hd), 0, cosf(hd))
                     let head = from + f * (0.42 * sc) + F3(0, 0.24 * sc - 0.06 * p, 0)
-                    let pulse = 0.75 + 0.25 * sinf(time * 26) + 0.4 * p
-                    let c = F4(2.6 * pulse, 0.9 * pulse, 1.7 * pulse, 1)
-                    for s: Float in [-1, 1] {
-                        fx.gpu.burst(.dot, 1, at: head + side * (0.075 * sc * s), life: (0.06, 0.06), size: (0.9, 0.9), color: c, sizeJitter: 0)
-                    }
+                    let toEye = eye - head
+                    let le = max(0.01, (toEye * toEye).sum().squareRoot())
+                    let pulse = 0.8 + 0.2 * sinf(time * 26) + 0.6 * p
+                    fx.gpu.burst(.flash, 1, at: head + toEye * (0.3 / le), life: (0.09, 0.09), size: (0.5 + 0.25 * p, 0.45 + 0.25 * p),
+                                 color: F4(4.2 * pulse, 0.45 * pulse, 0.35 * pulse, 1), sizeJitter: 0)
                 }
             } else if !flashed.contains(z.uid) {
                 // it lets go (t − 0.3 s): the stream flashes and a ring of frost locks round the landing point

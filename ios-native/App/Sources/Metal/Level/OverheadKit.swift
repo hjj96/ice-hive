@@ -384,10 +384,10 @@ final class OverheadBuild {
         let m = mesh(0, (A.x + B.x) / 2, (A.z + B.z) / 2)
         let n = F3(-f.dir.z, 0, f.dir.x)
         let h: Float = 0.45
-        // the grating (top face, tile uv)
+        // the grating (top face, tile uv; no snow crust: a pale 0.9 m deck would out-shine the layer — its rails carry it)
         var q = [A - n * h, A + n * h, B + n * h, B - n * h]
         if Mat4.cross(q[1] - q[0], q[2] - q[0]).y < 0 { q.reverse() }
-        m.face(q, KitMat(tint: Col.deck, metal: 0.3, layer: Trim.gratings, flags: KitFlag.frost))
+        m.face(q, KitMat(tint: Col.deck, metal: 0.3, layer: Trim.gratings))
         let skirt = KitMat(tint: Col.steelD, metal: 0.75, layer: Trim.rails, uv: .strip(Trim.skirt, F3(1, 0, 0)))
         for s: Float in [-1, 1] {
             let o = n * (s * (h + 0.04))
@@ -413,7 +413,9 @@ final class OverheadBuild {
 
     private func duct(_ A: F3, _ B: F3, _ f: Frame, mouthA: Bool, mouthB: Bool) {
         let m = mesh(0, (A.x + B.x) / 2, (A.z + B.z) / 2)
-        let body = KitMat(tint: Col.steelD, metal: 0.55, layer: Trim.panels, flags: KitFlag.frost)
+        // (the body without the snow crust — a 0.9 m pale top would out-shine the layer; the ribs carry it: pale bands
+        // across a dark duct)
+        let body = KitMat(tint: Col.steelD, metal: 0.55, layer: Trim.panels)
         m.beam(A - F3(0, 0.35, 0), B - F3(0, 0.35, 0), w: 0.9, h: 0.7, c: 0.05, body)
         let fins = KitMat(tint: Col.steelD, metal: 0.6, layer: Trim.pipes, flags: KitFlag.frost, uv: .strip(Trim.fins, F3(1, 0, 0)))
         var t: Float = 1.2
@@ -522,19 +524,20 @@ final class OverheadBuild {
     }
 
     // ---------------------------------------------------------------- the upper truss (decoration, class 1)
-    /// One lattice girder 11 m above every big deck (≥ 12 m both ways, or ≥ 18 × 8), along its long axis and 6 m past both
-    /// ends: thin, dark, no lights — a plane that slides at ≈ 1.45× the deck's speed (design §1.1.7).
+    /// One lattice girder 11 m above every big deck that carries no beacon (≥ 12 m both ways; a beacon's light column and
+    /// the punch-in framing stay clear), along z and 6 m past both ends: Kelvin-9's corridors run along x, so the girders
+    /// cross them instead of adding more parallel lines (concept-station README «what to avoid»). Thin, dark, no lights —
+    /// a plane that slides at ≈ 1.45× the deck's speed (design §1.1.7).
     private func upperTruss() {
-        let mat = KitMat(tint: Col.girder, metal: 0.6, layer: Trim.rails, flags: KitFlag.frost, uv: .strip(Trim.girder, F3(1, 0, 0)))
+        // (no frost flag: no pale crust on the chords — the truss stays a dark silhouette high over the deck)
+        let mat = KitMat(tint: Col.girder, metal: 0.6, layer: Trim.rails, uv: .strip(Trim.girder, F3(1, 0, 0)))
         let web = KitMat(tint: Col.support, metal: 0.6, layer: Trim.pipes, uv: .strip(Trim.lattice, F3(1, 0, 0)))
         for r in level.layout.rects {
             let w = r.x1 - r.x0, d = r.z1 - r.z0
-            guard (w >= 12 && d >= 12) || (max(w, d) >= 18 && min(w, d) >= 8) else { continue }
-            if r.height.isStairs { continue }
+            guard w >= 12 && d >= 12, !r.height.isStairs else { continue }
+            if level.layout.beacons.contains(where: { $0.x >= r.x0 && $0.x <= r.x1 && $0.z >= r.z0 && $0.z <= r.z1 }) { continue }
             let y = max(r.height.height(atZ: r.z0), r.height.height(atZ: r.z1)) + 11
-            let alongX = w >= d
-            let A = alongX ? F3(r.x0 - 6, y, (r.z0 + r.z1) / 2) : F3((r.x0 + r.x1) / 2, y, r.z0 - 6)
-            let B = alongX ? F3(r.x1 + 6, y, (r.z0 + r.z1) / 2) : F3((r.x0 + r.x1) / 2, y, r.z1 + 6)
+            let A = F3((r.x0 + r.x1) / 2, y, r.z0 - 6), B = F3((r.x0 + r.x1) / 2, y, r.z1 + 6)
             let L = ((B - A) * (B - A)).sum().squareRoot()
             let dir = (B - A) / L
             let steps = max(2, Int((L / 2).rounded()))
