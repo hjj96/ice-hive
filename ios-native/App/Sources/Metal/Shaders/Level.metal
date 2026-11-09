@@ -52,8 +52,10 @@ struct LevelParams {
     float4 mask;     // world mask: xy world origin, z = 1 / size, w unused
 };
 
-/// Beacon heads (WorldLevel.headTable, 8 heads): pivot xyz + yaw, then the lens colour (linear rgb).
-#define LEVEL_HEADS 8
+/// Heads (WorldLevel.headTable): pivot xyz + yaw, then the colour of their painted faces (linear rgb). The first 8 are
+/// the beacon heads; Stage 1 R6 gives the rest to a station with props (lamp lenses, valve wheels and gauges, breaker
+/// lamps, locker doors and lights).
+#define LEVEL_HEADS 112
 struct LevelHeads {
     float4 pivot[LEVEL_HEADS];
     float4 color[LEVEL_HEADS];
@@ -66,7 +68,7 @@ struct LevelHeads {
 #define KF_FROST 16u
 #define KF_STRIP 32u
 #define KF_PAINT 64u
-#define KF_HEAD 128u    // a beacon head vertex: extra.w = head index (no AO atlas)
+#define KF_HEAD 128u    // a head vertex (a beacon head, R6's lamp lenses and prop parts): extra.w = head index (no AO atlas)
 
 struct KitOut {
     float4 position [[position]];

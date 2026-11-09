@@ -39,6 +39,9 @@ struct BotAI {
     var stuck: Float = 0
     var lx: Float = 0, lz: Float = 0
     var sideX: Float = 0, sideZ: Float = 0, sideT: Float = 0
+    /// Stage 1 R6 (stations with props): the steam valve it fires at, the locker it heads for when hurt, the dark breaker it
+    /// brings back when idle (−1 none).
+    var valve = -1, locker = -1, breaker = -1
 }
 
 public final class Marine {

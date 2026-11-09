@@ -125,6 +125,17 @@ extension Game {
             if inAssist > 0 {
                 let b = aimAssistTarget(from: m, dir: Vec2(sinf2(a), cosf2(a)))
                 if b >= 0 { ang += angDiff(ang, atan2f2(bugs.x[b] - m.x, bugs.z[b] - m.z)) * inAssist; assistUp = bugs.up[b] != 0 }
+                // Stage 1 R6: a ready steam valve the stick points at (where it is drawn) when it is better aligned than that bug
+                if !props.valves.isEmpty {
+                    var bc: Float = -2
+                    if b >= 0 {
+                        let vx = bugs.x[b] - m.x, vz = bugs.z[b] - m.z, d = hypotf2(vx, vz)
+                        if d > 1e-3 { bc = (vx * sinf2(a) + vz * cosf2(a)) / d }
+                    }
+                    if let v = valveAssist(m, sinf2(a), cosf2(a), bc) {
+                        ang = a + angDiff(a, atan2f2(v.x - m.x, v.y - m.z)) * minf(1, inAssist + 0.25); assistUp = true
+                    }
+                }
             }
             m.aim = ang; aimed = true
         } else if fire {
@@ -193,6 +204,8 @@ extension Game {
             m.ai.think = 0.12 + rng.next() * 0.08
             m.ai.target = aiPickTarget(m, range)
             m.ai.tuid = m.ai.target >= 0 ? S.uid[m.ai.target] : 0
+            // Stage 1 R6: a valve worth popping, a locker when hurt, a dark breaker when idle
+            if !props.isEmpty { propThink(m) }
             // abilities
             if m.abCd <= 0 {
                 // (wave pacing: a smaller swarm — the crowd an ability waits for is smaller too)
@@ -231,6 +244,8 @@ extension Game {
             if bi >= 0 && beacons[bi].state == 1 {
                 gx = beacons[bi].x + cosf2(simTime * 0.3) * 2.6; gz = beacons[bi].z + sinf2(simTime * 0.3) * 2.6
             }
+            // (R6: hurt between objectives, a supply locker close by)
+            if m.ai.locker >= 0, let g = propDutyGoal(m) { gx = g.x; gz = g.y }
             if let r = reviveT { gx = r.x; gz = r.z; urgent = true }
         } else if let r = reviveT { gx = r.x; gz = r.z; urgent = true }
         else if let z = squadZone, inZone(z, P.x, P.z) {
@@ -244,6 +259,9 @@ extension Game {
             // around a switch being thrown, just inside its ring
             let w = switches[activeSwitch].site, a = Float(m.index) * TAU / 3 + 0.5, sr = max(0.8, w.radius - 0.9)
             gx = w.x + cosf2(a) * sr; gz = w.z + sinf2(a) * sr
+        } else if m.ai.locker >= 0 || m.ai.breaker >= 0, let g = propDutyGoal(m) {
+            // R6: a hurt bot to a supply locker, an idle one to a dark breaker's ring (it must end up inside the ring)
+            gx = g.x; gz = g.y; urgent = true
         } else {
             let fx = P.faceX, fz = P.faceZ, sx = -fz, sz = fx
             let (s, bk) = FORM[m.index]
@@ -315,8 +333,9 @@ extension Game {
                 if d < 1.9 { m.ai.sideX = d > 0.05 ? dx / d : 1; m.ai.sideZ = d > 0.05 ? dz / d : 0; m.ai.sideT = 0.35 }
             }
         }
-        // ... and out of a drop ring about to land (the overhead, Stage 1 R2)
+        // ... and out of a drop ring about to land (the overhead, Stage 1 R2), out of a steam valve's curtain (R6)
         if level.overhead != nil { dropDodge(m) }
+        if !props.valves.isEmpty { curtainDodge(m) }
         if m.ai.sideT > 0 { m.ai.sideT -= dt; mx = m.ai.sideX; mz = m.ai.sideZ }
         // stuck detection: wants to move but barely moves -> rely on the flow field for a while
         if abs(mx) + abs(mz) > 0.5 && hypotf2(m.x - m.ai.lx, m.z - m.ai.lz) < 1.2 * dt { m.ai.stuck = min(2, m.ai.stuck + dt * 2) }
@@ -328,7 +347,10 @@ extension Game {
         // aim + fire (a target up on the overhead: the rounds go up — Stage 1 R2)
         var fire = false
         m.aimUp = valid && S.up[t] != 0
-        if valid {
+        if m.ai.valve >= 0, let vf = valveFire(m, dt) {
+            // R6: popping a steam valve over a crowd (its rounds go up to the pipe)
+            fire = vf
+        } else if valid {
             let d = hypotf2(S.x[t] - m.x, S.z[t] - m.z)
             let lead: Float = (m.cls == .pyro || m.cls == .cryo) ? 0 : d / 80
             let want = atan2f2(S.x[t] + S.vx[t] * lead - m.x, S.z[t] + S.vz[t] * lead - m.z)

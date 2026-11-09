@@ -176,8 +176,14 @@ extension Game {
                 guardN -= 1
                 // the overhead (Stage 1 R2): a round aimed up strikes bugs on the routes at their footprint (radius × 1.3) and
                 // flies over the deck; one aimed at the deck passes under the routes
-                let (b, segT) = (P.flags[k] & 4) != 0 ? overheadSegmentHit(sx, sz, dx, dz, len, P.last[k])
+                let up = (P.flags[k] & 4) != 0
+                let (b, segT) = up ? overheadSegmentHit(sx, sz, dx, dz, len, P.last[k])
                     : hash.segmentHit(S, sx, sz, dx, dz, len, P.last[k])
+                // Stage 1 R6: a round aimed up strikes a ready steam valve on its pipe when it reaches it first (it stops there)
+                if up && !props.valves.isEmpty {
+                    let (v, vt) = valveSegmentHit(sx, sz, dx, dz, b >= 0 ? segT : len)
+                    if v >= 0 { shotValve(k, v, sx + dx * vt, sz + dz * vt); alive = false; break }
+                }
                 if b < 0 { break }
                 let own = Int(P.own[k])
                 let hx = sx + dx * segT, hz = sz + dz * segT

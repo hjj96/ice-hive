@@ -199,7 +199,7 @@ extension Game {
                    tierIndex: difficulty.index, tierMul: difficulty.scoreMul, stage: stage,
                    pressureLoss: pressure >= difficulty.pressureGrace && idleMul > 1,
                    shots: Int(shots.rounded()), hits: Int(hits.rounded()), accuracy: accuracy, bestCombo: bestCombo, level: xpLevel,
-                   station: stationName, beaconsTotal: mission.ringSiteCount)
+                   station: stationName, beaconsTotal: mission.ringSiteCount, lightsOn: lightsLit, lightsTotal: props.circuits.count)
     }
 
     /// Visual laser length of a marine (first bug along the aim, max 24 m), measured on the current hash.

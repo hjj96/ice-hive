@@ -302,6 +302,8 @@ public final class AcidGlobs {
     var x0 = [Float](repeating: 0, count: 64), z0 = [Float](repeating: 0, count: 64)
     var x1 = [Float](repeating: 0, count: 64), z1 = [Float](repeating: 0, count: 64)
     var t = [Float](repeating: 0, count: 64), dur = [Float](repeating: 0, count: 64)
+    /// The lamp a glob was spat at (Stage 1 R6: it breaks it on landing), −1 a marine.
+    var lamp = [Int](repeating: -1, count: 64)
     public func from(_ k: Int) -> Vec2 { Vec2(x0[k], z0[k]) }
     public func to(_ k: Int) -> Vec2 { Vec2(x1[k], z1[k]) }
     /// Flight progress 0..1 (lands at 1).
@@ -484,6 +486,9 @@ public final class Game {
     // ---------- Stage 1 R2: the overhead (GameOverhead.swift) ----------
     var oh = OverheadState()
 
+    // ---------- Stage 1 R6: interactive props — valves, light circuits, lockers (GameProps.swift) ----------
+    var props = PropsState()
+
     // ---------- v1.1: calibration ledger (fixed arrays, index = DamageSource.rawValue + 1) ----------
     /// Damage taken by the whole squad per source.
     public internal(set) var hurtBy = [Float](repeating: 0, count: 6)
@@ -552,6 +557,8 @@ public final class Game {
         oh = OverheadState()
         setupSquad()
         resetDirector()
+        // (after the director: a DARK plan starts its circuits off; lit beacons light their decks)
+        resetProps()
         phase = .playing
         time = 0; kills = 0; playerKills = 0; shots = 0; hits = 0; combo = 0; comboT = 0; bestCombo = 0
         downs = 0; lastHit = .environment; downBy = .environment; afkTime = 0
@@ -617,6 +624,7 @@ public final class Game {
         updateGlobs(dt)
         updateAbilities(dt)
         updateMedkits(dt)
+        if !props.isEmpty { propsTick(dt) }
         if !simOnly && !benchCombat && directorEnabled { tickCoach(dt); tickDirector(dt) }
         updateTelegraphs(dt)
         if autoPickUpgrades {

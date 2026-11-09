@@ -36,6 +36,9 @@ enum TextWarmup {
         var out: [GameText] = BugType.allCases.compactMap { GameText.bugTip($0) }
         out += [GameText.downToast(.player), GameText.upToast(.player), GameText.medkitToast(40)]
         for c in MarineClass.allCases { out += [GameText.downToast(.callsign(c)), GameText.upToast(.callsign(c))] }
+        // Stage 1 R6: the interactive props' barks and first-sighting tips
+        out += [GameText(.toastLightsCut), GameText(.toastLightsUp), GameText(.toastLocker), GameText(.toastTipValve),
+                GameText(.toastTipBreaker), GameText(.toastTipLocker)]
         return out
     }
 

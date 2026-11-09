@@ -64,6 +64,12 @@ switch game.phase { case .won, .lost: /* экран итогов: game.stats */ 
   `heights` — абсолютная высота (`bugs.hasAbsoluteHeight(i)`), `isOverhead(i)`, `routeEdges` / `routeParams`;
   `game.dropZones` (телеграфы прыжков: точка, радиус, время, откуда), `game.routeAlive`, `game.overheadStats`,
   `projectiles.aimedUp(k)` (выстрел вверх).
+- Интерактивы (Stage 1 R6, `Props.swift` / `GameProps.swift`): данные — `game.level.layout.props` (паровые клапаны с
+  пролётом завесы, цепи света с рубильником и палубами, шкафчики снабжения; `PropLayout.kelvin` — набор «Кельвина-9»),
+  лампы станции с цепями — `game.level.lamps` (то же правило, что у столбов `WorldLevel`); состояние — `game.valves`
+  (фаза ready / burst / venting / recharge, `gauge`, `hot`), `game.circuits` (питание, лампы, горящие, кольцо, `lit`,
+  `needsRestore`, `restoredAt`), `game.lamps` (`on`, `hp`, `changedAt` — для мерцания), `game.lockers`, `game.lightsLit`,
+  `game.lit(x, z)` (освещённая палуба — круги «без прыжков» верхнего яруса), `game.propStats`.
 - `game.mission` (план), `game.missionStep`, `game.stepPhase`, `game.switches`, `game.missionZone`, `game.objectiveKey`,
   `game.beacons`, `game.stage`, `game.objective`, `game.objectiveProgress`, `game.objectiveMarker`,
   `game.contextHint`, `game.liftRise`, `game.kills`, `game.time`, `game.comboShown`, `game.xpLevel`, `game.xp/xpNext`.
@@ -82,7 +88,8 @@ switch game.phase { case .won, .lost: /* экран итогов: game.stats */ 
 `debugState`, `debugSpawn(n, type:)`, `debugSkip()`, `godMode`, `autopilot`, `fastForward(seconds:)`,
 `debugLevelUp()`, `debugHorde(n)`, `debugTeleport(x, z)`, `benchmark(counts:)`, `setQuality(_:)`,
 `directorEnabled`; верхний ярус — `debugRoutePack(n, entry:)`, `debugSpawnRouteBug(entry:)`,
-`debugSetNoDropZones(_:)`, `debugHoldFire`. Замедление/ускорение времени — на стороне приложения (сколько тиков вызвать за кадр).
+`debugSetNoDropZones(_:)`, `debugHoldFire`; интерактивы — `debugBurstValve(k, by:)`, `debugCutCircuit(k)`,
+`debugRestoreCircuit(k)`, `debugBreakLamp(k)`, `debugSpawnLine(n, type:, from:, to:)`. Замедление/ускорение времени — на стороне приложения (сколько тиков вызвать за кадр).
 
 ### Детерминизм
 Вся случайность идёт через один `SeededRNG` (mulberry32). Одинаковые seed, класс, конфигурация и
@@ -112,6 +119,8 @@ switch game.phase { case .won, .lost: /* экран итогов: game.stats */ 
 | `GameAI.swift` | ввод игрока, аим-ассист, ИИ ботов и автопилот |
 | `Mission.swift` | план миссии из модулей (RING, SWITCH, HOLD, BOSS, EXTRACT), шаблоны (`coldLight`, учения), их калибровка |
 | `GameMission.swift` | исполнение плана: шаги и фазы, модули, запросы для режиссёра, HUD, ботов и калибровки |
+| `Overhead.swift` / `GameOverhead.swift` | верхний ярус (Stage 1 R2): маршруты и их индекс, жуки наверху, прыжки, контригра, канал режиссёра |
+| `Props.swift` / `GameProps.swift` | интерактивы (Stage 1 R6): клапаны и завеса, цепи света и лампы, шкафчики; боты, советы, отладка |
 | `GameDirector.swift` | темп роя (поток, орды, давление улья), опыт, улучшения; этапы миссии — план (`missionTick`) |
 | `GameHUD.swift` | тексты задачи и подсказок, статистика, лазеры |
 | `GameDebug.swift` | отладочные хуки, бенчмарк |

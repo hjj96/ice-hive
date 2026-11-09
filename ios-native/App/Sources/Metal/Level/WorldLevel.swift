@@ -63,8 +63,12 @@ final class WorldLevel {
     static let chunkSize: Float = 32
     /// Hidden chunks between two visible ones are drawn with them (one draw call) below this many triangles.
     static let mergeGapTriangles = 6000
-    /// Beacon heads vs_kit can spin (Level.metal LEVEL_HEADS).
-    static let maxHeads = 8
+    /// vs_kit's head table (Level.metal LEVEL_HEADS): the first `beaconHeads` spin the beacon heads; Stage 1 R6 gives the
+    /// rest to a station with props — each lamp's lens (its colour × the lamp's light: broken / circuit off) and the props'
+    /// moving or lit parts (WorldProps: valve wheels and gauges, breaker lamps, locker doors and lights). 3.5 KB of vertex
+    /// bytes per station draw.
+    static let maxHeads = 112
+    static let beaconHeads = 8
     /// Look-dev (`-deckMask`, with `-hideHUD` on a CI test branch): the walkable deck tops (decks, stair treads, the lift
     /// deck) drawn flat green, the snow drifts blue, the icicles red and the rest of the station black, without the pad
     /// mark and the floor pools — the mask a script lays over the same deterministic shot (`-demo calm`) to take the
@@ -121,6 +125,45 @@ final class WorldLevel {
     /// slats and beacon heads — world position (m) and linear colour (× nominal intensity 1).
     struct StationLight { let kind: Kind; let pos: F3; let color: F3; enum Kind { case lamp, pillar, vent, beacon } }
     private(set) var lights: [StationLight] = []
+    /// Stage 1 R6: every lamp post as built — its post (plan), the head of its lens (a station with light circuits; −1
+    /// none), its index in the grid lights handed to LightGrid (`setStationLamps`), its floor pool quad and that quad's
+    /// colour. WorldProps sets each lamp's light from the core's lamp states (`setLampLevel`).
+    struct LampLink { let x: Float; let z: Float; let head: Int; let light: Int; let glow: Int; let lens: F3; let pool: F3 }
+    private(set) var lampLinks: [LampLink] = []
+    /// The heads WorldProps' geometry took (valve wheels / gauges, breaker lamps, locker doors / lights; −1 none).
+    var propHeads = WorldProps.Heads()
+    private var nextHead = WorldLevel.beaconHeads
+    /// The next free head of the table (nil: full — that part stays as built).
+    func allocHead() -> Int? {
+        if nextHead >= WorldLevel.maxHeads { return nil }
+        nextHead += 1
+        return nextHead - 1
+    }
+    /// Head `k`: its pivot (xyz) and yaw (vs_kit turns its vertices about the pivot) and its colour (its painted faces).
+    func setHead(_ k: Int, pivot: F4? = nil, color: F3? = nil) {
+        guard k >= WorldLevel.beaconHeads && k < WorldLevel.maxHeads else { return }
+        if let p = pivot { headTable[k] = p }
+        if let c = color { headTable[WorldLevel.maxHeads + k] = F4(c.x, c.y, c.z, 0) }
+    }
+    /// Lamp `n`'s light 0…1+ (over 1: the overshoot of a lamp coming on): its lens, its floor pool and its grid light.
+    func setLampLevel(_ n: Int, _ level: Float) {
+        guard n >= 0 && n < lampLinks.count else { return }
+        let l = lampLinks[n]
+        if l.head >= 0 {
+            // (the dead lens keeps a dim cold glass tint instead of going black)
+            let c = l.lens * level + F3(0.004, 0.006, 0.008) * max(0, 1 - level)
+            headTable[WorldLevel.maxHeads + l.head] = F4(c.x, c.y, c.z, 0)
+        }
+        if l.glow >= 0 && l.glow < glowCount, let gb = glowV {
+            let f = gb.contents().bindMemory(to: Float.self, capacity: glowCount * 4 * 13)
+            let c = l.pool * min(1.4, max(0, level))
+            for v in 0..<4 {
+                let o = (l.glow * 4 + v) * 13 + 6
+                f[o] = c.x; f[o + 1] = c.y; f[o + 2] = c.z
+            }
+        }
+        LightingHub.current?.setLampLevel(l.light, level)
+    }
 
     init(level: Level, store: MeshStore) {
         self.level = level
@@ -215,7 +258,7 @@ final class WorldLevel {
             turretHead.instances.append(MeshInstance(model: Mat4.translation(T.x, ty + 0.95, T.z) * Mat4.rotationY(T.angle), tint: one, emissive: none))
         }
         // beacon heads: on the mast top, rotating, lens in the state colour (idle red, charging amber, done teal)
-        for (k, b) in game.beacons.enumerated() where k < WorldLevel.maxHeads {
+        for (k, b) in game.beacons.enumerated() where k < WorldLevel.beaconHeads {
             let gy = level.groundY(b.x, b.z)
             let col: F3 = b.state == 2 ? linearRGB(0x2af5e0) : (b.state == 1 ? linearRGB(0xffa21a) : linearRGB(0xff2a3a))
             headTable[k] = F4(b.x, gy + WorldLevel.mastTop, b.z, time * (b.state == 1 ? 4 : 1.2) + Float(k))
@@ -419,7 +462,8 @@ final class WorldLevel {
     private var liftMesh = KitMesh()
     private var glowQuads: [(F3, Float, UInt32, Float)] = []    // centre, size, colour, strength
 
-    private func cell(_ x: Float, _ z: Float) -> KitMesh {
+    /// The station mesh of the 32 m cell holding (x, z) (WorldProps builds its props into it).
+    func cell(_ x: Float, _ z: Float) -> KitMesh {
         let n = Int(256 / WorldLevel.chunkSize)
         let i = max(0, min(n - 1, Int(((x + 128) / WorldLevel.chunkSize).rounded(.down))))
         let j = max(0, min(n - 1, Int(((z + 128) / WorldLevel.chunkSize).rounded(.down))))
@@ -430,13 +474,16 @@ final class WorldLevel {
         return m
     }
 
-    private func piece(_ name: String) -> KitPiece? { kit.pieces[name] }
+    func piece(_ name: String) -> KitPiece? { kit.pieces[name] }
 
     private func buildStation(_ device: MTLDevice) {
         cells.removeAll()
         liftMesh = KitMesh(reserve: 8192)
         glowQuads.removeAll()
         lights.removeAll()
+        lampLinks.removeAll()
+        propHeads = WorldProps.Heads()
+        nextHead = WorldLevel.beaconHeads
         let t0 = FrameTimer.now()
         func tris() -> Int { cells.values.reduce(liftMesh.triangles) { $0 + $1.triangles } }
         var parts: [(String, Int)] = []
@@ -445,6 +492,8 @@ final class WorldLevel {
         step("edges") { buildEdges(); buildCornerDrifts() }
         step("supports") { buildSupports() }
         step("props") { buildProps() }
+        // Stage 1 R6: the interactive props (valves, breakers, lockers; nothing on a station without them)
+        step("interactives") { WorldProps.buildGeometry(self) }
         step("lift") { buildLift() }
         let tBuild = (FrameTimer.now() - t0) * 1000
         // one vertex / index stream: the cells (sorted), then the lift
@@ -706,8 +755,13 @@ final class WorldLevel {
                     let y = H(t)
                     let lc: UInt32 = (lampN % 3 == 2) ? Col.green : Col.teal
                     lampN += 1
-                    m.place(lp, at: F3(x, y, z), yaw: yawAlong, paint: lc, caster: true)
+                    // (R6: on a station with light circuits the lens is a head — WorldProps dims it with the core's lamp)
+                    let head = level.layout.props.circuits.isEmpty ? nil : allocHead()
+                    m.place(lp, at: F3(x, y, z), yaw: yawAlong, paint: lc, paintHead: head.map { UInt32($0) }, caster: true)
+                    if let hk = head { setHead(hk, pivot: F4(x, y + 2.95, z, 0), color: linearRGB(lc)) }
                     edgeStats.lamps += 1
+                    lampLinks.append(LampLink(x: x, z: z, head: head ?? -1, light: lights.count, glow: glowQuads.count, lens: linearRGB(lc),
+                                              pool: linearRGB(lc) * 0.15))
                     lights.append(StationLight(kind: .lamp, pos: F3(x, y + 2.95, z) + inw * 0.85, color: linearRGB(lc)))
                     let (gx, gz) = P(t, 1.4)
                     glowQuads.append((F3(gx, level.groundY(gx, gz), gz), 3.8, lc, 0.15))
@@ -990,7 +1044,7 @@ final class WorldLevel {
                 let y = level.groundY(b.x, b.z)
                 cell(b.x, b.z).place(p, at: F3(b.x, y, b.z), yaw: Float.pi / 4, caster: true)
                 // the head rides on the mast top; vs_kit spins it about this pivot (headTable[k])
-                if let h = head, k < WorldLevel.maxHeads {
+                if let h = head, k < WorldLevel.beaconHeads {
                     cell(b.x, b.z).place(h, at: F3(b.x, y + WorldLevel.mastTop, b.z), headIndex: UInt32(k))
                 }
                 glowQuads.append((F3(b.x, y, b.z), 4.6, Col.amber, 0.15))

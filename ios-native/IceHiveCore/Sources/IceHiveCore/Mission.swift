@@ -93,7 +93,8 @@ public struct RingStep: Equatable {
     public init(sites: [Int]) { self.sites = sites }
 }
 
-/// What a switch ring sits on (presentation and R6's props; the core treats them alike).
+/// What a switch ring sits on (presentation; a `.breaker` switch standing on a light circuit's breaker brings that
+/// circuit back when it is thrown — R6, GameProps.swift).
 public enum SwitchKind: String, CaseIterable {
     case breaker, valve, door, crane, panel
 }
@@ -273,8 +274,9 @@ public enum MissionStep: Equatable {
     }
 }
 
-/// Mission modifiers (design §1.6). Data for the packages that give them behaviour (DARK: R6 / R7, HEAVY OVERHEAD:
-/// R2 / R5, TIMED and STORM later); the core does not act on them yet.
+/// Mission modifiers (design §1.6). DARK (R6): every light circuit of the station starts off — the squad takes the light
+/// back breaker by breaker (GameProps.swift). Data for the packages that give the others behaviour (HEAVY OVERHEAD:
+/// R2 / R5, TIMED and STORM later).
 public enum MissionModifier: String, CaseIterable {
     case dark, storm, timed, heavyOverhead
 }

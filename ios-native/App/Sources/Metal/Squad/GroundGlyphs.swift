@@ -47,6 +47,8 @@ final class GroundGlyphs {
     /// Kept for MetalEffects' ring draw (the web's additive team rings): empty — the HP arcs replace them.
     let teamRings: [SpriteInstance] = []
     private(set) var glyphs: [GlyphInstance] = []
+    /// Glyphs other modules add this frame, set before `build` (Stage 1 R6: WorldProps' breaker and locker rings).
+    var extra: [GlyphInstance] = []
     private var renderer: MetalRenderer?
     private var ps: MTLRenderPipelineState?
     private var region = Region()
@@ -96,6 +98,7 @@ final class GroundGlyphs {
             glyphs.append(GlyphInstance(center: F4(L.x, L.y + rise + 0.06, L.z, L.r - 0.3), color: F4(0.2, 1.0, 0.82, 2),
                                         a: F4(prog, 32, -time * 0.1, alpha), b: F4(time, 0, 0, 0)))
         }
+        glyphs.append(contentsOf: extra)
     }
 
     func upload(_ r: MetalRenderer) {
