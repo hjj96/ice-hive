@@ -24,9 +24,9 @@ extension Game {
     func wavesTick(_ dt: Float, _ stageMul: Float) {
         let D = difficulty
         let minutes = time / 60, done = Float(beaconsDone)
-        let beaconOn = activeBeacon >= 0
+        let defending = posture == .defend
         var beatMul: Float = 1
-        if (stage == .beacons && !beaconOn) || stage == .toLift {
+        if posture == .travel {
             beatT -= dt
             if beatT <= 0 {
                 beat = (beat + 1) % 3
@@ -63,10 +63,10 @@ extension Game {
                 pack(n, near: c, dmin: D.trickleMinDist, dmax: 30, rate: 4)
             }
         }
-        // periodic hordes (the clock pauses during a beacon defence and while the Queen lives)
-        if !beaconOn && !queen.alive { hordeT -= dt }
+        // periodic hordes (the clock pauses while a ring is defended and while the Queen lives)
+        if !defending && !queen.alive { hordeT -= dt }
         if hordeT <= 0 {
-            if stage == .hold {
+            if posture == .hold {
                 hordeT = 18 + rng.next() * 6
                 startHorde(Int(((80 + rng.next() * 35) * hordeScale()).rounded()), .hordeTitle, GameText(.bannerHordeLiftSub), 55)
                 lullT = 9
@@ -166,10 +166,10 @@ extension Game {
         let size0 = Int((Float(size00) * D.horde * D.popK).rounded())
         var size = Float(size0)
         let c = squadCenter()
-        if stage == .hold {
+        if posture == .hold {
             // a third climbs straight over the lift's rim from below, in two packs on different sides (the ramp alone made
-            // the hold one long column)
-            let L = level.lift
+            // the hold one long column; a hold on a deck or a boss arena: over its rim, when an edge is near)
+            let L = arena()
             let n = Int((size * 0.15).rounded())
             let r1 = pickEdge(L.x, L.z, 0, L.r + 1)
             if r1 >= 0 {

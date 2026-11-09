@@ -37,14 +37,17 @@ public struct RunSummary {
     public var bestCombo: Int
     public var level: Int
     public var station: NameRef
+    /// Beacons the mission's plan charges (the score line «beacons N/M»; «Operation Cold Light»: 3).
+    public var beaconsTotal: Int
 
     public init(cls: MarineClass, won: Bool, surrendered: Bool, time: Float, playerKills: Int, beaconsDone: Int, queenSpawned: Bool, queenDone: Bool,
                 downs: Int, downBy: DamageSource, tierIndex: Int, tierMul: Float, stage: MissionStage, pressureLoss: Bool,
-                shots: Int, hits: Int, accuracy: Int, bestCombo: Int, level: Int, station: NameRef) {
+                shots: Int, hits: Int, accuracy: Int, bestCombo: Int, level: Int, station: NameRef, beaconsTotal: Int = 3) {
         self.cls = cls; self.won = won; self.surrendered = surrendered; self.time = time; self.playerKills = playerKills
         self.beaconsDone = beaconsDone; self.queenSpawned = queenSpawned; self.queenDone = queenDone; self.downs = downs; self.downBy = downBy
         self.tierIndex = tierIndex; self.tierMul = tierMul; self.stage = stage; self.pressureLoss = pressureLoss
         self.shots = shots; self.hits = hits; self.accuracy = accuracy; self.bestCombo = bestCombo; self.level = level; self.station = station
+        self.beaconsTotal = beaconsTotal
     }
 }
 
@@ -205,7 +208,7 @@ public struct RunScore: Equatable {
 
     public static func make(_ run: RunSummary) -> RunScore {
         var parts = [ScorePart(label: GameText(.scoreKills), value: run.playerKills),
-                     ScorePart(label: GameText(.scoreBeacons, [.int(run.beaconsDone), .int(3)]), value: run.beaconsDone * 500)]
+                     ScorePart(label: GameText(.scoreBeacons, [.int(run.beaconsDone), .int(run.beaconsTotal)]), value: run.beaconsDone * 500)]
         if run.queenSpawned && run.queenDone { parts.append(ScorePart(label: GameText(.scoreQueen), value: 1000)) }
         if run.won {
             parts.append(ScorePart(label: GameText(.scoreExtract), value: 1500))

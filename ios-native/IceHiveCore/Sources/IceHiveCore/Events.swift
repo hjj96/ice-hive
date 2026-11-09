@@ -91,6 +91,11 @@ public enum GameEvent {
     case liftCalled
     case holdStarted
     case extractStarted
+    /// The mission plan moved on to step `index` (Mission.swift; never for its first step).
+    case missionStep(index: Int, module: MissionModule)
+    /// A switch of a SWITCH step started / was thrown (`Game.switches[index]`; R6's props listen).
+    case switchStarted(index: Int)
+    case switchThrown(index: Int)
     case levelUp(level: Int)
     case combo(count: Int)
     case victory

@@ -13,15 +13,24 @@ import Foundation
 //      if game.wantsLevelUp { cards = game.rollUpgrades(); … game.chooseUpgrade(k) }
 // ================================================================
 
+/// The coarse stage of the mission as the renderer, the report and the demos read it (the lift's part in it). The
+/// mission plan (Mission.swift) decides it: the classic plan walks beacons → toLift → hold → extract; the director, the
+/// HUD and calibration read the plan itself (GameMission.swift).
 public enum MissionStage: Int {
-    /// Light the three beacons.
+    /// A RING step: light the beacons.
     case beacons
-    /// Get to the lift.
+    /// On the way to the lift (a HOLD or an EXTRACT there).
     case toLift
-    /// Hold the lift until it arrives.
+    /// Holding the lift (a HOLD there).
     case hold
-    /// The lift rises (victory after 4.6 s).
+    /// The lift rises (an EXTRACT: victory after 4.6 s).
     case extract
+    /// A SWITCH step.
+    case switches
+    /// A HOLD on a deck away from the lift (on the way and holding).
+    case area
+    /// A BOSS step (on the way to the arena and the fight).
+    case boss
 }
 
 public enum GamePhase: Int {
@@ -63,6 +72,8 @@ public struct GameConfig {
     public var queenAt: Float? = nil
     /// Debug / tests: her absolute health (not × hpMul; web `__dbg.queen(hp)`).
     public var queenHp: Float? = nil
+    /// The mission (its plan is built for the station); nil = «Operation Cold Light» (`MissionTemplate.coldLight`).
+    public var mission: MissionTemplate? = nil
     public init() {}
 }
 
@@ -318,15 +329,35 @@ public final class Game {
     /// Current level-up offer.
     public internal(set) var offer: [Upgrade] = []
 
+    // ---------- mission plan (Mission.swift, GameMission.swift) ----------
+    /// This mission's plan (classic: «Operation Cold Light» for the station).
+    public let mission: MissionPlan
+    /// Index of the current step (the last one stays current after the mission is won).
+    public internal(set) var missionStep = 0
+    /// The current step's phase: on the way (between its rings) or active (a ring charging, holding, fighting, riding).
+    public internal(set) var stepPhase: StepPhase = .approach
+    /// Seconds in the current phase.
+    public internal(set) var stepTime: Float = 0
+    /// How the wave director treats the current phase.
+    var posture: DirectorPosture = .travel
+    /// The current approach has a travel allowance (the pressure clock waits until it is used up).
+    var approachAllowance = false
+    /// The switches of the current SWITCH step and the one being thrown (-1 none).
+    public internal(set) var switches: [SwitchState] = []
+    public internal(set) var activeSwitch = -1
+
     // ---------- director (DIR) ----------
+    /// The coarse stage (set by the plan's phases).
     public internal(set) var stage: MissionStage = .beacons
+    /// The station's beacons (RING steps charge them).
     public internal(set) var beacons: [BeaconState] = []
     /// Index of the beacon being charged, -1 none.
     public internal(set) var activeBeacon = -1
+    /// Objective rings completed (beacons, switches): the director's escalation steps (classic: beacons lit).
     public internal(set) var beaconsDone = 0
-    /// Lift hold countdown (s).
+    /// Hold countdown (s) of the current HOLD step (classic: the lift's) and its length.
     public internal(set) var liftT: Float = LIFT_TIME
-    public let liftDur: Float = LIFT_TIME
+    public internal(set) var liftDur: Float = LIFT_TIME
     var hordeT: Float = 50
     var waveT: Float = 0
     var trickle: Float = 0
@@ -411,7 +442,9 @@ public final class Game {
         self.seed = seed
         self.playerClass = playerClass
         self.config = config
-        self.level = level ?? Level(source: config.levelSource, seed: seed)
+        let lv = level ?? Level(source: config.levelSource, seed: seed)
+        self.level = lv
+        self.mission = (config.mission ?? MissionTemplate.coldLight).build(lv)
         self.difficulty = config.difficulty
         self.bugCap = config.bugCap ?? (config.difficulty.waves ? config.quality.bugCap : config.quality.legacyCap)
         self.rng = SeededRNG(seed: seed == 0 ? 0x9E37_79B9 : seed)
@@ -465,8 +498,8 @@ public final class Game {
             }
         }
         coachBegin()
-        if !attract && !coach.active && !simOnly {
-            emit(.banner(title: GameText(.bannerDrop), subtitle: GameText(.bannerDropSub, [.name(stationName)]), teal: true))
+        if !attract && !coach.active && !simOnly, let b = mission.briefing {
+            emit(.banner(title: stepLine(b.title, [.name(stationName)]), subtitle: stepLine(b.sub, [.name(stationName)]), teal: true))
         }
     }
 
@@ -617,13 +650,20 @@ public final class Game {
         flowSrc.withUnsafeBufferPointer { buf in f.compute(level: lv, sources: buf, queue: q) }
     }
 
-    /// Where the mission wants the squad (next beacon / the lift / the player).
+    /// Where the mission wants the squad (the plan's step: the next beacon or switch, the step's zone / the player).
     func objectivePoint() -> Vec2 {
-        if stage == .beacons {
+        switch currentStep {
+        case .ring?:
             let b = nextBeacon()
             if b >= 0 { return Vec2(beacons[b].x, beacons[b].z) }
+        case .switches?:
+            let s = nextSwitch()
+            if s >= 0 { return switches[s].position }
+        case .hold(let h)?: return zoneCenter(h.zone)
+        case .boss(let b)?: return zoneCenter(b.zone)
+        case .extract?: return Vec2(level.lift.x, level.lift.z)
+        case nil: break
         }
-        if stage == .toLift || stage == .hold || stage == .extract { return Vec2(level.lift.x, level.lift.z) }
         return Vec2(marines[0].x, marines[0].z)
     }
 }

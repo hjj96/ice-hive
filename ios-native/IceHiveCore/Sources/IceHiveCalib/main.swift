@@ -6,7 +6,9 @@ import IceHiveCore
 //    swift run -c release icehive-calib --preset gate --jobs 3 --out calib.jsonl --summary calib.txt --gate
 //    swift run -c release icehive-calib --tiers 1 --n 8 --mode auto --th '{"trickle":1.3}' --tag t13 --out t.jsonl
 //    swift run -c release icehive-calib --agg a.jsonl b.jsonl        (aggregate only; web rows work too)
-//  Options: --preset gate|full|stations|legacy · --tiers 0,1,2 (-1 = legacy v1.0 row) · --n runs per class and tier
+//    swift run -c release icehive-calib --preset drills --out d.jsonl (the module drills, reported bands)
+//  Options: --preset gate|full|stations|legacy|drills|<mission template id> · --mission <template id> (cold-light,
+//  drill-ring, drill-switch, drill-hold, drill-boss, drill-extract, drill-all) · --tiers 0,1,2 (-1 = legacy v1.0 row) · --n runs per class and tier
 //  · --classes assault,pyro,cryo,gunner · --mode auto|passive|afk|afkbeacon · --maxs s · --seed0 1000 · --station N
 //  · --th JSON (web tier field names) · --tag t · --q low|med|high (gameplay bug cap) · --jobs N
 //  · --out file.jsonl (appends) · --summary file.txt · --gate
@@ -67,7 +69,9 @@ if let agg = flags["agg"] {
     let tag = flags["tag"]
     var runs: [CalibRun] = []
     if let p = flags["preset"] {
-        guard let r = Calibration.preset(p, seed0: seed0, th: th, tag: tag) else { fail("unknown preset \(p) (\(Calibration.presetNames.joined(separator: "|")))") }
+        guard let r = Calibration.preset(p, seed0: seed0, th: th, tag: tag) else {
+            fail("unknown preset \(p) (\((Calibration.presetNames + MissionTemplate.drills.map { $0.id }).joined(separator: "|")))")
+        }
         runs = r
     } else {
         let tiers = (flags["tiers"] ?? "1").split(separator: ",").map { Int($0) ?? 1 }
@@ -80,9 +84,14 @@ if let agg = flags["agg"] {
         let maxs = flags["maxs"].flatMap { Float($0) }
         let station = UInt32(flags["station"] ?? "0") ?? 0
         guard let q = QualityTier(rawValue: flags["q"] ?? "med") else { fail("unknown quality \(flags["q"] ?? "") (low|med|high)") }
+        // (the classic mission is the default: its rows carry no mission key)
+        let mission = flags["mission"].flatMap { $0 == MissionTemplate.coldLight.id ? nil : $0 }
+        if let m = mission, MissionTemplate.named(m) == nil {
+            fail("unknown mission \(m) (\(MissionTemplate.all.map { $0.id }.joined(separator: "|")))")
+        }
         for t in tiers {
             runs += Calibration.batch(tier: t, mode: mode, n: n, classes: classes, seed0: seed0, tag: tag, th: t >= 0 ? th : [:], maxs: maxs,
-                                      station: station, quality: q)
+                                      station: station, quality: q, mission: mission)
         }
     }
     let jobs = Int(flags["jobs"] ?? "3") ?? 3
@@ -99,7 +108,9 @@ if let agg = flags["agg"] {
 
 var summary = Calibration.aggregate(rows)
 let (passed, gateText) = Calibration.gateText(rows)
-if flags["gate"] != nil || flags["preset"] == "gate" { summary += "\n\n" + gateText }
+// (the bands: the classic gate, and the reported bands of the module drills / a template's own preset)
+let preset = flags["preset"] ?? ""
+if flags["gate"] != nil || preset == "gate" || preset == "drills" || MissionTemplate.named(preset) != nil { summary += "\n\n" + gateText }
 summary += String(format: "\n\n%d rows in %.1f s\n", rows.count, Date().timeIntervalSince(t0))
 print(summary)
 write(summary, to: flags["summary"], append: false)

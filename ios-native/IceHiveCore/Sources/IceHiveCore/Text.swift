@@ -173,6 +173,14 @@ public enum TextID: String, CaseIterable {
     case objKillQueen = "obj.kill_queen"
     case objHoldLift = "obj.hold_lift"
     case objExtract = "obj.extract"
+    // ---- objective lines of the mission modules beyond the classic ones (Mission.swift)
+    case objSwitches = "obj.switches"
+    case objHoldRing = "obj.hold_ring"
+    case objReach = "obj.reach"
+    case objHoldArea = "obj.hold_area"
+    case objKillBoss = "obj.kill_boss"
+    case objWakingMove = "obj.waking_move"
+    case objConvergeMove = "obj.converge_move"
     // ---- context hints (between the stick rings)
     case hintPlayerDown = "hint.player_down"
     case hintReviveNear = "hint.revive_near"
@@ -318,7 +326,7 @@ public enum TextID: String, CaseIterable {
     /// (ci/check_strings.py parses exactly this shape).
     public var signature: String {
         switch self {
-        case .objHoldBeacon, .objHoldLift, .coachAbility, .coachAbilityKeys, .coachRevive: return "@"
+        case .objHoldBeacon, .objHoldLift, .objHoldArea, .objKillBoss, .coachAbility, .coachAbilityKeys, .coachRevive: return "@"
         case .toastMateDown, .toastMateUp, .toastTipSpitter, .toastTipBrute, .toastTipBoomer, .toastUpgrade: return "@"
         case .bannerDropSub, .bannerDefendSub, .scoreSpeed, .reportTag, .reportSubWon, .reportBest, .reportXP, .reportRankUp: return "@"
         case .reportChip, .tipLossSpitter, .tipLossBrute, .tipLossBoomer, .tipLossQueen, .tipPromo, .tipLonger: return "@"
@@ -331,7 +339,7 @@ public enum TextID: String, CaseIterable {
         case .fmtCombo, .fmtPercent, .fmtInt: return "d"
         case .upgDmg, .upgRof, .upgRange, .upgArad, .upgAcd, .upgSpd, .upgHp, .upgDash, .upgSquad, .upgCluster: return "d"
         case .upgBurn, .upgCone, .upgShatter, .upgChill, .upgCool: return "d"
-        case .objLightBeacons, .coachCounter, .bannerBeaconOnlineSub, .scoreBeacons, .upgTurret: return "dd"
+        case .objLightBeacons, .objSwitches, .coachCounter, .bannerBeaconOnlineSub, .scoreBeacons, .upgTurret: return "dd"
         default: return ""
         }
     }

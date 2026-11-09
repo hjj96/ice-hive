@@ -137,10 +137,11 @@ extension Game {
                    time: time, activeBeacon: activeBeacon, reviveTime: coach.reviveTime, groups: coachGroupCount)
     }
 
-    /// The Матка climbs up right now (lift hold only, before she came). `hp` overrides her health. Returns her uid or 0.
+    /// The Матка climbs up right now (a hold or a boss arena only, before she came). `hp` overrides her health. Returns her
+    /// uid or 0.
     @discardableResult
     public func debugQueen(hp: Float? = nil) -> Int32 {
-        if stage != .hold || queen.spawned { return 0 }
+        if posture != .hold || queen.spawned { return 0 }
         qEdge = -1
         queenSpawn()
         if let h = hp, h > 0, qSlot >= 0 { bugs.hp[qSlot] = h; bugs.hpMax[qSlot] = h }
@@ -237,31 +238,59 @@ extension Game {
         return made
     }
 
-    /// Complete the current objective stage.
+    /// Complete the current objective unit of the plan: the next beacon / switch, the walk to a zone (the squad is put
+    /// in it), the hold (its boss dies or never comes first), the boss, the ride. Returns the coarse stage after it.
     @discardableResult
     public func debugSkip() -> MissionStage {
-        switch stage {
-        case .beacons:
+        guard let step = currentStep else { return stage }
+        switch step {
+        case .ring:
             let b = nextBeacon()
             if b >= 0 {
                 if beacons[b].state == 0 { activeBeacon = b }
                 completeBeacon(b)
             }
-        case .toLift:
-            let L = level.lift
-            for (k, m) in marines.enumerated() {
-                let a = Float.pi / 4 + Float(k) * Float.pi / 2
-                m.x = L.x + cosf2(a) * 2; m.px = m.x
-                m.z = L.z + sinf2(a) * 2; m.pz = m.z
+        case .switches(let s):
+            let k = nextSwitch()
+            if k >= 0 {
+                if switches[k].state == 0 { switches[k].state = 1; activeSwitch = k }
+                throwSwitch(k, s)
             }
-            startHold()
-        case .hold:
-            queenSkip()   // the Матка dies (or never comes) first
-            liftT = 0.01
-        case .extract:
-            extractT = 4.5
+        case .hold(let h):
+            if stepPhase == .approach {
+                debugPutSquad(in: h.zone)
+                startHold(h)
+            } else {
+                if h.boss != nil { queenSkip() }   // the Матка dies (or never comes) first
+                liftT = 0.01
+            }
+        case .boss(let b):
+            if stepPhase == .approach {
+                debugPutSquad(in: b.zone)
+                enterPhase(.active)
+            } else {
+                queenSkip()   // she dies (or never comes): the step ends on the next tick
+            }
+        case .extract(let e):
+            if stepPhase == .approach {
+                debugPutSquad(in: .lift)
+                startRide(e)
+            } else {
+                extractT = e.duration - 0.1
+            }
         }
         return stage
+    }
+
+    /// The squad 2 m around the zone's centre (the lift: on its deck; a deck zone: where a marine fits, else the centre).
+    func debugPutSquad(in zone: MissionZone) {
+        let c = zoneCenter(zone)
+        for (k, m) in marines.enumerated() {
+            let a = Float.pi / 4 + Float(k) * Float.pi / 2
+            m.x = c.x + cosf2(a) * 2; m.px = m.x
+            m.z = c.y + sinf2(a) * 2; m.pz = m.z
+            if zone != .lift && !level.canStand(m.x, m.z) { m.x = c.x; m.px = c.x; m.z = c.y; m.pz = c.y }
+        }
     }
 
     /// Hold the extraction at `t` seconds (CI screenshots of the rising lift); no-op outside the extract stage.
