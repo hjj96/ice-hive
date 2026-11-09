@@ -154,6 +154,10 @@ extension Game {
     /// Set the lift countdown (hold only).
     public func debugSetLiftTime(_ t: Float) { if stage == .hold { liftT = max(0, min(liftDur, t)) } }
 
+    /// (film branch only) The Queen dies now with her whole presentation (blast, medkits, banner, hit-stop); the lift countdown is left
+    /// alone (video capture: the lift leaves a moment later, not in the same tick as debugSkip() would send it).
+    public func debugKillQueen() { if queen.alive { queenSkip() } }
+
     /// Set a squad member's armour; ≤ 0 downs it (web `__dbgExt.hurt`).
     public func debugHurt(marine k: Int, hp: Float) {
         guard k >= 0 && k < marines.count else { return }

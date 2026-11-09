@@ -315,11 +315,13 @@ final class FrameLoop: GameHost {
         let layer = view.metalLayer
         layer.device = device
         layer.pixelFormat = .bgra8Unorm
-        // -burst (CI): the drawable is a blit source for BurstCapture; otherwise framebuffer-only
-        layer.framebufferOnly = !BurstCapture.shared.on
+        // -burst / -film (CI): the drawable is a blit source for BurstCapture / FilmCapture; otherwise framebuffer-only
+        layer.framebufferOnly = !(BurstCapture.shared.on || FilmCapture.shared.on)
         layer.isOpaque = true
         layer.maximumDrawableCount = 3
         drawables = DrawableSource(layer: layer)
+        // -videoStep (FilmCapture): every tick draws, so a tick waits for its drawable instead of skipping
+        if VideoClock.on { drawables.budget = 1.0 }
         let bg = Palette.backgroundUI
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         _ = bg.getRed(&r, green: &g, blue: &b, alpha: &a)
@@ -416,6 +418,7 @@ final class FrameLoop: GameHost {
     // ---------------------------------------------------------------- frame
     func tick(_ link: CADisplayLink) {
         guard !inBackground, let scene = scene else { return }
+        if VideoClock.on { tickFixed(scene); return }
         let t0 = FrameTimer.now()
         var tk = Tick()
         // never wait for the GPU or the compositor: no free slot or no free drawable = this tick simulates without
@@ -451,6 +454,31 @@ final class FrameLoop: GameHost {
         frameOpen = false
     }
 
+    /// `-videoStep N` (FilmCapture): every tick draws one frame and advances the scene by exactly one step of
+    /// VideoClock — it waits for a frame slot and a drawable instead of skipping (time stands still meanwhile), so the
+    /// presented frames are evenly spaced in game time however slow the host is.
+    private func tickFixed(_ scene: GameScene) {
+        var tk = Tick()
+        guard slots.wait(timeout: .now() + 2) == .success else { slotMisses += 1; slotMissTotal += 1; return }
+        guard let d = drawables.take(size: drawableSize) else { slots.signal(); noDrawable += 1; noDrawableTotal += 1; return }
+        frameOpen = true
+        let r = scene.renderer
+        if let r = r {
+            let (w, h) = worldPixels
+            r.setTargetSize(width: w, height: h)
+            r.beginFrame()
+        }
+        VideoClock.advance()
+        targetTime = 0
+        sk.update(atTime: VideoClock.now)
+        if !draw(r, d, &tk) {
+            r?.frameOpen = false
+            slots.signal()
+        }
+        lastTick = tk
+        frameOpen = false
+    }
+
     /// Encode world + composite + HUD into one command buffer and present it. false = nothing was committed (the
     /// drawable goes back to the layer unshown).
     private func draw(_ r: MetalRenderer?, _ d: CAMetalDrawable, _ tk: inout Tick) -> Bool {
@@ -476,6 +504,7 @@ final class FrameLoop: GameHost {
         enc.endEncoding()
         finalPass.colorAttachments[0].texture = nil
         if BurstCapture.shared.on { BurstCapture.shared.capture(cb, tex, device: device, sinceReady: scene?.sinceReady ?? -1) }
+        if FilmCapture.shared.on { FilmCapture.shared.capture(cb, tex, device: device, sinceReady: scene?.sinceReady ?? -1) }
         let t2 = FrameTimer.now()
         if AppLog.diagnostics { tk.hudCpuMs = (CPUTime.thread() - cpu0) * 1000 }
         if pacedPresent && targetTime > 0 { cb.present(d, atTime: targetTime) } else { cb.present(d) }

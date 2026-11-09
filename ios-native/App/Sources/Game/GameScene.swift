@@ -836,7 +836,8 @@ final class GameScene: SKScene {
         // the report comes up over the world, like the web endGame(); a lost squad first gets its defeat beat (feel build A3:
         // the deaths and Cinematics' push-in, `Cinematics.defeatLength` s — `-demo defeat` plays it too); a won mission's
         // world keeps animating under it (R0, `wonT` — `-demo win` plays it)
-        if mode == .playing && g.phase != .playing && (demo == nil || demo?.name == "defeat" || demo?.name == "win") {
+        // (film branch: the `-video` finale lets the game bring its report up at the win, as in a real mission)
+        if mode == .playing && g.phase != .playing && (demo == nil || demo?.name == "defeat" || demo?.name == "win" || demo?.showsReport == true) {
             if g.phase == .lost && !surrendered && defeatBeat < Cinematics.defeatLength {
                 if defeatBeat == 0 { AppLog.info("defeat beat start") }
                 defeatBeat += max(dt, 1e-4)

@@ -114,6 +114,23 @@ import IceHiveCore
 //    (`crowd(_:)`; the wave pacing's High 350 / Medium 250 / Low 220 under the device class), the hold demos play the
 //    director's own hold. Only the declared renderer stress runs go past it — stress1400 (1400) and an explicit
 //    `-bugs N` (CI `swarm` / `swarm3x`: 1400).
+//  `-video` (film branch native-vx-film only, FilmCapture; never merged): the demos play out for a gameplay film instead
+//  of stopping for a screenshot, every one on High. combat / stress1400 / punchin play the game's own swarm (the wave
+//  director: nothing spawned around the squad, no top-ups) and stage only the objective: combat with `-videoAt k` — the
+//  defence of beacon k (0 Alpha, 1 Beta, 2 Gamma) charged to `-videoCharge` (0.2) so the hive's first push lands inside
+//  the film; stress1400 — the third beacon (two done, mission time 200 s) charged to 0.84 plus a horde 2.5 s in, the
+//  heaviest moment of the pacing; punchin — the defence of Alpha until the beacon comes on at `-punchAt` s (9), the shot
+//  plays once; queen — the finale: the hold's own swarm, the Queen climbs up at `-queenAt` s (7) with `-queenHp` (1100),
+//  dies by the squad's guns (or at `-queenKillBy` s (9) after she came), the lift leaves `-liftDelay` s (2.5) after her
+//  death and the extraction plays out. The look-dev demos (calm -squadSheet …, swarmpack / swarmmix, defeat) keep their
+//  own scripts and only get High.
+//  Stage 1 film (branch native-vx-film-s1 only; staging — when things happen, never how they look): `-videoMk2` plays the
+//  overhead / overheadbugs / interactives demos' staging on the classic «Кельвин-9» Mk II (its whole overhead and props)
+//  instead of their showcase / slice station; the video queen lets the game bring its report up at the win (`showsReport`);
+//  `-videoOverhead` sends R5's packs up the overhead near the squad in the punch-in too; `-videoToLift` (combat): the three
+//  beacons done, the squad on beacon C's deck (`-videoStart x,z`), the autopilot walks to the lift; the overhead demo's
+//  walk follows `-videoPath x,z/x,z/…` at `-videoWalkK` of the run speed, its squad opens fire at `-videoFireAt` s, and
+//  `-videoPack t,entry,n[,type]` sends more packs up the overhead's entries.
 // ================================================================
 final class DemoScript {
     let name: String
@@ -143,10 +160,96 @@ final class DemoScript {
     /// `-demo report`: the fixture whose outcome the mission gets.
     let reportFixture: DemoFixtures.Report?
 
+    /// `-video`: the film timings (see the header).
+    private let video: Bool
+    private let punchAt: Double, queenAt: Double, queenKillBy: Double, liftDelay: Double
+    private let videoAt: Int
+    private let videoCharge: Float
+    private var videoCharged = false, videoHorde = false
+
+    // ---- Stage 1 film (native-vx-film-s1): staging only — when things happen, never how they look ----
+    /// `-videoMk2`: the overhead / overheadbugs / interactives demos on the classic «Кельвин-9» Mk II (see `levelSource`).
+    private var videoMk2: Bool { video && options.unknown.contains("-videoMk2") }
+    /// `-video` queen: the game's own report comes up at the win, over the world that keeps moving (R0) — the scene brings
+    /// it up as in a real mission (GameScene: `demo == nil || … || showsReport`).
+    var showsReport: Bool { video && name == "queen" }
+    /// `-videoOverhead`: R5's packs up the overhead entries near the squad (`overheadInPlay`) in a demo that does not send
+    /// them on its own (the punch-in at beacon Alpha).
+    private var videoOverhead: Bool { video && options.unknown.contains("-videoOverhead") }
+    /// `-videoToLift` (combat): the three beacons done, the squad on beacon C's deck (`-videoStart x,z` elsewhere) — the
+    /// autopilot walks to the lift across the plaza and down the stairs under the gantry, the director's own travel, then
+    /// the hold starts as the squad reaches the lift.
+    private var videoToLift: Bool { video && name == "combat" && options.unknown.contains("-videoToLift") }
+    /// `-videoPath x,z/x,z/…` (overhead -ohWalk): the walk's waypoints (the first one is where the squad starts), walked
+    /// with the stick at `-videoWalkK` (0.5: half speed — a slow, steady camera move).
+    private lazy var videoPath: [Vec2] = {
+        guard self.video, let s = self.videoArg("-videoPath") else { return [] }
+        return s.split(separator: "/").compactMap { p in
+            let c = p.split(separator: ",").compactMap { Float(String($0)) }
+            return c.count == 2 ? Vec2(c[0], c[1]) : nil
+        }
+    }()
+    private lazy var videoStart: Vec2? = {
+        guard let s = self.videoArg("-videoStart") else { return nil }
+        let c = s.split(separator: ",").compactMap { Float(String($0)) }
+        return c.count == 2 ? Vec2(c[0], c[1]) : nil
+    }()
+    private var walkK: Float { Float(max(0.2, min(1, demoNum("-videoWalkK", 0.5)))) }
+    /// `-videoFireAt s` (overhead): when the bots open fire (the demo's 6.0 s otherwise).
+    private var fireAt: Double { video ? demoNum("-videoFireAt", 6.0) : 6.0 }
+    /// `-videoPack t,entry,n[,type]` (any number of them; overhead demos): a pack of n up overhead entry `entry` at t s after
+    /// «scene ready» (`debugRoutePack`: the riser climb, or the duct mouth's rattle and pour) — type runner unless named.
+    private lazy var videoPacks: [(t: Double, entry: Int, n: Int, type: BugType)] = {
+        guard self.video else { return [] }
+        let u = self.options.unknown
+        var out: [(t: Double, entry: Int, n: Int, type: BugType)] = []
+        for (i, a) in u.enumerated() where a == "-videoPack" && i + 1 < u.count {
+            let f = u[i + 1].split(separator: ",").map(String.init)
+            guard f.count >= 3, let t = Double(f[0]), let e = Int(f[1]), let n = Int(f[2]) else { continue }
+            let ty: BugType
+            switch f.count > 3 ? f[3] : "runner" {
+            case "dropper": ty = .dropper
+            case "spitter": ty = .spitter
+            case "brute": ty = .brute
+            case "boomer": ty = .boomer
+            default: ty = .runner
+            }
+            out.append((t, e, n, ty))
+        }
+        return out
+    }()
+    private var videoPackNext = 0
+    private func videoArg(_ key: String) -> String? {
+        let u = options.unknown
+        guard let i = u.firstIndex(of: key), i + 1 < u.count else { return nil }
+        return u[i + 1]
+    }
+    /// The `-videoPack` packs due by now (logged like the demos' own packs).
+    private func videoPacksDue(_ game: Game) {
+        while videoPackNext < videoPacks.count && sinceReady >= videoPacks[videoPackNext].t {
+            let p = videoPacks[videoPackNext]
+            videoPackNext += 1
+            let n = game.debugRoutePack(p.n, entry: p.entry, rate: 3, type: p.type)
+            AppLog.info(String(format: "demo %@ (video): a pack of %d (%d %@) up entry %d td=%.2f", name, n, p.n, "\(p.type)", p.entry, sinceReady))
+        }
+    }
+
     private init(name: String, options: LaunchOptions, bugs: Int? = nil) {
         self.name = name
         self.options = options
         override = bugs
+        let u = options.unknown
+        func num(_ k: String, _ d: Double) -> Double {
+            guard let i = u.firstIndex(of: k), i + 1 < u.count, let v = Double(u[i + 1]) else { return d }
+            return v
+        }
+        video = u.contains("-video")
+        punchAt = num("-punchAt", 9)
+        queenAt = num("-queenAt", 7)
+        queenKillBy = num("-queenKillBy", 9)
+        liftDelay = num("-liftDelay", 2.5)
+        videoAt = Int(num("-videoAt", -1))
+        videoCharge = Float(num("-videoCharge", name == "stress1400" ? 0.84 : 0.2))
         reportFixture = name == "report" ? DemoFixtures.report(options.report) : nil
         if name == "report" && reportFixture == nil { AppLog.error("unknown -report \(options.report ?? "?")") }
     }
@@ -179,6 +282,9 @@ final class DemoScript {
     /// The station the demo plays (nil = the classic mission's «Кельвин-9» Mk II): the overhead demos lay the overhead
     /// showcase, the interactives demo the slice and R6's demo props.
     var levelSource: LevelSource? {
+        // (film branch, `-video -videoMk2`: the look-dev demos' staging on the classic mission's «Кельвин-9» Mk II — its whole
+        // overhead and its props — instead of the showcase / the slice: the film shows the station the game plays)
+        if videoMk2 && ["overhead", "overheadbugs", "interactives"].contains(name) { return nil }
         // (R6: the interactives demo lays «Кельвин-9»'s props and the slice its bridge valve hangs on)
         if name == "interactives" { return KelvinStation(overhead: .kelvinSlice, props: .kelvinDemo) }
         return name == "overhead" || name == "overheadbugs" ? KelvinStation(overhead: OverheadShowcase.layout) : nil
@@ -192,6 +298,8 @@ final class DemoScript {
     /// Graphics tier the demo forces without touching the saved setting (the store shots and the WP7 cinematics are
     /// taken on «высокая»; stress1400 is the plan's High budget run).
     var preferredQuality: String? {
+        // (-video: every film scene on «высокая», as the earlier films)
+        if video { return "high" }
         if name == "overhead" && options.unknown.contains("-ohHigh") { return "high" }
         return ["swarmshot", "stress1400", "punchin", "extract-cine", "win"].contains(name) ? "high" : nil
     }
@@ -213,6 +321,31 @@ final class DemoScript {
         game.autopilot = true
         game.autoPickUpgrades = true
         Cinematics.shared.reset()
+        if video && (name == "combat" || name == "stress1400") && videoAt >= 0 && videoAt < game.beacons.count {
+            let b = game.beacons[videoAt]
+            if name == "stress1400" { game.debugSetRun(time: 200, beaconsDone: videoAt) }
+            game.debugTeleport(b.x + 2, b.z - 2.5)
+            AppLog.info("demo \(name) (video): squad at beacon \(b.name.logID), beacons done \(game.beaconsDone)")
+        }
+        if videoToLift {
+            // (Stage 1 film) the three beacons done (the lift is called), the squad on beacon C's deck: the autopilot walks
+            // to the lift — the C catwalk, the plaza, the stairs under the gantry — and the hold starts on the lift
+            var g = 0
+            while game.stage == .beacons && g < 6 { game.debugSkip(); g += 1 }
+            let p = videoStart ?? Vec2(-30, -7)
+            game.debugTeleport(p.x, p.y)
+            AppLog.info(String(format: "demo combat (video): beacons done %d, stage %d, the squad at (%.1f, %.1f): the walk to the lift",
+                               game.beaconsDone, game.stage.rawValue, p.x, p.y))
+        }
+        if video && (name == "combat" || name == "stress1400" || name == "punchin") {
+            // the game's own swarm (wave pacing): nothing spawned around the squad, no top-ups
+            target = 0
+            if name == "punchin", let b = game.beacons.first { game.debugTeleport(b.x + 1.5, b.z - 1.5) }
+            AppLog.info("demo \(name) (video): the wave director's own swarm, bug cap \(game.bugCap)"
+                        + (videoOverhead || DemoScript.overheadDemos.contains(name) ? ", R5's packs up the overhead near the squad" : ""))
+            logOverhead(game)
+            return
+        }
         switch name {
         case "calm", "layout", "bugsheet":
             game.autopilot = false
@@ -292,7 +425,8 @@ final class DemoScript {
             game.autopilot = false
             game.directorEnabled = false
             game.debugHoldFire = true
-            if walk { game.debugTeleport(21.5, 31.6) } else { game.debugTeleport(14, 30.5) }
+            if walk, let p = videoPath.first { game.debugTeleport(p.x, p.y) }
+            else if walk { game.debugTeleport(21.5, 31.6) } else { game.debugTeleport(14, 30.5) }
             target = 0
             let G = game.level.overhead
             let rc = OverheadCheck.check(game.level.layout.overhead, level: game.level)
@@ -397,12 +531,14 @@ final class DemoScript {
                 AppLog.info("demo defeat: marine \(k) down")
             }
         }
-        if (name == "queen" || name == "queenlock") && !queenSet && sinceReady >= 2 {
+        if (name == "queen" || name == "queenlock") && !queenSet && sinceReady >= (video ? queenAt : 2) {
             queenSet = true
             // (the scene logs «v11 queen spawn …» from her event)
-            let uid = game.debugQueen(hp: options.queenHp ?? 1_000_000)
+            let uid = game.debugQueen(hp: options.queenHp ?? (video ? 1100 : 1_000_000))
             if uid == 0 { AppLog.info("demo \(name): the Queen did not come (stage \(game.stage.rawValue))") }
+            if video { AppLog.info(String(format: "demo queen (video): the Queen climbs up td=%.2f uid=%d", sinceReady, Int(uid))) }
         }
+        if video && name == "queen" && queenSet { finale(game) }
         if name == "queenlock" && !lockSet && queenSet && sinceReady >= 3.5 {
             lockSet = true
             game.debugSetLiftTime(0.01)
@@ -424,6 +560,22 @@ final class DemoScript {
         if name == "probe" && probeIndex < probeSteps.count && t >= Float(4 * (probeIndex + 1)) {
             probe = probeSteps[probeIndex]
             probeIndex += 1
+        }
+        if video && (name == "combat" || name == "stress1400" || name == "punchin" || name == "queen") {
+            // the defended beacon charged so the hive's pushes land inside the film; stress: one more horde 2.5 s in
+            if !videoCharged && game.activeBeacon >= 0 && (name == "combat" || name == "stress1400") {
+                videoCharged = true
+                game.debugBeaconProgress(videoCharge)
+                AppLog.info(String(format: "demo %@ (video): beacon charged to %.2f td=%.2f alive %d", name, videoCharge, sinceReady, game.bugsAlive))
+            }
+            if !videoHorde && name == "stress1400" && sinceReady >= 2.5 {
+                videoHorde = true
+                game.debugHorde(70)
+                AppLog.info(String(format: "demo stress1400 (video): horde td=%.2f alive %d", sinceReady, game.bugsAlive))
+            }
+            logT -= dt
+            if logT <= 0 { logT = 2; AppLog.info(String(format: "demo %@ (video): alive %d td=%.1f stage %d", name, game.bugsAlive, sinceReady, game.stage.rawValue)) }
+            return
         }
         topUpT -= dt
         if target > 0 && topUpT <= 0 {
@@ -472,7 +624,7 @@ final class DemoScript {
     }
     private func overheadInPlay(_ game: Game, _ dt: Float) {
         // (from «scene ready»: while loading the squad is not where the demo puts it — the hold's first pack found no entry)
-        guard DemoScript.overheadDemos.contains(name), game.level.overhead != nil, sinceReady >= 0 else { return }
+        guard DemoScript.overheadDemos.contains(name) || videoOverhead, game.level.overhead != nil, sinceReady >= 0 else { return }
         ohT -= dt
         if ohT > 0 { return }
         ohT = 5
@@ -610,12 +762,15 @@ final class DemoScript {
             ohStep = 2
             AppLog.info(String(format: "demo overhead: %d out of the duct mouth td=%.2f", game.debugRoutePack(5, entry: 4, rate: 2.5), sinceReady))
         }
-        if ohStep == 2 && sinceReady >= 6.0 {
+        if ohStep == 2 && sinceReady >= fireAt {
             ohStep = 3
             game.debugHoldFire = false
             AppLog.info(String(format: "demo overhead: the squad opens fire td=%.2f", sinceReady))
         }
-        if walk {
+        videoPacksDue(game)
+        if walk && !videoPath.isEmpty {
+            videoWalk(game)
+        } else if walk {
             // the parallax walk: along the bridge's near half toward the hub, then idle (no freeze: the camera keeps moving)
             if sinceReady >= 1.0 && game.player.x > 1.5 {
                 game.setPlayerInput(move: Vec2(-1, 0), aim: nil, fire: false, ability: false, dash: false)
@@ -639,6 +794,31 @@ final class DemoScript {
         }
     }
 
+    /// `-videoPath` (film branch): the player walks the waypoints with the stick at `walkK` from 1.0 s, then stands.
+    private var pathIndex = 1
+    private func videoWalk(_ game: Game) {
+        guard sinceReady >= 1.0 else { return }
+        let P = game.player
+        while pathIndex < videoPath.count {
+            let w = videoPath[pathIndex]
+            let dx = w.x - P.x, dz = w.y - P.z, d = (dx * dx + dz * dz).squareRoot()
+            if d < 0.7 {
+                AppLog.info(String(format: "demo overhead (video): waypoint %d (%.1f, %.1f) td=%.2f", pathIndex, w.x, w.y, sinceReady))
+                pathIndex += 1
+                continue
+            }
+            let k = walkK
+            game.setPlayerInput(move: Vec2(dx / d * k, dz / d * k), aim: nil, fire: false, ability: false, dash: false)
+            if !walkLogged { walkLogged = true; AppLog.info(String(format: "demo overhead (video): walking the path td=%.2f at %.2f of the run speed", sinceReady, k)) }
+            return
+        }
+        game.setPlayerInput(move: Vec2(0, 0), aim: nil, fire: false, ability: false, dash: false)
+        if !walkDone {
+            walkDone = true
+            AppLog.info(String(format: "demo overhead (video): the path walked td=%.2f at (%.1f, %.1f)", sinceReady, P.x, P.z))
+        }
+    }
+
     // ---------------------------------------------------------------- Stage 1 R4: the overhead's bugs
     private var obStep = 0
     private var obPinA = false, obPinB: Float = -1, obShooting = false, obFreed: Float = -1, obSim0: Float = -1
@@ -651,6 +831,7 @@ final class DemoScript {
     /// again — frozen for the screenshot (the hint «Pinned — dash!») or, with -obDash, the dash out of it.
     private func overheadBugs(_ game: Game, _ dt: Float) {
         t += dt
+        videoPacksDue(game)
         // (the sim clock starts with «scene ready», like the bursts' clock)
         if obSim0 < 0 { if sinceReady < 0 { return }; obSim0 = game.simTime }
         let ts = game.simTime - obSim0
@@ -822,14 +1003,14 @@ final class DemoScript {
     private func punchIn(_ game: Game) {
         let c = Cinematics.shared
         switch cineStep {
-        case 0 where sinceReady >= 1.5:
+        case 0 where sinceReady >= (video ? punchAt : 1.5):
             cineStep = 1
             if game.stage == .beacons { game.debugSkip() }
             AppLog.info(String(format: "demo punchin: beacon on at td=%.2f (beacons done %d)", sinceReady, game.beaconsDone))
         case 1 where c.kind == .punchIn:
             cineStep = 2
             AppLog.info(String(format: "demo punchin: shot started td=%.2f", sinceReady))
-        case 2 where sinceReady >= 4.6:
+        case 2 where sinceReady >= 4.6 && !video:
             cineStep = 3
             c.replayPunchIn()
             AppLog.info(String(format: "demo punchin: replay + hold td=%.2f", sinceReady))
@@ -856,5 +1037,29 @@ final class DemoScript {
         default: break
         }
         if cineStep == 2 { game.debugPinExtract(2.8) }
+    }
+
+    /// `-video` queen: once the Queen is dead (shot down, or killed at queenAt + queenKillBy), the lift leaves
+    /// `liftDelay` s later (the squad stands on it: the extraction shot follows, then the mission is won).
+    private var queenDeadAt: Double = -1
+    private var liftSent = false
+    private func finale(_ game: Game) {
+        if queenDeadAt < 0 {
+            if game.queen.spawned && !game.queen.alive {
+                queenDeadAt = sinceReady
+                AppLog.info(String(format: "demo queen (video): the Queen died td=%.2f (lived %.1f s)", sinceReady, game.queen.killT))
+            } else if game.queen.alive && sinceReady >= queenAt + queenKillBy {
+                game.debugKillQueen()
+                queenDeadAt = sinceReady
+                AppLog.info(String(format: "demo queen (video): the Queen killed by the script td=%.2f", sinceReady))
+            } else if !game.queen.spawned && sinceReady >= queenAt + 1 {
+                queenDeadAt = sinceReady
+                AppLog.info("demo queen (video): no Queen (stage \(game.stage.rawValue)), the lift goes anyway")
+            }
+        } else if !liftSent && sinceReady >= queenDeadAt + liftDelay {
+            liftSent = true
+            game.debugSetLiftTime(0.01)
+            AppLog.info(String(format: "demo queen (video): the lift leaves td=%.2f stage %d", sinceReady, game.stage.rawValue))
+        }
     }
 }
