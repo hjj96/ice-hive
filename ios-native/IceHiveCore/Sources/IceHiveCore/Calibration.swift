@@ -623,7 +623,7 @@ public enum Calibration {
                         pad("\(rs.map { $0.oh!.maxZones }.max() ?? 0)", 6), pad(fmt(pct(dd, downs)), 6)]
             out.append(k.padding(toLength: 18, withPad: " ", startingAt: 0) + " " + cols.joined(separator: " "))
         }
-        out.append("(drop%dn: squad downs a drop's bite caused, of all squad downs — informational band on Ветеран ≤ 20 %)")
+        out.append("(drop%dn: squad downs a drop's bite caused, of all squad downs — informational band on Veteran ≤ 20 %)")
         return out.joined(separator: "\n")
     }
 
