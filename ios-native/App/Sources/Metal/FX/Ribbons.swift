@@ -77,10 +77,27 @@ final class Ribbons {
             let p = P.position(k), d = P.direction(k)
             let ci = max(0, min(2, P.colorIndex(k)))
             let len = min(Ribbons.tracerLength[ci], P.speed(k) * 0.034)
-            let y = 1.2 + level.groundY(p.x, p.y)
-            bolt(head: F3(p.x, y, p.y), dir: d3(d), len: len, ci: ci, bot: P.owner(k) != 0)
+            var y = 1.2 + level.groundY(p.x, p.y)
+            var dir = d3(d)
+            if P.aimedUp(k) {
+                // Stage 1 R3: a round fired at a bug up on the overhead climbs toward it (the core keeps it 2-D: it strikes
+                // the bug's footprint) — the bolt tilts up from the shooter's muzzle height to the route's ≈ 4.5 m
+                let o = P.owner(k)
+                let from: Vec2? = o >= 0 && o < game.marines.count ? Vec2(game.marines[o].x, game.marines[o].z)
+                    : (game.turret.active ? Vec2(game.turret.x, game.turret.z) : nil)
+                if let f = from {
+                    let run = ((p.x - f.x) * (p.x - f.x) + (p.y - f.y) * (p.y - f.y)).squareRoot()
+                    let rise = min(3.3, run * Ribbons.aimUpSlope)
+                    y += rise
+                    if rise < 3.3 { dir = F3(d.x, Ribbons.aimUpSlope, d.y) / (1 + Ribbons.aimUpSlope * Ribbons.aimUpSlope).squareRoot() }
+                }
+            }
+            bolt(head: F3(p.x, y, p.y), dir: dir, len: len, ci: ci, bot: P.owner(k) != 0)
         }
     }
+
+    /// The climb of a tracer aimed at the overhead (m up per m run: ≈ 3.3 m over the 6–8 m to a rack).
+    static let aimUpSlope: Float = 0.5
 
     /// One tracer bolt: `len` m behind its head along the unit `dir`, in projectile colour `ci` (Ribbons.tracerColor).
     func bolt(head: F3, dir: F3, len: Float, ci: Int, bot: Bool = false) {

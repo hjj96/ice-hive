@@ -64,14 +64,18 @@ import IceHiveCore
 //                   after «scene ready» (0.6 s apart, the player last, invulnerability off for it): the core loses the
 //                   mission, GameScene plays the defeat beat (the deaths, Cinematics' push-in, 2.8 s) and the report
 //                   comes up — the CI burst burst-defeat and the screenshot after it
-//  Stage 1 R2 «Overhead core»:
-//    -demo overhead  «Кельвин-9» with the overhead's demo route laid (OverheadLayout.kelvinSlice: a 4.5 m rack on the far
-//                   rail of the pad → hub bridge, an abyss riser, a duct mouth; drawn by WorldLevel's stand-in until the
-//                   overhead render package), the director off, the player idle mid-bridge, the bots holding fire. 1.0 s
-//                   after «scene ready» a pack of 6 climbs the riser, at 4.0 s 5 pour out of the duct mouth: they ride the
-//                   rack and drop on the squad (`route: drop warned / landed` lines, the `.dropZone` rings); the bots open
-//                   fire at 6.0 s (`route: killed up there`); time almost frozen (×0.02) on a drop telegraph from 7.0 s (at
-//                   9.0 s at the latest) for the screenshot. Once a second `hb route alive=… up=… states=… drops=…`.
+//  Stage 1 R2 «Overhead core» / R3 «Overhead render»:
+//    -demo overhead  «Кельвин-9» with the overhead showcase laid (OverheadShowcase: R2's slice — a 4.5 m rack on the far
+//                   rail of the pad → hub bridge, an abyss riser, a duct mouth — plus two cantilever arms and a cable over
+//                   the walkway, a pipe bridge into the void, a catwalk, the stair-chute tray; drawn by WorldOverhead),
+//                   the director off, the player idle mid-bridge, the bots holding fire. 1.0 s after «scene ready» a pack
+//                   of 6 climbs the riser, at 4.0 s 5 pour out of the duct mouth: they ride the rack (and the arm and the
+//                   cable over the squad) and drop on it (`route: drop warned / landed` lines, the `.dropZone` rings, the
+//                   frost-dust streams and eye glints); the bots open fire at 6.0 s (`route: killed up there`); time
+//                   almost frozen (×0.02) on a drop telegraph from 7.0 s (at 9.0 s at the latest) for the screenshot. Once
+//                   a second `hb route alive=… up=… states=… drops=…`. `-ohWalk` (the parallax burst): the squad starts at
+//                   the pad end and the player walks the bridge toward the hub from 1.0 s (no freeze) — the camera follows,
+//                   the deck, the routes and the upper truss slide past at their three speeds.
 //    No demo shows more live bugs than the game itself can: every forced crowd is clamped to the mission's live cap
 //    (`crowd(_:)`; the wave pacing's High 350 / Medium 250 / Low 220 under the device class), the hold demos play the
 //    director's own hold. Only the declared renderer stress runs go past it — stress1400 (1400) and an explicit
@@ -135,8 +139,10 @@ final class DemoScript {
 
     var startsMission: Bool { name != "title" }
 
-    /// The station the demo plays (nil = the classic «Кельвин-9»): the overhead demo lays the overhead's demo route.
-    var levelSource: LevelSource? { name == "overhead" ? KelvinStation(overhead: .kelvinSlice) : nil }
+    /// The station the demo plays (nil = the classic «Кельвин-9»): the overhead demo lays the overhead showcase.
+    var levelSource: LevelSource? { name == "overhead" ? KelvinStation(overhead: OverheadShowcase.layout) : nil }
+    /// `-ohWalk`: the overhead demo's parallax walk (the CI burst `burst-parallax`).
+    private var walk: Bool { options.unknown.contains("-ohWalk") }
 
     /// Class the demo plays unless `-class` says otherwise (the store shot is the gunner's).
     var preferredClass: String? { name == "swarmshot" ? "gunner" : nil }
@@ -239,13 +245,17 @@ final class DemoScript {
             AppLog.info("demo punchin: squad in beacon \(game.beacons.first.map { $0.name.logID } ?? "?")'s ring, spawned \(n) bugs")
         case "overhead":
             // Stage 1 R2: mid-bridge under the demo rack (its far rail 3.6 m up-screen), nobody firing until the drops start
+            // (R3 -ohWalk: at the bridge's pad end, the player walks it toward the hub)
             game.autopilot = false
             game.directorEnabled = false
             game.debugHoldFire = true
-            game.debugTeleport(14, 30.5)
+            if walk { game.debugTeleport(21.5, 31.6) } else { game.debugTeleport(14, 30.5) }
             target = 0
             let G = game.level.overhead
-            AppLog.info("demo overhead: routes \(G?.edgeCount ?? 0) edges, \(G?.entries.count ?? 0) entries, squad mid-bridge, director off, bots holding fire")
+            let rc = OverheadCheck.check(game.level.layout.overhead, level: game.level)
+            AppLog.info("demo overhead: routes \(G?.edgeCount ?? 0) edges, \(G?.entries.count ?? 0) entries, squad "
+                        + (walk ? "at the pad end, walking to the hub" : "mid-bridge") + ", director off, bots holding fire"
+                        + String(format: " | routeCheck %@ (%.0f m, footprint %.1f %%)", rc.ok ? "ok" : "FAIL " + rc.why, rc.length, rc.footprint * 100))
         case "waves":
             // the wave director's own swarm: the squad in a beacon's ring, its defence starts on the first tick
             let k = max(0, min(game.beacons.count - 1, Int(demoNum("-waveBeacon", 1))))
@@ -474,10 +484,11 @@ final class DemoScript {
 
     // ---------------------------------------------------------------- Stage 1 R2: the overhead
     private var ohStep = 0
+    private var walkLogged = false, walkDone = false
     /// overhead: the packs up the riser and out of the duct mouth, the bots' fire, the freeze on a telegraph, the heartbeat.
     private func overhead(_ game: Game, _ dt: Float) {
         t += dt
-        // (OverheadLayout.kelvinSlice nodes: 2 the abyss riser, 4 the duct mouth)
+        // (OverheadShowcase keeps R2's slice indices: node 2 the abyss riser, 4 the duct mouth)
         if ohStep == 0 && sinceReady >= 1.0 {
             ohStep = 1
             AppLog.info(String(format: "demo overhead: a pack of %d up the riser td=%.2f", game.debugRoutePack(6, entry: 2, rate: 3), sinceReady))
@@ -491,7 +502,16 @@ final class DemoScript {
             game.debugHoldFire = false
             AppLog.info(String(format: "demo overhead: the squad opens fire td=%.2f", sinceReady))
         }
-        if freeze == 1 && sinceReady >= 7.0 && (game.dropZones.contains { $0.active && $0.progress > 0.3 } || sinceReady >= 9.0) {
+        if walk {
+            // the parallax walk: along the bridge's near half toward the hub, then idle (no freeze: the camera keeps moving)
+            if sinceReady >= 1.0 && game.player.x > 1.5 {
+                game.setPlayerInput(move: Vec2(-1, 0), aim: nil, fire: false, ability: false, dash: false)
+                if !walkLogged { walkLogged = true; AppLog.info(String(format: "demo overhead: walking td=%.2f from x=%.1f", sinceReady, game.player.x)) }
+            } else if walkLogged && !walkDone {
+                walkDone = true
+                AppLog.info(String(format: "demo overhead: walk done td=%.2f at (%.1f, %.1f)", sinceReady, game.player.x, game.player.z))
+            }
+        } else if freeze == 1 && sinceReady >= 7.0 && (game.dropZones.contains { $0.active && $0.progress > 0.3 } || sinceReady >= 9.0) {
             freeze = 0.02
             AppLog.info(String(format: "demo overhead: frozen td=%.2f up %d zones %d drops %d", sinceReady, game.routeAlive, game.activeDropZones,
                                game.overheadStats.drops))

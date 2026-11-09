@@ -144,6 +144,8 @@ final class WorldSwarm {
     static let ichor: [F3] = [F3(0.62, 0.1, 0.22), F3(0.5, 0.58, 0.1), F3(0.58, 0.12, 0.15), F3(0.62, 0.24, 0.08)]
 
     let level: Level
+    /// Stage 1 R3: the overhead layer (MetalWorld sets it) — a bug riding a swaying cable moves with it.
+    weak var overhead: WorldOverhead?
     private var renderer: MetalRenderer!
     private(set) var library: CreatureLibrary?
     private var animator: SwarmAnimator?
@@ -376,6 +378,14 @@ final class WorldSwarm {
         let swell = BugState.swell.rawValue, wind = BugState.wind.rawValue, climb = BugState.climb.rawValue, leapState = BugState.leap.rawValue
         // the overhead (Stage 1 R2): in these states the core's height is ABSOLUTE (a route over the void has no floor)
         let high = BugState.high.rawValue, riser = BugState.riser.rawValue, dropSt = BugState.drop.rawValue
+        let coilSt = BugState.coil.rawValue, fallSt = BugState.fall.rawValue
+        // Stage 1 R3: bugs up there lie along their route (pitched to its slope), ride a swaying cable with it, cling to the
+        // camera's face of a riser, crouch nose-down in the coil, dive in the drop and tumble when knocked off
+        let RE = S.routeEdges, RS = S.routeParams
+        let graph = level.overhead
+        let oh = overhead
+        // the camera's side of a riser column (the camera never turns: yaw 45°, toward +x +z)
+        let toCam = F3(0.7071, 0, 0.7071)
         let brute = UInt8(BugType.brute.rawValue)
         let queenUid: Int32 = game.queen.alive ? game.queen.uid : -1
         let marines = game.marines
@@ -399,10 +409,37 @@ final class WorldSwarm {
                 }
                 continue
             }
-            let bx = PX[i] + (X[i] - PX[i]) * alpha, bz = PZ[i] + (Z[i] - PZ[i]) * alpha
+            var bx = PX[i] + (X[i] - PX[i]) * alpha, bz = PZ[i] + (Z[i] - PZ[i]) * alpha
             let st = ST[i]
             let up = st >= high
-            let gy = up ? Y[i] : level.groundY(bx, bz) + Y[i]
+            var gy = up ? Y[i] : level.groundY(bx, bz) + Y[i]
+            var routePitch: Float = 0
+            var hdOverride: Float? = nil
+            if up, let G = graph, RE[i] != 0 {
+                let v = Int(RE[i])
+                let e = abs(v) - 1, fwd = v > 0
+                if e >= 0 && e < G.edgeCount {
+                    let (na, nb) = G.edgeEnds(e)
+                    if st == high || st == coilSt {
+                        // pitched to the route's slope in the travel direction (a cable's sag: the derivative of its curve)
+                        let A = G.nodePos(na), B = G.nodePos(nb), L = G.length[e]
+                        let u = clampf(RS[i] / L, 0, 1)
+                        var slope = ((B.y - A.y) - 4 * G.layout.edges[e].sag * (1 - 2 * u)) / L
+                        if !fwd { slope = -slope }
+                        routePitch = atanf(clampf(slope, -1.2, 1.2))
+                        if let o = oh {
+                            let w = o.swayOffset(edge: e, s: RS[i])
+                            bx += w.x; gy += w.y; bz += w.z
+                        }
+                    } else if st == riser {
+                        // on the riser's camera-facing side, belly to the column (heading into it: nose up, back to the camera)
+                        let n = G.nodePos(fwd ? na : nb)
+                        let r: Float = G.layout.nodes[fwd ? na : nb].kind == .deckPost ? 0.2 : 0.32
+                        bx = n.x + toCam.x * r; bz = n.z + toCam.z * r
+                        hdOverride = atan2f(-toCam.x, -toCam.z)
+                    }
+                }
+            }
             let vty = WorldSwarm.variety(VR[i])
             let sc = SC[i] * WorldSwarm.sizeK[t] * vty.size
             // CPU frustum cull: a point at mid-body height (15 % margin covers the body size)
@@ -425,12 +462,26 @@ final class WorldSwarm {
                 sp = sinf(a); cp = cosf(a)
             } else if st == riser {
                 // up a riser (an abyss column, a deck post), nose up like a bug scaling a deck edge
-                sp = sinf(1.35); cp = cosf(1.35)
+                sp = sinf(1.45); cp = cosf(1.45)
             } else if st == dropSt {
-                // the drop: nose down into the landing (a stand-in until the overhead render package's own clips)
+                // the drop: a dive off the route, nose down, levelling out for the landing
                 let p = max(0, min(1, 1 - TT[i] / DROP_T))
-                let a = -0.5 * p
+                let a = -0.95 + 0.7 * p
                 sp = sinf(a); cp = cosf(a)
+            } else if st == coilSt {
+                // the coil: nose down over the edge toward the landing point, a shiver as it winds up
+                let left = max(0, TT[i])
+                let p = max(0, min(1, 1 - left / 0.9))
+                let a = routePitch - 0.28 - 0.3 * p + 0.04 * sinf(time * 47 + Float(i))
+                sp = sinf(a); cp = cosf(a)
+            } else if st == fallSt {
+                // knocked off: one somersault over the fall (≈ 0.3 + 0.06 h s: ≈ 0.6 s from a rack), level again when it
+                // lands; a frozen one falls stiff, barely turning
+                let u = max(0, min(1, 1 - TT[i] / 0.6))
+                let a = -(FR[i] > 0 ? 0.6 : 2 * Float.pi) * u
+                sp = sinf(a); cp = cosf(a)
+            } else if st == high {
+                sp = sinf(routePitch); cp = cosf(routePitch)
             }
             let vr = VR[i]
             var flash = max(0, FL[i]) / 0.6
@@ -446,11 +497,13 @@ final class WorldSwarm {
             var aSt = st, aT = TT[i], aY = Y[i]
             if up {
                 aY = st == riser ? -1 : 0
-                if st == riser { aSt = climb } else if st == dropSt { aSt = leapState; aT = LEAP_T * max(0, TT[i]) / DROP_T } else { aSt = BugState.move.rawValue }
+                if st == riser { aSt = climb } else if st == dropSt || st == fallSt { aSt = leapState; aT = LEAP_T * (st == dropSt ? max(0, TT[i]) / DROP_T : 0.5) }
+                else { aSt = BugState.move.rawValue }
             }
-            let o = A.live(type: t, uid: U[i], st: aSt, stT: aT, ph: PH[i], x: bx, z: bz, y: aY, hd: HD[i], scale: s, flash: FL[i],
+            let hdBug = hdOverride ?? HD[i]
+            let o = A.live(type: t, uid: U[i], st: aSt, stT: aT, ph: PH[i], x: bx, z: bz, y: aY, hd: hdBug, scale: s, flash: FL[i],
                            frozen: frozen, dt: dt, mood: MD[i], vx: VX[i], vz: VZ[i], time: time) { self.impactDir(bx, bz, marines) }
-            let hdR = HD[i] + o.yaw
+            let hdR = hdBug + o.yaw
             // per-bug value / hue (no even «carpet»): ±28 % value, a slight warm / cool shift
             let v = 0.72 + vr * 0.56
             let h = (vr * 7.31 - floorf(vr * 7.31)) - 0.5

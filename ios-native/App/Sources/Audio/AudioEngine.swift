@@ -13,6 +13,11 @@ import IceHiveCore
 //  stop the engine: it is restarted and the voices and beds re-armed.
 //  A media-services reset invalidates the whole graph: `onMediaReset`
 //  asks the scene to build a new engine.
+//  Stage 1 R3 — the overhead's height as a timbre (a phone's stereo
+//  cannot place «above»; design §1.1.7): one more voice through a
+//  low-pass and a reverb, a metal attic over the deck (`playOverhead`:
+//  the drop's hiss, a bug knocked off a rack). If the engine refuses
+//  the chain it is taken out again and the overhead plays dry.
 // ================================================================
 final class AudioEngine {
     private struct Def {
@@ -67,6 +72,8 @@ final class AudioEngine {
     /// The combo chime raises its pitch with the counter (web: 520 Hz · 1.06^min(24, combo / 5)).
     private let pitched = Voice()
     private let pitchUnit = AVAudioUnitVarispeed()
+    /// Stage 1 R3: the overhead's voice (low-pass → reverb); nil when the engine would not start with it.
+    private var attic: (voice: Voice, eq: AVAudioUnitEQ, verb: AVAudioUnitReverb)?
     private var loops: [Loop?] = []
     private var variant = 0
     private(set) var enabled: Bool
@@ -129,6 +136,19 @@ final class AudioEngine {
         engine.attach(pitchUnit)
         engine.connect(pitched.node, to: pitchUnit, format: fmt)
         engine.connect(pitchUnit, to: mixer, format: fmt)
+        do {
+            let v = Voice(), eq = AVAudioUnitEQ(numberOfBands: 1), verb = AVAudioUnitReverb()
+            eq.bands[0].filterType = .lowPass
+            eq.bands[0].frequency = 1600
+            eq.bands[0].bypass = false
+            verb.loadFactoryPreset(.mediumHall)
+            verb.wetDryMix = 42
+            for n in [v.node, eq, verb] as [AVAudioNode] { engine.attach(n) }
+            engine.connect(v.node, to: eq, format: fmt)
+            engine.connect(eq, to: verb, format: fmt)
+            engine.connect(verb, to: mixer, format: nil)
+            attic = (v, eq, verb)
+        }
         loops = [Loop?](repeating: nil, count: AudioEngine.beds.count)
         if let ls = root["loops"] as? [String: Any] {
             for bed in AudioEngine.beds {
@@ -149,9 +169,19 @@ final class AudioEngine {
             }
         }
         engine.prepare()
-        if !startEngine() {
-            self.enabled = false
-            return
+        if !startEngine(quiet: attic != nil) {
+            // without the overhead's attic chain (its reverb / format), the classic graph
+            if let a = attic {
+                for n in [a.voice.node, a.eq, a.verb] as [AVAudioNode] { engine.detach(n) }
+                attic = nil
+                AppLog.info("audio: overhead voice off (the engine would not start with it)")
+            }
+            if attic == nil, startEngine() {
+                // started dry
+            } else {
+                self.enabled = false
+                return
+            }
         }
         observe()
         let nLoops = loops.compactMap { $0 }.count
@@ -173,18 +203,22 @@ final class AudioEngine {
         return buf
     }
 
-    /// Start the engine, then (only once it runs: play() on a stopped engine raises) arm every voice and bed.
+    /// Start the engine, then (only once it runs: play() on a stopped engine raises) arm every voice and bed. `quiet`: a
+    /// failure is only noted (the first start with the overhead's chain: it is retried without it).
     @discardableResult
-    private func startEngine() -> Bool {
+    private func startEngine(quiet: Bool = false) -> Bool {
         do {
             try engine.start()
         } catch {
-            AppLog.error("audio engine: \(error.localizedDescription) — sound off until the next restart")
+            if quiet { AppLog.info("audio engine: \(error.localizedDescription) (with the overhead voice)") } else {
+                AppLog.error("audio engine: \(error.localizedDescription) — sound off until the next restart")
+            }
             return false
         }
         for v in voices { v.node.play(); v.busyUntil = 0 }
         pitched.node.play()
         pitched.busyUntil = 0
+        if let a = attic { a.voice.node.play(); a.voice.busyUntil = 0 }
         for case let l? in loops {
             l.node.stop()
             l.node.scheduleBuffer(l.buffer, at: nil, options: .loops, completionHandler: nil)
@@ -197,6 +231,7 @@ final class AudioEngine {
     private func forceVolumes() {
         for v in voices { v.volume = -1 }
         pitched.volume = -1
+        attic?.voice.volume = -1
         for case let l? in loops { l.volume = -1 }
     }
 
@@ -262,6 +297,30 @@ final class AudioEngine {
         if abs(vol - best.volume) > 0.005 { best.node.volume = vol; best.volume = vol }
         best.node.scheduleBuffer(buf, at: nil, options: .interrupts, completionHandler: nil)
         best.busyUntil = clock + def.duration / Double(max(0.25, rate))
+        last[k] = clock
+        played += 1
+    }
+
+    /// Stage 1 R3: a one-shot from up on the overhead — through the attic voice (filtered, reverberant), a little quieter;
+    /// dry on a regular voice when the chain is off. Honours the sound's minimum gap.
+    func playOverhead(_ id: SoundID, pos: Vec2?, listener: Vec2, gain: Float = 0.8) {
+        guard let a = attic else { play(id, pos: pos, listener: listener, loud: false); return }
+        requested += 1
+        guard enabled, engine.isRunning else { return }
+        let k = id.ordinal
+        guard k < defs.count, let def = defs[k] else { return }
+        if clock - last[k] < def.minInterval { return }
+        var v: Float = gain
+        if def.attenuated, let p = pos {
+            let d = ((p.x - listener.x) * (p.x - listener.x) + (p.y - listener.y) * (p.y - listener.y)).squareRoot()
+            v *= max(0.08, min(1, 1.1 - d / 34))
+        }
+        variant += 1
+        let buf = def.buffers[variant % def.buffers.count]
+        let vol = def.gain * v * master
+        if abs(vol - a.voice.volume) > 0.005 { a.voice.node.volume = vol; a.voice.volume = vol }
+        a.voice.node.scheduleBuffer(buf, at: nil, options: .interrupts, completionHandler: nil)
+        a.voice.busyUntil = clock + def.duration
         last[k] = clock
         played += 1
     }

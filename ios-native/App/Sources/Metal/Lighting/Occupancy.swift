@@ -76,6 +76,12 @@ final class Occupancy {
         for (k, m) in game.marines.enumerated() where k < poses.count && !m.downed {
             blobs.append(F4(poses[k].x, poses[k].z, Occupancy.marineRadius, Occupancy.marineContact))
         }
+        // Stage 1 R3: a drop warning's growing dark shadow on the deck (design §1.1.4: «a closing ring and a growing dark
+        // shadow»): a soft blob inside the ring, darkening as the drop nears (no drop zones on the classic station)
+        for z in game.dropZones where z.active && blobs.count < Occupancy.maxBlobs {
+            let p = z.progress
+            blobs.append(F4(z.x, z.z, z.radius * (0.55 + 0.3 * p), 0.2 + 0.6 * p))
+        }
     }
 
     /// Pre-pass 150: fade last frame's map into the other texture, add this frame's blobs; the world binds the result.

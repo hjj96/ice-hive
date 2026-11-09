@@ -101,7 +101,10 @@ def main():
     cfg = json.load(open(os.path.join(golden, 'thresholds.json')))
     look = json.load(open(lookp)) if lookp and os.path.exists(lookp) else {}
     for name, sc in cfg['scenes'].items():
-        im = sheet(name, sc, res, golden, look, sha, cfg.get('today_label', 'эталон'))
+        if not all(os.path.exists(os.path.join(golden, sc.get(k, ''))) and sc.get(k) for k in ('today', 'concept')):
+            print(f'twoup {name}: no reference / concept frame')
+            continue
+        im = sheet(name, sc, res, golden, look, sha, sc.get('today_label', cfg.get('today_label', 'эталон')))
         if im is None:
             print(f'twoup {name}: no shot')
             continue
