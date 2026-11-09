@@ -13,9 +13,10 @@ extension Game {
     /// The tier (or the debug override) sends a Матка into this hold.
     var queenExpected: Bool { (config.queenAt ?? difficulty.queen.at).isFinite }
 
-    /// A rim edge of the lift on its far side (z − lift.z < −4), else any rim edge, else the edge nearest to the lift.
+    /// A rim edge of her arena (the current HOLD / BOSS zone; classic: the lift) on its far side (z − centre.z < −4), else
+    /// any rim edge, else the edge nearest to the arena.
     func queenEdge() -> Int {
-        let L = level, T = level.lift
+        let L = level, T = arena()
         let r2 = (T.r + 1.5) * (T.r + 1.5)
         var back = 0, rim = 0, near = 0
         var nd: Float = 1e9
@@ -73,12 +74,13 @@ extension Game {
         }
     }
 
-    /// Called from the hold branch of tickDirector every tick.
-    func queenTick(_ dt: Float) {
+    /// Every tick of a step that brings her (a HOLD's rider, a BOSS step): `expected` — she comes on this tier; `due` —
+    /// her warning may start (the hold: `queen.at` s of counted hold; a BOSS step: its delay in the arena).
+    func queenTick(_ dt: Float, expected: Bool, due: Bool) {
         if !queen.spawned {
-            if !queenExpected { return }
+            if !expected { return }
             if qWarn < 0 {
-                if liftDur - liftT >= (config.queenAt ?? difficulty.queen.at) { queenWarn() }
+                if due { queenWarn() }
             } else {
                 qWarn -= dt
                 if qWarn <= 0 { queenSpawn() }

@@ -17,10 +17,15 @@ public enum ObjectiveStyle: Int {
 }
 
 extension Game {
+    /// By the plan's phase: a hold or a boss arena — the boss while she lives; on the move between objectives — the hive
+    /// pressure; a ring charging or the ride — calm.
     public var threatState: ThreatState {
         if attract { return .calm }
-        if stage == .hold { return queen.alive ? .queen : .calm }
-        if !((stage == .beacons && activeBeacon < 0) || stage == .toLift) { return .calm }
+        switch posture {
+        case .hold: return queen.alive ? .queen : .calm
+        case .defend, .ride: return .calm
+        case .travel: break
+        }
         let g = difficulty.pressureGrace
         if pressure >= g { return .converging }
         if pressure >= g - 10 { return .waking }

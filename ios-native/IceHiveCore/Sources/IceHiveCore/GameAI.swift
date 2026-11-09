@@ -222,6 +222,8 @@ extension Game {
             let d = hypotf2(o.x - m.x, o.z - m.z)
             if mine && d < rd && d < 40 { rd = d; reviveT = o }
         }
+        // (the autopilot per module: the player goes to the plan step's objective point — the next beacon, orbiting a
+        // charging one, the next switch, the step's zone — and the bots spread over the zone or around the ring)
         if m.isPlayer {
             let o = objectivePoint(); gx = o.x; gz = o.y
             let bi = stage == .beacons ? nextBeacon() : -1
@@ -231,12 +233,17 @@ extension Game {
             }
             if let r = reviveT { gx = r.x; gz = r.z; urgent = true }
         } else if let r = reviveT { gx = r.x; gz = r.z; urgent = true }
-        else if (stage == .hold || stage == .extract) && L.onLift(P.x, P.z) {
-            let a = Float.pi / 4 + Float(m.index) * Float.pi / 2
-            gx = L.lift.x + cosf2(a) * 5.2; gz = L.lift.z + sinf2(a) * 5.2
+        else if let z = squadZone, inZone(z, P.x, P.z) {
+            // a hold, a boss fight, the ride: the squad spreads over the zone (the lift: 5.2 m out)
+            let a = Float.pi / 4 + Float(m.index) * Float.pi / 2, c = zoneCenter(z), sr = slotRadius(z)
+            gx = c.x + cosf2(a) * sr; gz = c.y + sinf2(a) * sr
         } else if activeBeacon >= 0 && hypotf2(P.x - beacons[activeBeacon].x, P.z - beacons[activeBeacon].z) < 7 {
             let b = beacons[activeBeacon], a = Float(m.index) * TAU / 3 + 0.5
             gx = b.x + cosf2(a) * 2.6; gz = b.z + sinf2(a) * 2.6
+        } else if activeSwitch >= 0 && hypotf2(P.x - switches[activeSwitch].site.x, P.z - switches[activeSwitch].site.z) < 7 {
+            // around a switch being thrown, just inside its ring
+            let w = switches[activeSwitch].site, a = Float(m.index) * TAU / 3 + 0.5, sr = max(0.8, w.radius - 0.9)
+            gx = w.x + cosf2(a) * sr; gz = w.z + sinf2(a) * sr
         } else {
             let fx = P.faceX, fz = P.faceZ, sx = -fz, sz = fx
             let (s, bk) = FORM[m.index]

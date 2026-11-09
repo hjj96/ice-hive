@@ -126,15 +126,15 @@ extension Game {
         let P = marines[0], s = coach.step
         coach.stepTime += dt
         if P.firing { coachFire += dt }
-        // walking onto a beacon ends the coach early: the player found the objective on their own
-        if s <= 3 && activeBeacon >= 0 { coachEnd(seen: true); return }
+        // walking onto a beacon (the plan's first ring) ends the coach early: the player found the objective on their own
+        if s <= 3 && objectiveEngaged { coachEnd(seen: true); return }
         var ok = false
         switch s {
         case 0: ok = hypotf2(P.x - coachStartX, P.z - coachStartZ) >= 3
         case 1: ok = coachFire >= 1.2 && coach.stepTime > 2.5
         case 2: ok = P.abCd > 0.5
         case 3: ok = P.dashT > 0
-        default: ok = activeBeacon >= 0
+        default: ok = objectiveEngaged
         }
         if !ok && coach.stepTime <= COACH_MAX[min(s, 4)] { return }
         haptic(.select)

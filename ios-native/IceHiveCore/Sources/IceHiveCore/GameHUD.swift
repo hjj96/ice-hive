@@ -38,23 +38,55 @@ public struct MissionStats {
 extension Game {
     public var player: Marine { marines[0] }
 
-    /// Objective line (top centre), nil in attract mode (the app uppercases it).
+    /// Objective line (top centre), nil in attract mode (the app uppercases it). The current plan step's lines
+    /// (Mission.swift): on the way, the hive waking / converging, the step's work, a boss in it.
     public var objective: GameText? {
         if attract { return nil }
+        guard let step = currentStep else { return nil }
         let ts = threatState
-        switch stage {
-        case .beacons:
-            if activeBeacon >= 0 { return GameText(.objHoldBeacon, [.name(beacons[activeBeacon].name)]) }
-            if ts == .converging { return GameText(.objConvergeBeacon) }
-            if ts == .waking { return GameText(.objWakingBeacon) }
-            return GameText(.objLightBeacons, [.int(beaconsDone), .int(beacons.count)])
-        case .toLift:
-            return GameText(ts == .converging ? .objConvergeLift : (ts == .waking ? .objWakingLift : .objLiftCalled))
-        case .hold:
-            if ts == .queen { return GameText(liftT <= 0.011 ? .objLiftLocked : .objKillQueen) }
-            return GameText(.objHoldLift, [.time(liftT.rounded(.up))])
-        case .extract: return GameText(.objExtract)
+        /// On the way: the hive's state wins over the step's own line.
+        func onTheWay(_ line: TextID, _ waking: TextID, _ converge: TextID) -> GameText {
+            GameText(ts == .converging ? converge : (ts == .waking ? waking : line))
         }
+        switch step {
+        case .ring(let r):
+            if activeBeacon >= 0 { return stepLine(r.chargeText, [.name(beacons[activeBeacon].name)]) }
+            if ts == .converging { return GameText(r.convergeText) }
+            if ts == .waking { return GameText(r.wakingText) }
+            let p = ringProgress(r)
+            return stepLine(r.lineText, [.int(p.done), .int(p.total)])
+        case .switches(let s):
+            if activeSwitch >= 0 { return GameText(s.throwText) }
+            if ts == .converging { return GameText(s.convergeText) }
+            if ts == .waking { return GameText(s.wakingText) }
+            return stepLine(s.lineText, [.int(switchesDone), .int(s.needed)])
+        case .hold(let h):
+            if stepPhase == .approach { return onTheWay(h.approachText, h.wakingText, h.convergeText) }
+            if ts == .queen { return stepLine(liftT <= 0.011 ? h.lockedText : h.bossText, [.name((h.boss?.kind ?? .queen).name)]) }
+            return stepLine(h.holdText, [.time(liftT.rounded(.up))])
+        case .boss(let b):
+            if stepPhase == .approach { return onTheWay(b.approachText, b.wakingText, b.convergeText) }
+            return stepLine(b.fightText, [.name(b.boss.name)])
+        case .extract(let e):
+            if stepPhase == .approach { return onTheWay(e.approachText, e.wakingText, e.convergeText) }
+            return GameText(e.rideText)
+        }
+    }
+
+    /// Changes whenever `objective` / `objectiveStyle` would (the HUD rebuilds its line only then): the plan step and its
+    /// phase, the active beacon / switch, the beacons and switches done, the threat state, the lift lock, the hold's
+    /// countdown second.
+    public var objectiveKey: Int {
+        if attract { return -1 }
+        let hold = holdActive && liftT.isFinite ? Int(liftT.rounded(.up)) : 0
+        var k = missionStep * 2 + stepPhase.rawValue
+        k = k * 16 + (activeBeacon + 1)
+        k = k * 32 + min(31, beaconsDone)
+        k = k * 16 + min(15, activeSwitch + 1)
+        k = k * 16 + min(15, switches.isEmpty ? 0 : switchesDone)
+        k = k * 4 + threatState.rawValue
+        k = k * 2 + (liftLocked ? 1 : 0)
+        return k * 100_000 + hold
     }
 
     /// Objective progress bar 0...1, or -1 = hidden (the Матка: her lost health; pressure: press / grace).
@@ -62,20 +94,35 @@ extension Game {
         let ts = threatState
         if ts == .queen { return 1 - queenHpFraction }
         if ts != .calm { return min(1, pressure / difficulty.pressureGrace) }
-        if stage == .beacons && activeBeacon >= 0 { return beacons[activeBeacon].progress }
-        if stage == .hold { return 1 - liftT / liftDur }
+        switch currentStep {
+        case .ring?: if activeBeacon >= 0 { return beacons[activeBeacon].progress }
+        case .switches?: if activeSwitch >= 0 { return switches[activeSwitch].progress }
+        case .hold?: if stepPhase == .active && liftDur.isFinite { return 1 - liftT / liftDur }
+        default: break
+        }
         return -1
     }
 
-    /// Where the objective marker points (next beacon / lift), nil = hidden.
+    /// Where the objective marker points (the next beacon or switch, the step's zone), nil = hidden.
     public var objectiveMarker: Vec2? {
         let P = marines[0]
         var t: Vec2? = nil
-        if stage == .beacons {
+        switch currentStep {
+        case .ring(let r)?:
             let b = nextBeacon()
-            if b >= 0 && (beacons[b].state == 0 || hypotf2(beacons[b].x - P.x, beacons[b].z - P.z) > BEACON_R) { t = beacons[b].position }
-        } else if stage == .toLift || (stage == .hold && !level.onLift(P.x, P.z)) {
-            t = Vec2(level.lift.x, level.lift.z)
+            if b >= 0 && (beacons[b].state == 0 || hypotf2(beacons[b].x - P.x, beacons[b].z - P.z) > r.radius) { t = beacons[b].position }
+        case .switches?:
+            let s = nextSwitch()
+            if s >= 0 && (switches[s].state == 0 || hypotf2(switches[s].site.x - P.x, switches[s].site.z - P.z) > switches[s].site.radius) {
+                t = switches[s].position
+            }
+        case .hold(let h)?:
+            if stepPhase == .approach || !inZone(h.zone, P.x, P.z) { t = zoneCenter(h.zone) }
+        case .boss(let b)?:
+            if stepPhase == .approach || !inZone(b.zone, P.x, P.z) { t = zoneCenter(b.zone) }
+        case .extract?:
+            if stepPhase == .approach { t = Vec2(level.lift.x, level.lift.z) }
+        case nil: break
         }
         if let p = t, hypotf2(p.x - P.x, p.y - P.z) < 4 { return nil }
         return t
@@ -95,20 +142,25 @@ extension Game {
         for k in 1..<marines.count where marines[k].downed && hypotf2(marines[k].x - P.x, marines[k].z - P.z) < 6 {
             return HintLine(text: GameText(.hintReviveNear), urgent: false)
         }
-        if stage == .beacons && activeBeacon >= 0 {
-            let b = beacons[activeBeacon]
-            if standingIn(b.x, b.z, BEACON_R) == 0 { return HintLine(text: GameText(.hintBackToRing), urgent: true) }
-            if b.contested { return HintLine(text: GameText(.hintRingContested), urgent: true) }
-            return nil
-        }
-        if stage == .beacons && activeBeacon < 0 {
+        switch currentStep {
+        case .ring(let r)?:
+            if activeBeacon >= 0 {
+                let b = beacons[activeBeacon]
+                if standingIn(b.x, b.z, r.radius) == 0 { return HintLine(text: GameText(.hintBackToRing), urgent: true) }
+                if b.contested { return HintLine(text: GameText(.hintRingContested), urgent: true) }
+                return nil
+            }
             let b = nextBeacon()
             if b >= 0 && hypotf2(beacons[b].x - P.x, beacons[b].z - P.z) < 9 { return HintLine(text: GameText(.hintStepInRing), urgent: false) }
             return nil
+        case .hold(let h)? where stepPhase == .active && h.zone == .lift:
+            // (the lift's hints; a hold on a deck has none of its own yet)
+            if !level.onLift(P.x, P.z) { return HintLine(text: GameText(.hintToPlatform), urgent: true) }
+            if h.pulse && liftT > liftDur - 8 { return HintLine(text: holdHint, urgent: false) }
+            return nil
+        default:
+            return nil
         }
-        if stage == .hold && !level.onLift(P.x, P.z) { return HintLine(text: GameText(.hintToPlatform), urgent: true) }
-        if stage == .hold && liftT > LIFT_TIME - 8 { return HintLine(text: holdHint, urgent: false) }
-        return nil
     }
 
     /// The lift-pulse hint of this tier (hint.pulse: every N s; hint.pulse_falloff: every N s, weaker at the rim).
@@ -147,7 +199,7 @@ extension Game {
                    tierIndex: difficulty.index, tierMul: difficulty.scoreMul, stage: stage,
                    pressureLoss: pressure >= difficulty.pressureGrace && idleMul > 1,
                    shots: Int(shots.rounded()), hits: Int(hits.rounded()), accuracy: accuracy, bestCombo: bestCombo, level: xpLevel,
-                   station: stationName)
+                   station: stationName, beaconsTotal: mission.ringSiteCount)
     }
 
     /// Visual laser length of a marine (first bug along the aim, max 24 m), measured on the current hash.

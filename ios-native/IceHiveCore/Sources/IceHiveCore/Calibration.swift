@@ -42,12 +42,14 @@ public struct CalibRun {
     /// Tier row overrides by web field name (`--th`).
     public var th: [String: Double]
     public var quality: QualityTier
+    /// Mission template id (`MissionTemplate.named`); nil = «Operation Cold Light».
+    public var mission: String?
 
     public init(tag: String, cls: MarineClass, tier: Int, mode: CalibMode, maxs: Float? = nil, seed: UInt32, station: UInt32 = 0,
-                th: [String: Double] = [:], quality: QualityTier = .med) {
+                th: [String: Double] = [:], quality: QualityTier = .med, mission: String? = nil) {
         self.tag = tag; self.cls = cls; self.tier = tier; self.mode = mode
         self.maxs = maxs ?? (mode == .afk ? 420 : 600)
-        self.seed = seed; self.station = station; self.th = th; self.quality = quality
+        self.seed = seed; self.station = station; self.th = th; self.quality = quality; self.mission = mission
     }
 
     /// The tier row of this run (overrides applied).
@@ -93,6 +95,8 @@ public struct CalibRow {
     public var tierIx = 1
     public var seed: UInt32 = 0
     public var station: UInt32 = 0
+    /// Mission template id; nil = «Operation Cold Light» (its rows carry no `mission` key: the classic rows stay as they were).
+    public var mission: String? = nil
     public var th: [String: Double] = [:]
     /// won | lost | playing (timed out).
     public var result = "playing"
@@ -171,6 +175,7 @@ extension CalibRow {
             return "{\"tag\":\(jstr(tag)),\"cls\":\(jstr(cls)),\"tierIx\":\(tierIx),\"mode\":\(jstr(mode)),\"error\":\(jstr(e))}"
         }
         var s = "{\"tag\":\(jstr(tag)),\"cls\":\(jstr(cls)),\"q\":\(jstr(q)),\"mode\":\(jstr(mode)),\"tierIx\":\(tierIx),\"seed\":\(seed),\"station\":\(station),"
+        if let m = mission { s += "\"mission\":\(jstr(m))," }
         s += "\"th\":{" + th.keys.sorted().map { jstr($0) + ":" + jnum(Float(th[$0]!), 4) }.joined(separator: ",") + "},"
         s += "\"result\":\(jstr(result)),\"t\":\(jnum(t)),\"tier\":\(jstr(tier)),\"shots\":\(shots),\"hits\":\(hits),\"pKills\":\(pKills),"
         s += "\"stage\":\(jstr(stage)),\"beacons\":\(beacons),\"kills\":\(kills),\"level\":\(level),"
@@ -215,6 +220,7 @@ extension CalibRow {
         if let e = o["error"] as? String { error = e; return }
         seed = UInt32(clamping: i("seed") ?? 0)
         station = UInt32(clamping: i("station") ?? 0)
+        mission = o["mission"] as? String
         if let t = o["th"] as? [String: Any] { for (k, v) in t { if let x = d(v) { th[k] = x } } }
         result = o["result"] as? String ?? "playing"
         t = f("t") ?? 0
@@ -260,8 +266,6 @@ extension CalibRow {
 // ================================================================
 public enum Calibration {
 
-    static let stageNames = ["beacons", "toLift", "hold", "extract"]
-
     /// Web `toFixed(1)` of a time.
     @inline(__always) static func r1(_ v: Float) -> Float { (v * 10).rounded() / 10 }
 
@@ -276,11 +280,19 @@ public enum Calibration {
         cfg.difficulty = c.difficulty
         cfg.autopilot = c.mode != .afk
         cfg.autoPickUpgrades = true
+        if let id = c.mission {
+            guard let t = MissionTemplate.named(id) else {
+                var bad = CalibRow()
+                bad.tag = c.tag; bad.cls = c.cls.id; bad.mode = c.mode.rawValue; bad.tierIx = c.tier; bad.error = "unknown mission " + id
+                return bad
+            }
+            cfg.mission = t
+        }
         let lv = level ?? (c.station == 0 ? nil : Level(source: StationGenerator(), seed: c.station))
         let g = Game(seed: c.seed, playerClass: c.cls, config: cfg, level: lv)
         var row = CalibRow()
         row.tag = c.tag; row.cls = c.cls.id; row.q = c.quality.rawValue; row.mode = c.mode.rawValue
-        row.tierIx = c.tier; row.seed = c.seed; row.station = c.station; row.th = c.th; row.tier = g.difficulty.id
+        row.tierIx = c.tier; row.seed = c.seed; row.station = c.station; row.mission = c.mission; row.th = c.th; row.tier = g.difficulty.id
 
         var stageAt: [(String, Float)] = []
         func mark(_ k: String, _ t: Float) { if !stageAt.contains(where: { $0.0 == k }) { stageAt.append((k, t)) } }
@@ -295,16 +307,16 @@ public enum Calibration {
         var afkStop = false
         var qDowns0 = 0
         let P = g.marines[0]
-        let L = g.level.lift
         var tick = 0
         while g.phase == .playing && g.time < c.maxs {
             if c.mode == .passive { P.mods.dmg = 0; P.abCd = 99; P.mods.explosive = 0 }
-            if c.mode == .afkbeacon && !afkStop && g.activeBeacon >= 0 { afkStop = true; g.autopilot = false }
+            if c.mode == .afkbeacon && !afkStop && g.objectiveEngaged { afkStop = true; g.autopilot = false }
             let hp0 = P.hp
             g.tick()
             g.clearEvents()
             if !P.downed && P.hp < hp0 { pTaken += hp0 - P.hp } else if P.downed && hp0 > 0 { pTaken += hp0 }
-            let st = stageNames[g.stage.rawValue], t = r1(g.time)
+            // (stage names come from the plan's step: the classic beacons · toLift · hold · extract)
+            let st = g.calibStage, t = r1(g.time)
             mark(st, t)
             if g.activeBeacon >= 0 { mark("b\(g.beaconsDone + 1)", t) }
             if g.beaconsDone > 0 { mark("c\(g.beaconsDone)", t) }
@@ -314,8 +326,8 @@ public enum Calibration {
                     row.downs[k] += 1
                     if row.firstDown < 0 { row.firstDown = t }
                     if k == 0 && row.pFirstDown < 0 { row.pFirstDown = t }
-                    if g.stage == .hold { row.holdDowns += 1 }
-                    addDown(g.stage == .beacons ? (g.activeBeacon >= 0 ? "b\(g.beaconsDone + 1)" : "trav") : st)
+                    if g.holdActive { row.holdDowns += 1 }
+                    addDown(g.calibDownKey)
                 }
                 wasDown[k] = m.downed
                 if !m.downed && m.hp < minHp[k] { minHp[k] = m.hp }
@@ -324,9 +336,9 @@ public enum Calibration {
             if !P.downed && P.hp < P.maxHp * 0.5 { halfT += SIM_DT }
             if g.idleMul > row.idleMax {
                 row.idleMax = g.idleMul
-                row.idleSt = g.stage == .beacons ? (g.activeBeacon >= 0 ? "b\(g.beaconsDone + 1)" : "trav\(g.beaconsDone)") : st
+                row.idleSt = g.calibIdleKey
             }
-            if g.stage == .hold && row.pressAtHold == nil { row.pressAtHold = r1(g.pressure) }
+            if g.holdActive && row.pressAtHold == nil { row.pressAtHold = r1(g.pressure) }
             if g.pressure > row.pressMax { row.pressMax = g.pressure }
             if row.firstBrute < 0 && g.typeAlive[2] > 0 { row.firstBrute = t }
             // the Матка
@@ -349,7 +361,9 @@ public enum Calibration {
                 let S = g.bugs
                 var alive = 0, near = 0, deck = 0
                 var i = 0
-                let hold = g.stage == .hold
+                let hold = g.holdActive
+                // (the deck of the hold: the lift's disc on the classic plan)
+                let L = g.arena()
                 while i < S.count {
                     if S.dead[i] == 0 {
                         alive += 1
@@ -371,7 +385,7 @@ public enum Calibration {
         row.result = g.phase == .won ? "won" : (g.phase == .lost ? "lost" : "playing")
         row.t = r1(g.time)
         row.shots = Int(g.shots.rounded()); row.hits = Int(g.hits.rounded()); row.pKills = g.playerKills
-        row.stage = stageNames[g.stage.rawValue]; row.beacons = g.beaconsDone; row.kills = g.kills; row.level = g.xpLevel
+        row.stage = g.calibStage; row.beacons = g.beaconsDone; row.kills = g.kills; row.level = g.xpLevel
         row.stageAt = stageAt
         row.pDowns = g.downs; row.downBy = g.downBy.rawValue
         row.minHp = minHp.map { Int($0.rounded()) }
@@ -424,22 +438,33 @@ public enum Calibration {
 
     public static func tierTag(_ tier: Int) -> String { tier >= 0 ? Difficulty.tier(tier).id : Difficulty.legacyV10.id }
 
-    /// `n` runs per class of one tier + mode.
+    /// `n` runs per class of one tier + mode (`mission`: a template id, which also prefixes the tag when none is given).
     public static func batch(tier: Int, mode: CalibMode, n: Int, classes: [MarineClass] = MarineClass.allCases, seed0: UInt32 = 1000,
                              tag: String? = nil, th: [String: Double] = [:], maxs: Float? = nil, station: UInt32 = 0,
-                             quality: QualityTier = .med) -> [CalibRun] {
+                             quality: QualityTier = .med, mission: String? = nil) -> [CalibRun] {
         var out: [CalibRun] = []
+        let prefix = tag ?? mission
         for k in 0..<n {
             for c in classes {
-                let tg = (tag.map { $0 + "-" } ?? "") + tierTag(tier) + (quality == .med ? "" : "-q" + quality.rawValue)
+                let tg = (prefix.map { $0 + "-" } ?? "") + tierTag(tier) + (quality == .med ? "" : "-q" + quality.rawValue)
                 out.append(CalibRun(tag: tg, cls: c, tier: tier, mode: mode, maxs: maxs, seed: seed(seed0, mode: mode, tier: tier, cls: c, k: k),
-                                    station: station, th: th, quality: quality))
+                                    station: station, th: th, quality: quality, mission: mission))
             }
         }
         return out
     }
 
-    public static let presetNames = ["gate", "full", "stations", "legacy", "overhead"]
+    /// A mission template's own preset (its tiers × runs per class, autopilot, seeds from its base; nil = the template
+    /// has none — the classic's is `gate`).
+    public static func templateRuns(_ t: MissionTemplate, th: [String: Double] = [:]) -> [CalibRun]? {
+        guard let c = t.calib else { return nil }
+        var out: [CalibRun] = []
+        for tier in c.tiers { out += batch(tier: tier, mode: .auto, n: c.runs, seed0: c.seedBase, th: tier >= 0 ? th : [:], mission: t.id) }
+        return out
+    }
+
+    /// The fixed presets; a template id is a preset too (`icehive-calib --preset drill-switch`).
+    public static let presetNames = ["gate", "full", "stations", "legacy", "drills", "overhead"]
 
     /// The overhead preset's share of packs sent up (Stage 1 R2; the tiers keep `routes` = 0 until package R5).
     public static let overheadRoutes: Double = 0.2
@@ -460,6 +485,12 @@ public enum Calibration {
             // longer shrink with the cap)
             out += batch(tier: 1, mode: .auto, n: 8, seed0: seed0, tag: tag, th: th, quality: .low)
             out += batch(tier: 2, mode: .auto, n: 8, seed0: seed0, tag: tag, th: th, quality: .low)
+            // gated mission templates follow the classic rows (none yet: R7's missions join here)
+            for t in MissionTemplate.all where t.calib?.gated == true { out += templateRuns(t, th: th) ?? [] }
+            return out
+        case "drills":
+            var out: [CalibRun] = []
+            for t in MissionTemplate.drills { out += templateRuns(t, th: th) ?? [] }
             return out
         case "full":
             var out: [CalibRun] = batch(tier: 0, mode: .auto, n: 40, seed0: seed0, tag: tag, th: th)
@@ -488,7 +519,7 @@ public enum Calibration {
             }
             return out
         default:
-            return nil
+            return MissionTemplate.named(name).flatMap { templateRuns($0, th: th) }
         }
     }
 
@@ -634,10 +665,12 @@ public enum Calibration {
         public let text: String
     }
 
-    /// Spec §5.2 bands on rows grouped by tier + mode (any tag, station 0, no overrides, med quality). Gated lines
-    /// first, then the reported ones. `passed` only when every gated band holds and every gated group exists.
+    /// Spec §5.2 bands on rows grouped by tier + mode (any tag, station 0, no overrides, med quality, the classic
+    /// mission), then each mission template's own bands on its rows (when the rows have any). Gated lines first, then the
+    /// reported ones. `passed` only when every gated band holds and every gated classic group exists (a run of templates
+    /// only skips the classic bands).
     public static func gate(_ rows: [CalibRow]) -> (passed: Bool, lines: [GateLine]) {
-        let all = rows.filter { $0.error == nil && $0.station == 0 && $0.th.isEmpty }
+        let all = rows.filter { $0.error == nil && $0.station == 0 && $0.th.isEmpty && $0.mission == nil }
         let base = all.filter { $0.q == "med" }
         func grp(_ tier: Int, _ mode: String, q: String = "med") -> Group? {
             let rs = all.filter { $0.tierIx == tier && $0.mode == mode && $0.q == q }
@@ -650,37 +683,52 @@ public enum Calibration {
             L.append(GateLine(ok: ok, gated: gated, text: "\(name) \(fmt(v, 1))\(unit) band \(b)\(unit)"))
         }
         func missing(_ name: String) { L.append(GateLine(ok: false, gated: true, text: "\(name) missing (no rows)")) }
-        if let g = grp(0, "auto") {
-            band("rec/auto wins", g.winPct, 90, nil, unit: "%")
-            band("rec/auto downs/run", g.downsPerRun, nil, 0.5)
-        } else { missing("rec/auto") }
-        if let g = grp(1, "auto") {
-            band("vet/auto wins", g.winPct, 70, 85, unit: "%")
-            band("vet/auto queen reached", g.queenReachedPct, 75, nil, unit: "%")
-            band("vet/auto queen killed of reached", g.queenKilledPct, 85, nil, unit: "%")
-            band("vet/auto queen kill median", g.queenKillMedian, 20, 35, gated: false, unit: " s")
-            band("vet/auto runs with 1-3 downs", g.someDownPct, 55, nil, gated: false, unit: "%")
-            band("vet/auto idleMax max", g.idleMax, nil, 1.3, gated: false)
-        } else { missing("vet/auto") }
-        if let g = grp(2, "auto") {
-            band("nm/auto wins", g.winPct, nil, 30, unit: "%")
-            band("nm/auto hold reached", g.holdPct, 50, nil, gated: false, unit: "%")
-        } else { missing("nm/auto") }
-        for (tier, lim) in [(1, Float(120)), (0, Float(270))] {
-            let rs = base.filter { $0.tierIx == tier && $0.mode == "afk" }
-            let name = "\(tierTag(tier))/afk first player down"
-            if rs.isEmpty { missing(name); continue }
-            let worst = rs.map { $0.pFirstDown < 0 ? Float.infinity : $0.pFirstDown }.max() ?? .infinity
-            let best = rs.map { $0.pFirstDown < 0 ? Float.infinity : $0.pFirstDown }.min() ?? .infinity
-            L.append(GateLine(ok: worst <= lim, gated: true,
-                              text: "\(name) \(fmt(best))–\(worst.isFinite ? fmt(worst) : "never") s (every run) band …\(fmt(lim)) s"))
+        // (a run of mission templates only — `--preset drills` — has no classic rows to gate; no rows at all still fail)
+        let onlyTemplates = !rows.isEmpty && rows.allSatisfy { $0.mission != nil }
+        if !onlyTemplates {
+            if let g = grp(0, "auto") {
+                band("rec/auto wins", g.winPct, 90, nil, unit: "%")
+                band("rec/auto downs/run", g.downsPerRun, nil, 0.5)
+            } else { missing("rec/auto") }
+            if let g = grp(1, "auto") {
+                band("vet/auto wins", g.winPct, 70, 85, unit: "%")
+                band("vet/auto queen reached", g.queenReachedPct, 75, nil, unit: "%")
+                band("vet/auto queen killed of reached", g.queenKilledPct, 85, nil, unit: "%")
+                band("vet/auto queen kill median", g.queenKillMedian, 20, 35, gated: false, unit: " s")
+                band("vet/auto runs with 1-3 downs", g.someDownPct, 55, nil, gated: false, unit: "%")
+                band("vet/auto idleMax max", g.idleMax, nil, 1.3, gated: false)
+            } else { missing("vet/auto") }
+            if let g = grp(2, "auto") {
+                band("nm/auto wins", g.winPct, nil, 30, unit: "%")
+                band("nm/auto hold reached", g.holdPct, 50, nil, gated: false, unit: "%")
+            } else { missing("nm/auto") }
+            for (tier, lim) in [(1, Float(120)), (0, Float(270))] {
+                let rs = base.filter { $0.tierIx == tier && $0.mode == "afk" }
+                let name = "\(tierTag(tier))/afk first player down"
+                if rs.isEmpty { missing(name); continue }
+                let worst = rs.map { $0.pFirstDown < 0 ? Float.infinity : $0.pFirstDown }.max() ?? .infinity
+                let best = rs.map { $0.pFirstDown < 0 ? Float.infinity : $0.pFirstDown }.min() ?? .infinity
+                L.append(GateLine(ok: worst <= lim, gated: true,
+                                  text: "\(name) \(fmt(best))–\(worst.isFinite ? fmt(worst) : "never") s (every run) band …\(fmt(lim)) s"))
+            }
+            if let g = grp(1, "passive") { band("vet/passive wins", g.winPct, nil, 40, gated: false, unit: "%") }
+            if let g = grp(1, "auto", q: "low") { band("vet/auto wins on low graphics", g.winPct, 70, 85, gated: false, unit: "%") }
+            if let g = grp(2, "auto", q: "low") { band("nm/auto wins on low graphics", g.winPct, nil, 30, gated: false, unit: "%") }
+            if let g = grp(-1, "auto") {
+                band("v10/auto wins (legacy port check)", g.winPct, nil, nil, gated: false, unit: "%")
+                band("v10/auto downs/run", g.downsPerRun, nil, nil, gated: false)
+            }
         }
-        if let g = grp(1, "passive") { band("vet/passive wins", g.winPct, nil, 40, gated: false, unit: "%") }
-        if let g = grp(1, "auto", q: "low") { band("vet/auto wins on low graphics", g.winPct, 70, 85, gated: false, unit: "%") }
-        if let g = grp(2, "auto", q: "low") { band("nm/auto wins on low graphics", g.winPct, nil, 30, gated: false, unit: "%") }
-        if let g = grp(-1, "auto") {
-            band("v10/auto wins (legacy port check)", g.winPct, nil, nil, gated: false, unit: "%")
-            band("v10/auto downs/run", g.downsPerRun, nil, nil, gated: false)
+        // mission templates: their own rows and bands (autopilot, med quality, station 0, no overrides)
+        for t in MissionTemplate.all {
+            guard let c = t.calib else { continue }
+            let trs = rows.filter { $0.error == nil && $0.mission == t.id && $0.station == 0 && $0.th.isEmpty && $0.q == "med" && $0.mode == "auto" }
+            if trs.isEmpty { continue }
+            for b in c.bands {
+                let rs = trs.filter { $0.tierIx == b.tier }
+                if rs.isEmpty { continue }
+                band("\(t.id) \(tierTag(b.tier))/auto wins", group(t.id, rs).winPct, b.winLo, b.winHi, gated: c.gated, unit: "%")
+            }
         }
         let gatedLines = L.filter { $0.gated }, reported = L.filter { !$0.gated }
         return (gatedLines.allSatisfy { $0.ok }, gatedLines + reported)

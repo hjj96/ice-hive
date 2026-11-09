@@ -36,11 +36,11 @@ extension Game {
     }
 
     /// The wave director holds a lull: no drop telegraph starts (design §1.1.6 — the lull stays a lull: bugs up there
-    /// creep and wait; the build-up and the peaks bring the drops).
+    /// creep and wait; the build-up and the peaks bring the drops). Travel = the mission plan's posture between objectives.
     var overheadQuiet: Bool {
         guard directorEnabled && difficulty.waves && !attract else { return false }
         if lullT > 0 { return true }
-        return beat == 0 && ((stage == .beacons && activeBeacon < 0) || stage == .toLift)
+        return beat == 0 && posture == .travel
     }
 
     /// The lift is leaving: whatever is up leaps off into the void.
@@ -185,7 +185,8 @@ extension Game {
     /// («They're in the racks above us»; runners until package R4's Dropper).
     func campTick(_ dt: Float) {
         let c = squadCenter()
-        let objective = activeBeacon >= 0 || stage == .hold || stage == .extract
+        // (outside an objective: the plan's travel posture — not a ring, a hold, a boss fight or the ride)
+        let objective = posture != .travel
         let dx = c.x - oh.campX, dz = c.y - oh.campZ
         if objective || dx * dx + dz * dz > 36 { oh.campX = c.x; oh.campZ = c.y; oh.campT = 0; return }
         oh.campT += dt

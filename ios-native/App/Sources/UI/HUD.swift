@@ -894,6 +894,8 @@ final class HUD {
         for id in [TextID.objConvergeBeacon, .objWakingBeacon, .objConvergeLift, .objWakingLift, .objLiftCalled, .objLiftLocked, .objKillQueen, .objExtract] {
             out.append(GameText(id))
         }
+        // the mission modules' own lines (switches, a hold on a deck, a boss step, on the way: R1)
+        out += Game.moduleObjectiveSamples
         return out
     }
 
@@ -1024,7 +1026,7 @@ final class HUD {
         }
         let sec = Int(max(0, game.time))
         if sec != timeSec { timeSec = sec; timeVal.set(formatTime(game.time)) }
-        let ok = objectiveKey(game)
+        let ok = game.objectiveKey
         if ok != objKey {
             objKey = ok
             let st = game.objectiveStyle
@@ -1168,22 +1170,6 @@ final class HUD {
 
         plates.update(game: game, projection: projection, size: size)
         updateMarker(game: game, projection: projection)
-    }
-
-    /// Changes whenever objectiveText / objectiveStyle would (stage, active beacon, beacons done, threat state, the lift
-    /// lock, lift countdown second).
-    private func objectiveKey(_ g: Game) -> Int {
-        if g.attract { return -1 }
-        let st: Int
-        switch g.stage {
-        case .beacons: st = 1
-        case .toLift: st = 2
-        case .hold: st = 3
-        case .extract: st = 4
-        }
-        let lift = st == 3 ? Int(g.liftT.rounded(.up)) : 0
-        let threat = g.threatState.rawValue, locked = g.liftLocked ? 1 : 0
-        return ((((st * 16 + (g.activeBeacon + 1)) * 16 + g.beaconsDone) * 4 + threat) * 2 + locked) * 100_000 + lift
     }
 
     private var squadShown = -1

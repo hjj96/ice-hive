@@ -2,7 +2,8 @@ name: native-ios
 
 # Native build of Ice Hive 2.0 (ios-native/): Swift, the world drawn with Metal, HUD / menus as a SpriteKit
 # scene in the same Metal pass. Results of every run are committed to branch `ci-results` under <branch>/<short-sha>/:
-#   status.json, core-tests.log, core-perf.log, calib.txt / calib.jsonl (v1.1 balance gate), build.log, release-check.txt,
+#   status.json, core-tests.log, core-perf.log, calib.txt / calib.jsonl (v1.1 balance gate), calib-drills.txt (mission module
+#   drills), build.log, release-check.txt,
 #   metrics.txt, fps.txt, hitches.txt, <demo>-<s>s.png (upright landscape: the app is landscape-only), other-phones.txt,
 #   app-<demo>.log, app.log
 on:
@@ -88,8 +89,18 @@ jobs:
           .build/release/icehive-calib --preset stations --jobs 3 --out "$GITHUB_WORKSPACE/results/calib-stations.jsonl" \
             --summary "$GITHUB_WORKSPACE/results/calib-stations.txt" > /dev/null 2>&1 || true
           tail -n 12 "$GITHUB_WORKSPACE/results/calib-stations.txt" || true
+      # R1 mission modules: the module drills (one small plan per module; drill-all chains them all) played on autopilot
+      # on Recruit and Veteran — informational rows calib-drills.jsonl, table + reported bands calib-drills.txt
+      - name: Calibration of the module drills (informational)
+        if: success() || failure()
+        continue-on-error: true
+        working-directory: ios-native/IceHiveCore
+        run: |
+          .build/release/icehive-calib --preset drills --jobs 3 --out "$GITHUB_WORKSPACE/results/calib-drills.jsonl" \
+            --summary "$GITHUB_WORKSPACE/results/calib-drills.txt" > /dev/null 2>&1 || true
+          tail -n 16 "$GITHUB_WORKSPACE/results/calib-drills.txt" || true
       # Stage 1 R2 (the overhead): generated stations 1–4 with the routes of their post-pass and the director sending 20 %
-      # of its packs up (Ветеран): informational until package R5 turns the overhead on for the classic mission
+      # of its packs up (Veteran): informational until package R5 turns the overhead on for the classic mission
       - name: Calibration with the overhead on (informational)
         if: success() || failure()
         continue-on-error: true

@@ -16,15 +16,20 @@ extension Game {
         beat = 0; beatT = 10; beaconPushes = 0; lullT = 0
         queen = QueenState()
         qWarn = -1; qEdge = -1; qSlot = -1; qBrood = 0; qVolley = 0; qRam = 0; qMeleeCd = 0; qArmed = false
+        // the mission plan starts over at its first step (GameMission.swift)
+        resetMission()
     }
 
-    /// Index of the beacon the squad should go to (the active one, else the nearest unfinished), -1 none.
+    /// Index of the beacon the squad should go to (the active one, else the nearest unfinished one of the current RING
+    /// step), -1 none.
     func nextBeacon() -> Int {
         if activeBeacon >= 0 { return activeBeacon }
+        guard case .ring(let r)? = currentStep else { return -1 }
         let P = marines[0]
         var best = -1
         var bd: Float = 1e9
-        for (k, b) in beacons.enumerated() where b.state != 2 {
+        for k in r.sites where beacons[k].state != 2 {
+            let b = beacons[k]
             let d = hypotf2(b.x - P.x, b.z - P.z)
             if d < bd { bd = d; best = k }
         }
@@ -68,7 +73,7 @@ extension Game {
     }
 
     func pickType(_ horde: Bool) -> UInt8 {
-        let t = time, d = Float(beaconsDone), k: Float = stage == .hold ? 0.5 : 1
+        let t = time, d = Float(beaconsDone), k: Float = posture == .hold ? 0.5 : 1
         let D = difficulty
         // specials follow objective progress (not wall time): the first beacon already brings spitters and boomers,
         // brutes join halfway through it, and later beacons add only a little on top — or the tier's stall clock:
@@ -130,9 +135,9 @@ extension Game {
             var size = Float(size0)
             let c = squadCenter()
             let k = size > 300 ? 3 : 2
-            if stage == .hold {
+            if posture == .hold {
                 // a few climb straight onto the lift rim; the bulk funnels up the ramp (visible pile-up, fair chokepoint)
-                let L = level.lift
+                let L = arena()
                 let rim = pickEdge(L.x, L.z, 0, L.r + 1)
                 if rim >= 0 { queueBurst(rim, Int((size * 0.12).rounded()), 14, nil) }
                 size *= 0.88
@@ -187,97 +192,23 @@ extension Game {
         // flat per-beacon steps: escalation comes from the objective, not a cliff after the second beacon
         hpMul = (1 + 0.06 * Float(beaconsDone) + 0.06 * minutes) * D.hp
         dmgMul = (1 + 0.03 * Float(beaconsDone)) * D.dmg
-        let P = marines[0], L = level
+        let L = level
         var stageMul: Float = 1
         if !attract {
-            switch stage {
-            case .beacons:
-                if activeBeacon < 0 {
-                    for k in 0..<beacons.count {
-                        let b = beacons[k]
-                        if b.state == 0 && standingIn(b.x, b.z, BEACON_R) > 0 {
-                            beacons[k].state = 1; activeBeacon = k; waveT = D.waves ? 9 : 2; beaconPushes = 0
-                            // (wave pacing: a third of the stream's opening horde, from 3–4 sides; the pushes follow the charge)
-                            let open: Float = D.waves ? 70 + 0.3 * D.beaconHordeStep * Float(beaconsDone) : 270 + D.beaconHordeStep * Float(beaconsDone)
-                            startHorde(Int((open * hordeScale() * beaconHordeMul).rounded()),
-                                       GameText(.bannerDefend), GameText(.bannerDefendSub, [.name(b.name)]))
-                            beaconHordeMul = 1
-                            if !simOnly { emit(.beaconStarted(index: k)); events.append(.sound(.beacon, pos: nil, loud: nil)) }
-                            break
-                        }
-                    }
-                } else {
-                    let k = activeBeacon
-                    let b = beacons[k]
-                    stageMul = D.waves ? 1.25 : 2.0
-                    // the ring charges only with a marine inside; bugs crowding the ring slow it down
-                    beacons[k].contested = hash.queryCircle(bugs, b.x, b.z, BEACON_R - 0.5) >= 6
-                    if standingIn(b.x, b.z, BEACON_R) > 0 {
-                        beacons[k].progress = min(1, b.progress + dt / BEACON_TIME * (beacons[k].contested ? 0.3 : 1))
-                    }
-                    if D.waves { wavesBeaconTick(k, dt) } else { waveT -= dt }
-                    if !D.waves && waveT <= 0 {
-                        waveT = 6 + rng.next() * 3
-                        let vents = L.layout.vents.filter { hypotf2($0.x - b.x, $0.y - b.z) < 14 }
-                        if !vents.isEmpty {
-                            let v = vents[rng.int(vents.count)]
-                            queueBurst(-1, Int(((38 + 8 * Float(beaconsDone)) * hordeScale() * D.horde).rounded()), 22, v)
-                        } else {
-                            let e = pickEdge(b.x, b.z, 8, 22)
-                            if e >= 0 { queueBurst(e, Int((30 * hordeScale() * D.horde).rounded()), 24, nil) }
-                        }
-                    }
-                    if beacons[k].progress >= 1 { completeBeacon(k) }
-                }
-            case .toLift:
-                stageMul = D.waves ? 1.2 : 1.6
-                if !P.downed && L.onLift(P.x, P.z) { startHold() }
-            case .hold:
-                stageMul = D.waves ? 2.0 : 3.2
-                // the Матка climbs onto the deck queen.at s into the hold; while she lives the trickle thins out (she is the horde)
-                queenTick(dt)
-                if queen.alive { stageMul *= D.queen.trickle }
-                var on = false
-                for m in marines where !m.downed && L.onLift(m.x, m.z) { on = true }
-                if on {
-                    liftT -= dt
-                    // lift defence circuit: periodic shock pulse across the deck (weaker toward the rim on the harder tiers)
-                    pulseT -= dt
-                    if pulseT <= 0 {
-                        if D.pulseDamage > 0 {
-                            pulseT = D.pulseInterval
-                            queueBoom(L.lift.x, L.lift.z, L.lift.r + 0.6, 48 * hpMul * D.pulseDamage, -1, .pulse)
-                        } else { pulseT = 0.5 }
-                    }
-                }
-                // the lift waits for the Матка: it cannot leave before she has climbed up and died
-                if liftT <= 0 && (queen.alive || (!queen.spawned && queenExpected)) { liftT = 0.01 }
-                if liftT <= 0 {
-                    liftT = 0
-                    // the lift only leaves with the player on it (a downed player is carried back by the squad first)
-                    if L.onLift(P.x, P.z) {
-                        stage = .extract; extractT = 0; queue.removeAll()
-                        if !simOnly {
-                            emit(.extractStarted)
-                            banner(GameText(.bannerExtract), GameText(.bannerExtractSub), true)
-                            events.append(.sound(.lift, pos: nil, loud: nil))
-                        }
-                    }
-                }
-            case .extract:
-                stageMul = 0
-                extractT += dt
-                if extractT >= 4.6 { endGame(true); return }
-            }
+            // the mission plan: the current step's module (it may finish the step and begin the next one); nil = the
+            // last step is done and the mission is won
+            guard let m = missionTick(dt) else { return }
+            stageMul = m
         } else {
             // (the title's attract swarm: smaller on the wave pacing)
             stageMul = D.waves ? (bugs.count < 95 ? 0.8 : 0) : (bugs.count < 220 ? 1.5 : 0)
         }
-        // hive pressure: loitering with no beacon running (or dawdling on the way to the lift) wakes the hive — past
-        // the tier's grace the trickle and the horde clock speed up and part of the swarm starts hunting the player
+        // hive pressure: loitering on the move between objectives (no ring running, or dawdling on the way to a zone)
+        // wakes the hive — past the tier's grace the trickle and the horde clock speed up and part of the swarm starts
+        // hunting the player
         if !attract {
-            var loiter = (stage == .beacons && activeBeacon < 0) || stage == .toLift
-            if stage == .toLift {
+            var loiter = posture == .travel
+            if loiter && approachAllowance {
                 // the walk itself is the objective: the clock starts only once the travel allowance is used up
                 if liftAllowance < 0 { liftAllowance = liftTravelAllowance() ?? -1 }
                 if liftAllowance != 0 {
@@ -318,10 +249,10 @@ extension Game {
                     if e >= 0 { spawnBug(pickType(false), L.edgeX[e], L.edgeZ[e], mode: 1, nx: L.edgeNX[e], nz: L.edgeNZ[e]) }
                 }
             }
-            // periodic hordes (the timer pauses while a beacon defence is running, and while the Матка lives)
-            if activeBeacon < 0 && !queen.alive { hordeT -= dt }
+            // periodic hordes (the timer pauses while a ring is defended, and while the Матка lives)
+            if posture != .defend && !queen.alive { hordeT -= dt }
             if hordeT <= 0 {
-                if stage == .hold {
+                if posture == .hold {
                     hordeT = 13 + rng.next() * 4
                     startHorde(Int(((360 + rng.next() * 160) * hordeScale()).rounded()), .hordeTitle, GameText(.bannerHordeLiftSub), 55)
                 } else {
@@ -335,8 +266,12 @@ extension Game {
         if !attract && !godMode && marines.allSatisfy({ $0.downed }) { endGame(false) }
     }
 
-    func completeBeacon(_ k: Int) {
+    /// Beacon `k` of the current RING step is lit; the step ends with its last beacon (the next step begins: classic, the
+    /// walk to the lift). False = the mission ended.
+    @discardableResult
+    func completeBeacon(_ k: Int) -> Bool {
         beacons[k].state = 2; beacons[k].progress = 1; activeBeacon = -1; beaconsDone += 1
+        enterPhase(.approach)
         // a breather for the squad: everyone standing patches up a quarter of their armour
         for m in marines where !m.downed { m.hp = min(m.maxHp, m.hp + m.maxHp * difficulty.beaconHeal) }
         hordeT = max(hordeT, 28 + rng.next() * 10)   // breather before the next push
@@ -346,33 +281,24 @@ extension Game {
             events.append(.sound(.beaconDone, pos: nil, loud: nil))
             haptic(.success)
         }
-        if beaconsDone >= beacons.count {
-            stage = .toLift
-            if !simOnly { emit(.liftCalled); banner(GameText(.bannerLiftCalled), GameText(.bannerLiftCalledSub), true) }
-        } else if !simOnly {
-            banner(GameText(.bannerBeaconOnline), GameText(.bannerBeaconOnlineSub, [.int(beaconsDone), .int(beacons.count)]), true)
-        }
-    }
-
-    /// Seconds the walk from the player to the lift may take before it counts as dawdling: the objective-flow path at
-    /// full speed (5.3 m/s) × 1.3 + 5 s. nil while the objective flow still points at the last beacon.
-    func liftTravelAllowance() -> Float? {
-        let L = level.lift, P = marines[0]
-        guard objFlowKey == (Int(L.x.rounded()), Int(L.z.rounded())) else { return nil }
-        let d = objFlow.distance(level.cellOf(P.x, P.z))
-        let path = d < FlowField.unreachable ? Float(d) : hypotf2(L.x - P.x, L.z - P.z) * 1.4
-        return path / 5.3 * 1.3 + 5
-    }
-
-    func startHold() {
-        stage = .hold; liftT = LIFT_TIME; hordeT = difficulty.waves ? 16 : 3; pulseT = 4
+        guard case .ring(let r)? = currentStep else { return true }
+        let p = ringProgress(r)
+        if p.done >= p.total { return completeStep() }
         if !simOnly {
-            emit(.holdStarted)
-            banner(GameText(.bannerHold), GameText(.bannerHoldSub, [.int(Int(LIFT_TIME))]), false)
-            events.append(.sound(.beacon, pos: nil, loud: nil))
+            banner(GameText(.bannerBeaconOnline), GameText(.bannerBeaconOnlineSub, [.int(p.done), .int(p.total)]), true)
         }
-        startHorde(Int(((difficulty.waves ? 105 : 480) * hordeScale()).rounded()), GameText(.bannerHold), GameText(.bannerHoldSub, [.int(Int(LIFT_TIME))]), 70)
-        if difficulty.waves { lullT = 10 }
+        return true
+    }
+
+    /// Seconds the walk from the player to the current step's zone (classic: the lift) may take before it counts as
+    /// dawdling: the objective-flow path at full speed (5.3 m/s) × 1.3 + 5 s. nil while the objective flow still points
+    /// at the last objective.
+    func liftTravelAllowance() -> Float? {
+        let L = zoneCenter(missionZone ?? .lift), P = marines[0]
+        guard objFlowKey == (Int(L.x.rounded()), Int(L.y.rounded())) else { return nil }
+        let d = objFlow.distance(level.cellOf(P.x, P.z))
+        let path = d < FlowField.unreachable ? Float(d) : hypotf2(L.x - P.x, L.y - P.z) * 1.4
+        return path / 5.3 * 1.3 + 5
     }
 
     func endGame(_ won: Bool) {
