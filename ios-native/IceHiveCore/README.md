@@ -59,7 +59,8 @@ switch game.phase { case .won, .lost: /* экран итогов: game.stats */ 
   скорость, HP, ранен/подъём, рывок, неуязвимость, вспышка выстрела, нагрев/энергия/патроны (`bar`), раскрутка.
 - `game.projectiles`, `game.globs` (кислота в полёте), `game.grenades`, `game.napalms`, `game.turret`, `game.medkits`.
 - `game.telegraphs` — предупреждения на полу со временем жизни: кольца, полосы тарана, заполняющиеся круги.
-- `game.beacons`, `game.stage`, `game.objectiveText`, `game.objectiveProgress`, `game.objectiveMarker`,
+- `game.mission` (план), `game.missionStep`, `game.stepPhase`, `game.switches`, `game.missionZone`, `game.objectiveKey`,
+  `game.beacons`, `game.stage`, `game.objective`, `game.objectiveProgress`, `game.objectiveMarker`,
   `game.contextHint`, `game.liftRise`, `game.kills`, `game.time`, `game.comboShown`, `game.xpLevel`, `game.xp/xpNext`.
 - `game.laserLength(marine)`, `game.turretLaserLength`, `game.raycastBugs(...)`, `game.bugsInCircle(...)`,
   `game.bugCountNear(center)` (громкость стрекота роя), `game.assistedAim(angle, strength:)`, `game.setVisibleArea(...)`
@@ -103,6 +104,8 @@ switch game.phase { case .won, .lost: /* экран итогов: game.stats */ 
 | `GameSwarm.swift` | спавн, урон, взрывы, кислота, обновление роя |
 | `GameMarines.swift` | движение, урон, подъём, оружие, снаряды, способности |
 | `GameAI.swift` | ввод игрока, аим-ассист, ИИ ботов и автопилот |
-| `GameDirector.swift` | этапы миссии, орды, опыт, улучшения |
+| `Mission.swift` | план миссии из модулей (RING, SWITCH, HOLD, BOSS, EXTRACT), шаблоны (`coldLight`, учения), их калибровка |
+| `GameMission.swift` | исполнение плана: шаги и фазы, модули, запросы для режиссёра, HUD, ботов и калибровки |
+| `GameDirector.swift` | темп роя (поток, орды, давление улья), опыт, улучшения; этапы миссии — план (`missionTick`) |
 | `GameHUD.swift` | тексты задачи и подсказок, статистика, лазеры |
 | `GameDebug.swift` | отладочные хуки, бенчмарк |
