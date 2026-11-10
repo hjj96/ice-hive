@@ -79,7 +79,8 @@ import IceHiveCore
 //                   director off, the player idle on the near side of the pad → hub bridge's hub end (the valve's whole
 //                   span, the coolant line, the hub breaker and the locker in frame), the squad firing. 0.8 s after
 //                   «scene ready» a runner pack spawns at the pad end of the bridge under the valve's span and runs along
-//                   it; the gunner pops the valve once 6 are under it (the demo pops it at 1.8 s if nobody has): the
+//                   it; the gunner pops the valve once 6 are under it (else the demo does, by the same rule from 1.0 s,
+//                   at 1.8 s at the latest): the
 //                   burst, then the 5 s scald curtain (CI burst burst-valve); at 3.0 s a second pack on the hub's west strip
 //                   under the coolant line, popped at 3.6 s unless the squad did: 2 s of freezing mist. At 8.0 s the hub's circuit is cut (its lamps
 //                   die), from 8.5 s the player walks into the hub breaker's ring and stands there; 6 s in the ring bring
@@ -554,7 +555,8 @@ final class DemoScript {
     private var ixArrived = false
     /// `-ixLights`: the lights part only, 7 s earlier.
     private var ixLightsOnly: Bool { options.unknown.contains("-ixLights") }
-    /// interactives: the pack along the bridge valve's span, the valve popped (by the gunner, else by the demo at 1.8 s), the
+    /// interactives: the pack along the bridge valve's span, the valve popped (by the gunner, else by the demo once 6+ bugs
+    /// are under it from 1.0 s, at the latest at 1.8 s), the
     /// hub's lights cut at 8.0 s, the player walking into the hub breaker's ring from 8.5 s, the lights coming back.
     private func interactives(_ game: Game, _ dt: Float) {
         t += dt
@@ -569,7 +571,8 @@ final class DemoScript {
             if v.phase != .ready {
                 ixStep = 2
                 AppLog.info(String(format: "demo interactives: the squad popped the valve (marine %d) td=%.2f", v.src, sinceReady))
-            } else if sinceReady >= 1.8 {
+            } else if (sinceReady >= 1.0 && v.crowd >= VALVE_BOT_CROWD) || sinceReady >= 1.8 {
+                // the bots' own rule (6+ bugs under the span), the pack still on the bridge: the curtain catches it
                 ixStep = 2
                 game.debugBurstValve(0, by: 3)
                 AppLog.info(String(format: "demo interactives: the demo popped the valve td=%.2f (%d bugs under it)", sinceReady, v.crowd))
