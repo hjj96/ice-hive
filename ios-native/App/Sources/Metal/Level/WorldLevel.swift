@@ -34,6 +34,8 @@ import IceHiveCore
 //  too (vs_kit spins them, lens in the state colour). Dynamic props
 //  (globs, grenades, medkits, the turret) stay IHM1 mesh batches.
 //  Transparent: the landing-pad mark and the floor light pools.
+//  The overhead (Stage 1) is WorldOverhead's: routes, cutaway, sway; the
+//  world mask's B carries its moon shadow on the deck.
 // ================================================================
 
 /// fs_level / vs_kit constants (`struct LevelParams` in Level.metal).
@@ -164,6 +166,9 @@ final class WorldLevel {
         }
         LightingHub.current?.setLampLevel(l.light, level)
     }
+    /// The grid lights WorldLevel registers with WP2's light grid (lamps, pillar strips, vent slats; the beacons are
+    /// LightGrid's own) — WorldOverhead adds its duct-mouth glows to them.
+    var stationLamps: [(F3, F3)] { lights.filter { $0.kind != .beacon }.map { ($0.pos, $0.color) } }
 
     init(level: Level, store: MeshStore) {
         self.level = level
@@ -218,7 +223,7 @@ final class WorldLevel {
         if kit.ready {
             buildStation(r.device)
             // WP2's grid lights: the station's lamp lenses, pillar strips and vent slats (the beacons: LightGrid's own)
-            LightingHub.current?.setStationLamps(lights.filter { $0.kind != .beacon }.map { ($0.pos, $0.color) })
+            LightingHub.current?.setStationLamps(stationLamps)
         } else {
             summary = "station: kit not loaded — nothing to draw"
         }
@@ -945,40 +950,6 @@ final class WorldLevel {
         }
     }
 
-    // ---------------------------------------------------------------- the overhead (Stage 1 R2): a debug stand-in
-    /// The routes of `layout.overhead` as plain dark kit tubes (racks, trays 0.16 m, cables 0.05 m with their sag, ducts
-    /// 0.38 m) and a thin column down each riser / post to where its climb starts — only so the bugs riding them read in
-    /// the overhead demo's shots. The overhead render package (R3) replaces this with the real layer (trims, pieces,
-    /// the dithered cutaway round the squad). Nothing is built on a station without routes (the classic «Кельвин-9»).
-    private func buildOverheadStandIn() {
-        let O = level.layout.overhead
-        if O.isEmpty { return }
-        let mat = KitMat(tint: Col.girder, metal: 0.8, layer: Trim.pipes, flags: KitFlag.frost, uv: .strip(Trim.pipe, F3(1, 0, 0)))
-        for e in O.edges {
-            let a = O.nodes[Int(e.a)].p, b = O.nodes[Int(e.b)].p
-            let m = cell((a.x + b.x) / 2, (a.z + b.z) / 2)
-            let r: Float
-            switch e.kind {
-            case .cable: r = 0.05
-            case .duct: r = 0.38
-            case .tray, .catwalk: r = 0.16
-            case .pipe: r = 0.13
-            }
-            let n = e.sag > 0 ? 6 : 1
-            for k in 0..<n {
-                let u0 = Float(k) / Float(n), u1 = Float(k + 1) / Float(n)
-                var p0 = F3(a.x, a.y, a.z) + (F3(b.x, b.y, b.z) - F3(a.x, a.y, a.z)) * u0
-                var p1 = F3(a.x, a.y, a.z) + (F3(b.x, b.y, b.z) - F3(a.x, a.y, a.z)) * u1
-                p0.y -= 4 * e.sag * u0 * (1 - u0); p1.y -= 4 * e.sag * u1 * (1 - u1)
-                // (the tube's centre sits r below the route: the bugs ride on top of it)
-                m.tube(p0 - F3(0, r, 0), p1 - F3(0, r, 0), r: r, seg: 8, mat)
-            }
-        }
-        for nd in O.nodes where nd.kind.climbs && nd.riserFrom < nd.p.y - 0.3 {
-            cell(nd.p.x, nd.p.z).tube(F3(nd.p.x, nd.riserFrom, nd.p.z), F3(nd.p.x, nd.p.y - 0.1, nd.p.z), r: 0.09, seg: 8, mat)
-        }
-    }
-
     // ---------------------------------------------------------------- props: crates, pillars, pipes, vents, beacons, pad
     private func buildProps() {
         var rng = StationRNG(seed: 57)
@@ -1029,7 +1000,6 @@ final class WorldLevel {
                 }
             }
         }
-        buildOverheadStandIn()
         if let p = piece("vent") {
             for v in level.layout.vents {
                 let y = level.groundY(v.x, v.y)
@@ -1153,7 +1123,8 @@ final class WorldLevel {
 
     // ---------------------------------------------------------------- world mask (frost / contact AO)
     /// 256² RGBA8 over the 128 m grid (0.5 m texels): R frost — value noise plus a ramp toward railings and props,
-    /// G contact AO — darker beside blocked cells (crates, pillars, beacons) and along the railings.
+    /// G contact AO — darker beside blocked cells (crates, pillars, beacons) and along the railings, B the overhead's soft
+    /// moon shadow on the deck (Stage 1 R3, WorldOverhead.moonShadow; 0 on a station without routes).
     private func buildWorldMask(_ device: MTLDevice) -> MTLTexture? {
         let S = WorldLevel.maskSize
         let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba8Unorm, width: S, height: S, mipmapped: false)
@@ -1199,6 +1170,7 @@ final class WorldLevel {
         bfs(&dist, q)
         bfs(&distBlocked, qb)
         var px = [UInt8](repeating: 0, count: S * S * 4)
+        let moon = WorldOverhead.moonShadow(level: level, size: S)
         let n1 = StationNoise(seed: 4), n2 = StationNoise(seed: 9)
         for py in 0..<S {
             for pxi in 0..<S {
@@ -1217,7 +1189,7 @@ final class WorldLevel {
                 let o = (py * S + pxi) * 4
                 px[o] = UInt8(clampf(v, 0, 1) * 255)
                 px[o + 1] = UInt8(clampf(ao, 0, 1) * 255)
-                px[o + 2] = 0
+                px[o + 2] = moon[py * S + pxi]
                 px[o + 3] = 255
             }
         }

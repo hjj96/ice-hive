@@ -463,9 +463,11 @@ jobs:
           # native-vx-feel: the wave director's own swarm (no forced crowd): the defence of beacon Beta — its opening horde
           # from 3–4 sides and the hive's first push — time almost frozen at 6.5 s for the screenshot
           run_demo waves 8 "-demo waves -seed 7" 0
-          # Stage 1 R2: the overhead's demo route on «Кельвин-9» (a rack on the far rail of the pad → hub bridge, drawn by
-          # WorldLevel's stand-in): packs climb the riser and pour out of the duct mouth, ride the rack and drop on the squad
-          # (the `.dropZone` rings), the squad shoots them off it; time almost frozen on a telegraph for the screenshot
+          # Stage 1 R2 / R3: the overhead showcase on «Кельвин-9» (a rack on the far rail of the pad → hub bridge, arms and a
+          # cable over the walkway, a pipe bridge, a catwalk, a tray; WorldOverhead's real layer with the cutaway round the
+          # squad): packs climb the riser and pour out of the duct mouth, ride the routes and drop on the squad (the
+          # `.dropZone` rings, the frost-dust streams, the eye glints), the squad shoots them off; time almost frozen on a
+          # telegraph for the screenshot
           run_demo overhead 10 "-demo overhead -seed 7" 0
           # Stage 1 R6: «Кельвин-9» with its interactives (PropLayout.kelvinDemo) and the overhead slice: a pack along the bridge
           # valve's span, the valve popped (the scald curtain), a pack frozen by the catwalk's coolant line, the hub's lights cut,
@@ -554,6 +556,13 @@ jobs:
           # Stage 1 R2: the overhead demo's first drops (the climb, the ride, the telegraph, the drop), every 4th present
           run_demo burst-overhead 9 "-demo overhead -seed 7 -hideHUD -burst overhead 4.6 24 4"
           pull_burst burst-overhead
+          # Stage 1 R3: the parallax — the player walks the bridge under the overhead (-ohWalk), the camera follows and the
+          # abyss, the deck, the routes and the upper truss slide at their own speeds (every 5th present from 2.0 s); the
+          # app's visibility metric runs alongside (-ohVis: the deck the overhead covers, any marine it hides — gated below
+          # by ci/overhead_vis.py). On «высокая» (-ohHigh): the flashlight shadows, the overhead's casters drawn into the
+          # player's tile (the other overhead runs are on the default tier)
+          run_demo burst-parallax 8 "-demo overhead -ohWalk -ohHigh -seed 7 -hideHUD -ohVis -burst parallax 2.0 24 5"
+          pull_burst burst-parallax
           # Stage 1 R6: the steam valve bursting over the pack and its scald curtain (every 8th present ≈ 3 s), and the hub's
           # breaker bringing its lamps back (-ixLights: the lights part only from the hub's centre, its restore ≈ 8.5 s in;
           # every 5th present ≈ 2 s)
@@ -588,6 +597,9 @@ jobs:
           run_demo title-nohud 6 "-demo title -hideHUD" 0
           run_demo calm-nohud 8 "-demo calm -hideHUD" 0
           run_demo calm-deckmask 8 "-demo calm -hideHUD -deckMask -nocones -noweather" 0
+          # Stage 1 R3: the overhead's HUD-off look shot (reported in look.txt, a 2-up sheet) with the visibility metric of the
+          # standing squad under the drops (-ohVis)
+          run_demo overhead-nohud 10 "-demo overhead -seed 7 -hideHUD -ohVis" 0
           run_demo calm-bright-nohud 6 "-demo calm -brightness 1.3 -hideHUD" 0
           # native-vx-feel: a HUD-off look shot is one frozen moment, and some moments are not the scene (a grenade's peak on
           # the title, the punch-in at a muzzle flash, the extraction camera at its cone-dodging limit looking down on the
@@ -779,7 +791,7 @@ jobs:
                    layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo banner-beacon banner-queen banner-pseudo \
                    swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud calm-deckmask calm-bright-nohud \
                    burst-fire burst-tight burst-combat burst-anim burst-loco burst-loco-game burst-acta burst-actb burst-actc burst-defeat burst-win burst-bugs burst-pack burst-packold burst-mix burst-mixold validate-stress validate-fxpeak validate-extract lifecycle \
-                   overhead burst-overhead interactives burst-valve burst-lights; do
+                   overhead burst-overhead burst-parallax overhead-nohud interactives burst-valve burst-lights; do
             grep -q 'scene ready' "results/app-$d.log" || { fail "$d: no 'scene ready'"; }
             if grep -q 'ERROR' "results/app-$d.log"; then fail "$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; fi
           done
@@ -843,12 +855,23 @@ jobs:
           need burst-mix 'burst mix written \(24 frames\)'
           need burst-mixold 'burst mixold written \(24 frames\)'
           # Stage 1 R2: the overhead demo — bugs up on the demo route, drop telegraphs, drops landing, the freeze on a telegraph
-          need overhead 'demo overhead: routes 4 edges, 2 entries'
+          # (R3: the showcase routes pass routeCheck; WorldOverhead built and drew the layer, far and near)
+          need overhead 'demo overhead: routes 15 edges, 4 entries, .*routeCheck ok'
           need overhead 'hb route alive=[0-9]+ up=[1-9]'
           need overhead 'route: drop warned from'
           need overhead 'route: drop landed at'
           need overhead 'demo overhead: frozen td='
+          need overhead 'overhead: [0-9]+ vertices, [0-9]+ triangles in [0-9]+ chunks'
+          need overhead 'hb overhead draws=[1-9][0-9]*\+[0-9]+ tris=[1-9]'
           need burst-overhead 'burst overhead written \(24 frames\)'
+          # Stage 1 R3: the parallax walk and the visibility metric (both runs; the gate is ci/overhead_vis.py below)
+          need burst-parallax 'burst parallax written \(24 frames\)'
+          need burst-parallax 'demo overhead: walking td='
+          need burst-parallax 'oh vis: on \(pipelines ok'
+          need burst-parallax 'hb overhead draws=.* casters=[1-9][0-9]*/[1-9][0-9]* tier=high'
+          need overhead-nohud 'oh vis: on \(pipelines ok'
+          python3 ios-native/ci/overhead_vis.py results overhead-nohud burst-parallax > results/overhead-vis.txt 2>&1 || fail "overhead visibility: $(tail -n 1 results/overhead-vis.txt)"
+          cat results/overhead-vis.txt
           # Stage 1 R6: the interactives demo — the props laid, the valve burst and its curtain, the hub's circuit cut and
           # brought back by its breaker ring, every circuit lit again
           need interactives 'demo interactives: 5 valves, 7 circuits, 48 lamps, 1 lockers; lit 7/7'

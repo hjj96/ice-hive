@@ -201,7 +201,8 @@ fragment float4 fs_level(KitOut in [[stage_in]],
         rimeK = om.a;
     }
     if (in.aoK > 0.0) ao *= mix(1.0, aoAtlas.sample(clampSampler, in.uv1).r, in.aoK);
-    float2 mk = worldMask.sample(dataSampler, (in.world.xz - P.mask.xy) * P.mask.z).rg;
+    float3 mk3 = worldMask.sample(dataSampler, (in.world.xz - P.mask.xy) * P.mask.z).rgb;
+    float2 mk = mk3.rg;
     if ((fl & KF_CHAMFER) != 0u) {
         // worn bright paint / bare steel on every bevel: the flashlight draws a crisp line along each edge
         albedo = mix(albedo, max(albedo * 1.6, float3(0.16, 0.18, 0.2)), P.look.z);
@@ -258,6 +259,14 @@ fragment float4 fs_level(KitOut in [[stage_in]],
     }
     // contact shading near railings, crates and pillars (decks only)
     ao *= mix(1.0, mk.g, saturate(Nv.y) * P.look.y);
+    // Stage 1 R3: the overhead's soft moon shadow on the deck (the world mask's B, baked by WorldOverhead along the moon
+    // direction under every route; 0 on a station without routes — the classic «Кельвин-9» is unchanged): the sky is
+    // partly blocked there, so the ambient and the moonlit albedo dim a little
+    if (mk3.b > 0.0) {
+        float sh = mk3.b * saturate(Nv.y);
+        ao *= 1.0 - 0.5 * sh;
+        albedo *= 1.0 - 0.3 * sh;
+    }
 #if defined(LIGHTING_PARAMS)
     if (high) {
         // fresh ichor / meltwater trails from the occupancy map: glossy, darker deck
@@ -297,6 +306,218 @@ fragment float4 fs_level(KitOut in [[stage_in]],
 #else
     return float4(encodeColor(F, c, in.depth, true), 1.0);
 #endif
+}
+
+// ---------------------------------------------------------------- the overhead (Stage 1 R3, Level/WorldOverhead.swift)
+// The routes above the decks (racks, cables, trays, catwalks, ducts, their supports, the upper truss) are KitVertex
+// geometry like the station, drawn by two pipelines: `overhead` (vs_overhead + fs_overhead) for the chunks away from the
+// squad — one opaque draw, so the hidden-surface removal keeps the deck pixels it covers from being shaded — and
+// `overheadCut` (vs_overhead + fs_overhead_cut) for the chunks near a marine, a drop warning or the eye: the same material
+// with the cutaway written as MSAA sample coverage (a 4×4 Bayer-dithered alpha-to-coverage: 25 % of the samples at the
+// ghost floor read as a 25 % ghost after the resolve, not a screen door). Drawn last among the opaque items. The look:
+// the darker grade (a dark foreground plane: desaturated, cooled toward the void, darker), rime and a snow crust on every
+// up-facing top (the layer reads as pale lines from above), the station's light model and fog.
+
+// Swift: WorldOverhead.swift OverheadBlock (85 float4)
+struct OverheadParams {
+    float4 look;       // x rime strength, y snow-crust strength, z albedo grade (×), w desaturation
+    float4 misc;       // x = 1 on the High tier, y unused, z time (s), w unused
+    float4 mask;       // world mask: xy world origin, z = 1 / size
+    float4 view;       // x = 2 / viewport width (px), y = 2 / viewport height (px), z = aspect, w = ghost floor (0…1)
+    float4 cut;        // x near-eye fade start (m: nothing nearer), y its end (m), z cut points in use, w depth margin (m)
+    float4 pts[8];     // cut points: xy on screen (half screen heights, x × aspect), z view depth (m), w weight 0…1
+    float4 rad[8];     // x radius of the full ghost, y radius where the fade ends (half screen heights)
+    float4 sway[64];   // cable k's displacement this frame (m), × the vertex's mid-span weight
+};
+
+/// 4×4 Bayer thresholds (× 1/16).
+constant float kOverheadBayer[16] = { 0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0 };
+
+/// A cable vertex sways with its cable: runtime faces carry no AO (extra.w = 0), so a cable's uv1 holds its mid-span
+/// weight (x, unorm16) and its cable index + 1 (y); kit pieces (AO-baked, extra.w > 0) and every other face never move.
+static inline float3 overheadSway(constant OverheadParams& P, KitVertex v) {
+    if (v.extra.w != 0 || v.uv1.y == 0) return float3(0.0);
+    uint k = min(uint(v.uv1.y) - 1u, 63u);
+    return P.sway[k].xyz * (float(v.uv1.x) / 65535.0);
+}
+
+vertex KitOut vs_overhead(uint vid [[vertex_id]],
+                          const device KitVertex* V [[buffer(0)]],
+                          constant Frame& F [[buffer(1)]],
+                          constant OverheadParams& P [[buffer(3)]]) {
+    KitVertex v = V[vid];
+    float3 w = float3(v.pos) + overheadSway(P, v);
+    float3 n = float3(v.nrm.xyz) / 127.0;
+    float3 t = float3(v.tan.xyz) / 127.0;
+    float3 albedo = srgbToLinear(float3(v.tint.rgb) / 255.0);
+    if (v.extra.x == 0) {
+        // the darker grade (tech.md §2.5): the overhead is a dark foreground plane over the lit deck — desaturated, a
+        // touch cooler, darker; the self-lit accents (duct-mouth slats, the catwalk strip, gauges) keep their colour
+        float l = dot(albedo, float3(0.2126, 0.7152, 0.0722));
+        albedo = mix(albedo, float3(l), P.look.w) * float3(0.92, 0.97, 1.08) * P.look.z;
+    }
+    return kitOut(F, v, w, n, t, albedo);
+}
+
+/// Smooth value noise (the snow crust's breakup, ~1.6 m).
+static inline float overheadHash(float2 p) { return fract(sin(dot(p, float2(127.1, 311.7))) * 43758.5453); }
+static inline float overheadNoise(float2 p) {
+    float2 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    float a = overheadHash(i), b = overheadHash(i + float2(1.0, 0.0));
+    float c = overheadHash(i + float2(0.0, 1.0)), d = overheadHash(i + float2(1.0, 1.0));
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
+/// The overhead's material: trims and the kit pieces' AO as on the station, worn chamfers, rime and the snow crust on
+/// the up-facing tops, the full light model (flashlights, grid lights from the lamps below, moon, probe), fog.
+static float3 overheadShade(KitOut in, constant Frame& F, constant OverheadParams& P, texture2d<float> worldMask,
+                            texture2d_array<float> trimN, texture2d_array<float> trimORM, texture2d<float> aoAtlas,
+                            constant LightBlock& LB, depth2d<float> shadowAtlas, texturecube<half> envProbe,
+                            texture2d<half> occupancy) {
+    float3 Nv = normalize(in.normal);
+    float3 V = normalize(F.camPos.xyz - in.world);
+    float3 N = Nv;
+    float3 albedo = in.albedo;
+    float ao = 1.0, rough = 0.6, metal = in.metal, rimeK = 0.55;
+    uint fl = in.flags;
+    bool high = P.misc.x > 0.5;
+    if (in.layer < 4u) {
+        float4 tn = trimN.sample(repeatSampler, in.uv0, in.layer);
+        float4 om = trimORM.sample(repeatSampler, in.uv0, in.layer);
+        float2 xy = float2(tn.r, tn.a) * 2.0 - 1.0;
+        float3 tsn = float3(xy, sqrt(saturate(1.0 - dot(xy, xy))));
+        float3 T = in.tangent.xyz - Nv * dot(in.tangent.xyz, Nv);
+        T = length_squared(T) > 1e-8 ? normalize(T) : float3(1.0, 0.0, 0.0);
+        float3 B = cross(Nv, T) * in.tangent.w;
+        N = normalize(T * tsn.x + B * tsn.y + Nv * tsn.z);
+        ao = om.r;
+        rough = om.g;
+        metal *= om.b;
+        rimeK = om.a;
+    }
+    if (in.aoK > 0.0) ao *= mix(1.0, aoAtlas.sample(clampSampler, in.uv1).r, in.aoK);
+    float frost = worldMask.sample(dataSampler, (in.world.xz - P.mask.xy) * P.mask.z).r;
+    if ((fl & KF_CHAMFER) != 0u) {
+        // worn edges catch the beams: a thin bright line along each bevel (subtler than the deck's)
+        albedo = mix(albedo, max(albedo * 1.6, float3(0.08, 0.09, 0.1)), 0.45);
+        rough *= 0.75;
+    }
+    if ((fl & KF_FROST) != 0u) {
+        // rime on the bars and rims (the trim's receptivity), then the snow crust on every up-facing top: pale lines
+        // from above that read over the dark deck and against the void (concept-station README, «what makes the layer
+        // readable»), broken up by a slow noise so a run is not one flat white line
+        float up = smoothstep(0.55, 0.92, N.y);
+        float rime = saturate(frost * 1.4 - 0.2) * saturate(rimeK * 1.6) * up * P.look.x;
+        albedo = mix(albedo, float3(0.32, 0.37, 0.44), rime);
+        rough = mix(rough, 0.72, rime);
+        metal = mix(metal, 0.0, rime);
+        float crust = smoothstep(0.66, 0.96, Nv.y) * (0.55 + 0.45 * overheadNoise(in.world.xz * 0.62 + in.world.y)) * P.look.y;
+        albedo = mix(albedo, float3(0.46, 0.5, 0.56), crust);
+        rough = mix(rough, 0.88, crust);
+        metal = mix(metal, 0.0, crust);
+        N = normalize(mix(N, Nv, crust));
+    }
+    LitSurface s;
+    s.P = in.world;
+    s.N = N;
+    s.V = V;
+    s.albedo = albedo;
+    s.rough = rough;
+    s.metal = metal;
+    s.coat = 0.0;
+    s.coatRough = 0.1;
+    s.ao = ao;
+    s.shadow = 1.0;
+    float3 c = shadeLit(F, LB, shadowAtlas, envProbe, occupancy, s, high);
+    c += in.albedo * in.emis;
+    return heightFog(F, LB, c, in.world, in.depth);
+}
+
+/// The cutaway's alpha (1 = solid) of an overhead fragment at window position `px` (pixels), view depth `depth` (m): it
+/// fades to the ghost floor within rad.x of every cut point it stands in front of (marines' chests, drop-warning rings),
+/// back to solid at rad.y; and to nothing near the eye (cinematic cameras).
+static float overheadCutAlpha(constant OverheadParams& P, float2 px, float depth) {
+    float2 sp = float2((px.x * P.view.x - 1.0) * P.view.z, 1.0 - px.y * P.view.y);
+    float cut = 0.0;
+    int n = int(P.cut.z);
+    for (int k = 0; k < 8; k++) {
+        if (k >= n) break;
+        float4 q = P.pts[k];
+        float2 r = P.rad[k].xy;
+        float c = 1.0 - smoothstep(r.x, r.y, distance(sp, q.xy));
+        // only what stands between the camera and the point hides it
+        c *= q.w * saturate((q.z - depth - P.cut.w) * 1.5);
+        cut = max(cut, c);
+    }
+    float a = 1.0 - (1.0 - P.view.w) * cut;
+    return a * smoothstep(P.cut.x, P.cut.y, depth);
+}
+
+// ↓ the fragment parameters of both overhead pipelines (as fs_level's)
+#define OVERHEAD_FS_PARAMS KitOut in [[stage_in]], constant Frame& F [[buffer(1)]], \
+    constant OverheadParams& P [[buffer(3)]], texture2d<float> worldMask [[texture(1)]], \
+    texture2d_array<float> trimN [[texture(8)]], texture2d_array<float> trimORM [[texture(9)]], \
+    texture2d<float> aoAtlas [[texture(10)]], LIGHTING_PARAMS
+#define OVERHEAD_FS_ARGS in, F, P, worldMask, trimN, trimORM, aoAtlas, LB, shadowAtlas, envProbe, occupancy
+
+/// Overhead chunks away from the squad: opaque (the far, dark-graded draw).
+fragment float4 fs_overhead(OVERHEAD_FS_PARAMS) {
+    return float4(overheadShade(OVERHEAD_FS_ARGS), 1.0);
+}
+
+struct OverheadCutOut {
+    float4 color [[color(0)]];
+    uint mask [[sample_mask]];
+};
+
+/// Overhead chunks near a marine / a drop warning / the eye: the cutaway as sample coverage (alpha-to-coverage with a 4×4
+/// Bayer dither of the rounding and a per-pixel rotation of the sample set; 0 samples are discarded).
+fragment OverheadCutOut fs_overhead_cut(OVERHEAD_FS_PARAMS) {
+    OverheadCutOut o;
+    o.color = float4(0.0);
+    o.mask = 0u;
+    float a = overheadCutAlpha(P, in.position.xy, in.depth);
+    uint2 q = uint2(in.position.xy) & 3u;
+    float b = (kOverheadBayer[q.y * 4u + q.x] + 0.5) / 16.0;
+    int n = int(floor(a * 4.0 + b));
+    if (n <= 0) {
+        discard_fragment();
+        return o;
+    }
+    uint rot = (q.x + q.y * 2u + 1u) & 3u;
+    uint m = (1u << uint(min(n, 4))) - 1u;
+    o.mask = ((m << rot) | (m >> (4u - rot))) & 15u;
+    o.color = float4(overheadShade(OVERHEAD_FS_ARGS), 1.0);
+    return o;
+}
+
+// ---------------------------------------------------------------- the overhead visibility mask (CI, `-ohVis`)
+// An offscreen RGBA8 frame of the game camera (WorldOverhead, a pre-pass): R = 1 on the walkable deck, G = (k + 1) / 5
+// on marine k's silhouette proxy, B = the overhead's coverage in front of them (its cutaway alpha; max of the layers).
+// The app reads it back and logs how much of the deck the overhead covers and whether any marine is hidden.
+
+/// The deck cells and the marine proxies: world xyz + a code in w (1 deck, 2…5 marine 0…3).
+vertex QuadOut vs_overhead_vis_flat(uint vid [[vertex_id]],
+                                    const device float4* V [[buffer(0)]],
+                                    constant Frame& F [[buffer(1)]]) {
+    float4 v = V[vid];
+    QuadOut o;
+    o.position = F.viewProj * float4(v.xyz, 1.0);
+    o.color = v.w < 1.5 ? float4(1.0, 0.0, 0.0, 1.0) : float4(0.0, (v.w - 1.0) * 0.2, 0.0, 1.0);
+    o.uv = float2(0.0);
+    o.params = float4(0.0);
+    o.depth = 0.0;
+    return o;
+}
+
+fragment float4 fs_overhead_vis_flat(QuadOut in [[stage_in]]) {
+    return in.color;
+}
+
+/// The overhead in the visibility mask: B = its cutaway alpha (the far chunks come out solid: no cut point near them).
+fragment float4 fs_overhead_vis(KitOut in [[stage_in]], constant OverheadParams& P [[buffer(3)]]) {
+    return float4(0.0, 0.0, overheadCutAlpha(P, in.position.xy, in.depth), 0.0);
 }
 
 // ---------------------------------------------------------------- legacy IHM1 helpers (pad mark, light pools, batches)

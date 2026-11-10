@@ -982,14 +982,19 @@ final class GameScene: SKScene {
                 if diag { AppLog.info("v11 coach seen") }
             case .coachEnded:
                 if diag { AppLog.info("v11 coach end") }
-            // Stage 1 R2: the overhead (the overhead demo's log lines; CI greps «route: drop landed»)
+            // Stage 1 R2: the overhead (the overhead demo's log lines; CI greps «route: drop landed»). R3: its sounds — the
+            // coil's hiss up in the attic (the overhead voice: filtered, reverberant), the thump of the landing on the deck,
+            // a bug knocked off a rack clattering above
             case .dropWarned(let from, let to, let eta):
+                audio?.playOverhead(.spit, pos: Vec2(from.x, from.z), listener: lis)
                 if diag {
                     AppLog.info(String(format: "route: drop warned from (%.1f, %.1f, %.1f) to (%.1f, %.1f) eta %.2f s", from.x, from.y, from.z, to.x, to.y, eta))
                 }
             case .dropLanded(let pos, let hit):
+                audio?.play(.thud, pos: pos, listener: lis, loud: hit)
                 if diag { AppLog.info(String(format: "route: drop landed at (%.1f, %.1f) hit=%d", pos.x, pos.y, hit ? 1 : 0)) }
             case .routeKnockdown(let pos, let h):
+                audio?.playOverhead(.thud, pos: pos, listener: lis, gain: 0.6)
                 if diag { AppLog.info(String(format: "route: knocked down at (%.1f, %.1f) from %.1f m", pos.x, pos.y, h)) }
             case .bugKilled(_, let pos, _, let src, _, _, let h) where h > 2:
                 if diag { AppLog.info(String(format: "route: killed up there at (%.1f, %.1f) %.1f m, source %d", pos.x, pos.y, h, src)) }

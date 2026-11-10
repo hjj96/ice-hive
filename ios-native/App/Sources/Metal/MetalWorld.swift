@@ -15,6 +15,7 @@ import IceHiveCore
 //    Corpses (WP3)       bodies on the deck
 //    GroundGlyphs (WP4)  team rings, progress rings
 //    WorldLevel (WP6)    static level draws, dynamic props
+//    WorldOverhead (R3)  the overhead layer: routes, cutaway, sway, drops
 //    WorldProps (R6)     the interactive props: valves, breakers, lockers,
 //                        the lamps' light, steam, use rings
 //    Atmosphere (WP2)    haze, weather
@@ -62,7 +63,7 @@ final class MetalWorld: HUDProjection {
     /// Every pipeline of the world frame, compiled together behind the loading cover.
     static var pipelineSpecs: [PipelineSpec] {
         MetalRenderer.pipelines + WorldLevel.pipelines + WorldSwarm.pipelines + MetalEffects.pipelines + Atmosphere.pipelines
-            + WorldSquad.pipelines
+            + WorldSquad.pipelines + WorldOverhead.pipelines
     }
 
     let level: Level
@@ -75,6 +76,8 @@ final class MetalWorld: HUDProjection {
     let corpses: Corpses
     let glyphs: GroundGlyphs
     let levelDraw: WorldLevel
+    /// Stage 1 R3: the overhead layer (nothing on a station without routes).
+    let overhead: WorldOverhead
     /// Stage 1 R6: the interactive props (nothing on a station without them).
     let props: WorldProps
     let atmosphere = Atmosphere()
@@ -140,6 +143,7 @@ final class MetalWorld: HUDProjection {
         corpses = Corpses(level: level, store: store)
         glyphs = GroundGlyphs(level: level)
         levelDraw = WorldLevel(level: level, store: store)
+        overhead = WorldOverhead(level: level)
         props = WorldProps(level: level)
         fx.corpses = corpses
         // hits on the chitin (WorldSwarm.impactPoint), muzzles and casings at the rig's sockets (WorldSquad)
@@ -149,6 +153,9 @@ final class MetalWorld: HUDProjection {
         renderer.registerBatchService()
         renderer.targets.setClearColor(MetalWorld.fogRadiance)
         levelDraw.attach(renderer)
+        overhead.attach(renderer, stationLamps: levelDraw.stationLamps)
+        // bugs riding a swaying cable move with it (WorldSwarm reads the overhead's sway)
+        swarm.overhead = overhead
         squad.attach(renderer)
         swarm.attach(renderer)
         fx.attach(renderer)
@@ -209,6 +216,7 @@ final class MetalWorld: HUDProjection {
         // the hit bug recoils along the actual shot (WorldSwarm.noteHit), not away from the nearest marine
         if case .bulletHit(let pos, let dir, _) = e { swarm.noteHit(pos, dir) }
         fx.handle(e, game: game)
+        overhead.handle(e, fx: fx)
         // flash adaptation: a big blast dips the exposure for a moment (scripted; no auto-exposure)
         if case .explosion(let kind, _, _) = e, kind.isBig { renderer.post.dip(ev: -0.35, duration: 0.45) }
     }
@@ -288,6 +296,7 @@ final class MetalWorld: HUDProjection {
         props.build(game: game, time: time, dt: dt, fx: fx, levelDraw: levelDraw, glyphs: glyphs)
         glyphs.build(game: game, time: time, poses: squad.poses, liftRise: rise)
         levelDraw.build(game: game, time: time, dt: dt, rise: rise, fx: fx)
+        overhead.build(game: game, camera: camera, poses: squad.poses, time: time, dt: dt, fx: fx)
         timer.mark()
         upload(dt: dt)
         frameUniforms(game: game, time: time, rise: rise)

@@ -232,6 +232,81 @@ def pipe_bracket():
     return m
 
 
+# ---------------------------------------------------------------- the overhead (Stage 1 R3, WorldOverhead / OverheadKit.swift)
+# Small parts of the layer above the decks; the long runs (pipes, cables, trays, catwalks, ducts, posts) are extruded at
+# runtime. Origins sit where the runtime places them on a route (y = 0: the top the bugs ride, or the top of a support);
+# +x runs along the route (shoe, clamp, valve, junction) or toward the void (head) or out of the duct (mouth). Dark kit
+# steel — WorldOverhead's darker grade takes it further down —, the frost flag on the tops (rime and the snow crust of
+# fs_overhead), one light colour: small amber gauges / LEDs and the duct mouth's slats (design §1.1.2: the overhead has no
+# lights of its own but those).
+OH_STEEL = Mat(C['steelD'], 0.6, layer=PIPES, uv='strip', strip=6, flags=F_FROST)
+OH_GIRDER = Mat(C['girder'], 0.7, layer=RAILS, uv='strip', strip=1, flags=F_FROST)
+
+
+def oh_shoe():
+    """The saddle under a rack's main pipe on a support head: a base block and two cheeks hugging the pipe."""
+    m = cbox(0.3, 0.07, 0.36, 0.01, OH_STEEL, center=(0, -0.045, 0))
+    for sz in (-1, 1):
+        m.merge(cbox(0.24, 0.12, 0.035, 0.0, OH_STEEL, center=(0, 0.03, sz * 0.165), bottom=False))
+    return m
+
+
+def oh_clamp():
+    """A cable bundle's anchor: a clamp block round the bundle's end and a backing plate behind it (−x)."""
+    m = cbox(0.16, 0.16, 0.3, 0.015, OH_STEEL, center=(0.0, -0.07, 0))
+    m.merge(cbox(0.05, 0.36, 0.4, 0.01, Mat(C['steel'], 0.6, layer=PANELS, flags=F_FROST), center=(-0.1, -0.08, 0)))
+    return m
+
+
+def oh_valve():
+    """A handwheel valve on top of a pipe: body, bonnet, stem, an 8-sided wheel with three spokes (F_PAINT: the placement
+    paints it dark red) and a small amber gauge."""
+    m = cbox(0.32, 0.26, 0.36, 0.0, Mat(C['steel'], 0.6, layer=PANELS, flags=F_FROST), center=(0, 0.03, 0), bottom=False)
+    m.merge(lathe([(0.075, 0.16), (0.075, 0.3), (0.05, 0.34), (0.0, 0.34)], 6, OH_STEEL))
+    m.merge(beam((0, 0.33, 0), (0, 0.47, 0), 0.03, 0.03, 0.0, OH_STEEL))
+    wheel = Mat(0x808080, 0.3, layer=PIPES, uv='strip', strip=7, flags=F_PAINT | F_FROST)
+    r, n, y = 0.22, 8, 0.47
+    pts = [(r * math.cos(2 * math.pi * k / n), y, r * math.sin(2 * math.pi * k / n)) for k in range(n)]
+    for k in range(n):
+        m.merge(beam(pts[k], pts[(k + 1) % n], 0.035, 0.035, 0.0, wheel))
+    for k in range(3):
+        a = 2 * math.pi * k / 3
+        m.merge(beam((0, y, 0), (r * math.cos(a), y, r * math.sin(a)), 0.022, 0.022, 0.0, wheel))
+    m.merge(cbox(0.02, 0.07, 0.07, 0.0, light(C['amber'], 2.6), center=(0.17, 0.06, 0.0), bottom=False))
+    return m
+
+
+def oh_head():
+    """The head of a support under a rack: a cross beam from 0.35 m behind the post to 1.0 m out toward the void (+x), under
+    all three pipes, and a knee brace down to the post."""
+    m = beam((-0.35, -0.08, 0), (1.0, -0.08, 0), 0.18, 0.16, 0.02, OH_GIRDER)
+    m.merge(beam((0.0, -0.8, 0), (0.72, -0.16, 0), 0.07, 0.07, 0.0, OH_GIRDER))
+    m.merge(cbox(0.36, 0.05, 0.36, 0.01, OH_STEEL, center=(0, -0.185, 0)))
+    return m
+
+
+def oh_duct_mouth():
+    """The open end of an overhead duct (0.9 × 0.7 m, its top at y = 0), facing +x: a flange, the dark mouth, four amber
+    slats of the grille, and a hood over it — it glows, rattles and puffs frost before a pack pours out (package R4)."""
+    m = cbox(0.08, 0.8, 1.0, 0.015, OH_STEEL, center=(0.04, -0.35, 0))
+    m.merge(cbox(0.02, 0.62, 0.82, 0.0, Mat(C['dark'], 0.2, layer=PANELS), center=(0.085, -0.35, 0), bottom=False))
+    for k in range(4):
+        m.merge(cbox(0.03, 0.05, 0.78, 0.0, light(C['amber'], 1.8), center=(0.1, -0.58 + 0.15 * k, 0), bottom=False))
+    hood = Mat(C['steel'], 0.6, layer=PANELS, flags=F_FROST)
+    m.merge(cbox(0.42, 0.05, 1.08, 0.01, hood, center=(0.2, 0.035, 0)))
+    for sz in (-1, 1):
+        m.merge(cbox(0.38, 0.3, 0.03, 0.0, hood, center=(0.19, -0.11, sz * 0.525)))
+    return m
+
+
+def oh_junction():
+    """A junction box hanging under a route joint (y = 0: the route), conduits into it, an amber status LED in front (+z)."""
+    m = cbox(0.38, 0.3, 0.26, 0.02, Mat(C['steel'], 0.55, layer=PANELS, flags=F_FROST), center=(0, -0.27, 0))
+    m.merge(beam((0, -0.12, 0), (0, 0.0, 0), 0.06, 0.06, 0.0, OH_STEEL))
+    m.merge(cbox(0.05, 0.03, 0.02, 0.0, light(C['amber'], 3.0), center=(0.1, -0.22, 0.14), bottom=False))
+    return m
+
+
 PIECES = {
     'crate_1x1': (lambda: crate(1.0, 1.0), 0, 'floor', 240),
     'crate_2x1': (lambda: crate(2.0, 1.0), 0, 'floor', 240),
@@ -253,4 +328,10 @@ PIECES = {
     'support_cap': (support_cap, 0, 'ceiling', 120),
     'pad_light': (pad_light, 0, 'floor', 40),
     'pipe_bracket': (pipe_bracket, 0, 'none', 60),
+    'oh_shoe': (oh_shoe, 0, 'none', 80),
+    'oh_clamp': (oh_clamp, 0, 'none', 100),
+    'oh_valve': (oh_valve, 0, 'none', 200),
+    'oh_head': (oh_head, 0, 'none', 120),
+    'oh_duct_mouth': (oh_duct_mouth, 0, 'none', 200),
+    'oh_junction': (oh_junction, 0, 'none', 100),
 }
