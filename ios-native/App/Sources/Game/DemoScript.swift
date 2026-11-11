@@ -116,10 +116,11 @@ import IceHiveCore
 //    -demo ventpurge   Vent Purge: the squad on beacon A's deck 3.5 m from the vent there (the mission's fourth seal: the
 //                   other three are the rings under the overhead's duct mouths); at 0.4 s a pack pours out of the vent, the
 //                   autopilot steps into its seal ring, at 1.4 s the demo jumps the ring to 0.9: the vent is sealed for good
-//                   (it goes dark, the stream thins); the squad heads for the next seal — the ring on the hub → A walkway under
-//                   its duct mouth —, the mouth rattles and pours a pack onto the routes as it comes (10 m out), it steps into
-//                   the ring, the demo jumps it to 0.75 and time almost stops once it passes 0.9 (at 14 s at the latest) for
-//                   the screenshot. `demo ventpurge: …` once a second, `mission: …` / `bugs: duct …` lines, `hb mission …`
+//                   (it goes dark, the stream thins) and the next seal's duct mouth — over the hub → A walkway — rattles to
+//                   pour a pack onto the routes (the bots may shoot it shut for a while, R4); the squad steps into the ring
+//                   under it, the demo jumps it to 0.9, and 0.12 s after the duct mouth slams shut for good time almost stops
+//                   (at 14 s at the latest) for the screenshot. `demo ventpurge: …` once a second, `mission: …` / `bugs: duct …`
+//                   lines, `hb mission …`
 //  R0 (film fixes):
 //    -demo win      like hold; 1 s after «scene ready» the lift leaves and the ride plays out to the win (4.6 s): the
 //                   report comes up at once and the world keeps animating under it (the lift eases to a stop with the
@@ -885,9 +886,10 @@ final class DemoScript {
         missionLog(game, dt)
     }
 
-    /// ventpurge: a pack out of A's vent at 0.4 s, its ring jumped to 0.9 (from 1.4 s); on the way to the next seal (the ring
-    /// under the hub → A walkway's duct mouth) the mouth rattles and pours onto the routes, its ring jumped to 0.75 once the
-    /// squad is in it; time almost stopped past 0.9 (14 s at the latest).
+    /// ventpurge: a pack out of A's vent at 0.4 s, its ring jumped to 0.9 (from 1.4 s); as it is sealed the next seal's duct
+    /// mouth (the hub → A walkway's) rattles to pour onto the routes ahead (the bots may shoot it shut for a while: R4); the
+    /// squad steps into the ring under it, the demo jumps the ring to 0.9, and 0.12 s after the duct mouth is sealed for good
+    /// time almost stops (14 s at the latest).
     private func ventPurge(_ game: Game, _ dt: Float) {
         t += dt
         // (the nearest seal still to throw: where the autopilot goes)
@@ -906,35 +908,34 @@ final class DemoScript {
             game.debugSwitchProgress(0.9)
             AppLog.info(String(format: "demo ventpurge: the seal's ring jumped to 0.90 td=%.2f", sinceReady))
         }
-        if msStep == 2 && game.switchesThrown > 0 {
+        if msStep == 2 && game.switchesThrown > 0, let k = near {
+            // the vent is sealed; the next seal ahead: its duct mouth rattles and pours onto the routes (a vent's onto the deck)
             msStep = 3
             AppLog.info(String(format: "demo ventpurge: vent sealed td=%.2f, stream %.2f, vents shut %d", sinceReady, game.streamK,
                                game.ventShut.filter { $0 }.count))
-        }
-        if msStep == 3, let k = near, game.switches[k].state == 0 {
-            // the next seal ahead: its duct mouth rattles and pours onto the routes as the squad comes (10 m out; a vent's pours
-            // onto the deck)
             let s = game.switches[k].site
-            if hypotf(s.x - game.player.x, s.z - game.player.z) < 10 {
-                msStep = 4
-                if s.duct >= 0 && s.duct < game.ducts.count {
-                    let n = game.debugRoutePack(10, entry: game.ducts[s.duct].node, rate: 3)
-                    AppLog.info(String(format: "demo ventpurge: duct %d rattles, pours %d ahead td=%.2f (seal %d)", s.duct, n, sinceReady, k))
-                } else {
-                    game.debugVentPour(s.vent, count: 10)
-                    AppLog.info(String(format: "demo ventpurge: a pack pours out of vent %d ahead td=%.2f (seal %d)", s.vent, sinceReady, k))
-                }
+            if s.duct >= 0 && s.duct < game.ducts.count {
+                let n = game.debugRoutePack(10, entry: game.ducts[s.duct].node, rate: 3)
+                AppLog.info(String(format: "demo ventpurge: duct %d rattles ahead, pours %d td=%.2f (seal %d, %.1f m)", s.duct, n, sinceReady, k,
+                                   hypotf(s.x - game.player.x, s.z - game.player.z)))
+            } else {
+                game.debugVentPour(s.vent, count: 10)
+                AppLog.info(String(format: "demo ventpurge: a pack pours out of vent %d ahead td=%.2f (seal %d)", s.vent, sinceReady, k))
             }
         }
-        if msStep == 4 && game.activeSwitch >= 0 {
-            msStep = 5
-            game.debugSwitchProgress(0.75)
-            AppLog.info(String(format: "demo ventpurge: the next seal's ring jumped to 0.75 td=%.2f (seal %d)", sinceReady, game.activeSwitch))
+        if msStep == 3 && game.activeSwitch >= 0 {
+            msStep = 4
+            game.debugSwitchProgress(0.9)
+            AppLog.info(String(format: "demo ventpurge: the next seal's ring jumped to 0.90 td=%.2f (seal %d)", sinceReady, game.activeSwitch))
         }
-        let ring = game.activeSwitch >= 0 ? game.switches[game.activeSwitch].progress : 0
-        if freeze == 1 && ((msStep == 5 && ring >= 0.9) || sinceReady >= 14) {
+        if msStep == 4 && game.switchesThrown > 1 {
+            msStep = 5
+            msAt = sinceReady
+            AppLog.info(String(format: "demo ventpurge: the next seal thrown td=%.2f, stream %.2f", sinceReady, game.streamK))
+        }
+        if freeze == 1 && ((msStep == 5 && sinceReady >= msAt + 0.12) || sinceReady >= 14) {
             freeze = 0.02
-            AppLog.info(String(format: "demo ventpurge: frozen td=%.2f step %d ring %.2f sealed %d alive %d obj %@", sinceReady, msStep, ring,
+            AppLog.info(String(format: "demo ventpurge: frozen td=%.2f step %d sealed %d alive %d obj %@", sinceReady, msStep,
                                game.switchesThrown, game.bugsAlive, game.objective.map { "\($0)" } ?? "-"))
         }
         missionLog(game, dt)

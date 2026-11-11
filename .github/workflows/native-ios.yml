@@ -956,9 +956,9 @@ jobs:
           need burst-lights 'burst lights written \(24 frames\)'
           need burst-lights 'props: circuit 1 restored'
           # Stage 1 R7: the missions' demos — each mission on its station (Kelvin-9 Mk II: its routes' three duct mouths), its
-          # switches (beacon B's breaker / beacon A's vent seal, then the ring under the hub → A duct mouth, which rattles and
-          # pours onto the routes), the light coming back / the vent shut for good and the stream thinned, the mission's
-          # heartbeat, frozen for the screenshot
+          # switches (beacon B's breaker / beacon A's vent seal, then the ring under the hub → A duct mouth, which rattles to
+          # pour onto the routes), the light coming back / the vent and the duct mouth shut for good and the stream thinned,
+          # the mission's heartbeat, frozen for the screenshot
           need breakerrun 'mission start breaker-run steps=switch,hold,extract modifiers=dark props=1 lit=0/7 vents=8 ducts=3'
           need breakerrun 'mission: breaker 1 started at \(24\.5, -3\.5\)'
           need breakerrun 'mission: breaker 1 thrown, 1/3'
@@ -971,10 +971,12 @@ jobs:
           need ventpurge 'mission: seal 3 started at \(-27\.0, 21\.0\)'
           need ventpurge 'mission: vent 0 sealed for good'
           need ventpurge 'mission: seal 3 thrown, 1/4, stream 1\.35'
-          need ventpurge 'demo ventpurge: duct 1 rattles, pours [0-9]+ ahead td=[0-9.]+ \(seal 1\)'
+          need ventpurge 'demo ventpurge: duct 1 rattles ahead, pours [0-9]+ td=[0-9.]+ \(seal 1, '
           need ventpurge 'mission: seal 1 started at \(-11\.7, 26\.2\)'
+          need ventpurge 'mission: duct 1 sealed for good'
+          need ventpurge 'mission: seal 1 thrown, 2/4, stream 1\.2[12]'
           need ventpurge 'hb mission vent-purge step=1/3 switch'
-          need ventpurge 'demo ventpurge: frozen td=[0-9.]+ step [45]'
+          need ventpurge 'demo ventpurge: frozen td=[0-9.]+ step 5 sealed 2'
           need burst-pack 'demo swarmpack: spawned [1-9][0-9]* bugs .*swarm life'
           need burst-packold 'demo swarmpack: spawned [1-9][0-9]* bugs .*swarm legacy'
           # native-vx-fix: the mission's live-bug cap is the tier's under the device class's (the simulator stands in for the
