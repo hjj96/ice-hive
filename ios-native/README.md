@@ -462,8 +462,8 @@ Info.plist: `CFBundleDevelopmentRegion` en, `CFBundleLocalizations` [en], имя
 - **События**: `.missionStep(index:module:)` (не для первого шага), `.switchStarted` / `.switchThrown(index:)`.
 - **Швы для следующих пакетов**: R6 — SWITCH (`SwitchSite.kind`, `Game.switches`, `.switchThrown`, `chargeRing` —
   «встань в кольцо» для любых интерактивов); R7 — шаблоны и `MissionCalib`, модификаторы `MissionModifier` (данные, ядро на
-  них пока не действует), брифинг `MissionPlan.briefing`; рендер пока рисует маяки и лифт — кольца переключателей и зону
-  удержания на палубе рисовать R7 (`missionZone`, `switches`); R8 — `BossKind`, `BossRider`,
+  них пока не действует), брифинг `MissionPlan.briefing`; кольца переключателей и зону удержания на палубе рисует
+  `WorldMission` (R7, см. «Миссии I»); R8 — `BossKind`, `BossRider`,
   `queenTick(expected:due:)`, `arena()`; R9 — модуль RIDE: новый случай `MissionModule`, `switch`'и `GameMission`
   потребуют его поведения.
 
