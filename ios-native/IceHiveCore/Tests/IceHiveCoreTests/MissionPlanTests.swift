@@ -286,7 +286,8 @@ final class MissionPlanTests: XCTestCase {
         XCTAssertEqual(g.stepLine(.objKillBoss, [.name(.queen)]), GameText(.objKillBoss, [.name(.queen)]))
         XCTAssertEqual(g.stepLine(.bannerHoldSub, [.int(100)]), GameText(.bannerHoldSub, [.int(100)]))
         XCTAssertEqual(g.stepLine(.bannerHold, [.int(100)]), GameText(.bannerHold))
-        XCTAssertEqual(Game.moduleObjectiveSamples.count, 7)
+        // (R1's seven module lines, then R7's six mission lines: Breaker Run, Vent Purge)
+        XCTAssertEqual(Game.moduleObjectiveSamples.count, 13)
         for t in Game.moduleObjectiveSamples { XCTAssertEqual(t.args.count, t.id.signature.count) }
         // a deck hold's default lines and stage names
         let h = HoldStep(zone: .circle(x: 0, z: 0, r: 4), time: 20)

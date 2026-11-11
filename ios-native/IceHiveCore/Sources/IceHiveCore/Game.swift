@@ -401,6 +401,9 @@ public final class Game {
     // ---------- mission plan (Mission.swift, GameMission.swift) ----------
     /// This mission's plan (classic: «Operation Cold Light» for the station).
     public let mission: MissionPlan
+    /// R7: the station's beacons a RING step of the plan charges (by index): the renderer draws their rings and state lamps,
+    /// the others stand dormant (Breaker Run and Vent Purge have none).
+    public let beaconInPlan: [Bool]
     /// Index of the current step (the last one stays current after the mission is won).
     public internal(set) var missionStep = 0
     /// The current step's phase: on the way (between its rings) or active (a ring charging, holding, fighting, riding).
@@ -532,6 +535,9 @@ public final class Game {
         let lv = level ?? Level(source: config.levelSource, seed: seed)
         self.level = lv
         self.mission = (config.mission ?? MissionTemplate.coldLight).build(lv)
+        var inPlan = [Bool](repeating: false, count: lv.layout.beacons.count)
+        for s in mission.steps { if case .ring(let r) = s { for k in r.sites where k >= 0 && k < inPlan.count { inPlan[k] = true } } }
+        self.beaconInPlan = inPlan
         self.difficulty = config.difficulty
         self.bugCap = config.bugCap ?? (config.difficulty.waves ? config.quality.bugCap : config.quality.legacyCap)
         self.rng = SeededRNG(seed: seed == 0 ? 0x9E37_79B9 : seed)

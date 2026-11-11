@@ -64,12 +64,12 @@ public enum BreakerRun {
     /// Seconds of the generator hold (design: 60 s).
     public static let holdTime: Float = 60
     /// The generator's zone radius (m).
-    public static let zoneRadius: Float = 4
+    public static let zoneRadius: Float = 3.5
     /// Seconds in a main breaker's ring after the blackout (R6's breaker ring is 6 s: at 6 s the whole mission took two
     /// minutes and no tier lost one — the breakers are the mission's beats, defended like small beacons).
     public static let breakerTime: Float = 30
     /// The hive's stream on Recruit, Veteran, Nightmare (no Queen here: Nightmare gets its edge from the stream).
-    public static let tierStream: [Float] = [1.12, 1, 1.1]
+    public static let tierStream: [Float] = [1.12, 0.95, 1.18]
 
     /// The breakers of the circuits that light the station's beacon decks, in beacon order (Kelvin-9: A, B, C).
     public static func breakers(_ lv: Level) -> [SwitchSite] {
@@ -83,9 +83,13 @@ public enum BreakerRun {
         return out
     }
 
-    /// The main generator: a clear 4 m disc on the plaza (Kelvin-9's central deck, between the beacon decks and the lift).
+    /// The main generator: on Kelvin-9's plaza (the central deck, between the beacon decks and the head of the stairs down to
+    /// the lift) at (−3, −8): every point within 3.8 m of it is open deck (the crates and the plaza breaker stay outside the
+    /// zone) and the nearest railing is 4.9 m away — the hold's hordes come over the decks, none climbs straight into the
+    /// zone over its rim as at the lift (which has its shock pulse); another station: the first clear disc near there.
     public static func generator(_ lv: Level) -> Vec2 {
-        let p = Vec2(-1, -6)
+        let p = Vec2(-3, -8)
+        if lv.layout.name == .kelvin && lv.canStand(p.x, p.y) { return p }
         return lv.openSpot(near: p, from: 0, to: 9, clearance: zoneRadius - 0.4) ?? p
     }
 

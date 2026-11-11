@@ -531,6 +531,21 @@ extension Game {
         }
     }
 
+    // ---------------------------------------------------------------- debug / demo staging (R7)
+
+    /// The switch being thrown jumps to `p` of its ring (demo staging: the CI shot of a ring nearly full); none: no-op.
+    public func debugSwitchProgress(_ p: Float) {
+        guard activeSwitch >= 0 && activeSwitch < switches.count else { return }
+        switches[activeSwitch].progress = clampf(p, 0, 0.999)
+    }
+
+    /// A pack of `count` pours out of the station's vent `k` now (demo staging), unless a seal shut it.
+    public func debugVentPour(_ k: Int, count: Int) {
+        guard k >= 0 && k < level.layout.vents.count && ventOpen(k) && count > 0 else { return }
+        queueBurst(-1, count, 6, level.layout.vents[k])
+        emit(.ventPour(index: k, count: count))
+    }
+
     // ---------------------------------------------------------------- queries (HUD, bots, coach, calibration)
 
     /// `id` with as many of `args` as its signature takes, in order: a step can swap in a line that names fewer things
