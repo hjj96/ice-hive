@@ -130,7 +130,9 @@ import IceHiveCore
 //  `-videoOverhead` sends R5's packs up the overhead near the squad in the punch-in too; `-videoToLift` (combat): the three
 //  beacons done, the squad on beacon C's deck (`-videoStart x,z`), the autopilot walks to the lift; the overhead demo's
 //  walk follows `-videoPath x,z/x,z/…` at `-videoWalkK` of the run speed, its squad opens fire at `-videoFireAt` s, and
-//  `-videoPack t,entry,n[,type]` sends more packs up the overhead's entries.
+//  `-videoPack t,entry,n[,type]` sends more packs up the overhead's entries; `-videoTime T` sets the mission clock where the
+//  staged moment falls in a real mission, `-videoCut k` cuts light circuit k at the start, and the director-off look-dev
+//  demos' mission clock runs from 7.2 s (the HUD as in a mission: the control hint of the first 7 s gone).
 // ================================================================
 final class DemoScript {
     let name: String
@@ -197,7 +199,7 @@ final class DemoScript {
     private var walkK: Float { Float(max(0.2, min(1, demoNum("-videoWalkK", 0.5)))) }
     /// `-videoFireAt s` (overhead): when the bots open fire (the demo's 6.0 s otherwise).
     private var fireAt: Double { video ? demoNum("-videoFireAt", 6.0) : 6.0 }
-    /// `-videoPack t,entry,n[,type]` (any number of them; overhead demos): a pack of n up overhead entry `entry` at t s after
+    /// `-videoPack t,entry,n[,type]` (any number of them; the overhead demos and the mission demos): a pack of n up overhead entry `entry` at t s after
     /// «scene ready» (`debugRoutePack`: the riser climb, or the duct mouth's rattle and pour) — type runner unless named.
     private lazy var videoPacks: [(t: Double, entry: Int, n: Int, type: BugType)] = {
         guard self.video else { return [] }
@@ -219,6 +221,20 @@ final class DemoScript {
         return out
     }()
     private var videoPackNext = 0
+    /// `-videoTime T`: the mission clock set to T s at the start — where the staged moment falls in a real mission (the walk
+    /// to the lift, the finale): the HUD's clock and the report's time read as in a mission, the director's clock-driven
+    /// rules (pressure, travel) act as there; as the original third-beacon scene's `debugSetRun(time: 200)`.
+    private var videoTime: Float? {
+        guard video else { return nil }
+        let t = Float(demoNum("-videoTime", -1))
+        return t >= 0 ? t : nil
+    }
+    /// `-videoCut k`: light circuit k cut at the start, as the hive cuts them (its lamps dark: R6's lit deck forbids drops,
+    /// so a Dropper can only drop on dark deck — the overheadbugs staging on Mk II's lit bridge needs it).
+    private var videoCut: Int { video ? Int(demoNum("-videoCut", -1)) : -1 }
+    /// The look-dev demos run with the director off, so the mission clock stands at 0:00 and the app's control hint of the
+    /// first 7 s never leaves; in the film their clock runs from 7.2 s as a mission's would (HUD consistency only).
+    private var videoClock: Bool { video && ["overhead", "overheadbugs", "interactives"].contains(name) }
     private func videoArg(_ key: String) -> String? {
         let u = options.unknown
         guard let i = u.firstIndex(of: key), i + 1 < u.count else { return nil }
@@ -321,6 +337,12 @@ final class DemoScript {
         game.autopilot = true
         game.autoPickUpgrades = true
         Cinematics.shared.reset()
+        if let tm = videoTime { game.debugSetRun(time: tm); AppLog.info(String(format: "demo %@ (video): mission clock %.0f s", name, tm)) }
+        if videoClock { game.debugSetRun(time: 7.2) }
+        if videoCut >= 0 && videoCut < game.circuits.count {
+            game.debugCutCircuit(videoCut)
+            AppLog.info("demo \(name) (video): circuit \(videoCut) cut at the start, lit \(game.lightsLit)/\(game.circuits.count)")
+        }
         if video && (name == "combat" || name == "stress1400") && videoAt >= 0 && videoAt < game.beacons.count {
             let b = game.beacons[videoAt]
             if name == "stress1400" { game.debugSetRun(time: 200, beaconsDone: videoAt) }
@@ -500,6 +522,7 @@ final class DemoScript {
         }
         if name == "coach" || name == "pressure" { holdState(game, dt); return }
         if name == "waves" { waves(game, dt); return }
+        if videoClock && sinceReady >= 0 { game.debugSetRun(time: game.time + dt) }
         if name == "overhead" { overhead(game, dt); return }
         if name == "overheadbugs" { overheadBugs(game, dt); return }
         if name == "interactives" { interactives(game, dt); return }
@@ -508,6 +531,7 @@ final class DemoScript {
         probe = nil
         request = nil
         overheadInPlay(game, dt)
+        videoPacksDue(game)
         if !requested && t >= 1.5 && sinceReady >= 2 {
             switch name {
             case "levelup": requested = true; game.debugLevelUp()
