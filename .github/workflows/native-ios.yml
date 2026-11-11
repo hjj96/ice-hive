@@ -34,7 +34,7 @@ env:
   BUNDLE_ID: com.hjj96.icehive
   # every frame-gated demo, all landscape (the app is landscape-only); `layout` (the four-phone layout check)
   # runs as well but builds ~40 screens in one go, so it is not gated
-  DEMOS: firstlaunch combat beacon waves overhead overheadbugs interactives breakerrun ventpurge swarmshot swarmshot-dots swarm swarm3x calm squad squadclose squadtight squadfire fxsheet fxsheet-high fxpeak stress1400 punchin extract-cine title title-fresh title-return title-nm title-left probe hold extract holdhint queen queenlock coach coach3 pressure pressure-amber levelup pause pause-nm end report-first report-win report-loss report-chip release-combat swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud c1-fail
+  DEMOS: firstlaunch combat beacon waves overhead overheadbugs interactives breakerrun ventpurge swarmshot swarmshot-dots swarm swarm3x calm squad squadclose squadtight squadfire fxsheet fxsheet-high fxpeak stress1400 punchin extract-cine title title-fresh title-return title-nm title-left probe hold extract holdhint queen queenlock coach coach3 pressure pressure-amber levelup pause pause-nm end report-first report-win report-loss report-chip release-combat swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud
   MENUS: levelup,pause,pause-nm,end,report-first,report-win,report-loss,report-chip
   # the runs whose -ohVis samples ci/overhead_vis.py gates (Stage 1 R3 / R5)
   OH_VIS: overhead-nohud burst-parallax combat beacon hold queen
@@ -45,7 +45,7 @@ env:
   # validation runs, failmetal, the Release block). Keep together in one part: calm with swarm3x and release-combat (calm
   # is their GPU-drawn baseline in frame_metrics.py), the HUD-off look shots (calm-nohud, calm-deckmask, calm-bright-nohud
   # are measured against each other). README «CI» → «Как добавить демо».
-  SMOKE_B: title title-fresh title-return title-nm title-left layout layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo banner-beacon banner-queen banner-pseudo holdhint coach coach3 pressure pressure-amber levelup pause pause-nm end report-first report-win report-loss report-chip other-phones c1-fail
+  SMOKE_B: title title-fresh title-return title-nm title-left layout layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo banner-beacon banner-queen banner-pseudo holdhint coach coach3 pressure pressure-amber levelup pause pause-nm end report-first report-win report-loss report-chip other-phones
 
 jobs:
   core-tests:
@@ -732,9 +732,6 @@ jobs:
           run_demo title-nm 5 "-demo title -profile veteran -tier 2 -layoutCheck" 0
           # the other landscape side (Dynamic Island on the right): the screenshot turns the other way
           run_demo title-left 5 "-demo title -profile veteran -orient left -layoutCheck" 0
-          # C1 THROWAWAY (reverted next): a deliberately failing demo in part b — the Metal failure screen, so no 'scene ready',
-          # no 'demo done': the frame gate fails it, re-runs it once in the part, fails it again; Verify fails it too
-          run_demo c1-fail 4 "-demo title -failMetal" 0
           # LAND: every screen laid out on the four landscape phones (874x402, 932x430, 844x390, 667x375) with their
           # safe areas, «layout sizes: N ok, 0 FAIL» (not a frame-gate demo: it builds ~44 screens in one go), with the
           # text-fits-container checks; then the same pseudo-localised (L10n: accents, +35 % length, brackets), and a few
