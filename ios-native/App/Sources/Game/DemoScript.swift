@@ -176,7 +176,8 @@ final class DemoScript {
 
     var startsMission: Bool { name != "title" }
 
-    /// The station the demo plays (nil = the classic «Кельвин-9»): the overhead demo lays the overhead showcase.
+    /// The station the demo plays (nil = the classic mission's «Кельвин-9» Mk II): the overhead demos lay the overhead
+    /// showcase, the interactives demo the slice and R6's demo props.
     var levelSource: LevelSource? {
         // (R6: the interactives demo lays «Кельвин-9»'s props and the slice its bridge valve hangs on)
         if name == "interactives" { return KelvinStation(overhead: .kelvinSlice, props: .kelvinDemo) }
@@ -329,14 +330,15 @@ final class DemoScript {
             if let b = game.beacons.first {
                 game.debugTeleport(b.x + 3, b.z - 3.5)
             }
-            target = crowd(350)
+            target = crowd(350) - overheadRoom(game)
             let n = game.debugSpawn(min(target, 600), type: nil, minRadius: 7, maxRadius: 24)
             AppLog.info("demo beacon: squad at beacon \(game.beacons.first.map { $0.name.logID } ?? "?"), spawned \(n) bugs")
         default:
-            target = crowd(600)
+            target = crowd(600) - overheadRoom(game)
             let n = game.debugSpawn(min(target, 900), type: nil, minRadius: 6, maxRadius: 26)
             AppLog.info("demo \(name): spawned \(n) bugs around the squad (target \(target), bug cap \(game.bugCap))")
         }
+        logOverhead(game)
     }
 
     /// Probe steps due this frame (executed by the scene: HUD / audio / haptics live there).
@@ -371,6 +373,7 @@ final class DemoScript {
         t += dt
         probe = nil
         request = nil
+        overheadInPlay(game, dt)
         if !requested && t >= 1.5 && sinceReady >= 2 {
             switch name {
             case "levelup": requested = true; game.debugLevelUp()
@@ -445,6 +448,41 @@ final class DemoScript {
     }
     private var spawned = 0
     private var logT: Float = 5
+
+    // ---------- Stage 1 R5: the overhead in play in the classic demos ----------
+    /// The classic demos play «Кельвин-9» Mk II: combat, beacon, hold and queen send packs up the overhead entries near the
+    /// squad by the director's own rule (`debugRoutePack` with no entry: a riser, a mast or a duct mouth 8–20 m away whose
+    /// routes pass near it) — a runner pack, a Dropper and (off the lift: no perch there) a spitter for a perch — from 0.5 s,
+    /// again every 5 s while fewer than 8 are up, so the CI shots show the overhead in play, not only its geometry.
+    private static let overheadDemos: Set<String> = ["combat", "beacon", "hold", "queen"]
+    private var ohT: Float = 0.5
+    /// Room the forced deck crowd leaves under the live cap for the overhead's bugs (route bugs count toward the cap).
+    private func overheadRoom(_ game: Game) -> Int {
+        DemoScript.overheadDemos.contains(name) && game.level.overhead != nil && override == nil ? 24 : 0
+    }
+    /// The station's overhead at the start of a classic demo (CI checks it): its routes, entries, duct mouths, perches and
+    /// routeCheck in the full set's band.
+    private func logOverhead(_ game: Game) {
+        guard DemoScript.overheadDemos.contains(name), let G = game.level.overhead else { return }
+        let rc = OverheadCheck.check(game.level.layout.overhead, level: game.level, lengthBand: KelvinMk2.lengthBand)
+        AppLog.info("demo \(name): \(game.level.layout.overhead == .kelvinMk2 ? "Kelvin-9 Mk II" : "a station") overhead, \(G.edgeCount) edges, "
+                    + "\(G.entries.count) entries, \(game.ducts.count) duct mouths, \(game.perchPoints.count) perch points, \(game.valves.count) valves, "
+                    + "\(game.circuits.count) circuits" + String(format: " | routeCheck %@ (%.0f m, footprint %.1f %%)", rc.ok ? "ok" : "FAIL " + rc.why,
+                                                                rc.length, rc.footprint * 100))
+    }
+    private func overheadInPlay(_ game: Game, _ dt: Float) {
+        guard DemoScript.overheadDemos.contains(name), game.level.overhead != nil else { return }
+        ohT -= dt
+        if ohT > 0 { return }
+        ohT = 5
+        if game.routeAlive >= 8 { return }
+        let lift = game.stage == .hold || game.stage == .extract
+        let r = game.debugRoutePack(6, rate: 3)
+        let d = game.debugRoutePack(1, rate: 1, type: .dropper)
+        let s = lift ? 0 : game.debugRoutePack(1, rate: 1, type: .spitter)
+        AppLog.info(String(format: "demo %@: overhead packs td=%.2f runners %d dropper %d spitter %d, up %d", name, sinceReady, r, d, s,
+                           game.routeAlive))
+    }
     /// extract-cine: the crowd (on the deck, 4–9 m out) and its top-ups (over the rim, the hold's own entrance) on the
     /// lift's two flanks as seen from the extraction camera (Cinematics: the eye on the shaft wall at MetalCamera.yaw + 20°),
     /// ±50° around the perpendiculars: the squad fires across the frame, lit side-on, as in the shots before the wave pacing.

@@ -202,8 +202,9 @@ final class GameScene: SKScene {
     /// view), the HUD / input / audio meanwhile.
     private func loadMetal() {
         let t0 = FrameTimer.now()
-        // (the overhead demo plays «Кельвин-9» with the overhead's demo route laid; every other run the classic station)
-        let lv = Level(source: demo?.levelSource ?? KelvinStation(), seed: 1)
+        // (the overhead demo plays «Кельвин-9» with the overhead's showcase laid; every other run the classic mission's station,
+        // «Кельвин-9» Mk II since Stage 1 R5: its overhead routes and interactive props laid)
+        let lv = Level(source: demo?.levelSource ?? KelvinStation.mk2, seed: 1)
         level = lv
         cameraCtl.node.addChild(hud.root)
         cameraCtl.node.addChild(titleScreen.root)

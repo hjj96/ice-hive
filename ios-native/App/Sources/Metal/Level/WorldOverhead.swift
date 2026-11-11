@@ -40,7 +40,8 @@ import IceHiveCore
 //  `-ohVis` (OverheadVisibility: the occlusion / squad-visibility
 //  metric). Once a second (diagnostics) `hb overhead draws=… tris=…
 //  chunks=… near=… pts=… sway=…`. Nothing exists, draws or costs on
-//  a station without routes (the classic «Кельвин-9»).
+//  a station without routes (the bare v1.0 «Кельвин-9»; the classic
+//  mission plays Mk II with its routes since Stage 1 R5).
 // ================================================================
 
 final class WorldOverhead {

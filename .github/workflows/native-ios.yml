@@ -457,9 +457,12 @@ jobs:
           }
           # first launch after install: the simulator's Metal shader cache is cold (20 world pipelines + SpriteKit's
           # own for the HUD); measured separately, the other runs start with a warm cache
+          # Stage 1 R5: the classic demos play «Кельвин-9» Mk II (its overhead routes and interactive props laid); combat, beacon,
+          # hold and queen send packs up the overhead entries near the squad (the overhead in play in their shots) and run the
+          # overhead's visibility metric (-ohVis: the deck it covers, any marine it hides — gated by ci/overhead_vis.py)
           run_demo firstlaunch 20 "-demo combat -seed 7"
-          run_demo combat 18 "-demo combat -seed 7" 0 6
-          run_demo beacon 15 "-demo beacon -seed 7" 0
+          run_demo combat 18 "-demo combat -seed 7 -ohVis" 0 6
+          run_demo beacon 15 "-demo beacon -seed 7 -ohVis" 0
           # native-vx-feel: the wave director's own swarm (no forced crowd): the defence of beacon Beta — its opening horde
           # from 3–4 sides and the hive's first push — time almost frozen at 6.5 s for the screenshot
           run_demo waves 8 "-demo waves -seed 7" 0
@@ -670,13 +673,13 @@ jobs:
           run_demo probe 26 "-demo probe -seed 7"
           # lift: holding out on the platform against the hold's own swarm (native-vx-feel: the director's opening horde,
           # a third of it over the rim; no forced crowd), then the extraction pinned at +2 s (gore rides up with the deck)
-          run_demo hold 8 "-demo hold -seed 3" 0
+          run_demo hold 8 "-demo hold -seed 3 -ohVis" 0
           run_demo extract 10 "-demo extract -seed 3" 0
           # the Ветеран lift-pulse hint (~450 pt in one line) in the first seconds of the hold, countdown pinned: two
           # lines between the stick rings, «hint 2 lines» in the log; the HUD layout check
           run_demo holdhint 8 "-demo holdhint -seed 3 -layoutCheck" 0
           # v1.1: the Матка (boss of the hold) on the deck — a brute instance at scale 4.2, violet tint, volley rings
-          run_demo queen 10 "-demo queen -tier 1 -seed 3" 0 3
+          run_demo queen 10 "-demo queen -tier 1 -seed 3 -ohVis" 0 3
           # the countdown ran out with her alive: «ЛИФТ ЗАБЛОКИРОВАН — МАТКА ЖИВА»
           run_demo queenlock 8 "-demo queenlock -queenHp 1000000 -seed 3" 0
           # v1.1 coach «Учебная высадка» on the fresh demo profile: step 1 (ghost thumb on the move ring), step 3
@@ -838,6 +841,17 @@ jobs:
           need report-loss 'v11 run tier=vet won=0 .*downBy=4'
           need report-chip 'v11 run .*recTip=1'
           need combat 'v11 start tier=vet coach=0'
+          # Stage 1 R5: the classic mission's station is «Кельвин-9» Mk II — its overhead (routeCheck in the full set's 150–450 m band,
+          # the three duct mouths, the perches) and props laid, WorldOverhead built the layer; the classic demos send packs up
+          need combat 'demo combat: Kelvin-9 Mk II overhead, 37 edges, 16 entries, 3 duct mouths, [1-9][0-9]* perch points, 4 valves, 7 circuits .*routeCheck ok'
+          need combat 'overhead: [0-9]+ vertices, [0-9]+ triangles in [0-9]+ chunks'
+          need combat 'hb overhead draws=[1-9][0-9]*\+[0-9]+ tris=[1-9]'
+          need combat 'demo combat: overhead packs td=[0-9.]+ runners [1-9]'
+          need beacon 'demo beacon: overhead packs td=[0-9.]+ runners [1-9]'
+          need hold 'demo hold: overhead packs td=[0-9.]+ runners [1-9]'
+          need queen 'demo queen: overhead packs td=[0-9.]+ runners [1-9]'
+          need combat 'oh vis: on \(pipelines ok'
+          need hold 'oh vis: on \(pipelines ok'
           # native-vx-feel: the wave director staged its own beacon defence (no forced crowd) and the hive pushed
           need waves 'demo waves: defence of beacon 1, charged to 0.27'
           need waves 'demo waves: frozen td=[0-9.]+ alive [1-9][0-9]* pushes [1-3]'
@@ -904,7 +918,8 @@ jobs:
           need burst-dash 'burst dash written \(24 frames\)'
           need burst-dash 'bugs: pin broken marine 0 by dash'
           need burst-dash 'hb bugs droppers=[0-9]+ up=[0-9]+ pins=2 dash=1 fire=1 '
-          python3 ios-native/ci/overhead_vis.py results overhead-nohud burst-parallax > results/overhead-vis.txt 2>&1 || fail "overhead visibility: $(tail -n 1 results/overhead-vis.txt)"
+          # (Stage 1 R5: and the classic demos on Kelvin-9 Mk II — the squad moving, at beacon Alpha, holding the lift, the Queen)
+          python3 ios-native/ci/overhead_vis.py results overhead-nohud burst-parallax combat beacon hold queen > results/overhead-vis.txt 2>&1 || fail "overhead visibility: $(tail -n 1 results/overhead-vis.txt)"
           cat results/overhead-vis.txt
           # Stage 1 R6: the interactives demo — the props laid, the valve burst and its curtain, the hub's circuit cut and
           # brought back by its breaker ring, every circuit lit again
