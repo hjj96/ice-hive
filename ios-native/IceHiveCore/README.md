@@ -78,7 +78,8 @@ switch game.phase { case .won, .lost: /* экран итогов: game.stats */ 
   `game.lit(x, z)` (освещённая палуба — круги «без прыжков» верхнего яруса), `game.propStats`.
 - Миссии I (Stage 1 R7, `MissionsKelvin.swift`): шаблоны `MissionTemplate.breakerRun` / `.ventPurge` (`missions`,
   `playable` — классика и эти две; у шаблона своя станция `station` — `KelvinStation.missions`, «Кельвин-9» с
-  интерактивами — и имя `name`), состояние — `game.switchesThrown`, `game.ventShut` (вентиляции, заваренные пломбами),
+  интерактивами — и имя `name`), пломба — `SwitchSite.vent` / `.duct` (вентиляция палубы / устье воздуховода R4: заварены
+  навсегда), состояние — `game.switchesThrown`, `game.ventShut` (вентиляции, заваренные пломбами),
   `game.streamK` (поток улья: × каждой пломбы), `game.beaconInPlan` (маяки, которые заряжает план), отчёт —
   `RunSummary.switchLine` / `strip` (своя полоса этапов плана); события `.ventSealed(index:)`, `.ventPour(index:count:)`.
 - `game.mission` (план), `game.missionStep`, `game.stepPhase`, `game.switches`, `game.missionZone`, `game.objectiveKey`,

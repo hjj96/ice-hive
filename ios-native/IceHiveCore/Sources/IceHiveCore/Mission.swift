@@ -112,8 +112,12 @@ public struct SwitchSite: Equatable {
     /// A seal's vent: an index into the station's `vents` (−1 none). Thrown, the vent is shut for good; while the step
     /// runs and it is open, it may pour packs (`SwitchStep.pour`).
     public var vent: Int
-    public init(x: Float, z: Float, radius: Float = 2.2, time: Float = 4, kind: SwitchKind = .panel, vent: Int = -1) {
-        self.x = x; self.z = z; self.radius = radius; self.time = time; self.kind = kind; self.vent = vent
+    /// A seal's duct mouth up on the overhead: an index into `Game.ducts` (package R4's duct mouths, −1 none). Thrown, it is
+    /// shut for good (design §1.4: «for good in Vent Purge»); while the step runs and it is open, its pours climb out of it
+    /// onto the routes (R4's rattle first).
+    public var duct: Int
+    public init(x: Float, z: Float, radius: Float = 2.2, time: Float = 4, kind: SwitchKind = .panel, vent: Int = -1, duct: Int = -1) {
+        self.x = x; self.z = z; self.radius = radius; self.time = time; self.kind = kind; self.vent = vent; self.duct = duct
     }
 }
 

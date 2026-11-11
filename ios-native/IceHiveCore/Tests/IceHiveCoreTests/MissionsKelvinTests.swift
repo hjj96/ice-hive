@@ -197,6 +197,44 @@ final class MissionsKelvinTests: XCTestCase {
         XCTAssertEqual(g.ventShut.filter { $0 }.count, 4, "the station's other vents stay open")
     }
 
+    func testVentPurgeSealsTheOverheadsDuctMouthsForGood() {
+        // a station with an overhead duct mouth (R2's slice: the mouth 3 m out over the void off the pad → hub bridge, R4's
+        // duct): the first seal stands on the deck under it, three vents make the four
+        let lv = Level(source: KelvinStation(overhead: .kelvinSlice, props: .kelvin), seed: 1)
+        let seals = VentPurge.seals(lv)
+        XCTAssertEqual(seals.count, 4)
+        XCTAssertEqual(seals[0].duct, 0)
+        XCTAssertEqual(seals[0].vent, -1)
+        XCTAssertTrue(lv.canStand(seals[0].x, seals[0].z))
+        XCTAssertLessThan(hypotf2(seals[0].x - 19, seals[0].z - 23.4), 6.5, "under the mouth")
+        XCTAssertEqual(seals.dropFirst().map { $0.vent }, [0, 3, 5])
+        // Kelvin-9 today (no routes): the four vents, as before
+        XCTAssertEqual(VentPurge.seals(MissionTemplate.ventPurge.level()).map { $0.duct }, [-1, -1, -1, -1])
+        var c = GameConfig()
+        c.difficulty = .veteran; c.god = true; c.mission = .ventPurge
+        let g = Game(seed: 5, playerClass: .assault, config: c, level: lv)
+        XCTAssertEqual(g.ducts.count, 1)
+        XCTAssertTrue(g.ducts[0].open)
+        // the open duct mouth pours onto the routes (the overhead's own queue, R4's rattle first) — the tier's channel is shut
+        var rattles = 0
+        run(g, seconds: 200, until: { g.overheadStats.packs > 0 && rattles > 0 }) { e in if case .ductRattle = e { rattles += 1 } }
+        XCTAssertGreaterThan(g.overheadStats.packs, 0, "a pour climbed out of the duct mouth")
+        XCTAssertGreaterThan(rattles, 0, "its grille rattled first")
+        // the squad seals it: shut for good
+        var sealed = 0
+        g.playerAlone(seals[0].x, seals[0].z)
+        run(g, seconds: 2, until: { g.activeSwitch == 0 })
+        XCTAssertEqual(g.activeSwitch, 0)
+        g.debugSwitchProgress(0.99)
+        run(g, seconds: 2, until: { g.switches[0].state == 2 }) { e in if case .ductSealed(let d) = e, d == 0 { sealed += 1 } }
+        XCTAssertEqual(g.switches[0].state, 2)
+        XCTAssertEqual(sealed, 1)
+        XCTAssertFalse(g.ducts[0].open)
+        XCTAssertEqual(g.ducts[0].shutT, .infinity)
+        g.step(60 * 90)   // (R4's shot grille opens after 45 s; a seal never)
+        XCTAssertFalse(g.ducts[0].open, "sealed for good")
+    }
+
     func testAShutVentTakesNoPack() {
         let g = missionGame(.ventPurge, seed: 9, god: true)
         for k in 0..<g.ventShut.count { g.sealVent(k) }

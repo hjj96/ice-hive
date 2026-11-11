@@ -323,7 +323,7 @@ extension Game {
         if s.escalates { beaconsDone += 1 }
         // R7: each thinning switch thins the hive's stream; a seal shuts its vent for good
         if s.thins > 0 { streamK *= 1 - s.thins }
-        if switches[k].site.kind == .seal { sealVent(switches[k].site.vent) }
+        if switches[k].site.kind == .seal { sealVent(switches[k].site.vent); sealDuct(switches[k].site.duct) }
         // R6's seam: a breaker switch brings back the light circuit whose breaker it stands on
         if !props.circuits.isEmpty { propsSwitchThrown(switches[k].site) }
         enterPhase(.approach)
@@ -353,17 +353,37 @@ extension Game {
         }
     }
 
-    /// Every `pourGap` s (± 2 s) one open seal's vent of the step (waiting: not being sealed, not shut), picked at random,
-    /// pours a pack: `pour` × the tier's horde (× its population scale on the wave pacing) × the stream.
+    /// The station's duct mouth `d` (R4) is sealed for good by a seal switch: shut for ever (no pack is sent there, the packs
+    /// bound for it are lost), its slam as when the squad shoots it shut.
+    func sealDuct(_ d: Int) {
+        guard d >= 0 && d < oh.ducts.count else { return }
+        oh.ducts[d].hp = 0; oh.ducts[d].shutT = .infinity; oh.ducts[d].rattleT = 0
+        if !simOnly {
+            let p = oh.ducts[d].pos
+            emit(.ductSealed(index: d))
+            sound(.thud, p.x, p.z)
+        }
+    }
+
+    /// A seal of the step that still pours: waiting (not being sealed, not thrown) with an open vent or an open duct mouth.
+    @inline(__always) func sealPours(_ w: SwitchState) -> Bool {
+        if w.state != 0 { return false }
+        if w.site.vent >= 0 && w.site.vent < ventShut.count && !ventShut[w.site.vent] { return true }
+        return w.site.duct >= 0 && w.site.duct < oh.ducts.count && oh.ducts[w.site.duct].open
+    }
+
+    /// Every `pourGap` s (± 2 s) one open seal of the step (waiting: not being sealed, not shut), picked at random, pours a
+    /// pack: `pour` × the tier's horde (× its population scale on the wave pacing) × the stream — out of its vent onto the
+    /// deck, or out of its duct mouth onto the routes (the overhead's own queue: R4's rattle DUCT_RATTLE s before the pour).
     func ventPourTick(_ s: SwitchStep, _ pour: PacingValue, _ dt: Float) {
         pourT -= dt
         if pourT > 0 { return }
         pourT = s.pourGap + (rng.next() - 0.5) * 4
         var open = 0
-        for w in switches where w.state == 0 && w.site.vent >= 0 && w.site.vent < ventShut.count && !ventShut[w.site.vent] { open += 1 }
+        for w in switches where sealPours(w) { open += 1 }
         if open == 0 { return }
         var pick = rng.int(open), k = -1
-        for (j, w) in switches.enumerated() where w.state == 0 && w.site.vent >= 0 && w.site.vent < ventShut.count && !ventShut[w.site.vent] {
+        for (j, w) in switches.enumerated() where sealPours(w) {
             if pick == 0 { k = j; break }
             pick -= 1
         }
@@ -371,9 +391,13 @@ extension Game {
         let D = difficulty
         let n = Int((pour.value(D) * D.horde * (D.waves ? D.popK : 1) * streamK).rounded())
         if n <= 0 { return }
-        let vi = switches[k].site.vent, v = level.layout.vents[vi]
-        queueBurst(-1, n, 5, v)
-        emit(.ventPour(index: vi, count: n))
+        let site = switches[k].site
+        if site.vent >= 0 && site.vent < ventShut.count && !ventShut[site.vent] {
+            queueBurst(-1, n, 5, level.layout.vents[site.vent])
+            emit(.ventPour(index: site.vent, count: n))
+        } else if site.duct >= 0 && site.duct < oh.ducts.count {
+            queueRoutePack(n, entry: oh.ducts[site.duct].node, rate: 3, delay: DUCT_RATTLE)
+        }
     }
 
     // ---------------------------------------------------------------- HOLD (the classic walk to the lift and its hold)

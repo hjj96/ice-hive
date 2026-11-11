@@ -139,18 +139,28 @@ public enum VentPurge {
     /// nearest to each, within 3 m).
     static let kelvinPicks: [Vec2] = [Vec2(-27, 21), Vec2(35, -3), Vec2(-29, -4), Vec2(7, -9)]
 
-    /// The seal rings: one on each picked vent (a 2.2 m ring, 5 s of standing in it).
+    /// The seal rings (2.2 m, `sealTime` s): four. The overhead's duct mouths first (package R4's — a station with routes:
+    /// Kelvin-9 once package R5 lays its Mk II set): a ring on the deck under each, the duct shut for good when it is thrown;
+    /// then the picked vents (Kelvin-9 today: all four), none within 8 m of a duct's ring.
     public static func seals(_ lv: Level) -> [SwitchSite] {
         let V = lv.layout.vents
         var out: [SwitchSite] = []
-        for w in kelvinPicks {
+        if let G = lv.overhead {
+            for (d, n) in G.ducts.enumerated() where out.count < 4 {
+                let p = G.nodePos(n)
+                guard let c = lv.openSpot(near: Vec2(p.x, p.z), from: 0, to: 6, clearance: 1.2) else { continue }
+                if out.contains(where: { hypotf2($0.x - c.x, $0.z - c.y) < 8 }) { continue }
+                out.append(SwitchSite(x: c.x, z: c.y, radius: 2.2, time: sealTime, kind: .seal, duct: d))
+            }
+        }
+        for w in kelvinPicks where out.count < 4 {
             var best = -1
             var bd: Float = 3
             for (k, v) in V.enumerated() {
                 let d = hypotf2(v.x - w.x, v.y - w.y)
                 if d < bd { bd = d; best = k }
             }
-            if best < 0 || out.contains(where: { $0.vent == best }) { continue }
+            if best < 0 || out.contains(where: { $0.vent == best || hypotf2($0.x - V[best].x, $0.z - V[best].y) < 8 }) { continue }
             out.append(SwitchSite(x: V[best].x, z: V[best].y, radius: 2.2, time: sealTime, kind: .seal, vent: best))
         }
         return out
