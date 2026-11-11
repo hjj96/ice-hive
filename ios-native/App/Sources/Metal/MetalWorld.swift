@@ -18,6 +18,8 @@ import IceHiveCore
 //    WorldOverhead (R3)  the overhead layer: routes, cutaway, sway, drops
 //    WorldProps (R6)     the interactive props: valves, breakers, lockers,
 //                        the lamps' light, steam, use rings
+//    WorldMission (R7)   the plan's switch rings, a deck hold zone, vents
+//                        shut by seals or pouring
 //    Atmosphere (WP2)    haze, weather
 //    LightGrid (WP2)     the lights of the frame
 //    ShadowAtlas (WP2)   flashlight shadow pre-pass
@@ -80,6 +82,8 @@ final class MetalWorld: HUDProjection {
     let overhead: WorldOverhead
     /// Stage 1 R6: the interactive props (nothing on a station without them).
     let props: WorldProps
+    /// Stage 1 R7: the mission plan's own marks (nothing in the classic mission).
+    let mission: WorldMission
     let atmosphere = Atmosphere()
     let lightGrid = LightGrid()
     let shadowAtlas = ShadowAtlas()
@@ -145,6 +149,7 @@ final class MetalWorld: HUDProjection {
         levelDraw = WorldLevel(level: level, store: store)
         overhead = WorldOverhead(level: level)
         props = WorldProps(level: level)
+        mission = WorldMission(level: level)
         fx.corpses = corpses
         // hits on the chitin (WorldSwarm.impactPoint), muzzles and casings at the rig's sockets (WorldSquad)
         fx.swarm = swarm
@@ -213,6 +218,7 @@ final class MetalWorld: HUDProjection {
     func handle(_ e: GameEvent, game: Game) {
         // the props' events: sparks, flashes, their log lines (Stage 1 R6)
         props.handle(e, game: game, fx: fx)
+        mission.handle(e, game: game, fx: fx)
         // the hit bug recoils along the actual shot (WorldSwarm.noteHit), not away from the nearest marine
         if case .bulletHit(let pos, let dir, _) = e { swarm.noteHit(pos, dir) }
         fx.handle(e, game: game)
@@ -294,6 +300,8 @@ final class MetalWorld: HUDProjection {
         corpses.liftRise(rise)
         // (R6: the lamps' light, the props' parts and steam, their use rings — before the glyphs take the rings)
         props.build(game: game, time: time, dt: dt, fx: fx, levelDraw: levelDraw, glyphs: glyphs)
+        // (R7: the plan's switch rings and deck zone into the glyphs' extras, the vents' light)
+        mission.build(game: game, time: time, dt: dt, levelDraw: levelDraw, glyphs: glyphs)
         glyphs.build(game: game, time: time, poses: squad.poses, liftRise: rise)
         levelDraw.build(game: game, time: time, dt: dt, rise: rise, fx: fx)
         overhead.build(game: game, camera: camera, poses: squad.poses, time: time, dt: dt, fx: fx)

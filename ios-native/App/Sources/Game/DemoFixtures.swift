@@ -43,6 +43,8 @@ enum DemoFixtures {
         let downBy: DamageSource
         let pressure: Float?
         let idleMul: Float?
+        /// Stage 1 R7: the mission whose report this is (nil: the classic): its switch line, lights and own strip.
+        var plan: String? = nil
     }
 
     /// Spec §3 report fixtures (the screen shows what a real run with these numbers would).
@@ -68,6 +70,11 @@ enum DemoFixtures {
             m.profile.cls[.assault] = a
             return Report(name: "loss", meta: m, tier: 1, won: false, time: 252, playerKills: 640, beacons: 3, queenKilled: false,
                           stage: .hold, downs: 2, downBy: .queen, pressure: nil, idleMul: nil)
+        case "breaker":
+            // Stage 1 R7: a Breaker Run extraction on Ветеран — «Breakers 3/3», «Lights on at extraction 7/7», the strip
+            // BREAKER ×3 · GENERATOR · EXTRACTION (the layout check of its five stages on every phone)
+            return Report(name: "breaker", meta: .returning, tier: 1, won: true, time: 215, playerKills: 1650, beacons: 0, queenKilled: nil,
+                          stage: .extract, downs: 0, downBy: .environment, pressure: nil, idleMul: nil, plan: MissionTemplate.breakerRun.id)
         case "chip":
             // the second early loss on Ветеран while the hive converged: the pressure tip + «Попробуйте «Новобранец»»
             var m = MetaFixture.returning
@@ -101,10 +108,17 @@ enum DemoFixtures {
     static func makeReport(_ r: Report, cls: MarineClass, stats: MissionStats, station: NameRef) -> MissionReport {
         var p = r.meta.profile
         let d = Difficulty.tier(r.tier)
-        let run = RunSummary(cls: cls, won: r.won, surrendered: false, time: r.time, playerKills: r.playerKills, beaconsDone: r.beacons,
+        var run = RunSummary(cls: cls, won: r.won, surrendered: false, time: r.time, playerKills: r.playerKills, beaconsDone: r.beacons,
                              queenSpawned: r.queenKilled != nil, queenDone: r.queenKilled ?? false, downs: r.downs, downBy: r.downBy,
                              tierIndex: d.index, tierMul: d.scoreMul, stage: r.stage, pressureLoss: r.pressure != nil,
                              shots: 2000, hits: 1500, accuracy: 75, bestCombo: 48, level: 9, station: station)
+        if r.plan == MissionTemplate.breakerRun.id {
+            run.beaconsTotal = 0
+            run.switchLine = .scoreBreakers; run.switchesDone = 3; run.switchesTotal = 3; run.switchScore = 500
+            run.lightsOn = 7; run.lightsTotal = 7
+            run.strip = [TextID.reportStripBreaker, .reportStripBreaker, .reportStripBreaker, .reportStripGenerator, .reportStripExtract]
+                .map { ReportStripItem(label: GameText($0), on: r.won) }
+        }
         let res = p.commit(run, diffPicked: false)
         return MissionReport.make(run: run, result: res, profile: p, stats: stats, newStationShown: AppFeatures.generatedStations)
     }

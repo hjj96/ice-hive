@@ -15,7 +15,8 @@ import IceHiveCore
 //  landscape.) Screens: the title (fresh, returning, Nightmare), the HUD
 //  (its fixed elements and the room the coach card, toasts and hint
 //  take), the pause, the level-up cards (the longest descriptions), the
-//  four report fixtures — each with its text-fits-container checks
+//  five report fixtures (R7: a Breaker Run report with its own strip) —
+//  each with its text-fits-container checks
 //  (L10n). CI runs it in the main simulator, once in English and once
 //  pseudo-localised (-pseudoLoc 1.35), and fails on any FAIL line.
 // ================================================================
@@ -61,7 +62,8 @@ enum LayoutSizes {
             levelUp.show(level: 12, offer: longest, counts: [:], cls: .cryo, size: sz, insets: ins, layoutCheck: true)
             LayoutCheck.context = ph.name + " names"
             levelUp.show(level: 12, offer: longNames, counts: [longNames[0].id: 3], cls: .gunner, size: sz, insets: ins, layoutCheck: true)
-            for f in ["first", "win", "loss", "chip"] {
+            // (R7: «breaker» — a Breaker Run report: its switch line and its five-stage strip)
+            for f in ["first", "win", "loss", "chip", "breaker"] {
                 guard let r = DemoFixtures.report(f) else { continue }
                 LayoutCheck.context = ph.name + " " + f
                 menu.showEnd(size: sz, insets: ins, report: DemoFixtures.makeReport(r, cls: .assault, stats: game.stats, station: station),

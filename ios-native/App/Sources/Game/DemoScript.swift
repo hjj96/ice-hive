@@ -93,6 +93,18 @@ import IceHiveCore
 //                   the squad on the hub's centre, no pack, no valve, the cut at 1.0 s and the walk from 1.5 s (a shorter
 //                   burst run: the lights back ≈ 8.5 s in). `props: …` lines on
 //                   every prop event, `hb props …` and `demo interactives: …` once a second.
+//  Stage 1 R7 «Missions I» (each plays its mission on its own station — Kelvin-9 with its props — autopilot, squad
+//  invulnerable, the director on):
+//    -demo breakerrun  Breaker Run in the dark: the squad on beacon B's deck 3 m from its breaker; the autopilot steps into
+//                   the breaker's ring (the hive's surge answers), at 1.2 s the demo jumps the ring to 0.8 (the hive's push at
+//                   half follows), the breaker is thrown ≈ 6 s later — B's deck lights up lamp by lamp from the breaker while
+//                   the plaza's catwalk beyond stays dark — and time almost stops 1.6 s after it (at 12 s at the latest) for the
+//                   screenshot. `demo breakerrun: …` once a second, `mission: …` / `props: …` lines, `hb mission …`
+//    -demo ventpurge   Vent Purge: the squad on beacon B's deck 3.5 m from the vent there; at 0.4 s a pack pours out of it,
+//                   the autopilot steps into its seal ring, at 1.4 s the demo jumps the ring to 0.9: the vent is sealed for good
+//                   (it goes dark, the stream thins); the squad heads for the plaza's seal, a pack pours out of that vent as it
+//                   comes, it steps into the ring, the demo jumps it to 0.75 and time almost stops once it passes 0.9 (at 14 s
+//                   at the latest) for the screenshot. `demo ventpurge: …` once a second, `mission: …` lines, `hb mission …`
 //  R0 (film fixes):
 //    -demo win      like hold; 1 s after «scene ready» the lift leaves and the ride plays out to the win (4.6 s): the
 //                   report comes up at once and the world keeps animating under it (the lift eases to a stop with the
@@ -145,7 +157,7 @@ final class DemoScript {
         case "beacon": return DemoScript(name: d, options: options, bugs: options.bugs)
         case "title", "calm", "probe", "hold", "holdhint", "extract", "queen", "queenlock", "coach", "pressure", "report", "levelup", "pause", "end",
              "swarmshot", "layout", "bugsheet", "punchin", "extract-cine", "waves", "swarmpack", "swarmmix", "defeat", "overhead", "win",
-             "interactives":
+             "interactives", "breakerrun", "ventpurge":
             return DemoScript(name: d, options: options)
         case "stress1400": return DemoScript(name: d, options: options, bugs: options.bugs ?? 1400)
         default:
@@ -162,6 +174,15 @@ final class DemoScript {
     }
 
     var startsMission: Bool { name != "title" }
+
+    /// Stage 1 R7: the mission the demo plays (its station is the level: GameScene builds it from the mission).
+    var mission: MissionTemplate? {
+        switch name {
+        case "breakerrun": return .breakerRun
+        case "ventpurge": return .ventPurge
+        default: return nil
+        }
+    }
 
     /// The station the demo plays (nil = the classic «Кельвин-9»): the overhead demo lays the overhead showcase.
     var levelSource: LevelSource? {
@@ -294,6 +315,18 @@ final class DemoScript {
             target = 0
             AppLog.info("demo interactives: \(game.valves.count) valves, \(game.circuits.count) circuits, \(game.lamps.count) lamps, "
                         + "\(game.lockers.count) lockers; lit \(game.lightsLit)/\(game.circuits.count); squad on the bridge's hub end")
+        case "breakerrun":
+            // R7: beacon B's deck, 3 m east of its breaker (the nearest of the mission's three): the autopilot steps in
+            game.debugTeleport(27.5, -4.5)
+            target = 0
+            AppLog.info("demo breakerrun: \(game.mission.id), lit \(game.lightsLit)/\(game.circuits.count), \(game.switches.count) breakers; "
+                        + "squad on beacon B's deck by its breaker")
+        case "ventpurge":
+            // R7: beacon B's deck, 3.5 m west of its vent (the nearest of the mission's four seals)
+            game.debugTeleport(31.5, -3.5)
+            target = 0
+            AppLog.info("demo ventpurge: \(game.mission.id), \(game.switches.count) seals on vents "
+                        + game.switches.map { "\($0.site.vent)" }.joined(separator: ",") + "; squad on beacon B's deck by its vent")
         case "waves":
             // the wave director's own swarm: the squad in a beacon's ring, its defence starts on the first tick
             let k = max(0, min(game.beacons.count - 1, Int(demoNum("-waveBeacon", 1))))
@@ -341,6 +374,8 @@ final class DemoScript {
         if name == "waves" { waves(game, dt); return }
         if name == "overhead" { overhead(game, dt); return }
         if name == "interactives" { interactives(game, dt); return }
+        if name == "breakerrun" { breakerRun(game, dt); return }
+        if name == "ventpurge" { ventPurge(game, dt); return }
         if !startsMission { return }
         t += dt
         probe = nil
@@ -653,6 +688,95 @@ final class DemoScript {
                                game.circuits.count > 1 ? game.circuits[1].lamps.count : 0, game.circuits.count > 1 ? game.circuits[1].progress : 0,
                                game.lightsLit, game.circuits.count))
         }
+    }
+
+    // ---------------------------------------------------------------- R7 missions
+    private var msStep = 0
+    private var msAt: Double = -1
+    private var msLogT: Float = 0
+    /// breakerrun: the ring jumped to 0.8 once the autopilot is in it (from 1.2 s; the squad put into it at 3 s if it is not),
+    /// time almost stopped 1.6 s after the breaker is thrown (at 12 s at the latest).
+    private func breakerRun(_ game: Game, _ dt: Float) {
+        t += dt
+        if msStep == 0 && sinceReady >= 1.2 {
+            if game.activeSwitch >= 0 {
+                msStep = 1
+                game.debugSwitchProgress(0.8)
+                AppLog.info(String(format: "demo breakerrun: the breaker's ring jumped to 0.80 td=%.2f (switch %d)", sinceReady, game.activeSwitch))
+            } else if sinceReady >= 3, let w = game.switches.first(where: { $0.state == 0 }) {
+                game.debugTeleport(w.site.x + 1.1, w.site.z)
+                AppLog.info(String(format: "demo breakerrun: the squad put into the ring td=%.2f", sinceReady))
+            }
+        }
+        if msStep == 1 && game.switchesThrown > 0 {
+            msStep = 2
+            msAt = sinceReady
+            AppLog.info(String(format: "demo breakerrun: breaker thrown td=%.2f, lit %d/%d", sinceReady, game.lightsLit, game.circuits.count))
+        }
+        if freeze == 1 && ((msStep == 2 && sinceReady >= msAt + 1.6) || sinceReady >= 12) {
+            freeze = 0.02
+            AppLog.info(String(format: "demo breakerrun: frozen td=%.2f step %d lit %d/%d alive %d obj %@", sinceReady, msStep, game.lightsLit,
+                               game.circuits.count, game.bugsAlive, game.objective.map { "\($0)" } ?? "-"))
+        }
+        missionLog(game, dt)
+    }
+
+    /// ventpurge: a pack out of B's vent at 0.4 s, its ring jumped to 0.9 (from 1.4 s); on the way to the plaza's seal a pack
+    /// pours out of its vent, its ring jumped to 0.75 once the squad is in it; time almost stopped past 0.9 (14 s at the latest).
+    private func ventPurge(_ game: Game, _ dt: Float) {
+        t += dt
+        let near = game.switches.indices.min { a, b in
+            hypotf(game.switches[a].site.x - game.player.x, game.switches[a].site.z - game.player.z)
+                < hypotf(game.switches[b].site.x - game.player.x, game.switches[b].site.z - game.player.z)
+        }
+        if msStep == 0 && sinceReady >= 0.4, let k = near {
+            msStep = 1
+            let v = game.switches[k].site.vent
+            game.debugVentPour(v, count: 10)
+            AppLog.info(String(format: "demo ventpurge: a pack pours out of vent %d td=%.2f", v, sinceReady))
+        }
+        if msStep == 1 && sinceReady >= 1.4 && game.activeSwitch >= 0 {
+            msStep = 2
+            game.debugSwitchProgress(0.9)
+            AppLog.info(String(format: "demo ventpurge: the seal's ring jumped to 0.90 td=%.2f", sinceReady))
+        }
+        if msStep == 2 && game.switchesThrown > 0 {
+            msStep = 3
+            AppLog.info(String(format: "demo ventpurge: vent sealed td=%.2f, stream %.2f, vents shut %d", sinceReady, game.streamK,
+                               game.ventShut.filter { $0 }.count))
+        }
+        if msStep == 3, let k = game.switches.firstIndex(where: { $0.state == 0 && $0.site.vent == 6 }) {
+            // the plaza's seal ahead: its vent pours as the squad comes (10 m out)
+            let s = game.switches[k].site
+            if hypotf(s.x - game.player.x, s.z - game.player.z) < 10 {
+                msStep = 4
+                game.debugVentPour(s.vent, count: 10)
+                AppLog.info(String(format: "demo ventpurge: a pack pours out of vent %d ahead td=%.2f", s.vent, sinceReady))
+            }
+        }
+        if msStep == 4 && game.activeSwitch >= 0 {
+            msStep = 5
+            game.debugSwitchProgress(0.75)
+            AppLog.info(String(format: "demo ventpurge: the plaza seal's ring jumped to 0.75 td=%.2f", sinceReady))
+        }
+        let ring = game.activeSwitch >= 0 ? game.switches[game.activeSwitch].progress : 0
+        if freeze == 1 && ((msStep == 5 && ring >= 0.9) || sinceReady >= 14) {
+            freeze = 0.02
+            AppLog.info(String(format: "demo ventpurge: frozen td=%.2f step %d ring %.2f sealed %d alive %d obj %@", sinceReady, msStep, ring,
+                               game.switchesThrown, game.bugsAlive, game.objective.map { "\($0)" } ?? "-"))
+        }
+        missionLog(game, dt)
+    }
+
+    /// Once a second: `demo <name>: td=… step … switches … lit … vents shut … alive …`.
+    private func missionLog(_ game: Game, _ dt: Float) {
+        msLogT -= dt
+        if msLogT > 0 { return }
+        msLogT = 1
+        AppLog.info(String(format: "demo %@: td=%.1f step %d mission step %d/%d %@ switches %d/%d ring %.2f lit %d/%d vents shut %d alive %d", name,
+                           sinceReady, msStep, game.missionStep + 1, game.mission.steps.count, game.currentModule?.rawValue ?? "-",
+                           game.switchesThrown, game.mission.switchCount, game.activeSwitch >= 0 ? game.switches[game.activeSwitch].progress : 0,
+                           game.lightsLit, game.circuits.count, game.ventShut.filter { $0 }.count, game.bugsAlive))
     }
 
     // ---------------------------------------------------------------- WP7 cinematics

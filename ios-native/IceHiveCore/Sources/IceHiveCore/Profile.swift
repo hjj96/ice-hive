@@ -372,6 +372,7 @@ public struct ReportLine: Equatable {
 public struct ReportStripItem: Equatable {
     public let label: GameText
     public let on: Bool
+    public init(label: GameText, on: Bool) { self.label = label; self.on = on }
 }
 
 public struct ReportTip: Equatable {

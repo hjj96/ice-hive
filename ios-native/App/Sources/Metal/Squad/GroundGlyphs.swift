@@ -85,7 +85,9 @@ final class GroundGlyphs {
                                         b: F4(time, 0, m.isPlayer ? max(0, min(1, m.bar)) : -1,
                                               m.isPlayer && (m.overheated || m.reloading) ? 1 : 0)))
         }
-        for b in game.beacons {
+        for (k, b) in game.beacons.enumerated() {
+            // (R7: a beacon the plan does not charge stands dormant — no ring; a lit one keeps its teal ring)
+            if k < game.beaconInPlan.count && !game.beaconInPlan[k] && b.state != 2 { continue }
             let col: F3 = b.state == 2 ? F3(0.2, 1.0, 0.82) : (b.state == 1 ? F3(1.0, 0.62, 0.12) : F3(1.0, 0.22, 0.12))
             glyphs.append(GlyphInstance(center: F4(b.x, level.groundY(b.x, b.z) + 0.04, b.z, BEACON_R), color: F4(col.x, col.y, col.z, 2),
                                         a: F4(b.state == 2 ? 1 : b.progress, 24, time * 0.15, b.state == 2 ? 0.55 : 1), b: F4(time, 0, 0, 0)))

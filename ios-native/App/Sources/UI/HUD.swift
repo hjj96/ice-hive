@@ -920,7 +920,12 @@ final class HUD {
          (GameText(.bannerExtract), GameText(.bannerExtractSub)),
          (GameText(.bannerQueen), GameText(.bannerQueenSub)),
          (GameText(.bannerQueenRage), .hordeSubtitle),
-         (GameText(.bannerQueenDead), GameText(.bannerQueenDeadSub))]
+         (GameText(.bannerQueenDead), GameText(.bannerQueenDeadSub)),
+         // Stage 1 R7: Breaker Run's and Vent Purge's drop banners, the breakers live, the generator hold
+         (GameText(.bannerBreakerRun), GameText(.bannerBreakerRunSub, [.name(.sector(letter: 11, number: 88))])),
+         (GameText(.bannerBreakersLive), GameText(.bannerBreakersLiveSub)),
+         (GameText(.bannerGenerator), GameText(.bannerGeneratorSub, [.int(60)])),
+         (GameText(.bannerVentPurge), GameText(.bannerVentPurgeSub, [.name(.sector(letter: 11, number: 88))]))]
     }
 
     // (native-vx-feel: a calmer screen — the red vignette of a bite, the white flash of a blast and the red edge of a horde

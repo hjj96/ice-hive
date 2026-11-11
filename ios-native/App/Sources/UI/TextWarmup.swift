@@ -39,6 +39,8 @@ enum TextWarmup {
         // Stage 1 R6: the interactive props' barks and first-sighting tips
         out += [GameText(.toastLightsCut), GameText(.toastLightsUp), GameText(.toastLocker), GameText(.toastTipValve),
                 GameText(.toastTipBreaker), GameText(.toastTipLocker)]
+        // Stage 1 R7: Vent Purge's bark
+        out.append(GameText(.toastVentSealed))
         return out
     }
 
