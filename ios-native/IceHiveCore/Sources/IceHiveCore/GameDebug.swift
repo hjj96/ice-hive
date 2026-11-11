@@ -158,6 +158,12 @@ extension Game {
     /// alone (video capture: the lift leaves a moment later, not in the same tick as debugSkip() would send it).
     public func debugKillQueen() { if queen.alive { queenSkip() } }
 
+    /// (film branch only) The share `f` (0…0.99) of the running hold's countdown already run — at the lift or on a deck (R7's
+    /// generator hold, whose dark circuits come back at n/(n+1) of it).
+    public func debugSetHoldProgress(_ f: Float) {
+        if stage == .hold || stage == .area { liftT = liftDur * (1 - clampf(f, 0, 0.99)) }
+    }
+
     /// Set a squad member's armour; ≤ 0 downs it (web `__dbgExt.hurt`).
     public func debugHurt(marine k: Int, hp: Float) {
         guard k >= 0 && k < marines.count else { return }

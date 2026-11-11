@@ -236,6 +236,12 @@ final class DemoScript {
         return out
     }()
     private var videoPackNext = 0
+    /// `-videoScene hold` (R7's breakerrun / ventpurge): the mission's hold instead of its rings — the generator hold (Breaker
+    /// Run: the three breakers thrown) or the lift hold (Vent Purge: the four seals done); `-videoRing p`: where the demo jumps
+    /// a ring (the breaker 0.45 — the hive's push at half still to come —, the seals 0.65 / 0.7); `-videoHoldF f`: the share of
+    /// the generator's countdown already run at 1 s (0.15: the first circuit comes back 3 s later).
+    private var videoScene: String { videoArg("-videoScene") ?? "" }
+    private var videoRing: Float { Float(demoNum("-videoRing", name == "breakerrun" ? 0.45 : 0.65)) }
     /// `-videoTime T`: the mission clock set to T s at the start — where the staged moment falls in a real mission (the walk
     /// to the lift, the finale): the HUD's clock and the report's time read as in a mission, the director's clock-driven
     /// rules (pressure, travel) act as there; as the original third-beacon scene's `debugSetRun(time: 200)`.
@@ -500,6 +506,16 @@ final class DemoScript {
             target = 0
             AppLog.info("demo interactives: \(game.valves.count) valves, \(game.circuits.count) circuits, \(game.lamps.count) lamps, "
                         + "\(game.lockers.count) lockers; lit \(game.lightsLit)/\(game.circuits.count); squad on the bridge's hub end")
+        case "breakerrun" where video && videoScene == "hold", "ventpurge" where video && videoScene == "hold":
+            // (film) the mission's rings done by the plan's own skip (each switch thrown: Breaker Run's breakers relight their
+            // decks, Vent Purge's seals shut their vents / duct mouths for good), then the walk to the hold zone skipped: the
+            // squad in the generator's zone / on the lift, the hold starts (its banner, its hordes, the director's own)
+            var g = 0
+            while game.currentModule == .switches && g < 8 { game.debugSkip(); g += 1 }
+            if game.currentModule == .hold { game.debugSkip() }
+            target = 0
+            AppLog.info("demo \(name) (video): \(game.mission.id) rings skipped (\(game.switchesThrown) thrown), the hold from the start, "
+                        + "stage \(game.stage.rawValue), lit \(game.lightsLit)/\(game.circuits.count)")
         case "breakerrun":
             // R7: beacon B's deck, 3 m east of its breaker (the nearest of the mission's three): the autopilot steps in
             game.debugTeleport(27.5, -4.5)
@@ -1068,6 +1084,7 @@ final class DemoScript {
     /// time almost stopped 1.6 s after the breaker is thrown (at 12 s at the latest).
     private func breakerRun(_ game: Game, _ dt: Float) {
         t += dt
+        if video { videoBreakerRun(game); missionLog(game, dt); return }
         if msStep == 0 && sinceReady >= 1.2 {
             if game.activeSwitch >= 0 {
                 msStep = 1
@@ -1097,6 +1114,7 @@ final class DemoScript {
     /// time almost stops (14 s at the latest).
     private func ventPurge(_ game: Game, _ dt: Float) {
         t += dt
+        if video { videoVentPurge(game); missionLog(game, dt); return }
         // (the nearest seal still to throw: where the autopilot goes)
         let near = game.switches.indices.filter { game.switches[$0].state != 2 }.min { a, b in
             hypotf(game.switches[a].site.x - game.player.x, game.switches[a].site.z - game.player.z)
@@ -1144,6 +1162,82 @@ final class DemoScript {
                                game.switchesThrown, game.bugsAlive, game.objective.map { "\($0)" } ?? "-"))
         }
         missionLog(game, dt)
+    }
+
+    /// (film) breakerrun: the ring jumped to `videoRing` (0.45) once the autopilot is in it — the hive's surge has answered,
+    /// its push at half follows —, the breaker thrown ≈ 16 s later and B's deck lit lamp by lamp; no freeze. `-videoScene
+    /// hold`: the generator's countdown moved on to `-videoHoldF` at 1 s, the station's circuits come back by the hold's rule.
+    private func videoBreakerRun(_ game: Game) {
+        if videoScene == "hold" {
+            if msStep == 0 && sinceReady >= 1.0 && game.currentModule == .hold {
+                msStep = 1
+                let f = Float(demoNum("-videoHoldF", 0.15))
+                game.debugSetHoldProgress(f)
+                AppLog.info(String(format: "demo breakerrun (video): the generator's countdown moved on to %.2f td=%.2f lit %d/%d", f, sinceReady,
+                                   game.lightsLit, game.circuits.count))
+            }
+            return
+        }
+        if msStep == 0 && sinceReady >= 1.2 {
+            if game.activeSwitch >= 0 {
+                msStep = 1
+                game.debugSwitchProgress(videoRing)
+                AppLog.info(String(format: "demo breakerrun (video): the breaker's ring jumped to %.2f td=%.2f (switch %d)", videoRing, sinceReady, game.activeSwitch))
+            } else if sinceReady >= 3, let w = game.switches.first(where: { $0.state == 0 }) {
+                game.debugTeleport(w.site.x + 1.1, w.site.z)
+                AppLog.info(String(format: "demo breakerrun (video): the squad put into the ring td=%.2f", sinceReady))
+            }
+        }
+        if msStep == 1 && game.switchesThrown > 0 {
+            msStep = 2
+            AppLog.info(String(format: "demo breakerrun (video): breaker thrown td=%.2f, lit %d/%d", sinceReady, game.lightsLit, game.circuits.count))
+        }
+    }
+
+    /// (film) ventpurge: a pack out of A's vent at 0.4 s, its seal ring jumped to `videoRing` (0.65) — sealed ≈ 5 s later, the
+    /// vent dark for good —; the next seal's duct mouth (over the hub → A walkway) rattles and pours onto the routes, the
+    /// squad walks into the ring under it, jumped to 0.7, and the duct mouth is slammed shut for good; no freeze.
+    /// `-videoScene hold`: the lift hold as the plan plays it (begin skipped the seals).
+    private func videoVentPurge(_ game: Game) {
+        if videoScene == "hold" { return }
+        let near = game.switches.indices.filter { game.switches[$0].state != 2 }.min { a, b in
+            hypotf(game.switches[a].site.x - game.player.x, game.switches[a].site.z - game.player.z)
+                < hypotf(game.switches[b].site.x - game.player.x, game.switches[b].site.z - game.player.z)
+        }
+        if msStep == 0 && sinceReady >= 0.4, let k = near {
+            msStep = 1
+            let v = game.switches[k].site.vent
+            game.debugVentPour(v, count: 10)
+            AppLog.info(String(format: "demo ventpurge (video): a pack pours out of vent %d td=%.2f", v, sinceReady))
+        }
+        if msStep == 1 && sinceReady >= 1.4 && game.activeSwitch >= 0 {
+            msStep = 2
+            game.debugSwitchProgress(videoRing)
+            AppLog.info(String(format: "demo ventpurge (video): the seal's ring jumped to %.2f td=%.2f", videoRing, sinceReady))
+        }
+        if msStep == 2 && game.switchesThrown > 0, let k = near {
+            msStep = 3
+            AppLog.info(String(format: "demo ventpurge (video): vent sealed td=%.2f, stream %.2f, vents shut %d", sinceReady, game.streamK,
+                               game.ventShut.filter { $0 }.count))
+            let s = game.switches[k].site
+            if s.duct >= 0 && s.duct < game.ducts.count {
+                let n = game.debugRoutePack(10, entry: game.ducts[s.duct].node, rate: 3)
+                AppLog.info(String(format: "demo ventpurge (video): duct %d rattles ahead, pours %d td=%.2f (seal %d)", s.duct, n, sinceReady, k))
+            } else {
+                game.debugVentPour(s.vent, count: 10)
+                AppLog.info(String(format: "demo ventpurge (video): a pack pours out of vent %d ahead td=%.2f (seal %d)", s.vent, sinceReady, k))
+            }
+        }
+        if msStep == 3 && game.activeSwitch >= 0 {
+            msStep = 4
+            game.debugSwitchProgress(max(videoRing, 0.7))
+            AppLog.info(String(format: "demo ventpurge (video): the next seal's ring jumped to %.2f td=%.2f (seal %d)", max(videoRing, 0.7), sinceReady,
+                               game.activeSwitch))
+        }
+        if msStep == 4 && game.switchesThrown > 1 {
+            msStep = 5
+            AppLog.info(String(format: "demo ventpurge (video): the next seal thrown td=%.2f, stream %.2f", sinceReady, game.streamK))
+        }
     }
 
     /// Once a second: `demo <name>: td=… step … switches … lit … vents shut … alive …`.
