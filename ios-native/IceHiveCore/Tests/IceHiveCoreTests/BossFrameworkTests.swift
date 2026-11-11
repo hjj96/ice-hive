@@ -336,16 +336,16 @@ final class BossFrameworkTests: XCTestCase {
         var phases: [(Int, Bool)] = []
         var rimeMoves = 0
         // above half: phase 0, the rime (phase 1 only) never starts
-        run(g, seconds: 4) { if case .bossMove(_, 1, _) = $0 { rimeMoves += 1 } }
+        run(g, seconds: 4, until: nil) { if case .bossMove(_, 1, _) = $0 { rimeMoves += 1 } }
         XCTAssertEqual(g.boss.phase, 0); XCTAssertFalse(g.boss.enraged); XCTAssertEqual(rimeMoves, 0)
         // under half: phase 1 once (enraged, its stagger), the rime comes in (struck on a segment, ×0.25: whatever window the
         // slam left on the head)
         g.hitBug(g.bossPart(3).slot, max0 * 0.55 / 0.25, 0)
-        run(g, seconds: 0.05) { if case .bossPhase(_, let p, let e, _) = $0 { phases.append((p, e)) } }
+        run(g, seconds: 0.05, until: nil) { if case .bossPhase(_, let p, let e, _) = $0 { phases.append((p, e)) } }
         XCTAssertEqual(phases.count, 1); XCTAssertEqual(phases.first?.0, 1); XCTAssertEqual(phases.first?.1, true)
         XCTAssertEqual(g.boss.phase, 1); XCTAssertTrue(g.boss.enraged)
         XCTAssertGreaterThan(g.boss.stagger, 0.4)
-        run(g, seconds: 8) { e in
+        run(g, seconds: 8, until: nil) { e in
             if case .bossMove(_, 1, _) = e { rimeMoves += 1 }
             if case .bossPhase = e { phases.append((9, false)) }
         }
@@ -512,13 +512,13 @@ final class BossFrameworkTests: XCTestCase {
         g.debugSkip()
         run(g, seconds: 3, until: { g.boss.spawned })
         var pulses = 0
-        run(g, seconds: 8) { if case .explosion(.pulse, _, _) = $0 { pulses += 1 } }
+        run(g, seconds: 8, until: nil) { if case .explosion(.pulse, _, _) = $0 { pulses += 1 } }
         XCTAssertGreaterThan(pulses, 0, "the lift pulses")
         g.hitBug(g.bossPart(0).slot, g.bugs.hpMax[g.bossPart(0).slot] * 0.6, 0)
         run(g, seconds: 0.1)
         XCTAssertEqual(g.boss.phase, 1)
         pulses = 0
-        run(g, seconds: 10) { if case .explosion(.pulse, _, _) = $0 { pulses += 1 } }
+        run(g, seconds: 10, until: nil) { if case .explosion(.pulse, _, _) = $0 { pulses += 1 } }
         XCTAssertEqual(pulses, 0, "no pulse while it lives")
     }
 
