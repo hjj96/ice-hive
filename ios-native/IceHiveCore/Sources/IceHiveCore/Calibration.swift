@@ -78,16 +78,32 @@ public struct CalibQueen {
 public struct CalibOverhead: Equatable {
     public var packs = 0, spawns = 0, drops = 0, landed = 0, hits = 0, downs = 0, hurt = 0
     public var kills = 0, knockdowns = 0, shattered = 0, hops = 0, maxUp = 0, maxZones = 0
+    /// Stage 1 R4: Droppers sent up, pins and how they ended (dash, the squad's fire, timed out, the marine down), the pins'
+    /// total hold (ms), squad HP lost to Droppers and the downs they caused; perches taken, spits from them; duct rattles,
+    /// grilles shot shut, bugs lost at a shut duct.
+    public var droppers = 0, pins = 0, pinDash = 0, pinFire = 0, pinTimeout = 0, pinDown = 0, pinMs = 0, dropperHurt = 0, dropperDowns = 0
+    /// Droppers' drops (telegraphs) and landings, Droppers killed up there / knocked down / hopped down.
+    public var dropperDrops = 0, dropperLanded = 0, dropperKills = 0, dropperKnocks = 0, dropperHops = 0
+    public var perched = 0, perchSpits = 0, rattles = 0, seals = 0, ductLost = 0
     public init() {}
     init(_ s: OverheadStats) {
         packs = s.packs; spawns = s.spawns; drops = s.drops; landed = s.landed; hits = s.hits; downs = s.downs
         hurt = Int(s.hurt.rounded()); kills = s.kills; knockdowns = s.knockdowns; shattered = s.shattered; hops = s.hops
         maxUp = s.maxUp; maxZones = s.maxZones
+        droppers = s.droppers; pins = s.pins; pinDash = s.pinDash; pinFire = s.pinFire; pinTimeout = s.pinTimeout; pinDown = s.pinDown
+        pinMs = Int((s.pinTime * 1000).rounded()); dropperHurt = Int(s.dropperHurt.rounded()); dropperDowns = s.dropperDowns
+        perched = s.perched; perchSpits = s.perchSpits; rattles = s.rattles; seals = s.seals; ductLost = s.ductLost
+        dropperDrops = s.dropperDrops; dropperLanded = s.dropperLanded; dropperKills = s.dropperKills; dropperKnocks = s.dropperKnocks
+        dropperHops = s.dropperHops
     }
     /// Field names and values in JSON order.
     var fields: [(String, Int)] {
         [("packs", packs), ("spawns", spawns), ("drops", drops), ("landed", landed), ("hits", hits), ("downs", downs), ("hurt", hurt),
-         ("kills", kills), ("knock", knockdowns), ("shatter", shattered), ("hops", hops), ("maxUp", maxUp), ("maxZones", maxZones)]
+         ("kills", kills), ("knock", knockdowns), ("shatter", shattered), ("hops", hops), ("maxUp", maxUp), ("maxZones", maxZones),
+         ("droppers", droppers), ("pins", pins), ("pinDash", pinDash), ("pinFire", pinFire), ("pinTO", pinTimeout), ("pinDown", pinDown),
+         ("pinMs", pinMs), ("drpHurt", dropperHurt), ("drpDowns", dropperDowns), ("perched", perched), ("perchSpits", perchSpits),
+         ("rattles", rattles), ("seals", seals), ("ductLost", ductLost), ("drpDrops", dropperDrops), ("drpLanded", dropperLanded),
+         ("drpKills", dropperKills), ("drpKnock", dropperKnocks), ("drpHops", dropperHops)]
     }
 }
 
@@ -279,6 +295,11 @@ extension CalibRow {
             c.packs = v("packs"); c.spawns = v("spawns"); c.drops = v("drops"); c.landed = v("landed"); c.hits = v("hits")
             c.downs = v("downs"); c.hurt = v("hurt"); c.kills = v("kills"); c.knockdowns = v("knock"); c.shattered = v("shatter")
             c.hops = v("hops"); c.maxUp = v("maxUp"); c.maxZones = v("maxZones")
+            c.droppers = v("droppers"); c.pins = v("pins"); c.pinDash = v("pinDash"); c.pinFire = v("pinFire"); c.pinTimeout = v("pinTO")
+            c.pinDown = v("pinDown"); c.pinMs = v("pinMs"); c.dropperHurt = v("drpHurt"); c.dropperDowns = v("drpDowns")
+            c.perched = v("perched"); c.perchSpits = v("perchSpits"); c.rattles = v("rattles"); c.seals = v("seals"); c.ductLost = v("ductLost")
+            c.dropperDrops = v("drpDrops"); c.dropperLanded = v("drpLanded"); c.dropperKills = v("drpKills"); c.dropperKnocks = v("drpKnock")
+            c.dropperHops = v("drpHops")
             oh = c
         }
         if let po = o["props"] as? [String: Any] {
@@ -509,6 +530,9 @@ public enum Calibration {
 
     /// The overhead preset's share of packs sent up (Stage 1 R2; the tiers keep `routes` = 0 until package R5).
     public static let overheadRoutes: Double = 0.2
+    /// Stage 1 R4: the overhead preset's second half also runs the Dropper and perch channels (s between sends) — the tiers
+    /// keep them off until package R5.
+    public static let overheadDropperGap: Double = 22, overheadPerchGap: Double = 28
 
     /// gate: CI (≈ 212 runs, 64 of them the informational low-quality rows); full: tuning; stations: generated seeds 0–4; legacy:
     /// the v1.0 port check; overhead: generated stations 1–4 with their routes and the overhead channel on (informational).
@@ -560,6 +584,14 @@ public enum Calibration {
             var out: [CalibRun] = []
             for s in 1...4 {
                 out += batch(tier: 1, mode: .auto, n: 2, seed0: seed0, tag: (tag.map { $0 + "-" } ?? "") + "oh-st\(s)", th: t, station: UInt32(s))
+            }
+            // Stage 1 R4: the same stations with the overhead's bugs — the Dropper channel (its pins), perched spitters, the
+            // duct mouths' rattles and seals
+            var tb = t
+            if tb["dropperGap"] == nil { tb["dropperGap"] = overheadDropperGap }
+            if tb["perchGap"] == nil { tb["perchGap"] = overheadPerchGap }
+            for s in 1...4 {
+                out += batch(tier: 1, mode: .auto, n: 2, seed0: seed0, tag: (tag.map { $0 + "-" } ?? "") + "ohb-st\(s)", th: tb, station: UInt32(s))
             }
             return out
         case "props":
@@ -731,6 +763,31 @@ public enum Calibration {
             out.append(k.padding(toLength: 18, withPad: " ", startingAt: 0) + " " + cols.joined(separator: " "))
         }
         out.append("(drop%dn: squad downs a drop's bite caused, of all squad downs — informational band on Veteran ≤ 20 %)")
+        // Stage 1 R4: the overhead's bugs, per run (only groups that met any)
+        let bugRows = g.keys.sorted().filter { k in g[k]!.contains { r in r.oh!.droppers + r.oh!.perched + r.oh!.rattles > 0 } }
+        if !bugRows.isEmpty {
+            out.append("")
+            out.append("overhead bugs/run".padding(toLength: 18, withPad: " ", startingAt: 0) + " "
+                       + ["n", "drpUp", "drDrop", "drLand", "drKill", "drKnck", "drHop", "pins", "dash", "fire", "tmout", "pinDn", "pinS", "drHurt",
+                          "drDn", "perch", "spits", "rattle", "seal", "lost", "drp%dn"]
+                       .map { pad($0, 6) }.joined(separator: " "))
+            for k in bugRows {
+                let rs = g[k]!
+                let n = Float(rs.count)
+                func m(_ f: (CalibOverhead) -> Int) -> String { fmt(Float(rs.reduce(0) { $0 + f($1.oh!) }) / n, 1) }
+                let downs = rs.reduce(0) { $0 + $1.squadDowns }, dd = rs.reduce(0) { $0 + $1.oh!.dropperDowns }
+                let pinS = Float(rs.reduce(0) { $0 + $1.oh!.pinMs }) / 1000 / max(1, Float(rs.reduce(0) { $0 + $1.oh!.pins }))
+                let cols = [pad("\(rs.count)", 6), pad(m { $0.droppers }, 6), pad(m { $0.dropperDrops }, 6), pad(m { $0.dropperLanded }, 6),
+                            pad(m { $0.dropperKills }, 6), pad(m { $0.dropperKnocks }, 6), pad(m { $0.dropperHops }, 6),
+                            pad(m { $0.pins }, 6), pad(m { $0.pinDash }, 6), pad(m { $0.pinFire }, 6),
+                            pad(m { $0.pinTimeout }, 6), pad(m { $0.pinDown }, 6), pad(fmt(pinS, 2), 6), pad(m { $0.dropperHurt }, 6),
+                            pad(m { $0.dropperDowns }, 6), pad(m { $0.perched }, 6), pad(m { $0.perchSpits }, 6), pad(m { $0.rattles }, 6),
+                            pad(m { $0.seals }, 6), pad(m { $0.ductLost }, 6), pad(fmt(pct(dd, downs)), 6)]
+                out.append(k.padding(toLength: 18, withPad: " ", startingAt: 0) + " " + cols.joined(separator: " "))
+            }
+            out.append("(pinS: mean seconds a pin held; drp%dn: squad downs a Dropper caused, of all squad downs; lost: bugs bound for a "
+                       + "duct mouth shot shut)")
+        }
         return out.joined(separator: "\n")
     }
 

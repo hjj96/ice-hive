@@ -77,6 +77,19 @@ import IceHiveCore
 //                   the pad end and the player walks the bridge toward the hub from 1.0 s (no freeze) — the camera follows,
 //                   the deck, the routes and the upper truss slide past at their three speeds. `-ohHigh`: on «высокая»
 //                   (the flashlight shadows: the overhead's casters in the player's tile — the CI parallax burst).
+//  Stage 1 R4 «Overhead bugs»:
+//    -demo overheadbugs  the overhead showcase (as -demo overhead), the squad mid-bridge, the director off, the bots holding
+//                   fire, the player an idle assault (god mode: pinned, never hurt) and every route bug's target (on the sim
+//                   clock — `ts`, sim seconds since «scene ready»; the log lines give td as well). At 0.3 s a Dropper is
+//                   sent to the duct mouth: the grille rattles 2 s, it pours out, rides the rack toward the player,
+//                   telegraphs (coil: its front third curls down over the edge, the ring, the frost column) and drops: the
+//                   player is PINNED (`bugs: pinned …`) — the bots open fire and shoot it off (`bugs: pin broken … by fire`).
+//                   At 1.0 s a spitter climbs the pad's post and perches over the void on the far arm (`bugs: spitter
+//                   perched`), spitting from height. At 5.4 s a pack is sent to the duct mouth: it rattles and the player
+//                   shoots it shut through the aim assist (`bugs: duct 0 shot shut`; the pack is lost). At 6.0 s a second
+//                   Dropper climbs the riser and pins the player: time almost frozen (×0.02) 0.25 s into that pin for the
+//                   screenshot (the «Pinned — dash!» hint); `-obDash`: no freeze — the player dashes out 0.45 s into it
+//                   (`… by dash`; the CI burst burst-dash). Once a second `hb bugs droppers=… pins=… perched=… ducts=…`.
 //  Stage 1 R6 «Valves, light, lockers»:
 //    -demo interactives  «Кельвин-9» with its interactives laid (PropLayout.kelvinDemo: Kelvin-9's steam valves, seven light
 //                   circuits with breakers, a supply locker, plus a coolant line on the hub's west rail) and the overhead's
@@ -157,7 +170,7 @@ final class DemoScript {
         case "beacon": return DemoScript(name: d, options: options, bugs: options.bugs)
         case "title", "calm", "probe", "hold", "holdhint", "extract", "queen", "queenlock", "coach", "pressure", "report", "levelup", "pause", "end",
              "swarmshot", "layout", "bugsheet", "punchin", "extract-cine", "waves", "swarmpack", "swarmmix", "defeat", "overhead", "win",
-             "interactives", "breakerrun", "ventpurge":
+             "overheadbugs", "interactives", "breakerrun", "ventpurge":
             return DemoScript(name: d, options: options)
         case "stress1400": return DemoScript(name: d, options: options, bugs: options.bugs ?? 1400)
         default:
@@ -188,13 +201,13 @@ final class DemoScript {
     var levelSource: LevelSource? {
         // (R6: the interactives demo lays «Кельвин-9»'s props and the slice its bridge valve hangs on)
         if name == "interactives" { return KelvinStation(overhead: .kelvinSlice, props: .kelvinDemo) }
-        return name == "overhead" ? KelvinStation(overhead: OverheadShowcase.layout) : nil
+        return name == "overhead" || name == "overheadbugs" ? KelvinStation(overhead: OverheadShowcase.layout) : nil
     }
     /// `-ohWalk`: the overhead demo's parallax walk (the CI burst `burst-parallax`).
     private var walk: Bool { options.unknown.contains("-ohWalk") }
 
     /// Class the demo plays unless `-class` says otherwise (the store shot is the gunner's).
-    var preferredClass: String? { name == "swarmshot" ? "gunner" : nil }
+    var preferredClass: String? { name == "swarmshot" ? "gunner" : (name == "overheadbugs" ? "assault" : nil) }
 
     /// Graphics tier the demo forces without touching the saved setting (the store shots and the WP7 cinematics are
     /// taken on «высокая»; stress1400 is the plan's High budget run).
@@ -306,6 +319,18 @@ final class DemoScript {
             AppLog.info("demo overhead: routes \(G?.edgeCount ?? 0) edges, \(G?.entries.count ?? 0) entries, squad "
                         + (walk ? "at the pad end, walking to the hub" : "mid-bridge") + ", director off, bots holding fire"
                         + String(format: " | routeCheck %@ (%.0f m, footprint %.1f %%)", rc.ok ? "ok" : "FAIL " + rc.why, rc.length, rc.footprint * 100))
+        case "overheadbugs":
+            // Stage 1 R4: mid-bridge under the showcase's rack (the riser right above the squad), the bots holding fire
+            game.autopilot = false
+            game.directorEnabled = false
+            game.debugHoldFire = true
+            game.debugTeleport(14, 30.5)
+            // (the Droppers go for the player: the demo shows its pin, the hint and the squad's answer)
+            game.debugRouteFocus = 0
+            target = 0
+            let G = game.level.overhead
+            AppLog.info("demo overheadbugs: routes \(G?.edgeCount ?? 0) edges, \(game.ducts.count) duct mouths, \(game.perchPoints.count) perch points, "
+                        + "squad mid-bridge, director off, bots holding fire" + (options.unknown.contains("-obDash") ? ", the player dashes out of the pin" : ""))
         case "interactives":
             // Stage 1 R6: the near side of the pad → hub bridge's hub end, off the valve's curtain; the squad fires
             game.autopilot = false
@@ -373,6 +398,7 @@ final class DemoScript {
         if name == "coach" || name == "pressure" { holdState(game, dt); return }
         if name == "waves" { waves(game, dt); return }
         if name == "overhead" { overhead(game, dt); return }
+        if name == "overheadbugs" { overheadBugs(game, dt); return }
         if name == "interactives" { interactives(game, dt); return }
         if name == "breakerrun" { breakerRun(game, dt); return }
         if name == "ventpurge" { ventPurge(game, dt); return }
@@ -603,6 +629,99 @@ final class DemoScript {
             AppLog.info(String(format: "hb route alive=%d up=%d states=%d/%d/%d/%d/%d drops=%d landed=%d hits=%d kills=%d knock=%d zones=%d td=%.1f",
                                game.bugsAlive, game.routeAlive, c[0], c[1], c[2], c[3], c[4], s.drops, s.landed, s.hits, s.kills, s.knockdowns,
                                game.activeDropZones, sinceReady))
+        }
+    }
+
+    // ---------------------------------------------------------------- Stage 1 R4: the overhead's bugs
+    private var obStep = 0
+    private var obPinA = false, obPinB: Float = -1, obShooting = false, obFreed: Float = -1, obSim0: Float = -1
+    private var obBSent = false, obDashed = false
+
+    /// overheadbugs: the overhead's own bugs (Stage 1 R4) on the showcase, on the sim clock (`ts`: sim seconds since «scene
+    /// ready» — the log gives td too, so bursts can be placed): a Dropper out of the duct mouth drops on the
+    /// player and pins it, the squad shoots it off; a spitter perches over the void on the far arm and spits; a pack is
+    /// called to the duct, it rattles and the player shoots it shut; a second Dropper climbs the riser and pins the player
+    /// again — frozen for the screenshot (the hint «Pinned — dash!») or, with -obDash, the dash out of it.
+    private func overheadBugs(_ game: Game, _ dt: Float) {
+        t += dt
+        // (the sim clock starts with «scene ready», like the bursts' clock)
+        if obSim0 < 0 { if sinceReady < 0 { return }; obSim0 = game.simTime }
+        let ts = game.simTime - obSim0
+        let dash = options.unknown.contains("-obDash")
+        let P = game.player
+        if obStep == 0 && ts >= 0.3 {
+            obStep = 1
+            AppLog.info(String(format: "demo overheadbugs: a Dropper to the duct mouth (%d) ts=%.2f td=%.2f",
+                               game.debugRoutePack(1, entry: 4, rate: 3, type: .dropper), ts, sinceReady))
+        }
+        if obStep == 1 && ts >= 1.0 {
+            obStep = 2
+            AppLog.info(String(format: "demo overheadbugs: a spitter up the pad's post (%d) ts=%.2f td=%.2f",
+                               game.debugRoutePack(1, entry: 0, rate: 3, type: .spitter), ts, sinceReady))
+        }
+        // the first pin: the squad opens fire on the Dropper and shoots it off, then holds again
+        if obStep == 2 && !obPinA && P.pinned {
+            obPinA = true
+            game.debugHoldFire = false
+            AppLog.info(String(format: "demo overheadbugs: the player is pinned, the squad opens fire ts=%.2f td=%.2f", ts, sinceReady))
+        }
+        if obStep == 2 && ((obPinA && !P.pinned) || ts >= 6.5) {
+            obStep = 3
+            obFreed = ts
+            game.debugHoldFire = true
+            AppLog.info(String(format: "demo overheadbugs: freed, the squad holds its fire again ts=%.2f td=%.2f", ts, sinceReady))
+        }
+        if obStep == 3 && ts >= max(5.4, obFreed + 0.5) {
+            obStep = 4
+            AppLog.info(String(format: "demo overheadbugs: a pack to the duct mouth (%d) ts=%.2f td=%.2f",
+                               game.debugRoutePack(4, entry: 4, rate: 2), ts, sinceReady))
+        }
+        if obStep >= 4 && !obBSent && ts >= 6.0 {
+            obBSent = true
+            AppLog.info(String(format: "demo overheadbugs: a second Dropper up the riser (%d) ts=%.2f td=%.2f",
+                               game.debugRoutePack(1, entry: 2, rate: 3, type: .dropper), ts, sinceReady))
+        }
+        // the player shoots the rattling duct shut: the stick toward the mouth where it is drawn, the assist turns the rounds up
+        if obStep == 4 && ts >= 6.2, let d = game.ducts.first {
+            if d.open && ts < 8.5 {
+                let lift = 0.75 * max(0, d.pos.y - game.level.groundY(d.pos.x, d.pos.z))
+                let aim = Game.angle(of: Vec2(d.pos.x + FWD_X * lift - P.x, d.pos.z + FWD_Z * lift - P.z))
+                game.setPlayerInput(move: Vec2(0, 0), aim: aim, fire: true, ability: false, dash: false, assist: 0.75)
+                if !obShooting { obShooting = true; AppLog.info(String(format: "demo overheadbugs: the player fires at the duct ts=%.2f td=%.2f", ts, sinceReady)) }
+            } else {
+                obStep = 5
+                game.setPlayerInput(move: Vec2(0, 0), aim: nil, fire: false, ability: false, dash: false)
+                AppLog.info(String(format: "demo overheadbugs: the player stops firing (duct %@) ts=%.2f td=%.2f", d.open ? "open" : "shut", ts, sinceReady))
+            }
+        }
+        // the second pin: frozen for the screenshot — or the dash out of it
+        if obBSent && obPinB < 0 && P.pinned {
+            obPinB = ts
+            AppLog.info(String(format: "demo overheadbugs: pinned again ts=%.2f td=%.2f", ts, sinceReady))
+        }
+        if obPinB >= 0 {
+            if dash {
+                if !obDashed && ts >= obPinB + 0.45 {
+                    obDashed = true
+                    game.setPlayerInput(move: Vec2(1, 0), aim: nil, fire: false, ability: false, dash: true)
+                    AppLog.info(String(format: "demo overheadbugs: the player dashes out ts=%.2f td=%.2f", ts, sinceReady))
+                } else if obDashed {
+                    game.setPlayerInput(move: Vec2(0, 0), aim: nil, fire: false, ability: false, dash: false)
+                }
+            } else if freeze == 1 && ts >= obPinB + 0.25 {
+                freeze = 0.02
+                AppLog.info(String(format: "demo overheadbugs: frozen ts=%.2f td=%.2f pinned=%d hint=%@", ts, sinceReady, P.pinned ? 1 : 0,
+                                   game.contextHint?.text.id.rawValue ?? "-"))
+            }
+        }
+        logT -= dt
+        if logT <= 0 {
+            logT = 1
+            let s = game.overheadStats, c = game.overheadStateCounts
+            let ducts = game.ducts.map { d in d.open ? (d.rattleT > 0 ? "rattle" : "open") : String(format: "shut%.0f", d.shutT) }.joined(separator: ",")
+            AppLog.info(String(format: "hb bugs droppers=%d up=%d pins=%d dash=%d fire=%d timeout=%d perched=%d spits=%d seals=%d states=%d/%d/%d/%d ducts=",
+                               game.droppersAlive, game.routeAlive, s.pins, s.pinDash, s.pinFire, s.pinTimeout, c[6], s.perchSpits, s.seals,
+                               c[0], c[2], c[5], c[6]) + ducts + String(format: " ts=%.1f td=%.1f", ts, sinceReady))
         }
     }
 

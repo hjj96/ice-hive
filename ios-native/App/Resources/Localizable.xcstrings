@@ -1057,6 +1057,18 @@
         }
       }
     },
+    "hint.pinned" : {
+      "comment" : "Hint line between the thumb rings (uppercased; two lines split at « — » or « · », then scaled down to 60 %). Red, urgent. A Dropper pins the player: no move, no fire — the dash breaks free. Max width: 438 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pinned — dash!"
+          }
+        }
+      }
+    },
     "hint.player_down" : {
       "comment" : "Hint line between the thumb rings (uppercased; two lines split at « — » or « · », then scaled down to 60 %). Red, blinking. Max width: 438 pt.",
       "extractionState" : "manual",
@@ -1653,6 +1665,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Brute"
+          }
+        }
+      }
+    },
+    "name.bug.dropper" : {
+      "comment" : "Bug name (toasts, report tips). Stage 1: the overhead's own bug — it drops from the pipes and cables above the decks and pins a marine. Max width: 120 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dropper"
           }
         }
       }
@@ -2929,6 +2953,18 @@
         }
       }
     },
+    "tip.loss.dropper" : {
+      "comment" : "Mission report tip box (wraps, ~277 pt column). Loss cause: the Dropper (drops from above onto a closing ring, then pins). %@ = bug name. Max width: wraps at ~277 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: dash out of its ring — or out of its grip"
+          }
+        }
+      }
+    },
     "tip.loss.queen" : {
       "comment" : "Mission report tip box (wraps, ~277 pt column). Loss cause. %@ = the Queen. Max width: wraps at ~277 pt.",
       "extractionState" : "manual",
@@ -3229,6 +3265,18 @@
         }
       }
     },
+    "toast.mate_pinned" : {
+      "comment" : "Toast in the right column (uppercased; wraps, two lines at most). Red edge. Squad radio: a Dropper pins a squadmate (it cannot move or fire until it dashes free or the squad shoots the Dropper off). %@ = call-sign (Cupcake, Donut, Shadow, Muffin). Max width: 596 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ pinned"
+          }
+        }
+      }
+    },
     "toast.mate_up" : {
       "comment" : "Toast in the right column (uppercased; wraps, two lines at most). Gold edge. %@ = call-sign. Max width: 596 pt.",
       "extractionState" : "manual",
@@ -3249,6 +3297,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Medkit +%lld armor"
+          }
+        }
+      }
+    },
+    "toast.pin_freed" : {
+      "comment" : "Toast in the right column (uppercased; wraps, two lines at most). Gold edge. Squad radio: a squadmate's fire got a Dropper off the player. %@ = call-sign of the squadmate. Max width: 596 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: got it off you"
           }
         }
       }
@@ -3313,6 +3373,30 @@
         }
       }
     },
+    "toast.tip.dropper" : {
+      "comment" : "Toast in the right column (uppercased; wraps, two lines at most). First sighting of the Dropper (it drops from the overhead onto a closing ring and pins whoever stands in it; a dash breaks free). %@ = bug name. Max width: 596 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: drops from above — dash out of the ring"
+          }
+        }
+      }
+    },
+    "toast.tip.duct" : {
+      "comment" : "Toast in the right column (uppercased; wraps, two lines at most). First duct mouth rattling up on the overhead this mission (a pack pours out of it in 2 s; shooting its grille shuts it for a while). Max width: 596 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duct rattling — shoot it shut"
+          }
+        }
+      }
+    },
     "toast.tip.locker" : {
       "comment" : "Toast in the right column (uppercased; wraps, two lines at most). First time a stocked supply locker is near the player: 2 s in its ring give a medkit and the ability back (once). Amber edge. Max width: 596 pt.",
       "extractionState" : "manual",
@@ -3321,6 +3405,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Supply locker: stand in its ring to resupply"
+          }
+        }
+      }
+    },
+    "toast.tip.perch" : {
+      "comment" : "Toast in the right column (uppercased; wraps, two lines at most). First spitter perched up on the overhead this mission (it spits from height and stands still: shoot it down). %@ = bug name (Spitter). Max width: 596 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ up high — shoot it down"
           }
         }
       }

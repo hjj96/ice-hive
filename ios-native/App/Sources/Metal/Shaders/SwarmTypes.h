@@ -52,13 +52,16 @@ struct SwarmType {
     uint4  glint;   // x = first socket in the glint table, y = glint sockets, z = first glint instance, w = live bugs
 };
 
+// (Stage 1 R4: five types — runner, spitter, brute, boomer, the Dropper; WorldSwarm.types)
+#define SWARM_TYPES 5u
+
 struct SwarmParams {
-    SwarmType types[4];
+    SwarmType types[SWARM_TYPES];
     float4 info;    // x = time, y = 1 bug-sheet studio light, z = glint min size (drawable px), w = glint size scale
     float4 queen;   // rgb rim of the Матка, w = unused
 };
 
-/// A gland drawn as a glint sprite (WorldSwarm uploads the four types' tables, 32 bytes each).
+/// A gland drawn as a glint sprite (WorldSwarm uploads every type's table, 32 bytes each).
 struct GlintSocket {
     float4 pos;     // xyz rest position (model), w = bone index
     float4 info;    // x = radius (m), y = intensity, z = 1 hot (pink-white) / 0 dim (red), w = gland phase

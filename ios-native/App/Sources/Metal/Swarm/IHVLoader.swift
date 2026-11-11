@@ -1,5 +1,6 @@
 import Foundation
 import Metal
+import IceHiveCore
 
 // ================================================================
 //  IHV LOADER — the swarm's creature files (owned by WP3 «Рой»):
@@ -218,10 +219,10 @@ final class IHVCreature {
     }
 }
 
-/// The four bug types' creature files, loaded once per device (WorldSwarm and Corpses share them).
+/// The bug types' creature files, loaded once per device (WorldSwarm and Corpses share them).
 final class CreatureLibrary {
-    /// BugType order: runner, spitter, brute, boomer.
-    static let names = ["runner", "spitter", "brute", "boomer"]
+    /// BugType order: runner, spitter, brute, boomer, dropper (Stage 1 R4).
+    static let names = BugType.allCases.map { $0.id }
     private static var cache: (ObjectIdentifier, CreatureLibrary)?
 
     /// One file per type; a type whose file is missing borrows the runner's (logged — never in a shipped build).

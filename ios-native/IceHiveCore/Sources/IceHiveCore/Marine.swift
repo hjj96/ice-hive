@@ -106,6 +106,11 @@ public final class Marine {
     var dropT0: Float = -99, dropT1: Float = -99
     /// Its weapon is aimed at a bug up on the overhead this tick (its rounds fly up there, over the deck).
     var aimUp = false
+    /// Stage 1 R4: a Dropper's PIN (design §1.1.3, approved by the owner up to 1.2 s) — seconds it still holds this marine
+    /// (0 = free: no move, no fire, no ability while > 0; a dash breaks it), the pinning bug's uid, the sim time it began.
+    public internal(set) var pinT: Float = 0
+    var pinBy: Int32 = 0
+    var pinAt: Float = -99
 
     init(index: Int, cls: MarineClass, name: NameRef, isPlayer: Bool, botDamage: Float) {
         self.index = index
@@ -131,4 +136,6 @@ public final class Marine {
     /// Invulnerable after a revive (blink), not during a dash.
     public var invulnerable: Bool { inv > 0 && !downed && dashT <= 0 }
     public var dashing: Bool { dashT > 0 }
+    /// A Dropper holds this marine (Stage 1 R4): it cannot move, fire or use its ability until a dash or the squad frees it.
+    public var pinned: Bool { pinT > 0 }
 }

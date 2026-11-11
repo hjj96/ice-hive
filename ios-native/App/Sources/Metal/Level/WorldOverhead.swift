@@ -120,6 +120,15 @@ final class WorldOverhead {
 
     var hasGeometry: Bool { !chunks.isEmpty }
 
+    // ---- Stage 1 R4 «Overhead bugs»: the duct mouths' rattle and seal, the cable runners' group warning, the Dropper's tick
+    /// Sounds the overhead asks for this frame (id, deck position, gain): GameScene plays them through the attic voice.
+    private var pendingSounds: [(SoundID, Vec2, Float)] = []
+    /// Each duct mouth's outward direction in plan (from its duct out over the void), by route node.
+    private var ductOut: [Int: F3] = [:]
+    private var rattleClack: [Float] = []
+    private var cableRattle: [Int: Float] = [:]
+    private var cableDust: Float = 0, tickT: Float = 0
+
     init(level: Level) {
         self.level = level
     }
@@ -161,6 +170,15 @@ final class WorldOverhead {
             return max(0.01, (d * d).sum().squareRoot())
         }
         loads = [Int](repeating: 0, count: L.edges.count)
+        // (Stage 1 R4: the duct mouths face out along their duct)
+        ductOut = [:]
+        for (n, nd) in L.nodes.enumerated() where nd.kind == .ductMouth {
+            guard let e = L.edges.first(where: { Int($0.a) == n || Int($0.b) == n }) else { continue }
+            let o = L.nodes[Int(e.a) == n ? Int(e.b) : Int(e.a)].p
+            let d = F3(nd.p.x - o.x, 0, nd.p.z - o.z)
+            let l = (d * d).sum().squareRoot()
+            ductOut[n] = l > 1e-3 ? d / l : F3(0, 0, -1)
+        }
         guard !L.isEmpty, let k = kit, k.ready else {
             summary = L.isEmpty ? "overhead: no routes on this station — nothing to draw" : "overhead: kit not loaded"
             AppLog.info(summary)
@@ -524,6 +542,96 @@ final class WorldOverhead {
             }
         }
         if flashed.count > 0 { flashed.formIntersection(live) }
+        bugsEffects(game: game, fx: fx, dt: dt, time: time)
+    }
+
+    /// The sounds asked for since the last call (GameScene, after the events).
+    func takeSounds() -> [(SoundID, Vec2, Float)] {
+        defer { pendingSounds.removeAll(keepingCapacity: true) }
+        return pendingSounds
+    }
+
+    /// Where duct mouth `k` (Game.ducts order = OverheadGraph.ducts) breathes: its grille's centre and outward direction.
+    private func mouth(_ node: Int) -> (F3, F3) {
+        let out = ductOut[node] ?? F3(0, 0, -1)
+        let p = level.layout.overhead.nodes[node].p
+        return (F3(p.x, p.y - 0.35, p.z) + out * 0.5, out)
+    }
+
+    /// Stage 1 R4, per frame: a rattling duct mouth glows amber in pulses, puffs frost and clacks (design §1.1.3 «the grille
+    /// rattles, glows amber and puffs frost»); a shut one sparks at its rim in the seconds before the hive chews through; a
+    /// cable loaded with two or more bugs sheds a line of frost dust and rattles (the cable runners' group warning); the
+    /// nearest creeping Dropper ticks on the metal above.
+    private func bugsEffects(game: Game, fx: MetalEffects, dt: Float, time: Float) {
+        let k = fx.fxK
+        let ducts = game.ducts
+        if rattleClack.count != ducts.count { rattleClack = [Float](repeating: 0, count: ducts.count) }
+        for (i, d) in ducts.enumerated() {
+            let (m, out) = mouth(d.node)
+            if d.rattleT > 0 {
+                let pulse = 0.55 + 0.45 * sinf(time * 31 + Float(i))
+                LightingHub.current?.emit(m + out * 0.4, color: F3(1.0, 0.42, 0.08), intensity: 46 * pulse, range: 7, specular: false, priority: 16)
+                if Float.random(in: 0..<1) < dt * 14 * k {
+                    fx.gpu.burst(.steam, 1, at: m + out * 0.25, jitter: F3(0.25, 0.2, 0.25), vel: out * 1.4 + F3(0, -0.2, 0),
+                                 velJitter: F3(0.4, 0.3, 0.4), life: (0.5, 0.9), size: (0.25, 0.7), color: F4(0.62, 0.7, 0.8, 0.3), drag: 1.4)
+                    fx.gpu.burst(.ice, 2, at: m, jitter: F3(0.3, 0.25, 0.3), vel: out * 0.8, velJitter: F3(0.4, 0.3, 0.4), life: (0.6, 1.0),
+                                 size: (0.04, 0.02), color: F4(0.8, 0.95, 1.2, 1), gravity: 4, drag: 0.6)
+                }
+                rattleClack[i] -= dt
+                if rattleClack[i] <= 0 {
+                    rattleClack[i] = 0.16 + 0.06 * Float.random(in: 0..<1)
+                    pendingSounds.append((.reload, Vec2(m.x, m.z), 0.5))
+                }
+            } else {
+                rattleClack[i] = 0
+            }
+            if !d.open && d.shutT < 6 && Float.random(in: 0..<1) < dt * 5 * k {
+                fx.gpu.burst(.spark, 1, at: m + out * 0.1, jitter: F3(0.35, 0.3, 0.35), sphere: 2, life: (0.15, 0.3), size: (0.03, 0.02),
+                             color: F4(1.3, 0.9, 0.6, 1), gravity: 9, drag: 1)
+                fx.gpu.burst(.ice, 1, at: m, jitter: F3(0.3, 0.3, 0.3), vel: F3(0, -0.6, 0), life: (0.8, 1.2), size: (0.035, 0.02),
+                             color: F4(0.6, 0.7, 0.85, 0.8), gravity: 2, drag: 1)
+            }
+        }
+        guard let G = level.overhead else { return }
+        // cable runners: a line of frost dust shaken off along a loaded cable, and its rattle
+        cableDust += dt * 30 * k
+        let dustN = Int(cableDust)
+        cableDust -= Float(dustN)
+        for (e, _) in cables where e < G.edgeCount {
+            let load = e < loads.count ? loads[e] : 0
+            var cool = (cableRattle[e] ?? 0) - dt
+            if load >= 2 {
+                for _ in 0..<min(6, dustN * min(load, 4) / 2) {
+                    let sv = Float.random(in: 0..<1) * G.length[e]
+                    let p = G.point(e, sv) + swayOffset(edge: e, s: sv)
+                    fx.gpu.burst(.ice, 1, at: F3(p.x, p.y - 0.05, p.z), jitter: F3(0.08, 0.02, 0.08), vel: F3(0, -0.8, 0),
+                                 velJitter: F3(0.2, 0.2, 0.2), life: (1.0, 1.6), size: (0.045, 0.025), color: F4(0.7, 0.85, 1.1, 0.85),
+                                 gravity: 2, drag: 1)
+                }
+                if cool <= 0 {
+                    cool = 1.1
+                    let p = G.point(e, G.length[e] * 0.5)
+                    pendingSounds.append((.reload, Vec2(p.x, p.z), 0.4))
+                }
+            }
+            cableRattle[e] = max(0, cool)
+        }
+        // the Dropper's dry tick-tick from above: the nearest one creeping along a route within 16 m of the player
+        tickT -= dt
+        if tickT <= 0 {
+            tickT = 0.28
+            let S = game.bugs, P = game.player
+            let drop = UInt8(BugType.dropper.rawValue), high = BugState.high.rawValue
+            var bd: Float = 16 * 16
+            var at: Vec2? = nil
+            for i in 0..<S.count where S.deadFlags[i] == 0 && S.types[i] == drop && S.states[i] == high {
+                let vx = S.velocityX[i], vz = S.velocityZ[i]
+                if vx * vx + vz * vz < 0.1 { continue }
+                let dx = S.xs[i] - P.x, dz = S.zs[i] - P.z, d2 = dx * dx + dz * dz
+                if d2 < bd { bd = d2; at = Vec2(S.xs[i], S.zs[i]) }
+            }
+            if let p = at { pendingSounds.append((.click, p, 0.35)) }
+        }
     }
 
     /// Core events the overhead answers: a drop lands (a puff of frost, a frost ring, rime on the deck), a bug is knocked
@@ -543,6 +651,48 @@ final class WorldOverhead {
             fx.gpu.burst(.ice, Int(ceilf(12 * fx.fxK)), at: p, jitter: F3(0.3, 0.05, 0.3), sphere: 1.6, life: (0.6, 1.1), size: (0.05, 0.025),
                          color: F4(0.7, 0.85, 1.1, 0.9), gravity: 4, drag: 1)
             fx.gpu.burst(.spark, 2, at: p, sphere: 2.5, life: (0.15, 0.3), size: (0.035, 0.02), color: F4(1.3, 1.1, 0.9, 1), gravity: 10, drag: 1)
+        // ---- Stage 1 R4
+        case .pinned(_, let pos, _):
+            // the Dropper slams onto its marine: frost chips and a cold puff where it holds on
+            let p = F3(pos.x, level.groundY(pos.x, pos.y) + 0.3, pos.y)
+            fx.gpu.burst(.ice, Int(ceilf(10 * fx.fxK)), at: p, sphere: 2.6, upper: true, life: (0.3, 0.6), size: (0.05, 0.03),
+                         color: F4(0.85, 1.0, 1.3, 1), gravity: 8, drag: 0.8)
+            fx.gpu.burst(.steam, 2, at: p, jitter: F3(0.2, 0.05, 0.2), radial: 1.0, life: (0.4, 0.7), size: (0.4, 1.0),
+                         color: F4(0.62, 0.72, 0.84, 0.3), drag: 1.6)
+        case .pinBroken(_, let pos, _, _):
+            let p = F3(pos.x, level.groundY(pos.x, pos.y) + 0.35, pos.y)
+            fx.gpu.burst(.ice, Int(ceilf(6 * fx.fxK)), at: p, sphere: 2.2, upper: true, life: (0.25, 0.5), size: (0.045, 0.025),
+                         color: F4(0.8, 0.95, 1.2, 1), gravity: 8, drag: 0.8)
+        case .ductSealed(let k):
+            // the grille slams shut: a cold burst, sparks off the slats, a short amber flash going out
+            if let G = level.overhead, k < G.ducts.count {
+                let (m, out) = mouth(G.ducts[k])
+                fx.gpu.burst(.steam, 3, at: m + out * 0.2, jitter: F3(0.2, 0.2, 0.2), vel: out * 1.6, velJitter: F3(0.5, 0.4, 0.5), life: (0.5, 0.9),
+                             size: (0.4, 1.1), color: F4(0.62, 0.7, 0.8, 0.35), drag: 1.5)
+                fx.gpu.burst(.spark, Int(ceilf(8 * fx.fxK)), at: m + out * 0.15, sphere: 3, life: (0.2, 0.4), size: (0.035, 0.02),
+                             color: F4(1.4, 1.0, 0.6, 1), gravity: 9, drag: 1)
+                fx.gpu.burst(.ice, Int(ceilf(10 * fx.fxK)), at: m, jitter: F3(0.3, 0.3, 0.3), sphere: 2, life: (0.6, 1.0), size: (0.05, 0.025),
+                             color: F4(0.8, 0.95, 1.2, 1), gravity: 6, drag: 0.8)
+                fx.flash(m + out * 0.5, F3(1.0, 0.45, 0.1), peak: 60, dur: 0.35, range: 7, priority: 14)
+            }
+        case .ductOpened(let k):
+            // the hive chewed through: dust and ice shaken out of the mouth
+            if let G = level.overhead, k < G.ducts.count {
+                let (m, out) = mouth(G.ducts[k])
+                fx.gpu.burst(.steam, 2, at: m + out * 0.2, jitter: F3(0.2, 0.2, 0.2), vel: out * 1.2, velJitter: F3(0.4, 0.3, 0.4), life: (0.6, 1.0),
+                             size: (0.4, 1.0), color: F4(0.55, 0.6, 0.68, 0.3), drag: 1.4)
+                fx.gpu.burst(.ice, Int(ceilf(8 * fx.fxK)), at: m, jitter: F3(0.3, 0.3, 0.3), vel: out, sphere: 1.5, life: (0.7, 1.1),
+                             size: (0.05, 0.025), color: F4(0.7, 0.8, 0.95, 0.9), gravity: 5, drag: 0.8)
+            }
+        case .ductHit(let k):
+            if let G = level.overhead, k < G.ducts.count {
+                let (m, out) = mouth(G.ducts[k])
+                fx.gpu.burst(.spark, 2, at: m + out * 0.2, sphere: 2.5, life: (0.12, 0.25), size: (0.03, 0.02), color: F4(1.4, 1.1, 0.8, 1),
+                             gravity: 9, drag: 1)
+            }
+        case .perched(let p):
+            fx.gpu.burst(.ice, Int(ceilf(5 * fx.fxK)), at: F3(p.x, p.y - 0.05, p.z), jitter: F3(0.2, 0.03, 0.2), vel: F3(0, -0.6, 0),
+                         velJitter: F3(0.3, 0.2, 0.3), life: (1.0, 1.5), size: (0.04, 0.02), color: F4(0.6, 0.72, 0.9, 0.8), gravity: 1.5, drag: 1.2)
         default:
             break
         }

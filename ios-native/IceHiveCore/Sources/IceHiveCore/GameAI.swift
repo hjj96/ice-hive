@@ -125,16 +125,22 @@ extension Game {
             if inAssist > 0 {
                 let b = aimAssistTarget(from: m, dir: Vec2(sinf2(a), cosf2(a)))
                 if b >= 0 { ang += angDiff(ang, atan2f2(bugs.x[b] - m.x, bugs.z[b] - m.z)) * inAssist; assistUp = bugs.up[b] != 0 }
-                // Stage 1 R6: a ready steam valve the stick points at (where it is drawn) when it is better aligned than that bug
-                if !props.valves.isEmpty {
+                // Stage 1 R4 / R6: a duct mouth or a ready steam valve the stick points at (where it is drawn), when better
+                // aligned than that bug (the better aligned of the two)
+                if !oh.ducts.isEmpty || !props.valves.isEmpty {
                     var bc: Float = -2
                     if b >= 0 {
                         let vx = bugs.x[b] - m.x, vz = bugs.z[b] - m.z, d = hypotf2(vx, vz)
                         if d > 1e-3 { bc = (vx * sinf2(a) + vz * cosf2(a)) / d }
                     }
-                    if let v = valveAssist(m, sinf2(a), cosf2(a), bc) {
-                        ang = a + angDiff(a, atan2f2(v.x - m.x, v.y - m.z)) * minf(1, inAssist + 0.25); assistUp = true
+                    var pick: Vec2? = nil
+                    if !oh.ducts.isEmpty, let dp = ductAssist(m, sinf2(a), cosf2(a), bugCos: bc) {
+                        pick = dp
+                        let vx = dp.x - m.x, vz = dp.y - m.z, d = hypotf2(vx, vz)
+                        if d > 1e-3 { bc = max(bc, (vx * sinf2(a) + vz * cosf2(a)) / d) }
                     }
+                    if !props.valves.isEmpty, let v = valveAssist(m, sinf2(a), cosf2(a), bc) { pick = v }
+                    if let p = pick { ang = a + angDiff(a, atan2f2(p.x - m.x, p.y - m.z)) * minf(1, inAssist + 0.25); assistUp = true }
                 }
             }
             m.aim = ang; aimed = true
@@ -185,6 +191,8 @@ extension Game {
                     if px * px + pz * pz < 16 { s -= 3 }
                 }
                 if m.cls == .cryo && S.frz[b] > 0 { s += 4 }
+                // Stage 1 R4: a Dropper pinning a squadmate (after a reaction time) before anything else
+                if S.st[b] == S_PIN && pinSeen(b) { s -= 25 }
                 if s < bs { bs = s; best = b }
             }
         }
@@ -344,10 +352,23 @@ extension Game {
         if m.hp < m.maxHp * 0.3 && crowd[m.index] > 4 && m.dashCd <= 0 {
             tryDash(m, -m.vx != 0 ? -m.vx : m.ax, -m.vz != 0 ? -m.vz : m.az)
         }
+        // Stage 1 R4: pinned by a Dropper — dash out (away from it) once the pin has held PIN_REACT s and the dash is ready
+        if m.pinT > 0 && simTime - m.pinAt >= PIN_REACT && m.dashCd <= 0 {
+            let p = pinnerSlot(m)
+            if p >= 0 { tryDash(m, m.x - S.x[p], m.z - S.z[p]) } else { tryDash(m, m.faceX, m.faceZ) }
+        }
         // aim + fire (a target up on the overhead: the rounds go up — Stage 1 R2)
         var fire = false
         m.aimUp = valid && S.up[t] != 0
-        if m.ai.valve >= 0, let vf = valveFire(m, dt) {
+        // Stage 1 R4: the autopilot (the player's seat; never a squad bot) shoots a rattling duct mouth shut
+        let duct = m.isPlayer && !oh.ducts.isEmpty ? autopilotDuct(m, deck: valid ? hypotf2(S.x[t] - m.x, S.z[t] - m.z) : 99) : nil
+        if let dp = duct {
+            let want = atan2f2(dp.x - m.x, dp.z - m.z)
+            let diff = angDiff(m.aim, want)
+            m.aim += clampf(diff, -10 * dt, 10 * dt)
+            m.aimUp = true
+            fire = abs(diff) < ((m.cls == .pyro || m.cls == .cryo) ? 0.3 : 0.14)
+        } else if m.ai.valve >= 0, let vf = valveFire(m, dt) {
             // R6: popping a steam valve over a crowd (its rounds go up to the pipe)
             fire = vf
         } else if valid {

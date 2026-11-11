@@ -259,7 +259,10 @@ final class WorldLevel {
         for k in 0..<G.count {
             let u = G.progress(k), a = G.from(k), b = G.to(k)
             let gx = a.x + (b.x - a.x) * u, gz = a.y + (b.y - a.y) * u
-            let gy = level.groundY(a.x, a.y) + (level.groundY(b.x, b.y) - level.groundY(a.x, a.y)) * u + 0.6 + sinf(u * Float.pi) * 3.2
+            let h0 = G.launchHeight(k)
+            // (Stage 1 R4: a perched spitter's glob drops from its perch up on the overhead, a lower arc)
+            let gy = h0 > 0 ? level.groundY(b.x, b.y) + 0.6 + h0 * (1 - u) + sinf(u * Float.pi) * 1.2
+                : level.groundY(a.x, a.y) + (level.groundY(b.x, b.y) - level.groundY(a.x, a.y)) * u + 0.6 + sinf(u * Float.pi) * 3.2
             glob.instances.append(MeshInstance(model: Mat4.translation(gx, gy, gz), tint: one, emissive: none))
             if dt > 0 && Float.random(in: 0..<1) < 0.5 { fx.pa.emit(gx, gy, gz, 0, 0, 0, 0.25, 0.3, 0.05, 0.6, 1, 0.15, 0.8, 1, 0, 0, absolute: true) }
         }

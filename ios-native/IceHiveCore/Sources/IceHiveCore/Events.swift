@@ -124,6 +124,23 @@ public enum GameEvent {
     /// A bug was knocked off a route (fire, frost, a blast) and falls from `height` m above the deck under it.
     case routeKnockdown(pos: Vec2, height: Float)
 
+    // --- Stage 1 R4: the overhead's bugs (GameOverheadBugs.swift) ---
+    /// A Dropper landed on marine `marine` and pins it for `time` s at most (the Dropper holds on at `pos`).
+    case pinned(marine: Int, pos: Vec2, time: Float)
+    /// The pin on marine `marine` ended (`cause`; `freer`: the marine whose fire got it off, -1 none) — the Dropper at `pos`.
+    case pinBroken(marine: Int, pos: Vec2, cause: PinBreak, freer: Int)
+    /// Duct mouth `index` (`Game.ducts`) rattles: a pack pours out of it in DUCT_RATTLE s.
+    case ductRattle(index: Int)
+    /// A round or a blast struck duct mouth `index`'s grille.
+    case ductHit(index: Int)
+    /// Duct mouth `index` was shot shut (DUCT_SHUT s) / the hive chewed through it again.
+    case ductSealed(index: Int)
+    case ductOpened(index: Int)
+    /// A spitter took a perch at (x, absolute y, z).
+    case perched(pos: SIMD3<Float>)
+    /// A perched spitter's glob: from (x, absolute y, z) onto the deck point `to`, landing in `flight` s (its lime ring and
+    /// fill are the usual `.acidTarget` telegraphs).
+    case acidFromPerch(from: SIMD3<Float>, to: Vec2, flight: Float)
     // --- Stage 1 R6: interactive props (`Game.valves` / `circuits` / `lamps` / `lockers` hold the state) ---
     /// A round struck steam valve `index` on its pipe.
     case valveHit(index: Int)
@@ -172,6 +189,12 @@ public enum GameEvent {
 //  TELEGRAPHS — floor warnings / ability rings with a lifetime
 //  (TELE pool of 07-fx.js: teleRing / teleLane / teleFill).
 // ================================================================
+/// How a Dropper's pin ended (`GameEvent.pinBroken`, Stage 1 R4): the pinned marine's dash, the squad's fire (15 damage on
+/// the Dropper, killing or freezing it), the pin running out, the marine going down, anything else (the extraction).
+public enum PinBreak: Int {
+    case dash, fire, timeout, down, release
+}
+
 public enum TelegraphShape: Int {
     /// Ring from r0 to r1 over its life; `pulse` = blinking warning, otherwise an expanding shock ring.
     case ring

@@ -1039,10 +1039,31 @@ final class GameScene: SKScene {
                 if diag { AppLog.info(String(format: "mission: vent %d pours %d t=%.1f", k, n, g.time)) }
             case .holdStarted:
                 if diag { AppLog.info(String(format: "mission: hold started t=%.1f (%.0f s)", g.time, g.liftDur)) }
+            // Stage 1 R4: the overhead's bugs — a squeal as the Dropper pins, a thump as it is thrown off, the slam of a duct
+            // mouth shot shut; the log lines of the overheadbugs demo (CI)
+            case .pinned(let k, let pos, let t):
+                audio?.play(.roar, pos: pos, listener: lis, loud: k == 0, rate: 1.8)
+                if diag { AppLog.info(String(format: "bugs: pinned marine %d at (%.1f, %.1f) for %.1f s", k, pos.x, pos.y, t)) }
+            case .pinBroken(let k, let pos, let cause, let freer):
+                audio?.play(.thud, pos: pos, listener: lis, loud: false, rate: 1.3)
+                if diag { AppLog.info("bugs: pin broken marine \(k) by \(cause) freer \(freer)" + String(format: " at (%.1f, %.1f)", pos.x, pos.y)) }
+            case .ductRattle(let k):
+                if diag { AppLog.info("bugs: duct \(k) rattles") }
+            case .ductSealed(let k):
+                if k >= 0 && k < g.ducts.count { audio?.playOverhead(.thud, pos: Vec2(g.ducts[k].pos.x, g.ducts[k].pos.z), listener: lis, gain: 1.0) }
+                if diag { AppLog.info("bugs: duct \(k) shot shut") }
+            case .ductOpened(let k):
+                if diag { AppLog.info("bugs: duct \(k) open again") }
+            case .perched(let p):
+                if diag { AppLog.info(String(format: "bugs: spitter perched at (%.1f, %.1f, %.1f)", p.x, p.y, p.z)) }
+            case .acidFromPerch:
+                noteFirst(3, "acid")
             default:
                 break
             }
         }
+        // Stage 1 R4: what the overhead asked to be heard this frame (duct rattles, loaded cables, a Dropper's ticks) — the attic
+        for (id, p, gain) in r.overhead.takeSounds() { audio?.playOverhead(id, pos: p, listener: lis, gain: gain) }
     }
 
     /// v1.1 per frame while playing: diagnostics lines on threat / lift-lock changes, and the thumb-stick seconds

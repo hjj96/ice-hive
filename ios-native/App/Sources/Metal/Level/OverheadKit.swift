@@ -232,7 +232,8 @@ final class OverheadBuild {
                 standing.append(p)
             case .ductMouth:
                 support(p, side: nodeSide[n], along: nodeDir[n], centred: true, always: true, gap: 0)
-            case .gantry:
+            case .gantry, .perch:
+                // (Stage 1 R4: an authored perch point stands on its own support, like a gantry head)
                 support(p, side: nodeSide[n], along: nodeDir[n], centred: nodeCentred[n], always: true, gap: 0)
             case .joint:
                 if armBase[n] { support(p, side: nodeSide[n], along: nodeDir[n], centred: nodeCentred[n], always: true, gap: 0) }

@@ -64,6 +64,12 @@ switch game.phase { case .won, .lost: /* экран итогов: game.stats */ 
   `heights` — абсолютная высота (`bugs.hasAbsoluteHeight(i)`), `isOverhead(i)`, `routeEdges` / `routeParams`;
   `game.dropZones` (телеграфы прыжков: точка, радиус, время, откуда), `game.routeAlive`, `game.overheadStats`,
   `projectiles.aimedUp(k)` (выстрел вверх).
+- Жуки яруса (Stage 1 R4, `GameOverheadBugs.swift`): пятый тип `BugType.dropper` (`BugType.allCases` — сколько типов
+  рисовать; `BUG_TYPES` = 5), состояния `pin` (11: Dropper прижал бойца, на палубе) и `perch` (12: плевун на насесте);
+  `marine.pinned` / `pinT`, `game.pinnedBy(k)` (uid прижавшего), `game.droppersAlive`, `zone.dropper` у телеграфа прыжка;
+  `game.perchPoints` (узлы-насесты графа), `game.perchTaken(k)`; `game.ducts` (`DuctState`: узел, точка, HP, `open`,
+  `rattleT` — дребезг перед стаей, `shutT` — сколько ещё закрыто, `health`); `globs.launchHeight(k)` (плевок с насеста
+  летит с высоты). Статистика — новые поля `overheadStats` (прижимы и чем сняты, насесты, плевки, дребезг, закрытия).
 - Интерактивы (Stage 1 R6, `Props.swift` / `GameProps.swift`): данные — `game.level.layout.props` (паровые клапаны с
   пролётом завесы, цепи света с рубильником и палубами, шкафчики снабжения; `PropLayout.kelvin` — набор «Кельвина-9»),
   лампы станции с цепями — `game.level.lamps` (то же правило, что у столбов `WorldLevel`); состояние — `game.valves`
@@ -86,6 +92,8 @@ switch game.phase { case .won, .lost: /* экран итогов: game.stats */ 
 Накапливаются за тики и забираются `drainEvents`: смерть жука (тип, место, заморожен, кто убил, поворот,
 масштаб — для трупов и пятен), взрывы, попадания пуль, выстрелы, перегрев, перезарядка, урон/падение/подъём
 бойцов, рывки, способности, телеграфы, кислота, аптечки, орды, маяки, лифт, уровень, комбо, победа/поражение,
+ярус R4 (`pinned`, `pinBroken` с причиной `PinBreak` dash / fire / timeout / down / release и освободителем,
+`ductRattle`, `ductHit`, `ductSealed`, `ductOpened`, `perched`, `acidFromPerch`),
 тосты и баннеры (русский текст), `sound(SoundID, …)` с теми же именами, что `sfx()` веб-версии,
 `haptic`, `shake`, `hitStop`, `screenFlash`, `damageFlash`, `hordeFlash`.
 
@@ -93,9 +101,11 @@ switch game.phase { case .won, .lost: /* экран итогов: game.stats */ 
 `debugState`, `debugSpawn(n, type:)`, `debugSkip()`, `godMode`, `autopilot`, `fastForward(seconds:)`,
 `debugLevelUp()`, `debugHorde(n)`, `debugTeleport(x, z)`, `benchmark(counts:)`, `setQuality(_:)`,
 `directorEnabled`; верхний ярус — `debugRoutePack(n, entry:)`, `debugSpawnRouteBug(entry:)`,
-`debugSetNoDropZones(_:)`, `debugHoldFire`; интерактивы — `debugBurstValve(k, by:)`, `debugCutCircuit(k)`,
-`debugRestoreCircuit(k)`, `debugBreakLamp(k)`, `debugSpawnLine(n, type:, from:, to:)`; миссии (R7) —
-`debugSwitchProgress(p)`, `debugVentPour(k, count:)`. Замедление/ускорение времени — на стороне приложения (сколько тиков вызвать за кадр).
+`debugSetNoDropZones(_:)`, `debugHoldFire`; R4 — `debugRoutePack(n, entry:, rate:, type:)` (тип стаи),
+`debugRouteFocus` (все маршрутные жуки целят в этого бойца; −1 — обычное правило), `debugPinMarine`, `debugHurtDuct`;
+интерактивы — `debugBurstValve(k, by:)`, `debugCutCircuit(k)`, `debugRestoreCircuit(k)`, `debugBreakLamp(k)`,
+`debugSpawnLine(n, type:, from:, to:)`; миссии (R7) — `debugSwitchProgress(p)`, `debugVentPour(k, count:)`. Замедление/ускорение
+времени — на стороне приложения (сколько тиков вызвать за кадр).
 
 ### Детерминизм
 Вся случайность идёт через один `SeededRNG` (mulberry32). Одинаковые seed, класс, конфигурация и
@@ -131,3 +141,4 @@ switch game.phase { case .won, .lost: /* экран итогов: game.stats */ 
 | `GameDirector.swift` | темп роя (поток, орды, давление улья), опыт, улучшения; этапы миссии — план (`missionTick`) |
 | `GameHUD.swift` | тексты задачи и подсказок, статистика, лазеры |
 | `GameDebug.swift` | отладочные хуки, бенчмарк |
+| `GameOverheadBugs.swift` | жуки яруса (R4): прижим Dropper, плевуны на насестах, устья коробов (дребезг, закрытие огнём) |

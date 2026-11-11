@@ -196,6 +196,8 @@ public struct DropZone {
     public internal(set) var marine: Int = -1
     /// Where it lets go from (world x, absolute y, z).
     public internal(set) var from = SIMD3<Float>(0, 0, 0)
+    /// Stage 1 R4: a Dropper's drop (it pins whoever it lands on).
+    public internal(set) var dropper = false
     /// The pool slot of its ring telegraph (-1 none: simOnly).
     var tele = -1
     /// 0…1 over the warning.
@@ -215,6 +217,16 @@ public struct OverheadStats: Equatable {
     public internal(set) var kills = 0, knockdowns = 0, shattered = 0, hops = 0
     /// Most bugs up at once, most drop telegraphs at once.
     public internal(set) var maxUp = 0, maxZones = 0
+    // ---- Stage 1 R4 «Overhead bugs» (GameOverheadBugs.swift)
+    /// Droppers sent up; pins; pins ended by a dash, by the squad's fire (15 damage on the Dropper, or killing it), by
+    /// running out, by the marine going down; the seconds pins held; squad HP lost to Droppers (landings and gnaws) and the
+    /// marine downs they caused.
+    public internal(set) var droppers = 0, pins = 0, pinDash = 0, pinFire = 0, pinTimeout = 0, pinDown = 0, dropperDowns = 0
+    /// Droppers' drop telegraphs started, their landings, Droppers killed up there, knocked down, hopped down.
+    public internal(set) var dropperDrops = 0, dropperLanded = 0, dropperKills = 0, dropperKnocks = 0, dropperHops = 0
+    public internal(set) var pinTime: Float = 0, dropperHurt: Float = 0
+    /// Spitters that took a perch and their spits from there; duct rattles, grilles shot shut, bugs lost at a shut duct.
+    public internal(set) var perched = 0, perchSpits = 0, rattles = 0, seals = 0, ductLost = 0
     public init() {}
 }
 
@@ -227,6 +239,8 @@ struct RouteBurst {
     var acc: Float
     /// The bug type (the director sends runners; package R4 adds the Dropper, the perched spitter).
     var type: UInt8 = T_RUN
+    /// Stage 1 R4: a pack bound for a duct mouth has had its rattle (the grille shakes once, before its first bug).
+    var rattled = false
 }
 
 /// The overhead's runtime state (GameOverhead.swift); reset with the world.
@@ -244,6 +258,20 @@ struct OverheadState {
     var stats = OverheadStats()
     /// Debug / demo: the bots hold their fire.
     var holdFire = false
+    // ---- Stage 1 R4 «Overhead bugs» (GameOverheadBugs.swift; built by resetOverheadBugs)
+    /// The duct mouths (one per `OverheadGraph.ducts` node) and each route node's duct index (−1 none).
+    var ducts: [DuctState] = []
+    var ductOf: [Int] = []
+    /// The perch points (`OverheadGraph.perches` nodes), the uid perched on or bound for each (0 free), and each point's
+    /// route distance to every node (a perch-bound spitter's way there).
+    var perchUid: [Int32] = []
+    var perchDist: [[Float]] = []
+    /// The director's Dropper / perch channel clocks (Difficulty.dropperGap / perchGap).
+    var dropperT: Float = 0, perchT: Float = 0
+    /// First sightings shown this mission (the perched spitter, the rattling duct).
+    var tipPerch = false, tipDuct = false
+    /// Demo / tests: every route bug goes for this marine while it stands (-1: the usual rule).
+    var focus = -1
 }
 
 /// Projectiles (pulse bolts, minigun & turret rounds) as SoA.
@@ -302,9 +330,13 @@ public final class AcidGlobs {
     var x0 = [Float](repeating: 0, count: 64), z0 = [Float](repeating: 0, count: 64)
     var x1 = [Float](repeating: 0, count: 64), z1 = [Float](repeating: 0, count: 64)
     var t = [Float](repeating: 0, count: 64), dur = [Float](repeating: 0, count: 64)
+    /// Stage 1 R4: how far above the deck's throw point a glob starts (a perched spitter's, m; 0 = a deck spitter's).
+    var h0 = [Float](repeating: 0, count: 64)
     /// The lamp a glob was spat at (Stage 1 R6: it breaks it on landing), −1 a marine.
     var lamp = [Int](repeating: -1, count: 64)
     public func from(_ k: Int) -> Vec2 { Vec2(x0[k], z0[k]) }
+    /// Stage 1 R4: the glob's start height above the deck's throw (a perched spitter spits from up on the overhead).
+    public func launchHeight(_ k: Int) -> Float { h0[k] }
     public func to(_ k: Int) -> Vec2 { Vec2(x1[k], z1[k]) }
     /// Flight progress 0..1 (lands at 1).
     public func progress(_ k: Int) -> Float { dur[k] > 0 ? min(1, t[k] / dur[k]) : 1 }
@@ -368,8 +400,8 @@ public final class Game {
     let crowd: UnsafeMutablePointer<Float>
     /// Per-tick scratch: burn multiplier per igniter (5 slots).
     let burnMulScratch: UnsafeMutablePointer<Float>
-    /// Live count per bug type (caps on specials).
-    var typeAlive: [Int] = [0, 0, 0, 0]
+    /// Live count per bug type (caps on specials; Stage 1 R4: the Dropper's cap).
+    var typeAlive: [Int] = [0, 0, 0, 0, 0]
 
     // ---------- run state (GS) ----------
     public internal(set) var phase: GamePhase = .playing
@@ -394,7 +426,7 @@ public final class Game {
     /// Upgrade id -> times taken.
     public internal(set) var upgradeCounts: [UpgradeID: Int] = [:]
     /// Special bug types already introduced (tip toast on first sighting).
-    var seen: [Bool] = [true, false, false, false]
+    var seen: [Bool] = [true, false, false, false, false]
     /// Current level-up offer.
     public internal(set) var offer: [Upgrade] = []
 
@@ -573,6 +605,7 @@ public final class Game {
         for k in telegraphs.indices { telegraphs[k].active = false }
         turret.active = false
         oh = OverheadState()
+        resetOverheadBugs()
         setupSquad()
         resetDirector()
         // (after the director: a DARK plan starts its circuits off; lit beacons light their decks)
@@ -583,7 +616,7 @@ public final class Game {
         for k in 0..<6 { hurtBy[k] = 0; squadDownBy[k] = 0 }
         for k in 0..<4 { marineLastSrc[k] = -1 }
         xpLevel = 1; xp = 0; xpCarry = 0; xpNext = xpFor(1); pendingLevels = 0; upgradeCounts = [:]
-        seen = [true, false, false, false]
+        seen = [true, false, false, false, false]
         simTime = 0; flowTimer = 0; tickCount = 0
         updateFlows(); hash.rebuild(bugs)
         if attract {

@@ -57,9 +57,9 @@ struct SwarmTypeGPU {
     var glint: SIMD4<UInt32>
 }
 
-/// `struct SwarmParams` (416 bytes).
+/// `struct SwarmParams` (512 bytes: five types — Stage 1 R4 adds the Dropper).
 struct SwarmParams {
-    var types: (SwarmTypeGPU, SwarmTypeGPU, SwarmTypeGPU, SwarmTypeGPU)
+    var types: (SwarmTypeGPU, SwarmTypeGPU, SwarmTypeGPU, SwarmTypeGPU, SwarmTypeGPU)
     var info: F4
     var queen: F4
 }
@@ -80,6 +80,8 @@ final class WorldSwarm {
         .world("swarmGlint", "vs_swarm_glint", "fs_swarm_glint", .add),
         .depthOnly("creatureProxy", "vs_creature_proxy"),
     ]
+    /// Bug types drawn (BugType: runner, spitter, brute, boomer — Stage 1 R4: the Dropper).
+    static let types = BugType.allCases.count
     /// Instances per type the scratch holds (live bugs + corpses + sheet).
     static let scratchCap = MAX_BUGS + 640
     /// Glint sprites per bug at most (the brightest dorsal pores), and per frame.
@@ -87,7 +89,8 @@ final class WorldSwarm {
     /// Polish: glint pores per type (runner, spitter, brute, boomer) — the runner's six dorsal pores in a row read as a
     /// pink «dotted line» over a near-invisible body from the game camera (CI 8902b6e swarmshot / beacon); four, a touch
     /// smaller, sit on a shell that now reads (Swarm.metal kBodyLift + the carapace key edge)
-    static let glintsPerType = [4, 5, 6, 6]
+    /// (Stage 1 R4: the Dropper's only glints are its two pin-prick eyes.)
+    static let glintsPerType = [4, 5, 6, 6, 2]
     static let glintCap = (high: 16000, efficient: 8000)
     /// LOD caps (High: LOD0 32 largest, LOD1 600; Efficient: LOD1 300) and the triangle budget (per bug at 1400).
     /// (native-vx-feel: a quarter of the old swarm — LOD0 for the 64 largest at ≥ 48 px on High; Efficient fits every live
@@ -103,6 +106,8 @@ final class WorldSwarm {
     /// their triangles come out of the LOD1 room of the rest.
     static let bruteLod0Efficient = (cap: 8, minPx: Float(96))
     static let bruteType = 2
+    /// Stage 1 R4: the Dropper's type index (its own coil / dive / pin poses).
+    static let dropperType = BugType.dropper.rawValue
     static let shadowProxyMax = (high: 600, efficient: 300)
 
     /// The look of each type (linear radiance): cold Fresnel rim, eyes, sac, pores, shadow proxy (half size, centre
@@ -113,6 +118,9 @@ final class WorldSwarm {
         (F4(0.42, 0.62, 0.06, 0.2), F4(0.75, 1.0, 0.18, 1.3), F4(0.42, 0.78, 0.05, 0.3), F4(1.0, 0.16, 0.46, 2.0), F4(0.3, 0.22, 0.5, 0.45)),
         (F4(0.78, 0.30, 0.07, 0.18), F4(1.0, 0.42, 0.08, 1.5), F4(0.7, 0.1, 0.2, 0.15), F4(1.0, 0.16, 0.46, 2.0), F4(0.42, 0.3, 0.62, 0.4)),
         (F4(0.85, 0.46, 0.09, 0.17), F4(1.0, 0.6, 0.14, 1.3), F4(0.95, 0.4, 0.07, 0.25), F4(1.0, 0.16, 0.46, 2.0), F4(0.4, 0.36, 0.46, 0.45)),
+        // Stage 1 R4, the Dropper: the only bone-white rim (design §1.1.3), pink-white pin-prick eyes (its glints), no sac;
+        // a long flat proxy
+        (F4(0.86, 0.83, 0.77, 0.24), F4(1.0, 0.78, 0.88, 1.6), F4(0.0, 0.0, 0.0, 0.0), F4(1.0, 0.72, 0.84, 2.4), F4(0.2, 0.1, 0.8, 0.12)),
     ]
     /// Drawn size of each type relative to the core's BUG_SPECS scale (live bugs, corpses, the sheet, proxies, impact
     /// points — everything that reads the instance scale, so the gait stays synced to the distance walked). The brute
@@ -122,7 +130,7 @@ final class WorldSwarm {
     /// native-vx-feel: runners, spitters and boomers 15 % larger (a bug reads as a creature, not a speck — the wave pacing
     /// has a quarter of the old swarm on screen); the brute only 5 % (0.8 → 0.84: at 0.92 a few of them walled the squad
     /// off in the first film).
-    static let sizeK: [Float] = [1.15, 1.15, 0.84, 1.15]
+    static let sizeK: [Float] = [1.15, 1.15, 0.84, 1.15, 1.0]
     /// native-vx-feel — per-bug variety from its variation seed (the core's `vr`, which the corpse inherits): a size of
     /// ±7 % on top of the core's ±12 % (so ±19 % in all, and the gait's tempo follows the size), and one of three shell
     /// tints — the type's own, a cooler dusky one, a warmer rust one. (Swarm.metal adds a shell pattern and sheen by the
@@ -140,12 +148,12 @@ final class WorldSwarm {
     /// brighter than its LOD1 over its own pixels on the held bug sheet (CI 028fd69, gate ≤ 6) — its legs' lit edges
     /// are wider at 146 triangles. 0.9 brought it to 5.3–6.0 (CI 1a6507c, the worst brute 6.04), 0.85 only to 5.5–5.8
     /// (CI c4c6ff6): the step is the ember rim on the faceted LOD2 shell and legs, not the albedo — `lodRim`.
-    static let lodValue: [[Float]] = [[1, 1, 1], [1, 1, 1], [1, 1, 0.9], [1, 1, 1]]
+    static let lodValue: [[Float]] = [[1, 1, 1], [1, 1, 1], [1, 1, 0.9], [1, 1, 1], [1, 1, 1]]
     /// The type rim's scale per type × LOD (CreatureInstance.fx.w): the brute's 146-triangle shell turns more of its
     /// surface to the camera at a grazing angle than LOD1's dome, so its ember rim covers a wider band at LOD2.
-    static let lodRim: [[Float]] = [[1, 1, 1], [1, 1, 1], [1, 1, 0.6], [1, 1, 1]]
+    static let lodRim: [[Float]] = [[1, 1, 1], [1, 1, 1], [1, 1, 0.6], [1, 1, 1], [1, 1, 1]]
     /// Ichor of each type (WP5's impact sparks / splashes; MetalEffects.ichor).
-    static let ichor: [F3] = [F3(0.62, 0.1, 0.22), F3(0.5, 0.58, 0.1), F3(0.58, 0.12, 0.15), F3(0.62, 0.24, 0.08)]
+    static let ichor: [F3] = [F3(0.62, 0.1, 0.22), F3(0.5, 0.58, 0.1), F3(0.58, 0.12, 0.15), F3(0.62, 0.24, 0.08), F3(0.55, 0.42, 0.4)]
 
     let level: Level
     /// Stage 1 R3: the overhead layer (MetalWorld sets it) — a bug riding a swaying cable moves with it.
@@ -181,28 +189,28 @@ final class WorldSwarm {
     /// This frame's LOD before the hysteresis pass (assignLODs scratch).
     private var pxLod: [UnsafeMutablePointer<UInt8>] = []
     private var slots: [UnsafeMutablePointer<Int32>] = []
-    private var liveN = [Int](repeating: 0, count: 4), allN = [Int](repeating: 0, count: 4)
+    private var liveN = [Int](repeating: 0, count: WorldSwarm.types), allN = [Int](repeating: 0, count: WorldSwarm.types)
     private var hist = [Int32](repeating: 0, count: 160)
     /// Efficient: screen sizes of the live brutes big enough for LOD0 (scratch).
     private var brutePx: [Float] = []
     /// This frame's draws: [type][lod], the glint block (live bugs by type), the proxies.
-    private var regions = [[Region]](repeating: [Region](repeating: Region(), count: 3), count: 4)
+    private var regions = [[Region]](repeating: [Region](repeating: Region(), count: 3), count: WorldSwarm.types)
     private var glintRegion = Region()
     private var glintCount = 0
     private var proxies = Region()
     private var params: SwarmParams
     private var glintTable: [GlintSocket] = []
-    private var glintFirst = [Int](repeating: 0, count: 4), glintPer = [Int](repeating: 0, count: 4)
-    private var coreSocket = [Int](repeating: -1, count: 4)
+    private var glintFirst = [Int](repeating: 0, count: WorldSwarm.types), glintPer = [Int](repeating: 0, count: WorldSwarm.types)
+    private var coreSocket = [Int](repeating: -1, count: WorldSwarm.types)
     /// Recent bullet hits (MetalWorld.handle → noteHit): the recoil direction of the bug they hit.
     private var hits = [(x: Float, z: Float, dx: Float, dz: Float, t: Float)](repeating: (0, 0, 0, 0, -9), count: 32)
     private var hitHead = 0
     private var clock: Float = 0
     private var deadList: [(x: Float, z: Float, type: UInt8, uid: Int32, value: Float, cause: DeathCause, dx: Float, dz: Float, power: Float)] = []
-    /// native-vx-swarm-life: the look / sway pivots per type (neck 0…3, waist 4…7; model space, w unused) for vertex buffer 7,
+    /// native-vx-swarm-life: the look / sway pivots per type (neck 0…4, waist 5…9; model space, w unused) for vertex buffer 7,
     /// and each type's bone → look group (0 none, 1 head, 2 abdomen) from its vertex flags.
-    private var lookPivots = [F4](repeating: .zero, count: 8)
-    private var boneGroup: [[UInt8]] = [[], [], [], []]
+    private var lookPivots = [F4](repeating: .zero, count: 2 * WorldSwarm.types)
+    private var boneGroup = [[UInt8]](repeating: [], count: WorldSwarm.types)
     /// Look angles are packed ±0.8 rad (snorm8).
     static let lookRange: Float = 0.8
     // stats
@@ -213,11 +221,11 @@ final class WorldSwarm {
     private(set) var corpsesDrawn = 0
     private var lastLog: Double = 0
     /// Body length of each type (model m): the LOD size measure.
-    private var lens: [Float] = [1, 1, 1, 1]
+    private var lens = [Float](repeating: 1, count: WorldSwarm.types)
     private var buildMs: Double = 0
     /// writeRegions scratch (instances per type × LOD, their arena pointers), kept so a frame allocates nothing on the heap.
-    private var lodN = [[Int]](repeating: [0, 0, 0], count: 4)
-    private var lodPtr = [[UnsafeMutablePointer<CreatureInstance>?]](repeating: [nil, nil, nil], count: 4)
+    private var lodN = [[Int]](repeating: [0, 0, 0], count: WorldSwarm.types)
+    private var lodPtr = [[UnsafeMutablePointer<CreatureInstance>?]](repeating: [nil, nil, nil], count: WorldSwarm.types)
     /// A build slower than this (wall ms, diagnostics) is logged with the main thread's CPU time inside it — `swarm: slow
     /// build N ms (thread cpu M ms) wall=…` — so CI tells the swarm's own work from time the thread spent off the CPU (a
     /// simulator host stall that lands in the build: CI a3c4878 release-combat's one 49 ms `bug` section).
@@ -250,14 +258,14 @@ final class WorldSwarm {
         } else if let s = value("-bugstrip") {
             let t = CreatureLibrary.names.firstIndex(of: s) ?? Int(s) ?? 0
             let i = a.firstIndex(of: "-bugstrip")! + 2
-            sheet = (max(0, min(3, t)), i < a.count ? Float(a[i]) ?? 2.4 : 2.4, !a.contains("-bugsheetGame"))
+            sheet = (max(0, min(WorldSwarm.types - 1, t)), i < a.count ? Float(a[i]) ?? 2.4 : 2.4, !a.contains("-bugsheetGame"))
         } else {
             sheet = nil
         }
         let z = SwarmTypeGPU(rim: .zero, eye: .zero, sac: .zero, gland: .zero, proxy: .zero, glint: .zero)
-        params = SwarmParams(types: (z, z, z, z), info: .zero, queen: F4(0.5, 0.25, 1.0, 0))
+        params = SwarmParams(types: (z, z, z, z, z), info: .zero, queen: F4(0.5, 0.25, 1.0, 0))
         assert(MemoryLayout<CreatureInstance>.stride == 80 && MemoryLayout<SwarmTypeGPU>.stride == 96
-               && MemoryLayout<SwarmParams>.stride == 416 && MemoryLayout<GlintSocket>.stride == 32)
+               && MemoryLayout<SwarmParams>.stride == 512 && MemoryLayout<GlintSocket>.stride == 32)
     }
 
     deinit {
@@ -281,7 +289,7 @@ final class WorldSwarm {
             buildGlintTable(lib)
             lens = lib.types.map { max(0.3, $0.length) }
         }
-        for _ in 0..<4 {
+        for _ in 0..<WorldSwarm.types {
             scratch.append(.allocate(capacity: WorldSwarm.scratchCap))
             pxLod.append(.allocate(capacity: WorldSwarm.scratchCap))
             pxs.append(.allocate(capacity: WorldSwarm.scratchCap))
@@ -310,10 +318,10 @@ final class WorldSwarm {
     /// native-vx-swarm-life: each type's look pivots (its `neck` / `waist` sockets) and the bone → group map read from LOD0's
     /// vertex flags (bit5 head group, bit6 abdomen group; tools/blender/creatures/insect.py).
     private func buildLookTables(_ lib: CreatureLibrary) {
-        for t in 0..<4 {
+        for t in 0..<WorldSwarm.types {
             let c = lib.types[t]
             if let n = c.sockets.first(where: { $0.name == "neck" }) { lookPivots[t] = F4(n.rest.x, n.rest.y, n.rest.z, 1) }
-            if let w = c.sockets.first(where: { $0.name == "waist" }) { lookPivots[4 + t] = F4(w.rest.x, w.rest.y, w.rest.z, 1) }
+            if let w = c.sockets.first(where: { $0.name == "waist" }) { lookPivots[WorldSwarm.types + t] = F4(w.rest.x, w.rest.y, w.rest.z, 1) }
             var g = [UInt8](repeating: 0, count: max(1, c.boneCount))
             let L = c.lods[0]
             let base = UnsafeRawPointer(c.buffer.contents()).advanced(by: L.vertexOffset)
@@ -329,7 +337,7 @@ final class WorldSwarm {
     /// The glinting sockets of each type, brightest first (≤ glintsPerBug), and the type constants.
     private func buildGlintTable(_ lib: CreatureLibrary) {
         glintTable.removeAll()
-        for t in 0..<4 {
+        for t in 0..<WorldSwarm.types {
             let c = lib.types[t]
             let g = c.sockets.filter { $0.glint }.sorted { ($0.intensity, $0.radius) > ($1.intensity, $1.radius) }.prefix(min(WorldSwarm.glintsPerBug, WorldSwarm.glintsPerType[t]))
             glintFirst[t] = glintTable.count
@@ -358,7 +366,7 @@ final class WorldSwarm {
     func build(game: Game, alpha: Float, time: Float, dt: Float, camera: MetalCamera, spot: (pos: F3, dir: F3)?, fx: MetalEffects) {
         let t0 = FrameTimer.now()
         let c0 = AppLog.diagnostics ? CPUTime.thread() : 0
-        for t in 0..<4 { for l in 0..<3 { regions[t][l] = Region() }; liveN[t] = 0; allN[t] = 0 }
+        for t in 0..<WorldSwarm.types { for l in 0..<3 { regions[t][l] = Region() }; liveN[t] = 0; allN[t] = 0 }
         glintRegion = Region(); glintCount = 0; proxies = Region()
         visible = 0; corpsesDrawn = 0; swarmTriangles = 0; nearCount = 0; nearGone = 0
         for l in 0..<3 { lodCounts[l] = 0 }
@@ -404,6 +412,9 @@ final class WorldSwarm {
         // the overhead (Stage 1 R2): in these states the core's height is ABSOLUTE (a route over the void has no floor)
         let high = BugState.high.rawValue, riser = BugState.riser.rawValue, dropSt = BugState.drop.rawValue
         let coilSt = BugState.coil.rawValue, fallSt = BugState.fall.rawValue
+        // Stage 1 R4: the Dropper's pin (beside its marine, on the deck) and a spitter perched up on the overhead
+        let pinSt = BugState.pin.rawValue, perchSt = BugState.perch.rawValue
+        let coilTotal = max(0.05, game.difficulty.dropWarn - DROP_T)
         // Stage 1 R3: bugs up there lie along their route (pitched to its slope), ride a swaying cable with it, cling to the
         // camera's face of a riser, crouch nose-down in the coil, dive in the drop and tumble when knocked off
         let RE = S.routeEdges, RS = S.routeParams
@@ -412,13 +423,14 @@ final class WorldSwarm {
         // the camera's side of a riser column (the camera never turns: yaw 45°, toward +x +z)
         let toCam = F3(0.7071, 0, 0.7071)
         let brute = UInt8(BugType.brute.rawValue)
+        let dropperType = WorldSwarm.dropperType
         let queenUid: Int32 = game.queen.alive ? game.queen.uid : -1
         let marines = game.marines
         deadList.removeAll(keepingCapacity: true)
         var i = 0
         while i < n {
             defer { i += 1 }
-            let t = Int(min(3, types[i]))
+            let t = Int(min(UInt8(WorldSwarm.types - 1), types[i]))
             if dead[i] != 0 {
                 if deadList.count < 64 {
                     // native-vx-swarm-life: how it died — burning, chilled, thrown by a blast (its velocity: the blast's
@@ -497,15 +509,18 @@ final class WorldSwarm {
                 // up a riser (an abyss column, a deck post), nose up like a bug scaling a deck edge
                 sp = sinf(1.45); cp = cosf(1.45)
             } else if st == dropSt {
-                // the drop: a dive off the route, nose down, levelling out for the landing
+                // the drop: a dive off the route, nose down, levelling out for the landing (R4: the Dropper's own dive clip
+                // carries most of it)
                 let p = max(0, min(1, 1 - TT[i] / DROP_T))
-                let a = -0.95 + 0.7 * p
+                let a = t == dropperType ? -0.5 + 0.5 * p : -0.95 + 0.7 * p
                 sp = sinf(a); cp = cosf(a)
             } else if st == coilSt {
-                // the coil: nose down over the edge toward the landing point, a shiver as it winds up
+                // the coil: nose down over the edge toward the landing point, a shiver as it winds up (R4: the Dropper's coil
+                // clip curls its front third down in an S itself — the instance only leans)
                 let left = max(0, TT[i])
                 let p = max(0, min(1, 1 - left / 0.9))
-                let a = routePitch - 0.28 - 0.3 * p + 0.04 * sinf(time * 47 + Float(i))
+                let a = t == dropperType ? routePitch - 0.06 - 0.08 * p + 0.02 * sinf(time * 47 + Float(i))
+                    : routePitch - 0.28 - 0.3 * p + 0.04 * sinf(time * 47 + Float(i))
                 sp = sinf(a); cp = cosf(a)
             } else if st == fallSt {
                 // knocked off: one somersault over the fall (≈ 0.3 + 0.06 h s: ≈ 0.6 s from a rack), level again when it
@@ -530,7 +545,14 @@ final class WorldSwarm {
             var aSt = st, aT = TT[i], aY = Y[i]
             if up {
                 aY = st == riser ? -1 : 0
-                if st == riser { aSt = climb } else if st == dropSt || st == fallSt { aSt = leapState; aT = LEAP_T * (st == dropSt ? max(0, TT[i]) / DROP_T : 0.5) }
+                let own = A.sets[t].coil >= 0   // (Stage 1 R4: the Dropper has its own telegraph, dive and pin clips)
+                if st == riser { aSt = climb }
+                else if own && st == coilSt { aSt = coilSt; aT = 1 - max(0, TT[i]) / coilTotal }
+                else if own && st == dropSt { aSt = dropSt; aT = 1 - max(0, TT[i]) / DROP_T }
+                else if own && st == pinSt { aSt = pinSt }
+                else if st == dropSt || st == fallSt { aSt = leapState; aT = LEAP_T * (st == dropSt ? max(0, TT[i]) / DROP_T : 0.5) }
+                // a perched spitter winding up plays its spit (the 0.65 s wind-up onto the clip's 0.5 s)
+                else if st == perchSt && TT[i] > 0 { aSt = wind; aT = TT[i] * 0.5 / PERCH_WIND }
                 else { aSt = BugState.move.rawValue }
             }
             let hdBug = hdOverride ?? HD[i]
@@ -558,7 +580,7 @@ final class WorldSwarm {
             allN[t] = k + 1
             visible += 1
         }
-        for t in 0..<4 { liveN[t] = allN[t] }
+        for t in 0..<WorldSwarm.types { liveN[t] = allN[t] }
     }
 
     /// Head yaw, head pitch, abdomen sway (radians) → fx.w bytes 1–3 (snorm8 of ±lookRange).
@@ -603,7 +625,7 @@ final class WorldSwarm {
         for ring in C.rings {
             for c in ring {
                 if !camera.visible(c.x, c.y + 0.2 * c.scale, c.z) { continue }
-                let t = Int(min(3, c.type))
+                let t = Int(min(UInt8(WorldSwarm.types - 1), c.type))
                 var near: UInt32 = 0
                 if nearFade > 0.001 {
                     let dv = max(0.05, (F3(c.x - eye.x, c.y + 0.2 * c.scale - eye.y, c.z - eye.z) * fwd).sum())
@@ -667,7 +689,7 @@ final class WorldSwarm {
             liveN[t] = k + 1
             visible += 1
         }
-        let base: [Float] = (0..<4).map { BUG_SPECS[$0].scale * WorldSwarm.sizeK[$0] }   // the game's drawn scales
+        let base: [Float] = (0..<WorldSwarm.types).map { BUG_SPECS[$0].scale * WorldSwarm.sizeK[$0] }   // the game's drawn scales
         if let st = sh.strip {
             let clips = lib.types[st].clips
             let sc = base[st] * sh.scale
@@ -682,10 +704,10 @@ final class WorldSwarm {
                 }
             }
         } else {
-            let rows: [Float] = [2.0, 2.4, 4.4, 2.6]
+            let rows: [Float] = [2.0, 2.4, 4.4, 2.6, 2.4]
             let total = rows.reduce(0, +) * sh.scale
             var y = total * 0.5
-            for t in 0..<4 {
+            for t in 0..<WorldSwarm.types {
                 let h = rows[t] * sh.scale
                 y -= h * 0.5
                 let clips = lib.types[t].clips
@@ -708,7 +730,7 @@ final class WorldSwarm {
         var t2sum = 0, t1sum = 0, t0sum = 0
         // corpses keep the LOD they died with until they settle: their extra triangles come off the live bugs' room
         var held = 0
-        for t in 0..<4 {
+        for t in 0..<WorldSwarm.types {
             let L = lib.types[t].lods
             let tr0 = L[0].triangles, tr1 = L[min(1, L.count - 1)].triangles, tr2 = L[min(2, L.count - 1)].triangles
             t0sum += (tr0 - tr2) * allN[t]; t1sum += (tr1 - tr2) * allN[t]; t2sum += tr2 * allN[t]
@@ -778,7 +800,7 @@ final class WorldSwarm {
         // pass 1: the thresholds (corpses keep the LOD they died with, then LOD2), counted
         let cap0 = high ? lod0N : 0
         var c0 = 0, c1 = 0, cB = 0
-        for t in 0..<4 {
+        for t in 0..<WorldSwarm.types {
             for k in 0..<allN[t] {
                 let px = pxs[t][k]
                 var l: UInt8 = px >= th0 ? 0 : (px >= th1 ? 1 : 2)
@@ -790,7 +812,7 @@ final class WorldSwarm {
             }
         }
         // pass 2: ±12 % hysteresis on a live bug's last LOD, only inside the caps (LOD0 ≤ 32, LOD1 under the budget)
-        for t in 0..<4 {
+        for t in 0..<WorldSwarm.types {
             for k in 0..<allN[t] where slots[t][k] >= 0 {
                 let px = pxs[t][k], prev = lodHint[t][k]
                 let l = pxLod[t][k]
@@ -803,7 +825,7 @@ final class WorldSwarm {
                 }
             }
         }
-        for t in 0..<4 {
+        for t in 0..<WorldSwarm.types {
             for k in 0..<allN[t] {
                 // look-dev sheets: the close-up mesh unless -swarmLOD says otherwise
                 lodHint[t][k] = forcedLOD.map { UInt8($0) } ?? (sheet != nil ? 0 : pxLod[t][k])
@@ -813,14 +835,14 @@ final class WorldSwarm {
 
     private func writeRegions(_ lib: CreatureLibrary, high: Bool) {
         let r = renderer!
-        for t in 0..<4 { for l in 0..<3 { lodN[t][l] = 0; lodPtr[t][l] = nil } }
-        for t in 0..<4 { for k in 0..<allN[t] { lodN[t][Int(lodHint[t][k])] += 1 } }
-        for t in 0..<4 {
+        for t in 0..<WorldSwarm.types { for l in 0..<3 { lodN[t][l] = 0; lodPtr[t][l] = nil } }
+        for t in 0..<WorldSwarm.types { for k in 0..<allN[t] { lodN[t][Int(lodHint[t][k])] += 1 } }
+        for t in 0..<WorldSwarm.types {
             for l in 0..<3 where lodN[t][l] > 0 {
                 if let a = r.alloc(CreatureInstance.self, lodN[t][l]) { lodPtr[t][l] = a.0; regions[t][l] = Region(offset: a.1, count: 0) }
             }
         }
-        for t in 0..<4 {
+        for t in 0..<WorldSwarm.types {
             let L = lib.types[t].lods
             for k in 0..<allN[t] {
                 let l = Int(lodHint[t][k])
@@ -845,13 +867,13 @@ final class WorldSwarm {
         if glintsOff || psGlint == nil { return }
         let cap = high ? WorldSwarm.glintCap.high : WorldSwarm.glintCap.efficient
         var want = 0
-        for t in 0..<4 { want += liveN[t] * glintPer[t] }
+        for t in 0..<WorldSwarm.types { want += liveN[t] * glintPer[t] }
         let k = want > cap ? Float(cap) / Float(want) : 1
         let live = liveN.reduce(0, +)
         guard live > 0, let a = r.alloc(CreatureInstance.self, live) else { return }
         glintRegion = Region(offset: a.1, count: live)
         var o = 0, g = 0
-        for t in 0..<4 {
+        for t in 0..<WorldSwarm.types {
             let per = glintPer[t] == 0 ? 0 : max(min(3, glintPer[t]), Int(Float(glintPer[t]) * k))
             (a.0 + o).update(from: scratch[t], count: liveN[t])
             setGlint(t, first: UInt32(glintFirst[t]), per: UInt32(per), start: UInt32(g), bug: UInt32(o))
@@ -867,7 +889,8 @@ final class WorldSwarm {
         case 0: params.types.0.glint = v
         case 1: params.types.1.glint = v
         case 2: params.types.2.glint = v
-        default: params.types.3.glint = v
+        case 3: params.types.3.glint = v
+        default: params.types.4.glint = v
         }
     }
 
@@ -891,7 +914,7 @@ final class WorldSwarm {
         guard let a = r.alloc(CreatureInstance.self, cap) else { return }
         let cosCone = cosf(0.6)
         var n = 0
-        outer: for t in 0..<4 {
+        outer: for t in 0..<WorldSwarm.types {
             for k in 0..<liveN[t] {
                 let p = scratch[t][k].pos
                 let c = F3(p.x, p.y + 0.3 * p.w, p.z)
@@ -920,8 +943,9 @@ final class WorldSwarm {
             let L = WorldSwarm.looks[t]
             return SwarmTypeGPU(rim: L.rim, eye: L.eye, sac: L.sac, gland: L.gland, proxy: L.proxy, glint: g)
         }
-        params.types = (ty(0, params.types.0.glint), ty(1, params.types.1.glint), ty(2, params.types.2.glint), ty(3, params.types.3.glint))
-        if glintCount == 0 { for t in 0..<4 { setGlint(t, first: 0, per: 0, start: 0, bug: 0) } }
+        params.types = (ty(0, params.types.0.glint), ty(1, params.types.1.glint), ty(2, params.types.2.glint), ty(3, params.types.3.glint),
+                        ty(4, params.types.4.glint))
+        if glintCount == 0 { for t in 0..<WorldSwarm.types { setGlint(t, first: 0, per: 0, start: 0, bug: 0) } }
         params.info = F4(time, (sheet?.studio ?? false) ? 1 : 0, 1.5, 1.1)
         params.queen = F4(0.55, 0.22, 1.1, 0)
     }
@@ -947,7 +971,7 @@ final class WorldSwarm {
         guard let lib = library else { return nil }
         var best: Float = .greatestFiniteMagnitude
         var bt = -1, bk = -1
-        for t in 0..<4 {
+        for t in 0..<WorldSwarm.types {
             let reach = lib.types[t].length * 0.6
             for k in 0..<liveN[t] {
                 let p = scratch[t][k].pos
@@ -983,7 +1007,7 @@ final class WorldSwarm {
         enc.setVertexBytes(&P, length: MemoryLayout<SwarmParams>.stride, index: 3)
         enc.setFragmentBytes(&P, length: MemoryLayout<SwarmParams>.stride, index: 3)
         lookPivots.withUnsafeBytes { enc.setVertexBytes($0.baseAddress!, length: $0.count, index: 7) }
-        for t in 0..<4 {
+        for t in 0..<WorldSwarm.types {
             let c = lib.types[t]
             var bound = false
             for l in 0..<3 where regions[t][l].count > 0 {
@@ -1011,7 +1035,7 @@ final class WorldSwarm {
         enc.setVertexBytes(&P, length: MemoryLayout<SwarmParams>.stride, index: 3)
         glintTable.withUnsafeBytes { enc.setVertexBytes($0.baseAddress!, length: $0.count, index: 10) }
         lookPivots.withUnsafeBytes { enc.setVertexBytes($0.baseAddress!, length: $0.count, index: 7) }
-        for t in 0..<4 {
+        for t in 0..<WorldSwarm.types {
             let c = lib.types[t]
             enc.setVertexTexture(c.boneTexture, index: 6 + t)
             enc.setVertexBuffer(c.buffer, offset: c.glowOffset, index: 11 + t)

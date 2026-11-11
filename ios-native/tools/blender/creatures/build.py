@@ -1,6 +1,6 @@
 """Headless Blender (pip bpy 5.2.2) build of one hive creature: model -> rig -> keyframed clips -> bake -> IHV1.
 
-  venv/bin/python creatures/build.py <runner|spitter|brute|boomer> OUT_DIR WORK_DIR
+  venv/bin/python creatures/build.py <runner|spitter|brute|boomer|dropper> OUT_DIR WORK_DIR
   venv/bin/python creatures/build.py <name> OUT_DIR WORK_DIR --from-blend WORK_DIR/<name>_src.blend
 
 Writes OUT_DIR/<name>.ihv (the RIGID ship file: three LODs, bone texture, glow table, sockets — no VAT; Swarm/
@@ -253,11 +253,19 @@ def key_clips(D, rig):
             Bt = pose['thorax'] @ np.linalg.inv(rest['thorax'])
             Binv = np.linalg.inv(Bt)
             for ln, lg in legs.items():
-                p, err = D.leg_body_targets(lg, st.feet[ln], Binv) if hasattr(D, 'leg_body_targets') else _leg(lg, st.feet[ln], Binv)
+                # (Stage 1 R4: a leg may ride another body segment — `lg.body`, the Dropper's rear pairs on abd.1 — whose pose is its
+                # IK frame; every other creature's legs ride the thorax, byte for byte as before)
+                body = getattr(lg, 'body', 'thorax')
+                if body == 'thorax':
+                    Bl, Bli = Bt, Binv
+                else:
+                    Bl = pose[body] @ np.linalg.inv(rest[body])
+                    Bli = np.linalg.inv(Bl)
+                p, err = D.leg_body_targets(lg, st.feet[ln], Bli) if hasattr(D, 'leg_body_targets') else _leg(lg, st.feet[ln], Bli)
                 max_ik_err[name] = max(max_ik_err.get(name, 0.0), err)
                 for k, seg in enumerate(('femur', 'tibia', 'tarsus')):
                     bn = f'{ln}.{seg}'
-                    pose[bn] = Bt @ lg.frames(p)[k] @ np.linalg.inv(rest_frames[ln][k]) @ rest[bn]
+                    pose[bn] = Bl @ lg.frames(p)[k] @ np.linalg.inv(rest_frames[ln][k]) @ rest[bn]
             if name in D.GROUND_CLAMP:
                 zb = {bn: float((pose[bn] @ inv_rest[bn] @ pts.T)[2].min()) for bn, pts in probes.items()}
                 low = min(zb, key=zb.get)

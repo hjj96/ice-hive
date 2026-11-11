@@ -304,7 +304,8 @@ final class WorldSquad {
                     }
                 }
             }
-            I.brace = liftOn && level.onLift(m.x, m.z)
+            // (Stage 1 R4: a Dropper's pin holds the marine in the wide brace — no move, no fire — flinching from its gnaws)
+            I.brace = (liftOn && level.onLift(m.x, m.z)) || m.pinned
             I.victory = game.phase == .won || (liftOn && game.extractT > 3.1)
             if (threatTick + k) % 3 == 0 { threat[k] = m.downed ? nil : nearestThreat(game, x: x, z: z, y: y) }
             I.look = threat[k]

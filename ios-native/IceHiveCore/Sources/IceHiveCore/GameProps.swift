@@ -304,7 +304,8 @@ extension Game {
             if S.dead[i] != 0 { continue }
             let st = S.st[i]
             if st == S_FALL { continue }
-            if st >= S_HIGH || S.up[i] != 0 {
+            // (Stage 1 R4: a Dropper pinning a marine, S_PIN, is on the deck)
+            if (st >= S_HIGH && st != S_PIN) || S.up[i] != 0 {
                 // up on the span (or over the curtain): scalded off the pipe — dead
                 if !s.spanCovers(S.x[i], S.z[i]) && !s.covers(S.x[i], S.z[i]) { continue }
                 if hitBug(i, 1e6, v.src) { props.stats.upKills += 1 }
@@ -338,7 +339,7 @@ extension Game {
             if S.dead[i] != 0 || S.uid[i] == queen.uid { continue }
             let st = S.st[i]
             if st == S_FALL { continue }
-            if st >= S_HIGH || S.up[i] != 0 {
+            if (st >= S_HIGH && st != S_PIN) || S.up[i] != 0 {
                 if !s.spanCovers(S.x[i], S.z[i]) && !s.covers(S.x[i], S.z[i]) { continue }
                 S.frz[i] = 3.2; S.chill[i] = 1
                 knockDown(i, src: v.src)
@@ -363,7 +364,7 @@ extension Game {
         let n = S.count
         while i < n {
             defer { i += 1 }
-            if S.dead[i] != 0 || S.st[i] >= S_HIGH || S.up[i] != 0 { continue }
+            if S.dead[i] != 0 || (S.st[i] >= S_HIGH && S.st[i] != S_PIN) || S.up[i] != 0 { continue }
             if S.st[i] == S_CLIMB && S.y[i] < -0.6 { continue }
             if s.covers(S.x[i], S.z[i]) { c += 1 }
         }
