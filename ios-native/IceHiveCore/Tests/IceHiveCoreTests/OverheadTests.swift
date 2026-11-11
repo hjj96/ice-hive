@@ -118,8 +118,11 @@ final class OverheadDataTests: XCTestCase {
     }
 
     func testTiersKeepTheFairnessNumbers() {
+        // (Stage 1 R5: the overhead is on for the classic mission — tech.md §2.3's 0.15 / 0.20 / 0.25 as the start, Nightmare
+        // recalibrated to 0.20 inside the bands; the legacy v1.0 row keeps it off)
+        XCTAssertEqual(Difficulty.tiers.map { $0.routes }, [0.15, 0.2, 0.2])
         for d in Difficulty.tiers {
-            XCTAssertEqual(d.routes, 0, "\(d.id): the overhead stays off until package R5")
+            XCTAssertGreaterThan(d.routes, 0, "\(d.id): the overhead is on since package R5")
             XCTAssertGreaterThanOrEqual(d.dropWarn, 0.9, "\(d.id): no drop lands without 0.9 s of warning")
             XCTAssertLessThanOrEqual(d.routeCap, 18)
             XCTAssertLessThanOrEqual(d.dropCap, 3)
@@ -595,16 +598,17 @@ final class OverheadMissionTests: XCTestCase {
     }
 
     /// The overhead off (`routes` = 0) changes nothing: the same calibration row on the bare station and with routes laid.
+    /// (Stage 1 R5: the tiers carry it on since — the runs turn it off by override.)
     func testRoutesOffReplaysByteForByte() {
         for (k, cls) in [MarineClass.assault, .cryo].enumerated() {
-            let c = CalibRun(tag: "vet", cls: cls, tier: 1, mode: .auto, maxs: 150, seed: 1100 + UInt32(k))
+            let c = CalibRun(tag: "vet", cls: cls, tier: 1, mode: .auto, maxs: 150, seed: 1100 + UInt32(k), th: ["routes": 0])
             let bare = Calibration.run(c)
             let slice = Calibration.run(c, level: Level(source: KelvinStation(overhead: .kelvinSlice), seed: c.seed))
             XCTAssertEqual(bare.json, slice.json, "\(cls): Kelvin-9 with the slice laid, routes 0")
             XCTAssertNil(slice.oh)
         }
         // a generated station with its planned routes vs the same station stripped of them
-        let st = CalibRun(tag: "st", cls: .gunner, tier: 1, mode: .auto, maxs: 150, seed: 1234, station: 3)
+        let st = CalibRun(tag: "st", cls: .gunner, tier: 1, mode: .auto, maxs: 150, seed: 1234, station: 3, th: ["routes": 0])
         var bare = StationGenerator().makeLayout(seed: 3)
         XCTAssertFalse(bare.overhead.isEmpty)
         bare.overhead = OverheadLayout()

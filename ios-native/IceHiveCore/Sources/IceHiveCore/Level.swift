@@ -107,11 +107,13 @@ public struct LevelLayout {
     public var attempts: Int = 0
     /// Built by the seeded station generator (v1.1).
     public var isGenerated: Bool = false
-    /// The overhead: routes above the decks only the hive walks on (Stage 1 R2, Overhead.swift). Empty on the classic
-    /// «Кельвин-9» until package R5 authors its routes; generated stations get theirs from `OverheadPlanner`.
+    /// The overhead: routes above the decks only the hive walks on (Stage 1 R2, Overhead.swift). Empty on the bare
+    /// «Кельвин-9» (`KelvinStation()`, the v1.0 layout); the classic mission's station since Stage 1 R5, `KelvinStation.mk2`,
+    /// lays `OverheadLayout.kelvinMk2` (KelvinMk2.swift); generated stations get theirs from `OverheadPlanner`.
     public var overhead = OverheadLayout()
     /// Interactive props: steam valves, light circuits (breakers + the station's lamps on their decks), supply lockers
-    /// (Stage 1 R6, Props.swift). None on the classic «Кельвин-9» until a mission or package R5 lays `PropLayout.kelvin`.
+    /// (Stage 1 R6, Props.swift). None on the bare «Кельвин-9»; `KelvinStation.mk2` (the classic mission since R5) and the
+    /// missions on Kelvin-9 lay `PropLayout.kelvin`.
     public var props = PropLayout()
 
     public init(name: NameRef, seed: UInt32, rects: [FloorRect], crates: [CrateSpec], pillars: [Vec2], start: Vec2, lift: LiftSpec,
@@ -128,11 +130,12 @@ public protocol LevelSource {
 
 /// The hand-made v1.0 station (04-level.js RECTS / CRATES / PILLARS / LV).
 public struct KelvinStation: LevelSource {
-    /// Overhead routes laid over the hand-made station (none for the classic mission; the overhead demo and the core
-    /// tests use `OverheadLayout.kelvinSlice`).
+    /// Overhead routes laid over the hand-made station (none on the bare v1.0 station; `KelvinStation.mk2` — the classic
+    /// mission's station since Stage 1 R5 — lays `OverheadLayout.kelvinMk2`; the demos and the core tests use
+    /// `OverheadLayout.kelvinSlice` and the showcase).
     public var overhead: OverheadLayout
-    /// Interactive props laid over the hand-made station (none for the classic mission; the interactives demo and the
-    /// core tests use `PropLayout.kelvin`).
+    /// Interactive props laid over the hand-made station (none on the bare station; `KelvinStation.mk2` and the
+    /// interactives demo lay `PropLayout.kelvin`).
     public var props: PropLayout
     public init() { overhead = OverheadLayout(); props = PropLayout() }
     public init(overhead: OverheadLayout, props: PropLayout = PropLayout()) { self.overhead = overhead; self.props = props }

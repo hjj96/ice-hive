@@ -12,6 +12,8 @@ import IceHiveCore
 //  Options: --preset gate|full|stations|legacy|drills|overhead|props|<mission template id> · --mission <template id> (cold-light,
 //  drill-ring, drill-switch, drill-hold, drill-boss, drill-extract, drill-all) · --tiers 0,1,2 (-1 = legacy v1.0 row) · --n runs per class and tier
 //  · --classes assault,pyro,cryo,gunner · --mode auto|passive|afk|afkbeacon · --maxs s · --seed0 1000 · --station N
+//  · --kelvin mk2|props|bare (station 0, the classic mission: Kelvin-9 Mk II — the overhead and the props, the classic
+//  station since Stage 1 R5 —, the props only, or the bare v1.0 layout; default mk2; the legacy row is always bare)
 //  · --th JSON (web tier field names) · --tag t · --q low|med|high (gameplay bug cap) · --jobs N
 //  · --out file.jsonl (appends) · --summary file.txt · --gate
 //  Exit code: 0, 1 = the gate failed, 2 = bad arguments.
@@ -91,9 +93,12 @@ if let agg = flags["agg"] {
         if let m = mission, MissionTemplate.named(m) == nil {
             fail("unknown mission \(m) (\(MissionTemplate.all.map { $0.id }.joined(separator: "|")))")
         }
+        let kelvin = flags["kelvin"] ?? "mk2"
+        guard ["mk2", "props", "bare"].contains(kelvin) else { fail("unknown --kelvin \(kelvin) (mk2|props|bare)") }
         for t in tiers {
             runs += Calibration.batch(tier: t, mode: mode, n: n, classes: classes, seed0: seed0, tag: tag, th: t >= 0 ? th : [:], maxs: maxs,
-                                      station: station, quality: q, mission: mission)
+                                      station: station, quality: q, mission: mission, props: kelvin == "props" && mission == nil,
+                                      mk2: kelvin == "mk2" && mission == nil)
         }
     }
     let jobs = Int(flags["jobs"] ?? "3") ?? 3

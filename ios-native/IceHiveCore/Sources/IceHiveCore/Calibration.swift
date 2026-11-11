@@ -46,12 +46,16 @@ public struct CalibRun {
     public var mission: String?
     /// Stage 1 R6: «Кельвин-9» with its interactives laid (`PropLayout.kelvin`; station 0 only).
     public var props: Bool
+    /// Stage 1 R5: «Кельвин-9» Mk II (`KelvinStation.mk2`: the overhead routes and the interactives laid) — the classic
+    /// mission's station since R5; the presets' classic rows run on it (station 0 only; the legacy v1.0 row never does).
+    public var mk2: Bool
 
     public init(tag: String, cls: MarineClass, tier: Int, mode: CalibMode, maxs: Float? = nil, seed: UInt32, station: UInt32 = 0,
-                th: [String: Double] = [:], quality: QualityTier = .med, mission: String? = nil, props: Bool = false) {
+                th: [String: Double] = [:], quality: QualityTier = .med, mission: String? = nil, props: Bool = false, mk2: Bool = false) {
         self.tag = tag; self.cls = cls; self.tier = tier; self.mode = mode
         self.maxs = maxs ?? (mode == .afk ? 420 : 600)
         self.seed = seed; self.station = station; self.th = th; self.quality = quality; self.mission = mission; self.props = props
+        self.mk2 = mk2
     }
 
     /// The tier row of this run (overrides applied).
@@ -340,7 +344,9 @@ public enum Calibration {
             }
             cfg.mission = t
         }
-        let lv = level ?? (c.station == 0 ? (c.props ? Level(source: KelvinStation(props: .kelvin), seed: c.seed) : nil)
+        // (station 0: «Кельвин-9» — Mk II for the classic rows of the presets (R5), with R6's props only, or bare)
+        let lv = level ?? (c.station == 0 ? (c.mk2 ? Level(source: KelvinStation.mk2, seed: c.seed)
+                                              : c.props ? Level(source: KelvinStation(props: .kelvin), seed: c.seed) : nil)
                                           : Level(source: StationGenerator(), seed: c.station))
         let g = Game(seed: c.seed, playerClass: c.cls, config: cfg, level: lv)
         var row = CalibRow()
@@ -493,17 +499,19 @@ public enum Calibration {
 
     public static func tierTag(_ tier: Int) -> String { tier >= 0 ? Difficulty.tier(tier).id : Difficulty.legacyV10.id }
 
-    /// `n` runs per class of one tier + mode (`mission`: a template id, which also prefixes the tag when none is given).
+    /// `n` runs per class of one tier + mode (`mission`: a template id, which also prefixes the tag when none is given; `mk2`:
+    /// on «Кельвин-9» Mk II — station 0, a tier ≥ 0).
     public static func batch(tier: Int, mode: CalibMode, n: Int, classes: [MarineClass] = MarineClass.allCases, seed0: UInt32 = 1000,
                              tag: String? = nil, th: [String: Double] = [:], maxs: Float? = nil, station: UInt32 = 0,
-                             quality: QualityTier = .med, mission: String? = nil, props: Bool = false) -> [CalibRun] {
+                             quality: QualityTier = .med, mission: String? = nil, props: Bool = false, mk2: Bool = false) -> [CalibRun] {
         var out: [CalibRun] = []
         let prefix = tag ?? mission
+        let onMk2 = mk2 && station == 0 && tier >= 0
         for k in 0..<n {
             for c in classes {
                 let tg = (prefix.map { $0 + "-" } ?? "") + tierTag(tier) + (quality == .med ? "" : "-q" + quality.rawValue)
                 out.append(CalibRun(tag: tg, cls: c, tier: tier, mode: mode, maxs: maxs, seed: seed(seed0, mode: mode, tier: tier, cls: c, k: k),
-                                    station: station, th: th, quality: quality, mission: mission, props: props))
+                                    station: station, th: th, quality: quality, mission: mission, props: props, mk2: onMk2))
             }
         }
         return out
@@ -521,10 +529,10 @@ public enum Calibration {
     /// The fixed presets; a template id is a preset too (`icehive-calib --preset drill-switch`).
     public static let presetNames = ["gate", "full", "stations", "legacy", "drills", "overhead", "props"]
 
-    /// The overhead preset's share of packs sent up (Stage 1 R2; the tiers keep `routes` = 0 until package R5).
+    /// The overhead preset's share of packs sent up (Stage 1 R2; since R5 the tiers carry their own, 0.15 / 0.2 / 0.2).
     public static let overheadRoutes: Double = 0.2
-    /// Stage 1 R4: the overhead preset's second half also runs the Dropper and perch channels (s between sends) — the tiers
-    /// keep them off until package R5.
+    /// Stage 1 R4: the overhead preset's second half sets the Dropper and perch channels (s between sends) — since R5 the
+    /// tiers' own values on Veteran.
     public static let overheadDropperGap: Double = 22, overheadPerchGap: Double = 28
 
     /// gate: CI (≈ 212 runs, 64 of them the informational low-quality rows); full: tuning; stations: generated seeds 0–4; legacy:
@@ -532,17 +540,19 @@ public enum Calibration {
     public static func preset(_ name: String, seed0: UInt32 = 1000, th: [String: Double] = [:], tag: String? = nil) -> [CalibRun]? {
         switch name {
         case "gate":
-            var out: [CalibRun] = batch(tier: 0, mode: .auto, n: 8, seed0: seed0, tag: tag, th: th)
-            out += batch(tier: 1, mode: .auto, n: 16, seed0: seed0, tag: tag, th: th)
-            out += batch(tier: 2, mode: .auto, n: 8, seed0: seed0, tag: tag, th: th)
-            out += batch(tier: 1, mode: .afk, n: 1, seed0: seed0, tag: tag, th: th)
-            out += batch(tier: 0, mode: .afk, n: 1, seed0: seed0, tag: tag, th: th)
-            out += batch(tier: 1, mode: .passive, n: 1, seed0: seed0, tag: tag, th: th)
+            // (Stage 1 R5: the classic rows on «Кельвин-9» Mk II — the overhead and the props on; the legacy v1.0 row keeps the
+            // bare v1.0 station)
+            var out: [CalibRun] = batch(tier: 0, mode: .auto, n: 8, seed0: seed0, tag: tag, th: th, mk2: true)
+            out += batch(tier: 1, mode: .auto, n: 16, seed0: seed0, tag: tag, th: th, mk2: true)
+            out += batch(tier: 2, mode: .auto, n: 8, seed0: seed0, tag: tag, th: th, mk2: true)
+            out += batch(tier: 1, mode: .afk, n: 1, seed0: seed0, tag: tag, th: th, mk2: true)
+            out += batch(tier: 0, mode: .afk, n: 1, seed0: seed0, tag: tag, th: th, mk2: true)
+            out += batch(tier: 1, mode: .passive, n: 1, seed0: seed0, tag: tag, th: th, mk2: true)
             out += batch(tier: -1, mode: .auto, n: 2, seed0: seed0, tag: tag)
             // informational: Low graphics (cap 220 on the wave pacing, 700 on the legacy stream) must keep the tier bands (hordes no
             // longer shrink with the cap)
-            out += batch(tier: 1, mode: .auto, n: 8, seed0: seed0, tag: tag, th: th, quality: .low)
-            out += batch(tier: 2, mode: .auto, n: 8, seed0: seed0, tag: tag, th: th, quality: .low)
+            out += batch(tier: 1, mode: .auto, n: 8, seed0: seed0, tag: tag, th: th, quality: .low, mk2: true)
+            out += batch(tier: 2, mode: .auto, n: 8, seed0: seed0, tag: tag, th: th, quality: .low, mk2: true)
             // gated mission templates follow the classic rows (none yet: R7's missions join here)
             for t in MissionTemplate.all where t.calib?.gated == true { out += templateRuns(t, th: th) ?? [] }
             return out
@@ -551,12 +561,12 @@ public enum Calibration {
             for t in MissionTemplate.drills { out += templateRuns(t, th: th) ?? [] }
             return out
         case "full":
-            var out: [CalibRun] = batch(tier: 0, mode: .auto, n: 40, seed0: seed0, tag: tag, th: th)
-            out += batch(tier: 1, mode: .auto, n: 40, seed0: seed0, tag: tag, th: th)
-            out += batch(tier: 2, mode: .auto, n: 40, seed0: seed0, tag: tag, th: th)
-            out += batch(tier: 1, mode: .afk, n: 2, seed0: seed0, tag: tag, th: th)
-            out += batch(tier: 0, mode: .afk, n: 2, seed0: seed0, tag: tag, th: th)
-            out += batch(tier: 1, mode: .passive, n: 2, seed0: seed0, tag: tag, th: th)
+            var out: [CalibRun] = batch(tier: 0, mode: .auto, n: 40, seed0: seed0, tag: tag, th: th, mk2: true)
+            out += batch(tier: 1, mode: .auto, n: 40, seed0: seed0, tag: tag, th: th, mk2: true)
+            out += batch(tier: 2, mode: .auto, n: 40, seed0: seed0, tag: tag, th: th, mk2: true)
+            out += batch(tier: 1, mode: .afk, n: 2, seed0: seed0, tag: tag, th: th, mk2: true)
+            out += batch(tier: 0, mode: .afk, n: 2, seed0: seed0, tag: tag, th: th, mk2: true)
+            out += batch(tier: 1, mode: .passive, n: 2, seed0: seed0, tag: tag, th: th, mk2: true)
             return out
         case "stations":
             var out: [CalibRun] = []
@@ -586,8 +596,8 @@ public enum Calibration {
             return out
         case "props":
             // Stage 1 R6 (informational): «Operation Cold Light» on «Кельвин-9» with its interactives laid (valves, seven light
-            // circuits, a supply locker): the bots pop valves and re-light, the hive breaks lamps; compare with the classic rows
-            // of the same seeds (`gate`'s Recruit and Veteran)
+            // circuits, a supply locker): the bots pop valves and re-light, the hive breaks lamps. Since R5 the gate's classic
+            // rows run on Mk II (these props and the overhead): the same seeds here are the classic mission without the overhead
             var out: [CalibRun] = batch(tier: 0, mode: .auto, n: 4, seed0: seed0, tag: (tag.map { $0 + "-" } ?? "") + "props", th: th, props: true)
             out += batch(tier: 1, mode: .auto, n: 8, seed0: seed0, tag: (tag.map { $0 + "-" } ?? "") + "props", th: th, props: true)
             return out

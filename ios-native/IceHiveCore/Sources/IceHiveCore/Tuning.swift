@@ -356,8 +356,9 @@ public struct Difficulty: Equatable {
     /// Wave pacing: × the XP of a kill (fewer kills, the same rhythm of level-ups).
     public var xpK: Float = 1
     // ---- the overhead (Stage 1 R2; GameOverhead.swift). Caps follow the tier, never the graphics tier, so every graphics
-    // tier plays the same. `routes` = 0 on every tier until package R5 turns the overhead on for the classic mission:
-    // the director never sends a pack up and draws no extra random number (calibration byte-identical).
+    // tier plays the same. Stage 1 R5 turns it on for the classic mission (tech.md §2.3: 0.15 / 0.20 / 0.25 of the packs up):
+    // it acts only on a station with routes (the classic mission's «Кельвин-9» Mk II, the generated stations) — on a
+    // station without them the director never sends a pack up and draws no extra random number.
     /// Share of the director's packs sent up an overhead route (the third way in, design §1.1.6); needs a station with
     /// routes and the wave pacing.
     public var routes: Float = 0
@@ -372,7 +373,7 @@ public struct Difficulty: Equatable {
     public var dropK: Float = 1.4
     /// Seconds between two drop telegraphs starting (the whole squad).
     public var dropGap: Float = 0.8
-    // ---- Stage 1 R4 «Overhead bugs». Off on every tier until package R5 (the classic mission has no routes anyway).
+    // ---- Stage 1 R4 «Overhead bugs», on for every tier since R5 (only on a station with routes).
     /// Live Droppers at most (design: 4 / 5 / 6).
     public var dropperCap: Int = 5
     /// Seconds a Dropper's pin holds a marine at most (design: 1.2 s, Recruit 0.8 s; the owner approved up to 1.2 s).
@@ -398,8 +399,8 @@ public struct Difficulty: Equatable {
         d.stallTime = 90; d.pressureGrace = 40; d.runnerHp = 15
         d.queen = QueenTuning(at: 35, hp: 2500, speed: 1.5, ramT: 9, volleyT: 6, broodT: 8, broodN: 6, horde: 80, trickle: 0.4)
         d.waves = true; d.popK = 2.3; d.mix = 1.8; d.bite = 1.8; d.xpK = 1.6; d.runnerHp = 22
-        d.routes = 0; d.routeCap = 12; d.dropCap = 2; d.dropWarn = 1.2; d.dropK = 1.2; d.dropGap = 1.0
-        d.dropperCap = 4; d.pinT = 0.8; d.pinGnaw = 5; d.dropperGap = 0; d.perchGap = 0
+        d.routes = 0.15; d.routeCap = 12; d.dropCap = 2; d.dropWarn = 1.2; d.dropK = 1.2; d.dropGap = 1.0
+        d.dropperCap = 4; d.pinT = 0.8; d.pinGnaw = 5; d.dropperGap = 30; d.perchGap = 36
         return d
     }()
     /// Ветеран — as designed; the default after the first evacuation.
@@ -412,8 +413,8 @@ public struct Difficulty: Equatable {
         d.stallTime = 60; d.pressureGrace = 25; d.runnerHp = 15
         d.queen = QueenTuning(at: 35, hp: 3500, speed: 1.5, ramT: 9, volleyT: 6, broodT: 8, broodN: 6, horde: 80, trickle: 0.4)
         d.waves = true; d.popK = 2.5; d.mix = 1.8; d.bite = 2.25; d.xpK = 1.6; d.runnerHp = 22
-        d.routes = 0; d.routeCap = 15; d.dropCap = 3; d.dropWarn = 0.9; d.dropK = 1.4; d.dropGap = 0.8
-        d.dropperCap = 5; d.pinT = 1.2; d.pinGnaw = 5; d.dropperGap = 0; d.perchGap = 0
+        d.routes = 0.2; d.routeCap = 15; d.dropCap = 3; d.dropWarn = 0.9; d.dropK = 1.4; d.dropGap = 0.8
+        d.dropperCap = 5; d.pinT = 1.2; d.pinGnaw = 5; d.dropperGap = 22; d.perchGap = 28
         return d
     }()
     /// Кошмар — the swarm is merciless, the squad weaker.
@@ -426,8 +427,8 @@ public struct Difficulty: Equatable {
         d.stallTime = 40; d.pressureGrace = 15; d.runnerHp = 15
         d.queen = QueenTuning(at: 30, hp: 6000, speed: 1.6, ramT: 8, volleyT: 5, broodT: 7, broodN: 8, horde: 150, trickle: 0.6)
         d.waves = true; d.popK = 2.6; d.mix = 1.8; d.bite = 2.5; d.xpK = 1.6; d.runnerHp = 22
-        d.routes = 0; d.routeCap = 18; d.dropCap = 3; d.dropWarn = 0.9; d.dropK = 1.5; d.dropGap = 0.6
-        d.dropperCap = 6; d.pinT = 1.2; d.pinGnaw = 5; d.dropperGap = 0; d.perchGap = 0
+        d.routes = 0.2; d.routeCap = 18; d.dropCap = 3; d.dropWarn = 0.9; d.dropK = 1.5; d.dropGap = 0.6
+        d.dropperCap = 6; d.pinT = 1.2; d.pinGnaw = 5; d.dropperGap = 22; d.perchGap = 28
         return d
     }()
     /// v1.0 exactly (hidden; calibration port check and the v1.0 regression test).
