@@ -117,6 +117,7 @@ public enum BreakerRun {
         hold.holdText = .objHoldGenerator
         hold.names = StepNames(approach: "toGenerator", active: "generator")
         hold.stripText = .reportStripGenerator
+        hold.outHint = .hintBackToGenerator
         var ex = ExtractStep()
         ex.stripText = .reportStripExtract
         var plan = MissionPlan(id: "breaker-run", steps: [.switches(sw), .hold(hold), .extract(ex)], modifiers: [.dark],

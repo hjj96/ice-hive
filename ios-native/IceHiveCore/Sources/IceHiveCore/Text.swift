@@ -201,6 +201,9 @@ public enum TextID: String, CaseIterable {
     case hintToPlatform = "hint.to_platform"
     case hintPulse = "hint.pulse"
     case hintPulseFalloff = "hint.pulse_falloff"
+    // R7: a draining switch ring, Breaker Run's generator held
+    case hintBackToSwitch = "hint.back_to_switch"
+    case hintBackToGenerator = "hint.back_to_generator"
     // ---- first-run coach card
     case coachMove = "coach.move"
     case coachMoveKeys = "coach.move.keys"

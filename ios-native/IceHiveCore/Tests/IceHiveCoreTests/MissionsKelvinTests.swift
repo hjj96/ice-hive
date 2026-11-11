@@ -235,6 +235,42 @@ final class MissionsKelvinTests: XCTestCase {
         XCTAssertEqual(g.currentModule, .extract)
     }
 
+    func testTheMissionsHints() {
+        // a draining switch ring the player left: «back in the ring»
+        var s = SwitchStep(sites: [SwitchSite(x: 30, z: 26, radius: 2.2, time: 20, kind: .panel)])
+        s.alarm = PacingValue(legacy: 0, waves: 0)
+        s.drains = 0.5
+        var c = GameConfig()
+        c.difficulty = .recruit; c.god = true; c.mission = .custom(MissionPlan(id: "hint", steps: [.switches(s), .extract(ExtractStep())]))
+        let g = Game(seed: 6, playerClass: .assault, config: c)
+        g.playerAlone(30, 33)
+        g.step(60 * 8)   // (the game's own hints start 7 s in)
+        XCTAssertNil(g.contextHint)
+        g.playerAlone(30, 26)
+        g.step(30)
+        XCTAssertEqual(g.activeSwitch, 0)
+        XCTAssertNil(g.contextHint)
+        g.playerAlone(30, 33)
+        g.step(2)
+        XCTAssertEqual(g.contextHint, HintLine(text: GameText(.hintBackToSwitch), urgent: true))
+        // Breaker Run's generator: the player out of its zone during the hold
+        let lv = MissionTemplate.breakerRun.level()
+        guard case .hold(let h) = BreakerRun.plan(lv).steps[1] else { return XCTFail() }
+        XCTAssertEqual(h.outHint, .hintBackToGenerator)
+        var c2 = GameConfig()
+        c2.difficulty = .recruit; c2.god = true; c2.mission = .custom(MissionPlan(id: "gen", steps: [.hold(h), .extract(ExtractStep())]))
+        let q = Game(seed: 6, playerClass: .assault, config: c2, level: lv)
+        q.debugSkip()
+        q.step(60 * 8)
+        XCTAssertTrue(q.holdActive)
+        XCTAssertNil(q.contextHint)
+        q.place(0, 10, -5)   // on the plaza's east side, out of the zone
+        q.step(1)
+        XCTAssertEqual(q.contextHint, HintLine(text: GameText(.hintBackToGenerator), urgent: true))
+        // the lift hold keeps its own hints and no zone hint (the classic)
+        XCTAssertNil(HoldStep(zone: .lift, time: 10).outHint)
+    }
+
     // ---------------------------------------------------------------- won on autopilot; the report
 
     func testBothMissionsPlayThroughOnAutopilot() {

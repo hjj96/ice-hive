@@ -226,6 +226,8 @@ public struct HoldStep: Equatable {
     public var relights = false
     /// The report strip's label of the hold (nil: the classic strip; the boss rider adds her own item).
     public var stripText: TextID? = nil
+    /// A deck hold's hint while the player is out of its zone (nil: none; the lift has its own hints).
+    public var outHint: TextID? = nil
     /// The subtitle of the hold's periodic hordes (the lift: «They're climbing onto the platform»; a deck: the generic one).
     public var hordeSub: TextID
     /// Banner when the step begins (the lift: «Lift inbound»), and when the hold starts (also the opening horde's).

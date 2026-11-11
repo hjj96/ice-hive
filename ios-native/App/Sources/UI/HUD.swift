@@ -901,7 +901,8 @@ final class HUD {
 
     /// Every hint line (core hints, the three tiers' hold hints, the revive lines, the app's control hint), resolved.
     static var hintSamples: [String] {
-        var out = [TextID.hintPlayerDown, .hintReviveNear, .hintBackToRing, .hintRingContested, .hintStepInRing, .hintToPlatform].map { L10n.string(GameText($0)) }
+        var out = [TextID.hintPlayerDown, .hintReviveNear, .hintBackToRing, .hintRingContested, .hintStepInRing, .hintToPlatform,
+                   .hintBackToSwitch, .hintBackToGenerator].map { L10n.string(GameText($0)) }
         out += Difficulty.tiers.map { L10n.string(Game.holdHintText($0)) }
         out += CoachText.reviveLines.map { L10n.string($0) }
         out.append(L10n.ui(.hudControlHint))
