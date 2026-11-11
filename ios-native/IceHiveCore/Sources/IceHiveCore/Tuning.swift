@@ -6,7 +6,9 @@ import Foundation
 // ================================================================
 
 public enum BugType: Int, CaseIterable {
-    case runner = 0, spitter = 1, brute = 2, boomer = 3
+    /// Stage 1 R4: the Dropper (design §1.1.3) — the overhead's own bug: it rides the routes, perches above the squad,
+    /// drops after a 0.9 s telegraph and pins a marine. Never part of the director's deck draw (`pickType`).
+    case runner = 0, spitter = 1, brute = 2, boomer = 3, dropper = 4
 
     public var spec: BugSpec { BUG_SPECS[rawValue] }
     public var id: String { spec.id }
@@ -30,11 +32,16 @@ public let BUG_SPECS: [BugSpec] = [
     BugSpec(id: "spitter", hp: 44, speed: 3.0, radius: 0.36, dmg: 8, atkCd: 1.2, xp: 3, scale: 1.02, mass: 1.6),
     BugSpec(id: "brute", hp: 360, speed: 2.6, radius: 0.85, dmg: 16, atkCd: 1.3, xp: 10, scale: 2.0, mass: 7),
     BugSpec(id: "boomer", hp: 55, speed: 3.6, radius: 0.44, dmg: 24, atkCd: 1.0, xp: 3, scale: 1.15, mass: 2),
+    // Stage 1 R4 (design §1.1.3, Veteran): HP 30 × hpMul (two rifle bolts early, three late), 4.0 m/s on the deck (5.5 on
+    // the routes: DROPPER_ROUTE_K), bite 6 (× the tier's bite factor), XP 3
+    BugSpec(id: "dropper", hp: 30, speed: 4.0, radius: 0.34, dmg: 6, atkCd: 0.7, xp: 3, scale: 1.0, mass: 1.4),
 ]
 // (first-sighting tips: GameText.bugTip)
 
 // raw type / state codes used in the SoA arrays
-let T_RUN: UInt8 = 0, T_SPIT: UInt8 = 1, T_BRUTE: UInt8 = 2, T_BOOM: UInt8 = 3
+let T_RUN: UInt8 = 0, T_SPIT: UInt8 = 1, T_BRUTE: UInt8 = 2, T_BOOM: UInt8 = 3, T_DROP: UInt8 = 4
+/// Bug types the per-type tables hold (BugType.allCases.count).
+let BUG_TYPES = 5
 
 /// Bug behaviour state (raw values are what `Swarm.state` stores).
 public enum BugState: UInt8 {
@@ -53,9 +60,17 @@ public enum BugState: UInt8 {
     case drop = 9
     /// Knocked off a route (fire, frost, a blast) or hopping down: it falls without attacking — a frozen one shatters.
     case fall = 10
+    // ---- Stage 1 R4 «Overhead bugs» (GameOverhead.swift / GameOverheadBugs.swift); `heights` stays absolute
+    /// The Dropper holds a marine it landed on (the PIN, design §1.1.3): on the deck beside the marine (within every deck
+    /// weapon's reach), gnawing; a dash, 15 damage taken, the pin's time running out or the marine going down ends it.
+    case pin = 11
+    /// A spitter perched on the overhead (design §1.1.3 «perched spitters»): still at a perch point against the void,
+    /// spitting from height — longer range (14 m), slower wind-up (0.65 s) and glob (1.1 s flight).
+    case perch = 12
 }
 let S_MOVE: UInt8 = 0, S_CLIMB: UInt8 = 1, S_WIND: UInt8 = 2, S_CHARGE: UInt8 = 3, S_SWELL: UInt8 = 4, S_LEAP: UInt8 = 5
 let S_HIGH: UInt8 = 6, S_RISER: UInt8 = 7, S_COIL: UInt8 = 8, S_DROP: UInt8 = 9, S_FALL: UInt8 = 10
+let S_PIN: UInt8 = 11, S_PERCH: UInt8 = 12
 /// Seconds a runner's leap lasts (its state timer counts it down; height peaks halfway).
 public let LEAP_T: Float = 0.36
 
@@ -82,6 +97,44 @@ public let GRIP_T: Float = 0.8
 public let ROUTE_PATIENCE: Float = 10
 /// The bots and the turret start answering a drop telegraph this long into its coil (s): a human reaction time.
 public let BOT_REACT: Float = 0.35
+
+// ---------- Stage 1 R4 «Overhead bugs» (design §1.1.3–1.1.5) ----------
+/// The Dropper on the routes: × its deck speed (5.5 m/s on racks, trays, catwalks and ducts against 4.0 on the deck);
+/// on a cable it is slow (× DROPPER_CABLE_K: cables are the runners' fast lanes).
+public let DROPPER_ROUTE_K: Float = 1.375
+public let DROPPER_CABLE_K: Float = 0.8
+/// A Dropper landing on a marine: 14 × the damage multiplier (design: «On a hit: 14 × the damage multiplier»), then the pin.
+public let DROPPER_LAND: Float = 14
+/// A Dropper waits up there this long for a drop before it hops down (an ambusher: longer than a runner's ROUTE_PATIENCE).
+public let DROPPER_PATIENCE: Float = 20
+/// The pin breaks once the pinning Dropper has taken this much damage since it landed (design: «any hit of 15 or more
+/// frees the marine» — counted over the pin, so the squad's fire, whatever the weapon, gets it off).
+public let PIN_BREAK: Float = 15
+/// Seconds between the pinning Dropper's gnaws (each `pinGnaw` × PIN_BITE_T × the damage multiplier).
+public let PIN_BITE_T: Float = 0.4
+/// How far from the marine's centre the pinning Dropper holds on (m): beside the marine, never over its head and shoulders
+/// (the class colour stays readable from the 57° camera).
+public let PIN_REACH: Float = 0.62
+/// A pinned bot (or the calibration autopilot) dashes out this long after the pin started, when its dash is ready.
+public let PIN_REACT: Float = 0.45
+/// The calibration autopilot (the player's seat) starts reading a Dropper's drop ring this far into its warning (s), spread
+/// over the drops: on Veteran's 0.9 s about half come too late to step out cleanly — a person, not a perfect dodger (the
+/// squad bots sidestep every ring, design §1.1.5).
+public let AUTOPILOT_DROP_REACT: ClosedRange<Float> = 0.3...0.9
+/// Perched spitters: range, wind-up and glob flight from a perch (the deck spitter: 11 m, 0.5 s, 0.95 s); at most
+/// PERCH_MAX perched within PERCH_SPACING m; a perch with no marine in range for PERCH_LEAVE s is left.
+public let PERCH_RANGE: Float = 14
+public let PERCH_WIND: Float = 0.65
+public let PERCH_GLOB: Float = 1.1
+public let PERCH_SPACING: Float = 20
+public let PERCH_MAX = 2
+public let PERCH_LEAVE: Float = 8
+/// Duct mouths (design §1.1.3): the grille rattles DUCT_RATTLE s before a pack pours out; DUCT_HP of damage shoots it
+/// shut for DUCT_SHUT s (then the hive chews through); rounds aimed up strike it within DUCT_R m of the mouth (plan).
+public let DUCT_HP: Float = 120
+public let DUCT_RATTLE: Float = 2
+public let DUCT_SHUT: Float = 45
+public let DUCT_R: Float = 0.6
 
 /// What a bug feels on the wave pacing (`Swarm.moods`): calm, a hesitation before a surge, a feint (backing off), a surge
 /// (a sudden burst of speed), flight from a blast, the panic of a burning bug.
@@ -178,9 +231,10 @@ public let BEACON_R: Float = 4.6
 /// Bots keep their targets across kills and fire continuously, so their base damage is lower than the player's.
 public let BOT_DMG: Float = 0.6
 /// Specials are capped so a single horde can never be a wall of brutes or a carpet of boomers.
-let SPECIAL_CAP: [Int] = [0, 30, 12, 18]
-/// The live caps of specials on the wave pacing (brutes + 1 per beacon done), × the tier's specCap.
-let WAVE_SPECIAL_CAP: [Int] = [0, 14, 5, 10]
+let SPECIAL_CAP: [Int] = [0, 30, 12, 18, 0]
+/// The live caps of specials on the wave pacing (brutes + 1 per beacon done), × the tier's specCap. (The Dropper is never
+/// drawn by `pickType`: its own cap is `Difficulty.dropperCap`.)
+let WAVE_SPECIAL_CAP: [Int] = [0, 14, 5, 10, 0]
 
 // ================================================================
 //  DIFFICULTY — the v1.1 «Ставки» tiers (web 01-core.js DIFF / TH, calibrated rows of
@@ -222,9 +276,24 @@ public let SRC_QUEEN = 4
 
 /// Who dealt a hit to a marine (web hurtMarine `src`): the bug type, the Матка, or anything else.
 public enum DamageSource: Int, CaseIterable {
-    case environment = -1, runner = 0, spitter = 1, brute = 2, boomer = 3, queen = 4
+    /// Stage 1 R4: `dropper` (its landing and its gnaw). The calibration ledger keeps its six slots (`ledger`): a Dropper's
+    /// damage counts in the runner's slot there (the classic rows keep their bytes), and the overhead's own numbers
+    /// (`CalibOverhead`) count it apart.
+    case environment = -1, runner = 0, spitter = 1, brute = 2, boomer = 3, queen = 4, dropper = 5
 
-    init(bugType ty: UInt8) { self = DamageSource(rawValue: Int(ty)) ?? .environment }
+    init(bugType ty: UInt8) {
+        switch ty {
+        case T_RUN: self = .runner
+        case T_SPIT: self = .spitter
+        case T_BRUTE: self = .brute
+        case T_BOOM: self = .boomer
+        case T_DROP: self = .dropper
+        default: self = .environment
+        }
+    }
+
+    /// Slot in the six-slot calibration ledgers (`hurtBy`, `squadDownBy`: environment, runner, spitter, brute, boomer, Матка).
+    var ledger: Int { self == .dropper ? DamageSource.runner.rawValue + 1 : rawValue + 1 }
 }
 
 public struct Difficulty: Equatable {
@@ -303,6 +372,19 @@ public struct Difficulty: Equatable {
     public var dropK: Float = 1.4
     /// Seconds between two drop telegraphs starting (the whole squad).
     public var dropGap: Float = 0.8
+    // ---- Stage 1 R4 «Overhead bugs». Off on every tier until package R5 (the classic mission has no routes anyway).
+    /// Live Droppers at most (design: 4 / 5 / 6).
+    public var dropperCap: Int = 5
+    /// Seconds a Dropper's pin holds a marine at most (design: 1.2 s, Recruit 0.8 s; the owner approved up to 1.2 s).
+    public var pinT: Float = 1.2
+    /// The pinning Dropper's gnaw (HP per second × the damage multiplier).
+    public var pinGnaw: Float = 5
+    /// The director's Dropper channel: one Dropper onto the routes every `dropperGap` s (± 30 %) while the overhead channel is
+    /// open, under `dropperCap`; anti-camping then draws Droppers instead of runners. 0 = off.
+    public var dropperGap: Float = 0
+    /// The director's perch channel: one spitter onto the routes every `perchGap` s (± 30 %) when a free perch point is near
+    /// the squad; it climbs to the perch and spits from there. 0 = off.
+    public var perchGap: Float = 0
 
     public init() {}
 
@@ -317,6 +399,7 @@ public struct Difficulty: Equatable {
         d.queen = QueenTuning(at: 35, hp: 2500, speed: 1.5, ramT: 9, volleyT: 6, broodT: 8, broodN: 6, horde: 80, trickle: 0.4)
         d.waves = true; d.popK = 2.3; d.mix = 1.8; d.bite = 1.8; d.xpK = 1.6; d.runnerHp = 22
         d.routes = 0; d.routeCap = 12; d.dropCap = 2; d.dropWarn = 1.2; d.dropK = 1.2; d.dropGap = 1.0
+        d.dropperCap = 4; d.pinT = 0.8; d.pinGnaw = 5; d.dropperGap = 0; d.perchGap = 0
         return d
     }()
     /// Ветеран — as designed; the default after the first evacuation.
@@ -330,6 +413,7 @@ public struct Difficulty: Equatable {
         d.queen = QueenTuning(at: 35, hp: 3500, speed: 1.5, ramT: 9, volleyT: 6, broodT: 8, broodN: 6, horde: 80, trickle: 0.4)
         d.waves = true; d.popK = 2.5; d.mix = 1.8; d.bite = 2.25; d.xpK = 1.6; d.runnerHp = 22
         d.routes = 0; d.routeCap = 15; d.dropCap = 3; d.dropWarn = 0.9; d.dropK = 1.4; d.dropGap = 0.8
+        d.dropperCap = 5; d.pinT = 1.2; d.pinGnaw = 5; d.dropperGap = 0; d.perchGap = 0
         return d
     }()
     /// Кошмар — the swarm is merciless, the squad weaker.
@@ -343,6 +427,7 @@ public struct Difficulty: Equatable {
         d.queen = QueenTuning(at: 30, hp: 6000, speed: 1.6, ramT: 8, volleyT: 5, broodT: 7, broodN: 8, horde: 150, trickle: 0.6)
         d.waves = true; d.popK = 2.6; d.mix = 1.8; d.bite = 2.5; d.xpK = 1.6; d.runnerHp = 22
         d.routes = 0; d.routeCap = 18; d.dropCap = 3; d.dropWarn = 0.9; d.dropK = 1.5; d.dropGap = 0.6
+        d.dropperCap = 6; d.pinT = 1.2; d.pinGnaw = 5; d.dropperGap = 0; d.perchGap = 0
         return d
     }()
     /// v1.0 exactly (hidden; calibration port check and the v1.0 regression test).
@@ -359,7 +444,8 @@ public struct Difficulty: Equatable {
                                                 "regenCap", "heal", "revive", "medkit", "edge", "pulse", "pulseT", "pulseFall", "stall", "grace",
                                                 "runHp", "qAt", "qHp", "qSpd", "qRamT", "qVolleyT", "qBroodT", "qBroodN", "qHorde", "qTrickle", "mul",
                                                 "waves", "popK", "mix", "bite", "xpK",
-                                                "routes", "routeCap", "dropCap", "dropWarn", "dropK", "dropGap"]
+                                                "routes", "routeCap", "dropCap", "dropWarn", "dropK", "dropGap",
+                                                "dropperCap", "pinT", "pinGnaw", "dropperGap", "perchGap"]
 
     /// Set fields by their web names (`trickle`, `qHp`, …; `bot` is the factor on BOT_DMG like the web row).
     /// Returns the keys it did not know (the caller treats them as an error).
@@ -412,6 +498,11 @@ public struct Difficulty: Equatable {
             case "dropWarn": dropWarn = max(DROP_T + 0.05, v)
             case "dropK": dropK = v
             case "dropGap": dropGap = v
+            case "dropperCap": dropperCap = max(0, Int(v0.rounded()))
+            case "pinT": pinT = max(0, min(1.2, v))
+            case "pinGnaw": pinGnaw = max(0, v)
+            case "dropperGap": dropperGap = max(0, v)
+            case "perchGap": perchGap = max(0, v)
             default: unknown.append(k)
             }
         }

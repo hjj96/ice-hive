@@ -16,6 +16,8 @@ extension Game {
             if m.dashCd > 0 { m.dashCd -= dt }
             if m.abCd > 0 { m.abCd -= dt }
             if m.dropGrace > 0 { m.dropGrace -= dt }
+            // Stage 1 R4: the Dropper's pin runs out (its bug lets go on its next tick: GameOverheadBugs.pinTick)
+            if m.pinT > 0 { m.pinT = max(0, m.pinT - dt) }
             if m.muzzle > 0 { m.muzzle -= dt * 10 }
             m.bite = min(3, m.bite + dt * 5.5)
             if m.downed {
@@ -35,6 +37,8 @@ extension Game {
                 (mx, mz, fire) = botThink(m, dt)
             }
             if stage == .extract && level.onLift(m.x, m.z) { mx = 0; mz = 0; m.dashT = 0 }
+            // Stage 1 R4: pinned — no move, no fire (a dash in the commands above broke the pin already)
+            if m.pinT > 0 { mx = 0; mz = 0; fire = false }
             let ml = hypotf2(mx, mz)
             if ml > 1 { mx /= ml; mz /= ml }
             if ml > 0.2 {
@@ -83,6 +87,8 @@ extension Game {
 
     func tryDash(_ m: Marine, _ dx0: Float, _ dz0: Float) {
         if m.dashCd > 0 || m.downed { return }
+        // Stage 1 R4: a dash breaks a Dropper's pin at once
+        if m.pinT > 0 { breakPinByDash(m) }
         var dx = dx0, dz = dz0
         let l = hypotf2(dx, dz)
         if !(l >= 0.1) { dx = m.ax; dz = m.az } else { dx /= l; dz /= l }
@@ -102,9 +108,11 @@ extension Game {
         if godMode || m.inv > 0 || m.dashT > 0 { m.kx += kx * 0.3; m.kz += kz * 0.3; return }
         m.hp -= dmg; m.hurtT = 0.22; m.kx += kx; m.kz += kz; m.calm = 0
         if m.isPlayer { lastHit = src }
-        // calibration ledger
-        hurtBy[src.rawValue + 1] += dmg
-        marineLastSrc[m.index] = src.rawValue
+        // calibration ledger (six slots: a Dropper's damage in the runner's slot — `DamageSource.ledger`)
+        hurtBy[src.ledger] += dmg
+        marineLastSrc[m.index] = src.ledger - 1
+        // Stage 1 R4: the overhead's own count of the Dropper's damage and downs
+        if src == .dropper { oh.stats.dropperHurt += dmg; if m.hp <= 0 { oh.stats.dropperDowns += 1 } }
         // taking a hit breaks the combo: it rewards clean play, not just standing in a horde
         if m.isPlayer { combo = 0; comboT = 0 }
         if !simOnly {
@@ -134,7 +142,8 @@ extension Game {
     func updateRevive(_ dt: Float) {
         for m in marines where m.downed {
             var helped = false
-            for o in marines where o !== m && !o.downed {
+            // (Stage 1 R4: a pinned marine cannot help)
+            for o in marines where o !== m && !o.downed && o.pinT <= 0 {
                 if (o.x - m.x) * (o.x - m.x) + (o.z - m.z) * (o.z - m.z) < 5.3 { helped = true }
             }
             m.revive = helped ? m.revive + dt / 3 : max(0, m.revive - dt * 0.25)
@@ -178,6 +187,16 @@ extension Game {
                 // flies over the deck; one aimed at the deck passes under the routes
                 let (b, segT) = (P.flags[k] & 4) != 0 ? overheadSegmentHit(sx, sz, dx, dz, len, P.last[k])
                     : hash.segmentHit(S, sx, sz, dx, dz, len, P.last[k])
+                // Stage 1 R4: a round aimed up strikes an open duct mouth's grille when it reaches it first (it stops there)
+                if (P.flags[k] & 4) != 0 && !oh.ducts.isEmpty {
+                    let (d, dtT) = ductSegmentHit(sx, sz, dx, dz, b >= 0 ? segT : len)
+                    if d >= 0 {
+                        if (P.flags[k] & 1) != 0 && (P.flags[k] & 2) == 0 { hits += 1; P.flags[k] |= 2 }
+                        hurtDuct(d, P.dmg[k], Int(P.own[k]), at: Vec2(sx + dx * dtT, sz + dz * dtT))
+                        alive = false
+                        break
+                    }
+                }
                 if b < 0 { break }
                 let own = Int(P.own[k])
                 let hx = sx + dx * segT, hz = sz + dz * segT
@@ -297,6 +316,8 @@ extension Game {
         }
         // the torch reaches up to the overhead (Stage 1 R2): a burning bug up there lets go after GRIP_T s
         if hash.overheadCount > 0 && overheadFlame(m, ox, oz, range, cosC, C.dps * md.dmg * md.rof, C.burn, dt) { hitAny = true }
+        // (Stage 1 R4: and a duct mouth's grille)
+        if !oh.ducts.isEmpty && ductFlame(m, ox, oz, range, cosC, C.dps * md.dmg * md.rof, dt) { hitAny = true }
         if m.isPlayer && hitAny { hits += 1.0 / 6.0 }
     }
 
@@ -328,6 +349,8 @@ extension Game {
         }
         // the beam reaches up to the overhead (Stage 1 R2): frozen, a bug up there falls and shatters on the deck
         if hash.overheadCount > 0 && overheadBeam(m, ox, oz, len, C.chill * md.chill, C.dps * md.dmg * md.rof, dt) { hitAny = true }
+        // (Stage 1 R4: and a duct mouth's grille)
+        if !oh.ducts.isEmpty && ductBeam(m, ox, oz, len, C.dps * md.dmg * md.rof, dt) { hitAny = true }
         m.beamLen = len
         if m.isPlayer && hitAny { hits += 1.0 / 6.0 }
     }
@@ -341,7 +364,7 @@ extension Game {
 
     @discardableResult
     func useAbility(_ m: Marine, _ tx0: Float, _ tz0: Float) -> Bool {
-        if m.abCd > 0 || m.downed { return false }
+        if m.abCd > 0 || m.downed || m.pinT > 0 { return false }
         let md = m.mods
         m.abCd = m.spec.abCd * md.acd
         let S = bugs
@@ -469,7 +492,8 @@ extension Game {
                             defer { q += 1 }
                             let b = hash.qb[q]
                             let ddx = S.x[b] - turret.x, ddz = S.z[b] - turret.z
-                            let d = ddx * ddx + ddz * ddz - (S.type[b] == T_BOOM ? 30 : 0)
+                            // (Stage 1 R4: a Dropper pinning a marine before anything else)
+                            let d = ddx * ddx + ddz * ddz - (S.type[b] == T_BOOM ? 30 : 0) - (S.st[b] == S_PIN ? 400 : 0)
                             if d < bd { bd = d; turret.target = b }
                         }
                     }

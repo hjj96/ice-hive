@@ -248,13 +248,14 @@ public struct RunResult {
 
 // ---------- texts ----------
 public enum MetaText {
-    /// Loss causes by DamageSource (runner, spitter, brute, boomer, the Queen).
+    /// Loss causes by DamageSource (runner, spitter, brute, boomer, the Queen, the Dropper).
     public static let lossTips: [GameText] = [
         GameText(.tipLossRunner),
         GameText(.tipLossSpitter, [.name(.bug(.spitter))]),
         GameText(.tipLossBrute, [.name(.bug(.brute))]),
         GameText(.tipLossBoomer, [.name(.bug(.boomer))]),
         GameText(.tipLossQueen, [.name(.queen)]),
+        GameText(.tipLossDropper, [.name(.bug(.dropper))]),
     ]
     public static let pressTip = GameText(.tipPressure)
     /// After the first evacuation on Recruit: the next mission is Veteran, as designed.

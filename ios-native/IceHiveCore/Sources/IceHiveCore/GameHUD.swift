@@ -136,6 +136,8 @@ extension Game {
         let P = marines[0]
         if attract { return nil }
         if P.downed { return HintLine(text: GameText(.hintPlayerDown), urgent: true) }
+        // Stage 1 R4: a Dropper holds the player (design Appendix B: «PINNED — DASH», on the hint plate)
+        if P.pinned { return HintLine(text: GameText(.hintPinned), urgent: true) }
         if let r = coach.reviveLine, coach.reviveTime > 0 { return HintLine(text: r, urgent: false) }
         if coach.active { return nil }
         if time < 7 { return nil }

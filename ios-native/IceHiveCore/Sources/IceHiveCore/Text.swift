@@ -190,6 +190,7 @@ public enum TextID: String, CaseIterable {
     case hintToPlatform = "hint.to_platform"
     case hintPulse = "hint.pulse"
     case hintPulseFalloff = "hint.pulse_falloff"
+    case hintPinned = "hint.pinned"
     // ---- first-run coach card
     case coachMove = "coach.move"
     case coachMoveKeys = "coach.move.keys"
@@ -213,6 +214,12 @@ public enum TextID: String, CaseIterable {
     case toastTipBrute = "toast.tip.brute"
     case toastTipBoomer = "toast.tip.boomer"
     case toastUpgrade = "toast.upgrade"
+    // ---- the overhead's bugs (Stage 1 R4): squad radio and first-sighting tips
+    case toastMatePinned = "toast.mate_pinned"
+    case toastPinFreed = "toast.pin_freed"
+    case toastTipDropper = "toast.tip.dropper"
+    case toastTipPerch = "toast.tip.perch"
+    case toastTipDuct = "toast.tip.duct"
     // ---- banners (title + subtitle) and horde titles
     case bannerDrop = "banner.drop"
     case bannerDropSub = "banner.drop.sub"
@@ -274,6 +281,7 @@ public enum TextID: String, CaseIterable {
     case tipLossBrute = "tip.loss.brute"
     case tipLossBoomer = "tip.loss.boomer"
     case tipLossQueen = "tip.loss.queen"
+    case tipLossDropper = "tip.loss.dropper"
     case tipPressure = "tip.pressure"
     case tipPromo = "tip.promo"
     case tipLonger = "tip.longer"
@@ -328,6 +336,7 @@ public enum TextID: String, CaseIterable {
         switch self {
         case .objHoldBeacon, .objHoldLift, .objHoldArea, .objKillBoss, .coachAbility, .coachAbilityKeys, .coachRevive: return "@"
         case .toastMateDown, .toastMateUp, .toastTipSpitter, .toastTipBrute, .toastTipBoomer, .toastUpgrade: return "@"
+        case .toastMatePinned, .toastPinFreed, .toastTipDropper, .toastTipPerch, .tipLossDropper: return "@"
         case .bannerDropSub, .bannerDefendSub, .scoreSpeed, .reportTag, .reportSubWon, .reportBest, .reportXP, .reportRankUp: return "@"
         case .reportChip, .tipLossSpitter, .tipLossBrute, .tipLossBoomer, .tipLossQueen, .tipPromo, .tipLonger: return "@"
         case .goalFirstWinAssault, .goalFirstWinPyro, .goalFirstWinCryo, .goalFirstWinGunner: return "@"
@@ -354,8 +363,16 @@ extension GameText {
         case .spitter: return GameText(.toastTipSpitter, [.name(.bug(t))])
         case .brute: return GameText(.toastTipBrute, [.name(.bug(t))])
         case .boomer: return GameText(.toastTipBoomer, [.name(.bug(t))])
+        case .dropper: return GameText(.toastTipDropper, [.name(.bug(t))])
         }
     }
+
+    /// Stage 1 R4: the first perched spitter of a mission (toast) and the first rattling duct mouth.
+    public static let perchTip = GameText(.toastTipPerch, [.name(.bug(.spitter))])
+    public static let ductTip = GameText(.toastTipDuct)
+    /// «{call-sign} pinned» (a squadmate under a Dropper) / «{call-sign}: got it off you» (the squad freed the player).
+    public static func matePinned(_ name: NameRef) -> GameText { GameText(.toastMatePinned, [.name(name)]) }
+    public static func pinFreed(_ name: NameRef) -> GameText { GameText(.toastPinFreed, [.name(name)]) }
 
     /// «{name} down» / «You're down» toast of a marine going down.
     public static func downToast(_ name: NameRef) -> GameText {

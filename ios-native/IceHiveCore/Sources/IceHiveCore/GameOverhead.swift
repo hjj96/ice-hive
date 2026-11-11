@@ -57,11 +57,11 @@ extension Game {
         return n
     }
     public var overheadStats: OverheadStats { oh.stats }
-    /// Bugs per overhead state: high, riser, coil, drop, fall (debug logs).
+    /// Bugs per overhead state: high, riser, coil, drop, fall; Stage 1 R4: pin, perch (debug logs).
     public var overheadStateCounts: [Int] {
-        var c = [0, 0, 0, 0, 0]
+        var c = [0, 0, 0, 0, 0, 0, 0]
         let S = bugs
-        for i in 0..<S.count where S.dead[i] == 0 && S.st[i] >= S_HIGH && S.st[i] <= S_FALL { c[Int(S.st[i] - S_HIGH)] += 1 }
+        for i in 0..<S.count where S.dead[i] == 0 && S.st[i] >= S_HIGH && S.st[i] <= S_PERCH { c[Int(S.st[i] - S_HIGH)] += 1 }
         return c
     }
 
@@ -83,7 +83,10 @@ extension Game {
         let S = bugs
         let fwd = G.ea[e] == n
         S.re[i] = routeEnc(e, fwd); S.rs[i] = fwd ? 0 : G.length[e]
-        S.up[i] = 1; S.vx[i] = 0; S.vz[i] = 0; S.t[i] = 0; S.lt[i] = ROUTE_PATIENCE; S.mood[i] = M_CALM; S.mt[i] = 0; S.hit[i] = 0
+        S.up[i] = 1; S.vx[i] = 0; S.vz[i] = 0; S.t[i] = 0; S.mood[i] = M_CALM; S.mt[i] = 0; S.hit[i] = 0
+        // (Stage 1 R4: a Dropper waits longer for its drop; a spitter goes for a perch — none bound yet)
+        S.lt[i] = type == T_DROP ? DROPPER_PATIENCE : ROUTE_PATIENCE; S.rz[i] = 0
+        if type == T_DROP { typeAlive[Int(T_DROP)] += 1; oh.stats.droppers += 1 }
         if node.kind.climbs { S.st[i] = S_RISER; S.y[i] = node.riserFrom } else { S.st[i] = S_HIGH; S.y[i] = node.p.y }
         S.ax[i] = S.rs[i]; S.az[i] = 0
         let q = G.point(e, fwd ? minf(0.5, G.length[e]) : maxf(0, G.length[e] - 0.5))
@@ -103,9 +106,18 @@ extension Game {
     /// director). The tier's route cap holds: returns how many were queued.
     @discardableResult
     func queueRoutePack(_ n: Int, entry: Int, rate: Float, delay: Float = 0, type: UInt8 = T_RUN) -> Int {
-        let k = min(n, difficulty.routeCap - routeAlive - queuedRouteBugs)
+        var k = min(n, difficulty.routeCap - routeAlive - queuedRouteBugs)
+        // Stage 1 R4: the tier's live Dropper cap (4 / 5 / 6)
+        if type == T_DROP { k = min(k, difficulty.dropperCap - typeAlive[Int(T_DROP)] - queuedRouteBugs(of: T_DROP)) }
         if k <= 0 { return 0 }
-        oh.queue.append(RouteBurst(entry: entry, n: k, rate: rate, acc: -rate * delay, type: type))
+        // Stage 1 R4: a duct mouth that is shot shut takes nothing; an open one rattles DUCT_RATTLE s before the pack pours
+        var wait = delay
+        let d = ductIndex(entry)
+        if d >= 0 {
+            if !oh.ducts[d].open { return 0 }
+            wait = max(wait, DUCT_RATTLE)
+        }
+        oh.queue.append(RouteBurst(entry: entry, n: k, rate: rate, acc: -rate * wait, type: type))
         oh.stats.packs += 1
         return k
     }
@@ -113,11 +125,19 @@ extension Game {
     func processRouteQueue(_ dt: Float) {
         var q = 0
         while q < oh.queue.count {
+            // Stage 1 R4: the packs bound for a duct mouth that was shot shut are lost; an open one rattles before the pour
+            let d = ductIndex(oh.queue[q].entry)
+            if d >= 0 && !oh.ducts[d].open {
+                oh.stats.ductLost += oh.queue[q].n
+                oh.queue.remove(at: q)
+                continue
+            }
             oh.queue[q].acc += oh.queue[q].rate * dt
+            if d >= 0 && !oh.queue[q].rattled && ductRattleCheck(d, oh.queue[q].acc, oh.queue[q].rate) { oh.queue[q].rattled = true }
             while oh.queue[q].acc >= 1 && oh.queue[q].n > 0 {
                 oh.queue[q].acc -= 1; oh.queue[q].n -= 1
                 if capLeft() <= 0 || routeAlive >= difficulty.routeCap { continue }
-                spawnRouteBug(entry: oh.queue[q].entry, type: oh.queue[q].type)
+                if spawnRouteBug(entry: oh.queue[q].entry, type: oh.queue[q].type) >= 0 && d >= 0 { oh.ducts[d].pourAge = 0 }
             }
             if oh.queue[q].n <= 0 { oh.queue.remove(at: q) } else { q += 1 }
         }
@@ -131,6 +151,8 @@ extension Game {
         for (d0, d1, pass) in bands {
             var pick = -1, seen = 0
             for n in G.entries {
+                // (Stage 1 R4: a duct mouth shot shut is no way in)
+                if !ductOpen(node: n) { continue }
                 let p = G.nodePos(n)
                 let d = hypotf2(p.x - c.x, p.z - c.y)
                 if d < d0 || d > d1 { continue }
@@ -177,7 +199,9 @@ extension Game {
         }
         if zn > oh.stats.maxZones { oh.stats.maxZones = zn }
         if hash.overheadCount > oh.stats.maxUp { oh.stats.maxUp = hash.overheadCount }
-        if overheadOn && directorEnabled && !calm { campTick(dt) }
+        if overheadOn && directorEnabled && !calm { campTick(dt); channelTick(dt) }
+        // Stage 1 R4: the duct mouths' clocks (shut → the hive chews through, rattles, pours)
+        if !oh.ducts.isEmpty { ductTick(dt) }
         processRouteQueue(dt)
     }
 
@@ -193,13 +217,16 @@ extension Game {
         if oh.campT >= 25 {
             oh.campT = 0
             let e = routeEntry(near: c)
-            if e >= 0 { queueRoutePack(2, entry: e, rate: 2) }
+            // (Stage 1 R4: Droppers when the tier's Dropper channel is on — design §1.1.6 «draws 2 Droppers overhead»)
+            if e >= 0 { queueRoutePack(2, entry: e, rate: 2, type: difficulty.dropperGap > 0 ? T_DROP : T_RUN) }
         }
     }
 
     // ---------- the per-tick update of a bug up there (simBugs hands every bug with state ≥ high here) ----------
     func routeTick(_ i: Int, _ dt: Float) {
         let S = bugs
+        // Stage 1 R4: a Dropper's pin is down on the deck (its own rules: GameOverheadBugs.pinTick)
+        if S.st[i] == S_PIN { pinTick(i, dt); return }
         guard let G = level.overhead else { settleOnDeck(i, S.x[i], S.z[i], vx: 0, vz: 0); return }
         // the extraction: whatever is up leaps off into the void and is gone (like the bugs falling with the lift)
         if overheadExtracting && S.st[i] != S_FALL { knockDown(i, src: -2) }
@@ -230,6 +257,7 @@ extension Game {
         case S_HIGH: highTick(i, G, dt)
         case S_COIL: coilTick(i, dt)
         case S_DROP: dropTick(i, dt)
+        case S_PERCH: perchTick(i, G, dt)
         default: fallTick(i, dt)
         }
     }
@@ -256,7 +284,7 @@ extension Game {
         var (e, fwd) = routeDec(S.re[i])
         var s = S.rs[i]
         // AX: the goal along this edge; AZ ≠ 0: go on through that end node
-        var remaining = S.spd[i] * G.kind(e).speedK * (1 - 0.6 * S.chill[i]) * dt
+        var remaining = S.spd[i] * routeSpeedK(i, G.kind(e)) * (1 - 0.6 * S.chill[i]) * dt
         var moved: Float = 0
         var guardN = 3
         while remaining > 1e-5 && guardN > 0 {
@@ -268,8 +296,10 @@ extension Game {
                 if S.az[i] == 0 { break }   // waiting at the goal
                 // at the end node: on along the edge that leads toward its marine (not back the way it came)
                 let node = goal >= len * 0.5 ? G.eb[e] : G.ea[e]
+                // (Stage 1 R4: a spitter bound for a perch takes the edge on its way there)
+                let pk = perchBound(i)
                 let m = marines[Int(S.hit[i] & 3)]
-                let ne = G.bestEdge(at: node, m.x, m.z, exclude: e)
+                let ne = pk >= 0 ? nextEdgeToPerch(G, node, pk, exclude: e) : G.bestEdge(at: node, m.x, m.z, exclude: e)
                 if ne < 0 || ne == e { S.az[i] = 0; break }   // a dead end: wait there
                 e = ne; fwd = G.ea[ne] == node; s = fwd ? 0 : G.length[ne]
                 S.ax[i] = fwd ? G.length[ne] : 0; S.az[i] = 0
@@ -299,6 +329,8 @@ extension Game {
     /// drop for ROUTE_PATIENCE s. Returns true when the bug left the high state.
     func routeThink(_ i: Int, _ G: OverheadGraph, _ e: Int, _ s: Float) -> Bool {
         let S = bugs
+        // Stage 1 R4: a spitter up here goes for a perch point (and spits from it) instead of dropping
+        if S.type[i] == T_SPIT { return perchThink(i, G, e, s) }
         let k = routeTarget(i)
         if k < 0 { S.ax[i] = s; S.az[i] = 0; return false }   // nobody standing: wait
         S.hit[i] = UInt8(k)
@@ -364,6 +396,8 @@ extension Game {
         if active >= D.dropCap || slot < 0 { return false }
         let m = marines[k]
         if m.downed || m.dropGrace > 0 { return false }
+        // (Stage 1 R4: a Dropper never goes for a marine another one holds already)
+        if m.pinT > 0 && bugs.type[i] == T_DROP { return false }
         var recent = 0
         if simTime - m.dropT0 < DROP_WINDOW { recent += 1 }
         if simTime - m.dropT1 < DROP_WINDOW { recent += 1 }
@@ -388,12 +422,14 @@ extension Game {
         var zn = DropZone()
         zn.active = true; zn.x = lx; zn.z = lz; zn.r = DROP_RING; zn.t = warn; zn.warn = warn; zn.uid = S.uid[i]; zn.marine = k
         zn.from = SIMD3<Float>(bx, S.y[i], bz)
+        zn.dropper = S.type[i] == T_DROP
         // the closing ring, pink-white like the hive's pores (the lexicon's «lands here»; acid is lime, brutes red)
         zn.tele = teleRing(lx, lz, DROP_RING0, 1.0, 0.76, 0.9, warn, r1: DROP_RING, pulse: true, cause: .dropZone)
         oh.zones[slot] = zn
         m.dropT1 = m.dropT0; m.dropT0 = simTime
         oh.lastDrop = simTime
         oh.stats.drops += 1
+        if zn.dropper { oh.stats.dropperDrops += 1 }
         emit(.dropWarned(from: zn.from, to: Vec2(lx, lz), eta: warn))
         return true
     }
@@ -435,13 +471,17 @@ extension Game {
         if slot < oh.zones.count && oh.zones[slot].uid == S.uid[i] { oh.zones[slot].active = false }
         settleOnDeck(i, lx, lz, vx: dx / dl * 2, vz: dz / dl * 2)
         oh.stats.landed += 1
+        if S.type[i] == T_DROP { oh.stats.dropperLanded += 1 }
         var hit: Marine? = nil
         var bd: Float = DROP_RING * DROP_RING
         for m in marines where !m.downed {
             let mx = m.x - lx, mz = m.z - lz, d2 = mx * mx + mz * mz
             if d2 < bd { bd = d2; hit = m }
         }
-        if let m = hit {
+        if let m = hit, S.type[i] == T_DROP {
+            // Stage 1 R4: the Dropper lands for 14 × the damage multiplier and pins the marine (GameOverheadBugs)
+            dropperLands(i, m, dx / dl, dz / dl)
+        } else if let m = hit {
             let ty = S.type[i]
             let bk: Float = difficulty.waves && (ty == T_RUN || ty == T_SPIT) ? difficulty.bite : 1
             let hp0 = m.hp
@@ -474,8 +514,9 @@ extension Game {
     func knockDown(_ i: Int, src: Int) {
         let S = bugs
         let st = S.st[i]
-        if st < S_HIGH || st == S_FALL || S.dead[i] != 0 { return }
+        if st < S_HIGH || st == S_FALL || st == S_PIN || S.dead[i] != 0 { return }
         cancelDropZone(i)
+        if S.type[i] == T_SPIT { releasePerch(S.uid[i]) }
         let x = S.x[i], z = S.z[i]
         S.rx[i] = x; S.ry[i] = S.y[i]; S.rz[i] = z
         var yl = S.y[i] - 12
@@ -488,6 +529,7 @@ extension Game {
         S.hit[i] = UInt8(bitPattern: Int8(clamping: src))
         if src > -2 {
             oh.stats.knockdowns += 1
+            if S.type[i] == T_DROP { oh.stats.dropperKnocks += 1 }
             emit(.routeKnockdown(pos: Vec2(x, z), height: S.y[i] - level.groundY(x, z)))
         }
     }
@@ -496,11 +538,13 @@ extension Game {
     func routeHop(_ i: Int) -> Bool {
         let S = bugs
         guard let c = nearestDeck(S.x[i], S.z[i], 4, clearOfMarines: 2) else { S.lt[i] = 1; return false }
+        if S.type[i] == T_SPIT { releasePerch(S.uid[i]) }
         S.rx[i] = S.x[i]; S.ry[i] = S.y[i]; S.rz[i] = S.z[i]
         S.ax[i] = c.x; S.az[i] = c.y; S.rs[i] = 0
         S.st[i] = S_FALL; S.t[i] = fallTime(S.y[i] - level.groundY(c.x, c.y)); S.re[i] = 0
         S.hit[i] = UInt8(bitPattern: Int8(-1))
         oh.stats.hops += 1
+        if S.type[i] == T_DROP { oh.stats.dropperHops += 1 }
         return true
     }
 
@@ -571,10 +615,15 @@ extension Game {
         oh.zones[slot].active = false
     }
 
-    /// killBug of a bug in an overhead state (before its slot is flagged dead).
-    func overheadBugDied(_ i: Int) {
+    /// killBug of a bug in an overhead state (before its slot is flagged dead). Stage 1 R4: a pinning Dropper (down on the
+    /// deck) lets its marine go — the squad's fire got it off; a perched or perch-bound spitter frees its perch.
+    func overheadBugDied(_ i: Int, _ src: Int = -1) {
+        let S = bugs
+        if S.st[i] == S_PIN { pinBugDied(i, src); return }
         cancelDropZone(i)
+        if S.type[i] == T_SPIT { releasePerch(S.uid[i]) }
         oh.stats.kills += 1
+        if S.type[i] == T_DROP { oh.stats.dropperKills += 1 }
     }
 
     // ---------- counterplay: the squad's weapons reach up ----------
@@ -697,7 +746,7 @@ extension Game {
             if S.dead[b] != 0 || S.up[b] == 0 || S.st[b] == S_RISER { continue }
             let dx = S.x[b] - turret.x, dz = S.z[b] - turret.z, d2 = dx * dx + dz * dz
             if d2 > r * r { continue }
-            let coil = coilSeen(b)
+            let coil = coilSeen(b) || S.st[b] == S_PERCH
             if !coil && (deckPick || S.st[b] == S_COIL) { continue }
             let d = d2 - (coil ? 1000 : 0)
             if d < bd { bd = d; best = b }
@@ -722,10 +771,12 @@ extension Game {
         while q < qe {
             let b = H.items[q]
             q += 1
-            if S.dead[b] != 0 || S.up[b] == 0 || !coilSeen(b) { continue }
+            // (Stage 1 R4: a perched spitter too — almost a coil's priority while it winds up, else when the deck is clear)
+            let perch = S.st[b] == S_PERCH
+            if S.dead[b] != 0 || S.up[b] == 0 || !(perch || coilSeen(b)) { continue }
             let dx = S.x[b] - m.x, dz = S.z[b] - m.z, d = (dx * dx + dz * dz).squareRoot()
             if d > range { continue }
-            let s = d + abs(angDiff(m.aim, atan2f2(dx, dz))) * 2.2 - 8
+            let s = d + abs(angDiff(m.aim, atan2f2(dx, dz))) * 2.2 - (perch ? (S.t[b] > 0 ? 6 : 1) : 8)
             if s < bs { bs = s; best = b }
         }
         return best
@@ -749,7 +800,7 @@ extension Game {
             if d < 0.6 || d > 17 { continue }
             let cs = (vx * dx + vz * dz) / d
             if cs < 0.92 || !isVisible(S.x[b], S.z[b]) { continue }
-            let s = cs * 5 - d * 0.1 + (S.st[b] == S_COIL ? 1.2 : -1.0)
+            let s = cs * 5 - d * 0.1 + (S.st[b] == S_COIL || S.st[b] == S_PERCH ? 1.2 : -1.0)
             if s > bs { bs = s; best = b }
         }
         return best
@@ -758,6 +809,9 @@ extension Game {
     /// A bot (and the calibration autopilot) steps out of a drop ring with ≤ 0.6 s left, as it does from an acid glob.
     func dropDodge(_ m: Marine) {
         for z in oh.zones where z.active && z.t <= 0.6 {
+            // (Stage 1 R4: the autopilot in the player's seat answers a Dropper's ring like a person — AUTOPILOT_DROP_REACT s
+            // into the warning, later for some: not every ring is dodged; the squad bots keep their sidestep)
+            if z.dropper && m.isPlayer && z.warn - z.t < autopilotDropReact(z.uid) { continue }
             let dx = m.x - z.x, dz = m.z - z.z, d = hypotf2(dx, dz)
             if d >= z.r + 0.5 { continue }
             if d > 0.05 { m.ai.sideX = dx / d; m.ai.sideZ = dz / d }

@@ -10,7 +10,7 @@ PY=${BLENDER_PY:-$HERE/../venv/bin/python}
 OUT="$1/Creatures"
 WORK="$2"
 mkdir -p "$OUT" "$WORK" "$HERE/../reports"
-TYPES=${3:-"runner spitter brute boomer"}
+TYPES=${3:-"runner spitter brute boomer dropper"}
 for t in $TYPES; do
   if [ ! -f "$HERE/$t.py" ]; then continue; fi
   "$PY" "$HERE/build.py" "$t" "$OUT" "$WORK" > "$WORK/$t.log" 2>&1 || { tail -30 "$WORK/$t.log"; exit 1; }

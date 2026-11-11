@@ -66,14 +66,18 @@ extension Game {
         S.hp[i] -= dmg
         if !dot && S.fl[i] < 0.6 { S.fl[i] = 0.6 }
         if S.hp[i] <= 0 { killBug(i, src); return true }
+        // Stage 1 R4: a Dropper pinning a marine lets go once it has taken PIN_BREAK damage (the squad got it off)
+        if S.st[i] == S_PIN { pinDamage(i, dmg, src) }
         return false
     }
 
     func killBug(_ i: Int, _ src: Int) {
         let S = bugs
-        // the overhead (Stage 1 R2): its drop telegraph goes with it; its height is absolute up there
+        // the overhead (Stage 1 R2): its drop telegraph goes with it; its height is absolute up there (R4: a pinning Dropper
+        // lets its marine go, a perched spitter frees its perch)
         let routeSt = S.st[i] >= S_HIGH
-        if routeSt { overheadBugDied(i) }
+        let hKill: Float = routeSt ? S.y[i] - level.groundY(S.x[i], S.z[i]) : S.y[i]
+        if routeSt { overheadBugDied(i, src) }
         S.dead[i] = 1; S.deadPending += 1
         let x = S.x[i], z = S.z[i], ty = S.type[i]
         let frozen = S.frz[i] > 0
@@ -89,7 +93,7 @@ extension Game {
         }
         if !simOnly {
             events.append(.bugKilled(type: BugType(rawValue: Int(ty)) ?? .runner, pos: Vec2(x, z), frozen: frozen, source: src,
-                                     heading: S.hd[i], scale: S.sc[i], height: routeSt ? S.y[i] - level.groundY(x, z) : S.y[i]))
+                                     heading: S.hd[i], scale: S.sc[i], height: hKill))
             if frozen { sound(.shatter, x, z) }
             else {
                 if ty == T_BRUTE { sound(.thud, x, z) }
@@ -136,6 +140,8 @@ extension Game {
                 }
                 // the overhead (Stage 1 R2): blasts reach up at BLAST_UP × their radius and knock the bugs up there down
                 if H_overheadReach(e.kind) && hash.overheadCount > 0 { overheadBlast(e) }
+                // Stage 1 R4: and strike the duct mouths' grilles
+                if H_overheadReach(e.kind) && !oh.ducts.isEmpty { ductBlast(e) }
                 // wave pacing: the survivors around a blast scatter — a short flight away from it, then back in
                 if difficulty.waves && (e.kind == .frag || e.kind == .boomer || e.kind == .mini) {
                     let fr = e.r * 1.9
@@ -244,15 +250,16 @@ extension Game {
         let G = GRID
         let GH = GRID_HALF
         let GF = Float(GRID)
-        var ta0 = 0, ta1 = 0, ta2 = 0, ta3 = 0
+        var ta0 = 0, ta1 = 0, ta2 = 0, ta3 = 0, ta4 = 0
         var ci = 0
         while ci < n {
             let i = ci
             ci += 1
             if DEAD[i] != 0 { continue }
-            switch TY[i] { case 0: ta0 += 1; case 1: ta1 += 1; case 2: ta2 += 1; default: ta3 += 1 }
+            switch TY[i] { case 0: ta0 += 1; case 1: ta1 += 1; case 2: ta2 += 1; case 3: ta3 += 1; default: ta4 += 1 }
         }
         typeAlive[0] = ta0; typeAlive[1] = ta1; typeAlive[2] = ta2; typeAlive[3] = ta3
+        if typeAlive.count > 4 { typeAlive[4] = ta4 }
         let spreadRate = 1.4 * pyroSpread()
         // burn damage multiplier of each possible igniter (index src + 1, 0 = no marine)
         let BURNMUL = burnMulScratch

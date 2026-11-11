@@ -54,8 +54,12 @@ public enum RouteNodeKind: UInt8, CaseIterable {
     case deckPost = 3
     /// A lattice mast (guy cables): packs climb it like a riser (a spawn entry).
     case mast = 4
-    /// A duct mouth in the overhead: packs pour out of it straight onto the route (a spawn entry).
+    /// A duct mouth in the overhead: packs pour out of it straight onto the route (a spawn entry). Stage 1 R4: its grille
+    /// rattles before a pack pours and can be shot shut (`Game.ducts`).
     case ductMouth = 5
+    /// Stage 1 R4: an authored perch point for spitters (a gantry head, a catwalk end against the void). Gantries, joints,
+    /// riser and mast tops against the void near a deck are perch points too (`OverheadGraph.perches`).
+    case perch = 6
 
     /// Packs from the director's overhead channel start here.
     public var spawns: Bool { self == .abyssRiser || self == .mast || self == .ductMouth }
@@ -184,6 +188,11 @@ public final class OverheadGraph {
     /// Connected component of each node and each edge.
     let nodeComp: [Int], edgeComp: [Int]
     public let componentCount: Int
+    /// Stage 1 R4: the duct mouths (`.ductMouth` nodes with an edge) and the perch points for spitters — authored `.perch`
+    /// nodes, and gantries, joints, riser and mast tops against the void (not over walkable deck: the far-side rule) with a
+    /// standable deck within DROP_MAX m in plan — ascending node ids. Derived from the layout (its golden hash is untouched).
+    public let ducts: [Int]
+    public let perches: [Int]
 
     /// `windows`: measure the drop windows (the validation does not need them).
     public init(layout: OverheadLayout, level: Level, windows: Bool = true) {
@@ -242,6 +251,20 @@ public final class OverheadGraph {
             if first >= 0 { lo.append(first); hi.append(min(L, last)) } else { lo.append(1); hi.append(0) }
         }
         w0 = lo; w1 = hi
+        ducts = N.indices.filter { N[$0].kind == .ductMouth && !adj[$0].isEmpty }
+        if windows {
+            perches = N.indices.filter { n in
+                let nd = N[n]
+                if adj[n].isEmpty { return false }
+                if nd.kind == .perch { return true }
+                if nd.kind != .gantry && nd.kind != .joint && nd.kind != .abyssRiser && nd.kind != .mast { return false }
+                let c = level.cellOf(nd.p.x, nd.p.z)
+                if c >= 0 && level.walk[c] != 0 { return false }
+                return OverheadGraph.deckWithin(level, nd.p.x, nd.p.z, 0, DROP_MAX)
+            }
+        } else {
+            perches = []
+        }
     }
 
     /// A deck cell a marine can stand on (floor, not stairs, not the lift) with its centre r0…r1 m from (x, z).

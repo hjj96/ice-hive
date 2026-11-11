@@ -36,6 +36,9 @@ enum TextWarmup {
         var out: [GameText] = BugType.allCases.compactMap { GameText.bugTip($0) }
         out += [GameText.downToast(.player), GameText.upToast(.player), GameText.medkitToast(40)]
         for c in MarineClass.allCases { out += [GameText.downToast(.callsign(c)), GameText.upToast(.callsign(c))] }
+        // Stage 1 R4: the overhead's tips and the pin's radio lines
+        out += [GameText.perchTip, GameText.ductTip]
+        for c in MarineClass.allCases { out += [GameText.matePinned(.callsign(c)), GameText.pinFreed(.callsign(c))] }
         return out
     }
 
