@@ -28,8 +28,8 @@ from mathutils import Vector  # noqa: E402
 
 import ihv  # noqa: E402
 
-TYPES = ['runner', 'spitter', 'brute', 'boomer']
-SCALE = dict(runner=0.8, spitter=1.02, brute=2.0, boomer=1.15)
+TYPES = ['runner', 'spitter', 'brute', 'boomer', 'dropper']
+SCALE = dict(runner=0.8, spitter=1.02, brute=2.0, boomer=1.15, dropper=1.0)
 THREADS = 3
 T0 = time.time()
 
@@ -71,8 +71,9 @@ def reset(res, samples=24):
     return sc
 
 
-RIM = dict(runner=(0.62, 0.14, 0.36), spitter=(0.42, 0.62, 0.06), brute=(0.78, 0.30, 0.07), boomer=(0.85, 0.46, 0.09))
-SAC = dict(runner=(0.6, 0.05, 0.16), spitter=(0.42, 0.78, 0.05), brute=(0.7, 0.1, 0.2), boomer=(0.95, 0.4, 0.07))
+RIM = dict(runner=(0.62, 0.14, 0.36), spitter=(0.42, 0.62, 0.06), brute=(0.78, 0.30, 0.07), boomer=(0.85, 0.46, 0.09),
+           dropper=(0.86, 0.83, 0.77))
+SAC = dict(runner=(0.6, 0.05, 0.16), spitter=(0.42, 0.78, 0.05), brute=(0.7, 0.1, 0.2), boomer=(0.95, 0.4, 0.07), dropper=(0.0, 0.0, 0.0))
 
 
 def material(name, kind, emit=6.0, lambert=False):
@@ -370,7 +371,7 @@ def job_game(out):
     Ds = {t: load(t) for t in TYPES}
     pack = []
     for i in range(24):
-        t = rng.choice(TYPES, p=[0.55, 0.18, 0.1, 0.17])
+        t = rng.choice(TYPES, p=[0.5, 0.17, 0.1, 0.15, 0.08])
         for _ in range(200):
             x, z = rng.uniform(-3.4, 3.0), rng.uniform(-3.0, 2.6)
             r_ = 0.55 * SCALE[t] + 0.35
