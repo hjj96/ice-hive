@@ -142,6 +142,8 @@ extension Game {
                 if H_overheadReach(e.kind) && hash.overheadCount > 0 { overheadBlast(e) }
                 // Stage 1 R4: and strike the duct mouths' grilles
                 if H_overheadReach(e.kind) && !oh.ducts.isEmpty { ductBlast(e) }
+                // Stage 1 R6: the squad's blasts reach the steam valves up on their pipes too
+                if H_overheadReach(e.kind) && !props.valves.isEmpty { valveBlast(e) }
                 // wave pacing: the survivors around a blast scatter — a short flight away from it, then back in
                 if difficulty.waves && (e.kind == .frag || e.kind == .boomer || e.kind == .mini) {
                     let fr = e.r * 1.9
@@ -196,12 +198,13 @@ extension Game {
     }
 
     // ---------- acid globs (spitters) ----------
-    func launchGlob(_ x0: Float, _ z0: Float, _ x1: Float, _ z1: Float) {
+    /// `lamp`: the station lamp the glob was spat at (Stage 1 R6: it breaks on landing), −1 a marine.
+    func launchGlob(_ x0: Float, _ z0: Float, _ x1: Float, _ z1: Float, lamp: Int = -1) {
         let G = globs
         if G.count >= AcidGlobs.capacity { return }
         let k = G.count
         G.count += 1
-        G.x0[k] = x0; G.z0[k] = z0; G.x1[k] = x1; G.z1[k] = z1; G.t[k] = 0; G.dur[k] = 0.95
+        G.x0[k] = x0; G.z0[k] = z0; G.x1[k] = x1; G.z1[k] = z1; G.t[k] = 0; G.dur[k] = 0.95; G.lamp[k] = lamp
         G.h0[k] = 0
         if !simOnly { emit(.acidLaunched(from: Vec2(x0, z0), to: Vec2(x1, z1))); sound(.spit, x0, z0) }
     }
@@ -219,9 +222,12 @@ extension Game {
                 if d < 1.5 { hurtMarine(m, BUG_SPECS[1].dmg * dmgMul, 0, 0, .spitter) }
             }
             if !simOnly { emit(.acidSplash(pos: Vec2(x, z))); sound(.acid, x, z) }
+            // Stage 1 R6: a glob spat at a lamp breaks it
+            if G.lamp[k] >= 0 { hurtLamp(G.lamp[k], LAMP_SPIT_DMG) }
             G.count -= 1
             let l = G.count
             G.x0[k] = G.x0[l]; G.z0[k] = G.z0[l]; G.x1[k] = G.x1[l]; G.z1[k] = G.z1[l]; G.t[k] = G.t[l]; G.dur[k] = G.dur[l]
+            G.lamp[k] = G.lamp[l]
             G.h0[k] = G.h0[l]
         }
     }
@@ -284,6 +290,8 @@ extension Game {
         let MOOD = S.mood, MT = S.mt, MDX = S.mdx, MDZ = S.mdz, LT = S.lt
         let simT = simTime
         let biteK = difficulty.bite
+        // Stage 1 R6: the hive spits on the station's lamps (only on a station with light circuits)
+        let lampsLive = !props.lamps.isEmpty
         var iNext = 0
         while iNext < n {
             let i = iNext
@@ -446,7 +454,10 @@ extension Game {
             // --- type behaviours ---
             if ty == T_SPIT {
                 if st == S_MOVE {
-                    if dist < 11 && dist > 3.2 && CD[i] <= 0 && anyUp {
+                    // (R6: now and then a ready spit goes at a lamp instead — at most once in LAMP_SPIT_GAP s for the hive)
+                    if lampsLive && CD[i] <= 0 && anyUp && simT >= props.lampSpitAt, case let lk = lampSpitTarget(x, z), lk >= 0 {
+                        spitAtLamp(i, lk)
+                    } else if dist < 11 && dist > 3.2 && CD[i] <= 0 && anyUp {
                         let m = marines[best]
                         let ax = MX[best] + m.vx * 0.8 + (rng.next() - 0.5) * 1.2
                         let az = MZ[best] + m.vz * 0.8 + (rng.next() - 0.5) * 1.2
@@ -466,7 +477,10 @@ extension Game {
                 } else {
                     speed = 0
                     T[i] -= dt
-                    if T[i] <= 0 { launchGlob(x, z, AX[i], AZ[i]); ST[i] = S_MOVE; CD[i] = 2.8 + rng.next() * 1.6 }
+                    if T[i] <= 0 {
+                        launchGlob(x, z, AX[i], AZ[i], lamp: lampsLive ? lampOfSpitter(UID[i]) : -1)
+                        ST[i] = S_MOVE; CD[i] = 2.8 + rng.next() * 1.6
+                    }
                 }
             } else if ty == T_BRUTE {
                 if st == S_MOVE {

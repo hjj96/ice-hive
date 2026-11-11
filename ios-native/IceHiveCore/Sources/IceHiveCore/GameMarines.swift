@@ -185,17 +185,22 @@ extension Game {
                 guardN -= 1
                 // the overhead (Stage 1 R2): a round aimed up strikes bugs on the routes at their footprint (radius × 1.3) and
                 // flies over the deck; one aimed at the deck passes under the routes
-                let (b, segT) = (P.flags[k] & 4) != 0 ? overheadSegmentHit(sx, sz, dx, dz, len, P.last[k])
+                let up = (P.flags[k] & 4) != 0
+                let (b, segT) = up ? overheadSegmentHit(sx, sz, dx, dz, len, P.last[k])
                     : hash.segmentHit(S, sx, sz, dx, dz, len, P.last[k])
-                // Stage 1 R4: a round aimed up strikes an open duct mouth's grille when it reaches it first (it stops there)
-                if (P.flags[k] & 4) != 0 && !oh.ducts.isEmpty {
-                    let (d, dtT) = ductSegmentHit(sx, sz, dx, dz, b >= 0 ? segT : len)
-                    if d >= 0 {
+                // Stage 1 R4 / R6: a round aimed up strikes an open duct mouth's grille or a ready steam valve on its pipe when
+                // it reaches it first (it stops there; the nearer of the two)
+                if up && (!oh.ducts.isEmpty || !props.valves.isEmpty) {
+                    let reach = b >= 0 ? segT : len
+                    let (d, dtT) = oh.ducts.isEmpty ? (-1, reach) : ductSegmentHit(sx, sz, dx, dz, reach)
+                    let (v, vt) = props.valves.isEmpty ? (-1, reach) : valveSegmentHit(sx, sz, dx, dz, reach)
+                    if d >= 0 && (v < 0 || dtT <= vt) {
                         if (P.flags[k] & 1) != 0 && (P.flags[k] & 2) == 0 { hits += 1; P.flags[k] |= 2 }
                         hurtDuct(d, P.dmg[k], Int(P.own[k]), at: Vec2(sx + dx * dtT, sz + dz * dtT))
                         alive = false
                         break
                     }
+                    if v >= 0 { shotValve(k, v, sx + dx * vt, sz + dz * vt); alive = false; break }
                 }
                 if b < 0 { break }
                 let own = Int(P.own[k])

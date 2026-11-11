@@ -44,12 +44,14 @@ public struct CalibRun {
     public var quality: QualityTier
     /// Mission template id (`MissionTemplate.named`); nil = «Operation Cold Light».
     public var mission: String?
+    /// Stage 1 R6: «Кельвин-9» with its interactives laid (`PropLayout.kelvin`; station 0 only).
+    public var props: Bool
 
     public init(tag: String, cls: MarineClass, tier: Int, mode: CalibMode, maxs: Float? = nil, seed: UInt32, station: UInt32 = 0,
-                th: [String: Double] = [:], quality: QualityTier = .med, mission: String? = nil) {
+                th: [String: Double] = [:], quality: QualityTier = .med, mission: String? = nil, props: Bool = false) {
         self.tag = tag; self.cls = cls; self.tier = tier; self.mode = mode
         self.maxs = maxs ?? (mode == .afk ? 420 : 600)
-        self.seed = seed; self.station = station; self.th = th; self.quality = quality; self.mission = mission
+        self.seed = seed; self.station = station; self.th = th; self.quality = quality; self.mission = mission; self.props = props
     }
 
     /// The tier row of this run (overrides applied).
@@ -105,6 +107,24 @@ public struct CalibOverhead: Equatable {
     }
 }
 
+/// The interactive props in one run (Stage 1 R6; only on a station that had them — the classic rows keep their bytes).
+public struct CalibProps: Equatable {
+    public var bursts = 0, curtainKills = 0, upKills = 0, freezes = 0, steamHurt = 0, lampsBroken = 0, lampSpits = 0, restores = 0, lockers = 0
+    /// Light circuits lit at the end, of the station's.
+    public var lights = 0, circuits = 0
+    public init() {}
+    init(_ s: PropStats, lights: Int, circuits: Int) {
+        bursts = s.bursts; curtainKills = s.curtainKills; upKills = s.upKills; freezes = s.freezes; steamHurt = Int(s.steamHurt.rounded())
+        lampsBroken = s.lampsBroken; lampSpits = s.lampSpits; restores = s.restores; lockers = s.lockers
+        self.lights = lights; self.circuits = circuits
+    }
+    /// Field names and values in JSON order.
+    var fields: [(String, Int)] {
+        [("bursts", bursts), ("curtainKills", curtainKills), ("upKills", upKills), ("freezes", freezes), ("steamHurt", steamHurt), ("lampsBroken", lampsBroken),
+         ("lampSpits", lampSpits), ("restores", restores), ("lockers", lockers), ("lights", lights), ("circuits", circuits)]
+    }
+}
+
 /// One result row (web run.mjs '[R]' line).
 public struct CalibRow {
     public var tag = "", cls = "assault", q = "med", mode = "auto"
@@ -147,6 +167,8 @@ public struct CalibRow {
     public var downBy4 = [Int](repeating: 0, count: 6)
     /// The overhead's numbers (Stage 1 R2), only when it was on in the run (written as a trailing `"oh"` object).
     public var oh: CalibOverhead? = nil
+    /// The props' numbers (Stage 1 R6), only on a station with props (a trailing `"props"` object).
+    public var props: CalibProps? = nil
     public var error: String? = nil
 
     public init() {}
@@ -211,6 +233,7 @@ extension CalibRow {
         }
         s += "\"hurtBy\":\(jints(hurtBy)),\"downBy4\":\(jints(downBy4))"
         if let o = oh { s += ",\"oh\":{" + o.fields.map { jstr($0.0) + ":\($0.1)" }.joined(separator: ",") + "}" }
+        if let p = props { s += ",\"props\":{" + p.fields.map { jstr($0.0) + ":\($0.1)" }.joined(separator: ",") + "}" }
         return s + "}"
     }
 
@@ -279,6 +302,14 @@ extension CalibRow {
             c.dropperHops = v("drpHops")
             oh = c
         }
+        if let po = o["props"] as? [String: Any] {
+            func v(_ k: String) -> Int { Int(d(po[k]) ?? 0) }
+            var c = CalibProps()
+            c.bursts = v("bursts"); c.curtainKills = v("curtainKills"); c.upKills = v("upKills"); c.freezes = v("freezes"); c.steamHurt = v("steamHurt")
+            c.lampsBroken = v("lampsBroken"); c.lampSpits = v("lampSpits"); c.restores = v("restores"); c.lockers = v("lockers")
+            c.lights = v("lights"); c.circuits = v("circuits")
+            props = c
+        }
     }
 }
 
@@ -309,7 +340,8 @@ public enum Calibration {
             }
             cfg.mission = t
         }
-        let lv = level ?? (c.station == 0 ? nil : Level(source: StationGenerator(), seed: c.station))
+        let lv = level ?? (c.station == 0 ? (c.props ? Level(source: KelvinStation(props: .kelvin), seed: c.seed) : nil)
+                                          : Level(source: StationGenerator(), seed: c.station))
         let g = Game(seed: c.seed, playerClass: c.cls, config: cfg, level: lv)
         var row = CalibRow()
         row.tag = c.tag; row.cls = c.cls.id; row.q = c.quality.rawValue; row.mode = c.mode.rawValue
@@ -420,6 +452,8 @@ public enum Calibration {
         row.downBy4 = g.squadDownBy
         // the overhead (Stage 1 R2): its numbers only when its channel was open (the classic rows are unchanged)
         if g.overheadOn || g.overheadStats.spawns > 0 { row.oh = CalibOverhead(g.overheadStats) }
+        // the props (Stage 1 R6): only on a station that had them
+        if g.hasProps { row.props = CalibProps(g.propStats, lights: g.lightsLit, circuits: g.circuits.count) }
         return row
     }
 
@@ -462,14 +496,14 @@ public enum Calibration {
     /// `n` runs per class of one tier + mode (`mission`: a template id, which also prefixes the tag when none is given).
     public static func batch(tier: Int, mode: CalibMode, n: Int, classes: [MarineClass] = MarineClass.allCases, seed0: UInt32 = 1000,
                              tag: String? = nil, th: [String: Double] = [:], maxs: Float? = nil, station: UInt32 = 0,
-                             quality: QualityTier = .med, mission: String? = nil) -> [CalibRun] {
+                             quality: QualityTier = .med, mission: String? = nil, props: Bool = false) -> [CalibRun] {
         var out: [CalibRun] = []
         let prefix = tag ?? mission
         for k in 0..<n {
             for c in classes {
                 let tg = (prefix.map { $0 + "-" } ?? "") + tierTag(tier) + (quality == .med ? "" : "-q" + quality.rawValue)
                 out.append(CalibRun(tag: tg, cls: c, tier: tier, mode: mode, maxs: maxs, seed: seed(seed0, mode: mode, tier: tier, cls: c, k: k),
-                                    station: station, th: th, quality: quality, mission: mission))
+                                    station: station, th: th, quality: quality, mission: mission, props: props))
             }
         }
         return out
@@ -485,7 +519,7 @@ public enum Calibration {
     }
 
     /// The fixed presets; a template id is a preset too (`icehive-calib --preset drill-switch`).
-    public static let presetNames = ["gate", "full", "stations", "legacy", "drills", "overhead"]
+    public static let presetNames = ["gate", "full", "stations", "legacy", "drills", "overhead", "props"]
 
     /// The overhead preset's share of packs sent up (Stage 1 R2; the tiers keep `routes` = 0 until package R5).
     public static let overheadRoutes: Double = 0.2
@@ -549,6 +583,13 @@ public enum Calibration {
             for s in 1...4 {
                 out += batch(tier: 1, mode: .auto, n: 2, seed0: seed0, tag: (tag.map { $0 + "-" } ?? "") + "ohb-st\(s)", th: tb, station: UInt32(s))
             }
+            return out
+        case "props":
+            // Stage 1 R6 (informational): «Operation Cold Light» on «Кельвин-9» with its interactives laid (valves, seven light
+            // circuits, a supply locker): the bots pop valves and re-light, the hive breaks lamps; compare with the classic rows
+            // of the same seeds (`gate`'s Recruit and Veteran)
+            var out: [CalibRun] = batch(tier: 0, mode: .auto, n: 4, seed0: seed0, tag: (tag.map { $0 + "-" } ?? "") + "props", th: th, props: true)
+            out += batch(tier: 1, mode: .auto, n: 8, seed0: seed0, tag: (tag.map { $0 + "-" } ?? "") + "props", th: th, props: true)
             return out
         default:
             return MissionTemplate.named(name).flatMap { templateRuns($0, th: th) }
@@ -662,6 +703,31 @@ public enum Calibration {
                    + "Qkil% is of the runs that reached her.)")
         let ohRows = rows.filter { $0.error == nil && $0.oh != nil }
         if !ohRows.isEmpty { out.append(""); out.append(overheadTable(ohRows)) }
+        let prRows = rows.filter { $0.error == nil && $0.props != nil }
+        if !prRows.isEmpty { out.append(""); out.append(propsTable(prRows)) }
+        return out.joined(separator: "\n")
+    }
+
+    /// The interactive props per group (Stage 1 R6): per run — valves burst, bugs the curtains killed on the deck and up on
+    /// the spans, squad HP lost to the steam, lamps the hive broke, its spits at lamps, circuits brought back, lockers
+    /// opened; the light circuits lit at the end (mean, of the station's).
+    static func propsTable(_ rows: [CalibRow]) -> String {
+        var g: [String: [CalibRow]] = [:]
+        for r in rows { g[r.tag + " " + r.mode, default: []].append(r) }
+        var out = ["props per run".padding(toLength: 18, withPad: " ", startingAt: 0) + " "
+                   + ["n", "bursts", "kills", "upKill", "freeze", "steam", "broken", "spits", "restor", "locker", "lights"].map { pad($0, 6) }.joined(separator: " ")]
+        for k in g.keys.sorted() {
+            let rs = g[k]!
+            let n = Float(rs.count)
+            func m(_ f: (CalibProps) -> Int) -> String { fmt(Float(rs.reduce(0) { $0 + f($1.props!) }) / n, 1) }
+            let lights = m { $0.lights } + "/\(rs.first?.props?.circuits ?? 0)"
+            let cols = [pad("\(rs.count)", 6), pad(m { $0.bursts }, 6), pad(m { $0.curtainKills }, 6), pad(m { $0.upKills }, 6),
+                        pad(m { $0.freezes }, 6), pad(m { $0.steamHurt }, 6), pad(m { $0.lampsBroken }, 6), pad(m { $0.lampSpits }, 6), pad(m { $0.restores }, 6),
+                        pad(m { $0.lockers }, 6), pad(lights, 6)]
+            out.append(k.padding(toLength: 18, withPad: " ", startingAt: 0) + " " + cols.joined(separator: " "))
+        }
+        out.append("(kills: deck bugs the scald curtains killed; freeze: bugs a coolant mist froze; steam: squad HP lost in the curtains; "
+                   + "lights: circuits lit at the end)")
         return out.joined(separator: "\n")
     }
 

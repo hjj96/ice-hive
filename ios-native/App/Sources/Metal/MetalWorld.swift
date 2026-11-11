@@ -16,6 +16,8 @@ import IceHiveCore
 //    GroundGlyphs (WP4)  team rings, progress rings
 //    WorldLevel (WP6)    static level draws, dynamic props
 //    WorldOverhead (R3)  the overhead layer: routes, cutaway, sway, drops
+//    WorldProps (R6)     the interactive props: valves, breakers, lockers,
+//                        the lamps' light, steam, use rings
 //    Atmosphere (WP2)    haze, weather
 //    LightGrid (WP2)     the lights of the frame
 //    ShadowAtlas (WP2)   flashlight shadow pre-pass
@@ -76,6 +78,8 @@ final class MetalWorld: HUDProjection {
     let levelDraw: WorldLevel
     /// Stage 1 R3: the overhead layer (nothing on a station without routes).
     let overhead: WorldOverhead
+    /// Stage 1 R6: the interactive props (nothing on a station without them).
+    let props: WorldProps
     let atmosphere = Atmosphere()
     let lightGrid = LightGrid()
     let shadowAtlas = ShadowAtlas()
@@ -140,6 +144,7 @@ final class MetalWorld: HUDProjection {
         glyphs = GroundGlyphs(level: level)
         levelDraw = WorldLevel(level: level, store: store)
         overhead = WorldOverhead(level: level)
+        props = WorldProps(level: level)
         fx.corpses = corpses
         // hits on the chitin (WorldSwarm.impactPoint), muzzles and casings at the rig's sockets (WorldSquad)
         fx.swarm = swarm
@@ -206,6 +211,8 @@ final class MetalWorld: HUDProjection {
     }
 
     func handle(_ e: GameEvent, game: Game) {
+        // the props' events: sparks, flashes, their log lines (Stage 1 R6)
+        props.handle(e, game: game, fx: fx)
         // the hit bug recoils along the actual shot (WorldSwarm.noteHit), not away from the nearest marine
         if case .bulletHit(let pos, let dir, _) = e { swarm.noteHit(pos, dir) }
         fx.handle(e, game: game)
@@ -285,6 +292,8 @@ final class MetalWorld: HUDProjection {
         fx.setCameraRight(camera.right)
         fx.update(game: game, dt: dt, time: time, poses: squad.poses, focus: camera.focus, liftRise: rise)
         corpses.liftRise(rise)
+        // (R6: the lamps' light, the props' parts and steam, their use rings — before the glyphs take the rings)
+        props.build(game: game, time: time, dt: dt, fx: fx, levelDraw: levelDraw, glyphs: glyphs)
         glyphs.build(game: game, time: time, poses: squad.poses, liftRise: rise)
         levelDraw.build(game: game, time: time, dt: dt, rise: rise, fx: fx)
         overhead.build(game: game, camera: camera, poses: squad.poses, time: time, dt: dt, fx: fx)

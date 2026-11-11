@@ -298,6 +298,8 @@ extension Game {
     func throwSwitch(_ k: Int, _ s: SwitchStep) -> Bool {
         switches[k].state = 2; switches[k].progress = 1; activeSwitch = -1
         if s.escalates { beaconsDone += 1 }
+        // R6's seam: a breaker switch brings back the light circuit whose breaker it stands on
+        if !props.circuits.isEmpty { propsSwitchThrown(switches[k].site) }
         enterPhase(.approach)
         if !simOnly {
             emit(.switchThrown(index: k))

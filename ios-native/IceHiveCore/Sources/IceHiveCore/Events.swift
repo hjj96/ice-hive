@@ -137,6 +137,23 @@ public enum GameEvent {
     /// A perched spitter's glob: from (x, absolute y, z) onto the deck point `to`, landing in `flight` s (its lime ring and
     /// fill are the usual `.acidTarget` telegraphs).
     case acidFromPerch(from: SIMD3<Float>, to: Vec2, flight: Float)
+    // --- Stage 1 R6: interactive props (`Game.valves` / `circuits` / `lamps` / `lockers` hold the state) ---
+    /// A round struck steam valve `index` on its pipe.
+    case valveHit(index: Int)
+    /// Valve `index` bursts: VALVE_WARN s of warning, then its scald curtain.
+    case valveBurst(index: Int)
+    /// Its scald curtain stands under the span (VALVE_VENT s).
+    case valveVented(index: Int)
+    /// It holds pressure again: ready to be shot (the amber gauge).
+    case valveReady(index: Int)
+    /// The hive broke lamp `index` (acid, a brute, a blast).
+    case lampBroken(index: Int)
+    /// Light circuit `index` is back on: every lamp of it whole and burning (a breaker ring or a breaker switch).
+    case circuitRestored(index: Int)
+    /// Light circuit `index` lost its power (a darkness event).
+    case circuitCut(index: Int)
+    /// Supply locker `index` opened by marine `marine` (its medkit is out, its ability ready).
+    case lockerOpened(index: Int, marine: Int)
     /// The coach moved to step `index` (0…4).
     case coachStep(index: Int)
     /// The coach was seen far enough (end of step 4, skip, early end): the app stores `tut = 1`. Once per Game.
@@ -190,6 +207,9 @@ public enum TelegraphCause: Int {
     /// Stage 1 R2: something drops from the overhead HERE — a closing ring (DROP_RING0 → DROP_RING) for the whole warning,
     /// in the pink-white of the hive's pores (the telegraph lexicon's «lands here», design §1.1.4).
     case dropZone
+    /// Stage 1 R6: a steam valve bursts — its amber ring («it explodes»: the lexicon's valve about to burst) and the strip
+    /// of its scald curtain on the deck (a steam-white lane: pulsing through the warning, fading over the curtain).
+    case steam
 }
 
 public struct Telegraph {

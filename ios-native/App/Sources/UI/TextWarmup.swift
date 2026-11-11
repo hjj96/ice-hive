@@ -39,6 +39,9 @@ enum TextWarmup {
         // Stage 1 R4: the overhead's tips and the pin's radio lines
         out += [GameText.perchTip, GameText.ductTip]
         for c in MarineClass.allCases { out += [GameText.matePinned(.callsign(c)), GameText.pinFreed(.callsign(c))] }
+        // Stage 1 R6: the interactive props' barks and first-sighting tips
+        out += [GameText(.toastLightsCut), GameText(.toastLightsUp), GameText(.toastLocker), GameText(.toastTipValve),
+                GameText(.toastTipBreaker), GameText(.toastTipLocker)]
         return out
     }
 

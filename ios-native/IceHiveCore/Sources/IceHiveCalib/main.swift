@@ -8,7 +8,8 @@ import IceHiveCore
 //    swift run -c release icehive-calib --agg a.jsonl b.jsonl        (aggregate only; web rows work too)
 //    swift run -c release icehive-calib --preset drills --out d.jsonl (the module drills, reported bands)
 //    swift run -c release icehive-calib --preset overhead --out o.jsonl (generated stations with the overhead on, informational)
-//  Options: --preset gate|full|stations|legacy|drills|overhead|<mission template id> · --mission <template id> (cold-light,
+//    swift run -c release icehive-calib --preset props --out p.jsonl (Кельвин-9 with its interactives laid, informational)
+//  Options: --preset gate|full|stations|legacy|drills|overhead|props|<mission template id> · --mission <template id> (cold-light,
 //  drill-ring, drill-switch, drill-hold, drill-boss, drill-extract, drill-all) · --tiers 0,1,2 (-1 = legacy v1.0 row) · --n runs per class and tier
 //  · --classes assault,pyro,cryo,gunner · --mode auto|passive|afk|afkbeacon · --maxs s · --seed0 1000 · --station N
 //  · --th JSON (web tier field names) · --tag t · --q low|med|high (gameplay bug cap) · --jobs N

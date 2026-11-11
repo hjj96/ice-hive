@@ -110,6 +110,9 @@ public struct LevelLayout {
     /// The overhead: routes above the decks only the hive walks on (Stage 1 R2, Overhead.swift). Empty on the classic
     /// «Кельвин-9» until package R5 authors its routes; generated stations get theirs from `OverheadPlanner`.
     public var overhead = OverheadLayout()
+    /// Interactive props: steam valves, light circuits (breakers + the station's lamps on their decks), supply lockers
+    /// (Stage 1 R6, Props.swift). None on the classic «Кельвин-9» until a mission or package R5 lays `PropLayout.kelvin`.
+    public var props = PropLayout()
 
     public init(name: NameRef, seed: UInt32, rects: [FloorRect], crates: [CrateSpec], pillars: [Vec2], start: Vec2, lift: LiftSpec,
                 beacons: [BeaconSite], vents: [Vec2], pipes: [PipeRun]) {
@@ -128,8 +131,12 @@ public struct KelvinStation: LevelSource {
     /// Overhead routes laid over the hand-made station (none for the classic mission; the overhead demo and the core
     /// tests use `OverheadLayout.kelvinSlice`).
     public var overhead: OverheadLayout
-    public init() { overhead = OverheadLayout() }
-    public init(overhead: OverheadLayout) { self.overhead = overhead }
+    /// Interactive props laid over the hand-made station (none for the classic mission; the interactives demo and the
+    /// core tests use `PropLayout.kelvin`).
+    public var props: PropLayout
+    public init() { overhead = OverheadLayout(); props = PropLayout() }
+    public init(overhead: OverheadLayout, props: PropLayout = PropLayout()) { self.overhead = overhead; self.props = props }
+    public init(props: PropLayout) { overhead = OverheadLayout(); self.props = props }
     public static let liftY: Float = -6
 
     public func makeLayout(seed: UInt32) -> LevelLayout {
@@ -172,6 +179,7 @@ public struct KelvinStation: LevelSource {
             beacons: [BeaconSite(x: -32, z: 27, name: .beacon(0)), BeaconSite(x: 30, z: -8, name: .beacon(1)), BeaconSite(x: -34, z: -9, name: .beacon(2))],
             vents: vents, pipes: pipes)
         L.overhead = overhead
+        L.props = props
         return L
     }
 }
@@ -208,6 +216,9 @@ public final class Level {
     public var start: Vec2 { layout.start }
     /// The runtime index of the layout's overhead routes (nil when the station has none).
     public private(set) var overhead: OverheadGraph? = nil
+    /// The station's deck lamps with their circuits (Stage 1 R6, `StationLamps`): only on a station with light circuits —
+    /// empty otherwise (the renderer still draws its lamp posts; they burn and count for nothing).
+    public private(set) var lamps: [LampSite] = []
 
     public convenience init(source: LevelSource = KelvinStation(), seed: UInt32 = 0) {
         self.init(layout: source.makeLayout(seed: seed))
@@ -225,6 +236,8 @@ public final class Level {
         raster()
         // (built after the raster: the drop windows are measured against the walk grid)
         if !layout.overhead.isEmpty { overhead = OverheadGraph(layout: layout.overhead, level: self) }
+        // (the lamps follow the railing runs of the raster, like WorldLevel's lamp posts)
+        if !layout.props.circuits.isEmpty { lamps = StationLamps.assign(StationLamps.place(self), layout.props.circuits) }
     }
 
     deinit {
@@ -308,6 +321,10 @@ public final class Level {
                 if c >= 0 { walk[c] = 2 }
             }
         }
+        // interactive props (Stage 1 R6): a breaker's pedestal and a locker's cabinet are solid (after the edge pass, like
+        // the beacon bases; none on the classic station)
+        for c in layout.props.circuits { let k = cellOf(c.x, c.z); if k >= 0 { walk[k] = 2 } }
+        for l in layout.props.lockers { let p = l.cabinet, k = cellOf(p.x, p.y); if k >= 0 { walk[k] = 2 } }
     }
 
     // ---------- queries ----------

@@ -90,6 +90,22 @@ import IceHiveCore
 //                   Dropper climbs the riser and pins the player: time almost frozen (×0.02) 0.25 s into that pin for the
 //                   screenshot (the «Pinned — dash!» hint); `-obDash`: no freeze — the player dashes out 0.45 s into it
 //                   (`… by dash`; the CI burst burst-dash). Once a second `hb bugs droppers=… pins=… perched=… ducts=…`.
+//  Stage 1 R6 «Valves, light, lockers»:
+//    -demo interactives  «Кельвин-9» with its interactives laid (PropLayout.kelvinDemo: Kelvin-9's steam valves, seven light
+//                   circuits with breakers, a supply locker, plus a coolant line on the hub's west rail) and the overhead's
+//                   demo slice (the rack the bridge valve sits on), the
+//                   director off, the player idle on the near side of the pad → hub bridge's hub end (the valve's whole
+//                   span, the coolant line, the hub breaker and the locker in frame), the squad firing. 0.8 s after
+//                   «scene ready» a runner pack spawns at the pad end of the bridge under the valve's span and runs along
+//                   it; the gunner pops the valve once 6 are under it (else the demo does, by the same rule from 1.0 s,
+//                   at 1.8 s at the latest): the
+//                   burst, then the 5 s scald curtain (CI burst burst-valve); at 3.0 s a second pack on the hub's west strip
+//                   under the coolant line, popped at 3.6 s unless the squad did: 2 s of freezing mist. At 8.0 s the hub's circuit is cut (its lamps
+//                   die), from 8.5 s the player walks into the hub breaker's ring and stands there; 6 s in the ring bring
+//                   the lights back, lamp by lamp from the breaker (CI burst burst-lights). `-ixLights`: the lights only —
+//                   the squad on the hub's centre, no pack, no valve, the cut at 1.0 s and the walk from 1.5 s (a shorter
+//                   burst run: the lights back ≈ 8.5 s in). `props: …` lines on
+//                   every prop event, `hb props …` and `demo interactives: …` once a second.
 //  R0 (film fixes):
 //    -demo win      like hold; 1 s after «scene ready» the lift leaves and the ride plays out to the win (4.6 s): the
 //                   report comes up at once and the world keeps animating under it (the lift eases to a stop with the
@@ -142,7 +158,7 @@ final class DemoScript {
         case "beacon": return DemoScript(name: d, options: options, bugs: options.bugs)
         case "title", "calm", "probe", "hold", "holdhint", "extract", "queen", "queenlock", "coach", "pressure", "report", "levelup", "pause", "end",
              "swarmshot", "layout", "bugsheet", "punchin", "extract-cine", "waves", "swarmpack", "swarmmix", "defeat", "overhead", "win",
-             "overheadbugs":
+             "overheadbugs", "interactives":
             return DemoScript(name: d, options: options)
         case "stress1400": return DemoScript(name: d, options: options, bugs: options.bugs ?? 1400)
         default:
@@ -161,7 +177,11 @@ final class DemoScript {
     var startsMission: Bool { name != "title" }
 
     /// The station the demo plays (nil = the classic «Кельвин-9»): the overhead demo lays the overhead showcase.
-    var levelSource: LevelSource? { name == "overhead" || name == "overheadbugs" ? KelvinStation(overhead: OverheadShowcase.layout) : nil }
+    var levelSource: LevelSource? {
+        // (R6: the interactives demo lays «Кельвин-9»'s props and the slice its bridge valve hangs on)
+        if name == "interactives" { return KelvinStation(overhead: .kelvinSlice, props: .kelvinDemo) }
+        return name == "overhead" || name == "overheadbugs" ? KelvinStation(overhead: OverheadShowcase.layout) : nil
+    }
     /// `-ohWalk`: the overhead demo's parallax walk (the CI burst `burst-parallax`).
     private var walk: Bool { options.unknown.contains("-ohWalk") }
 
@@ -290,6 +310,15 @@ final class DemoScript {
             let G = game.level.overhead
             AppLog.info("demo overheadbugs: routes \(G?.edgeCount ?? 0) edges, \(game.ducts.count) duct mouths, \(game.perchPoints.count) perch points, "
                         + "squad mid-bridge, director off, bots holding fire" + (options.unknown.contains("-obDash") ? ", the player dashes out of the pin" : ""))
+        case "interactives":
+            // Stage 1 R6: the near side of the pad → hub bridge's hub end, off the valve's curtain; the squad fires
+            game.autopilot = false
+            game.directorEnabled = false
+            // (-ixLights: the hub's centre, 6 m from its breaker)
+            if ixLightsOnly { game.debugTeleport(0.5, 28) } else { game.debugTeleport(8, 31.5) }
+            target = 0
+            AppLog.info("demo interactives: \(game.valves.count) valves, \(game.circuits.count) circuits, \(game.lamps.count) lamps, "
+                        + "\(game.lockers.count) lockers; lit \(game.lightsLit)/\(game.circuits.count); squad on the bridge's hub end")
         case "waves":
             // the wave director's own swarm: the squad in a beacon's ring, its defence starts on the first tick
             let k = max(0, min(game.beacons.count - 1, Int(demoNum("-waveBeacon", 1))))
@@ -337,6 +366,7 @@ final class DemoScript {
         if name == "waves" { waves(game, dt); return }
         if name == "overhead" { overhead(game, dt); return }
         if name == "overheadbugs" { overheadBugs(game, dt); return }
+        if name == "interactives" { interactives(game, dt); return }
         if !startsMission { return }
         t += dt
         probe = nil
@@ -657,6 +687,90 @@ final class DemoScript {
             AppLog.info(String(format: "hb bugs droppers=%d up=%d pins=%d dash=%d fire=%d timeout=%d perched=%d spits=%d seals=%d states=%d/%d/%d/%d ducts=",
                                game.droppersAlive, game.routeAlive, s.pins, s.pinDash, s.pinFire, s.pinTimeout, c[6], s.perchSpits, s.seals,
                                c[0], c[2], c[5], c[6]) + ducts + String(format: " ts=%.1f td=%.1f", ts, sinceReady))
+        }
+    }
+
+    // ---------------------------------------------------------------- Stage 1 R6: the interactive props
+    private var ixStep = 0
+    private var ixCool = 0
+    private var ixArrived = false
+    /// `-ixLights`: the lights part only, 7 s earlier.
+    private var ixLightsOnly: Bool { options.unknown.contains("-ixLights") }
+    /// interactives: the pack along the bridge valve's span, the valve popped (by the gunner, else by the demo once 6+ bugs
+    /// are under it from 1.0 s, at the latest at 1.8 s), the
+    /// hub's lights cut at 8.0 s, the player walking into the hub breaker's ring from 8.5 s, the lights coming back.
+    private func interactives(_ game: Game, _ dt: Float) {
+        t += dt
+        if ixStep == 0 && ixLightsOnly { ixStep = 2 }
+        let lightsAt: Double = ixLightsOnly ? 1.0 : 8.0
+        if ixStep == 0 && sinceReady >= 0.8 {
+            ixStep = 1
+            let n = game.debugSpawnLine(12, type: .runner, from: Vec2(18.4, 27.7), to: Vec2(20.8, 29.5))
+            AppLog.info(String(format: "demo interactives: a pack of %d under the valve's span td=%.2f", n, sinceReady))
+        }
+        if ixStep == 1, let v = game.valves.first {
+            if v.phase != .ready {
+                ixStep = 2
+                AppLog.info(String(format: "demo interactives: the squad popped the valve (marine %d) td=%.2f", v.src, sinceReady))
+            } else if (sinceReady >= 1.0 && v.crowd >= VALVE_BOT_CROWD) || sinceReady >= 1.8 {
+                // the bots' own rule (6+ bugs under the span), the pack still on the bridge: the curtain catches it
+                ixStep = 2
+                game.debugBurstValve(0, by: 3)
+                AppLog.info(String(format: "demo interactives: the demo popped the valve td=%.2f (%d bugs under it)", sinceReady, v.crowd))
+            }
+        }
+        // the coolant line on the hub's west rail (valve 4 of the demo's set): a pack under it at 3.0 s, popped at 3.6 s
+        let cool = game.valves.firstIndex { $0.site.kind == .coolant }
+        if !ixLightsOnly, let c = cool {
+            if ixCool == 0 && sinceReady >= 3.0 {
+                ixCool = 1
+                let s = game.valves[c].site
+                let ux = s.bx - s.ax, uz = s.bz - s.az, ul = max(0.01, (ux * ux + uz * uz).squareRoot())
+                let n = game.debugSpawnLine(8, type: .runner, from: Vec2(s.ax + ux / ul * 0.5, s.az + uz / ul * 0.5),
+                                            to: Vec2(s.bx - ux / ul * 0.5, s.bz - uz / ul * 0.5))
+                AppLog.info(String(format: "demo interactives: a pack of %d under the coolant line td=%.2f", n, sinceReady))
+            }
+            if ixCool == 1 && (game.valves[c].phase != .ready || sinceReady >= 3.6) {
+                ixCool = 2
+                if game.valves[c].phase == .ready { game.debugBurstValve(c, by: 3) }
+                AppLog.info(String(format: "demo interactives: the coolant line burst (marine %d) td=%.2f", game.valves[c].src, sinceReady))
+            }
+        }
+        if ixStep == 2 && sinceReady >= lightsAt && game.circuits.count > 1 {
+            ixStep = 3
+            game.debugCutCircuit(1)
+            AppLog.info(String(format: "demo interactives: the hub's lights cut td=%.2f", sinceReady))
+        }
+        if ixStep == 3 && sinceReady >= lightsAt + 0.5 {
+            // the player into the hub breaker's ring (1.1 m from the pedestal, on its side), then still
+            let s = game.circuits[1].site, P = game.player
+            var dx = P.x - s.x, dz = P.z - s.z
+            let dl = max(0.01, (dx * dx + dz * dz).squareRoot())
+            dx /= dl; dz /= dl
+            let gx = s.x + dx * 1.1 - P.x, gz = s.z + dz * 1.1 - P.z, gl = (gx * gx + gz * gz).squareRoot()
+            if gl > 0.25 && !ixArrived {
+                game.setPlayerInput(move: Vec2(gx / gl, gz / gl), aim: nil, fire: false, ability: false, dash: false)
+            } else {
+                game.setPlayerInput(move: Vec2(0, 0), aim: nil, fire: false, ability: false, dash: false)
+                if !ixArrived {
+                    ixArrived = true
+                    AppLog.info(String(format: "demo interactives: the player in the breaker's ring td=%.2f (progress %.2f)", sinceReady,
+                                       game.circuits[1].progress))
+                }
+            }
+            if game.circuits[1].powered {
+                ixStep = 4
+                AppLog.info(String(format: "demo interactives: the hub's lights back td=%.2f", sinceReady))
+            }
+        }
+        logT -= dt
+        if logT <= 0 {
+            logT = 1
+            let v = game.valves.first
+            AppLog.info(String(format: "demo interactives: td=%.1f step %d alive %d valve %d (%.1f s) hub %d/%d ring %.2f lit %d/%d", sinceReady,
+                               ixStep, game.bugsAlive, v?.phase.rawValue ?? -1, v?.t ?? 0, game.circuits.count > 1 ? game.circuits[1].burning : 0,
+                               game.circuits.count > 1 ? game.circuits[1].lamps.count : 0, game.circuits.count > 1 ? game.circuits[1].progress : 0,
+                               game.lightsLit, game.circuits.count))
         }
     }
 

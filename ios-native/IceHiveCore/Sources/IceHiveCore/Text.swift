@@ -220,6 +220,13 @@ public enum TextID: String, CaseIterable {
     case toastTipDropper = "toast.tip.dropper"
     case toastTipPerch = "toast.tip.perch"
     case toastTipDuct = "toast.tip.duct"
+    // ---- interactive props (Stage 1 R6): squad radio barks and first-sighting tips
+    case toastLightsCut = "toast.lights_cut"
+    case toastLightsUp = "toast.lights_up"
+    case toastLocker = "toast.locker"
+    case toastTipValve = "toast.tip.valve"
+    case toastTipBreaker = "toast.tip.breaker"
+    case toastTipLocker = "toast.tip.locker"
     // ---- banners (title + subtitle) and horde titles
     case bannerDrop = "banner.drop"
     case bannerDropSub = "banner.drop.sub"
@@ -248,6 +255,7 @@ public enum TextID: String, CaseIterable {
     case scoreExtract = "score.extract"
     case scoreSpeed = "score.speed"
     case scoreNoDowns = "score.no_downs"
+    case scoreLights = "score.lights"
     // ---- mission report
     case reportTag = "report.tag"
     case reportTitleWon = "report.title.won"
@@ -348,7 +356,7 @@ public enum TextID: String, CaseIterable {
         case .fmtCombo, .fmtPercent, .fmtInt: return "d"
         case .upgDmg, .upgRof, .upgRange, .upgArad, .upgAcd, .upgSpd, .upgHp, .upgDash, .upgSquad, .upgCluster: return "d"
         case .upgBurn, .upgCone, .upgShatter, .upgChill, .upgCool: return "d"
-        case .objLightBeacons, .objSwitches, .coachCounter, .bannerBeaconOnlineSub, .scoreBeacons, .upgTurret: return "dd"
+        case .objLightBeacons, .objSwitches, .coachCounter, .bannerBeaconOnlineSub, .scoreBeacons, .scoreLights, .upgTurret: return "dd"
         default: return ""
         }
     }

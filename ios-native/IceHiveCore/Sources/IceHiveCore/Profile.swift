@@ -39,15 +39,20 @@ public struct RunSummary {
     public var station: NameRef
     /// Beacons the mission's plan charges (the score line «beacons N/M»; «Operation Cold Light»: 3).
     public var beaconsTotal: Int
+    /// Light circuits lit at the end and the station's circuits (Stage 1 R6; 0 / 0 on a station without them — no line).
+    public var lightsOn: Int
+    public var lightsTotal: Int
 
     public init(cls: MarineClass, won: Bool, surrendered: Bool, time: Float, playerKills: Int, beaconsDone: Int, queenSpawned: Bool, queenDone: Bool,
                 downs: Int, downBy: DamageSource, tierIndex: Int, tierMul: Float, stage: MissionStage, pressureLoss: Bool,
-                shots: Int, hits: Int, accuracy: Int, bestCombo: Int, level: Int, station: NameRef, beaconsTotal: Int = 3) {
+                shots: Int, hits: Int, accuracy: Int, bestCombo: Int, level: Int, station: NameRef, beaconsTotal: Int = 3,
+                lightsOn: Int = 0, lightsTotal: Int = 0) {
         self.cls = cls; self.won = won; self.surrendered = surrendered; self.time = time; self.playerKills = playerKills
         self.beaconsDone = beaconsDone; self.queenSpawned = queenSpawned; self.queenDone = queenDone; self.downs = downs; self.downBy = downBy
         self.tierIndex = tierIndex; self.tierMul = tierMul; self.stage = stage; self.pressureLoss = pressureLoss
         self.shots = shots; self.hits = hits; self.accuracy = accuracy; self.bestCombo = bestCombo; self.level = level; self.station = station
         self.beaconsTotal = beaconsTotal
+        self.lightsOn = lightsOn; self.lightsTotal = lightsTotal
     }
 }
 
@@ -195,6 +200,9 @@ public func effectiveTier(diffPick: Int?, profile: Profile) -> Int {
 }
 
 // ---------- score: only what the player controls (never squad kills or idle time) ----------
+/// Score of each light circuit lit at extraction (Stage 1 R6: a beacon is 500, the extraction 1500).
+public let LIGHT_SCORE = 100
+
 public struct ScorePart: Equatable {
     public let label: GameText
     public let value: Int
@@ -214,6 +222,10 @@ public struct RunScore: Equatable {
             parts.append(ScorePart(label: GameText(.scoreExtract), value: 1500))
             parts.append(ScorePart(label: GameText(.scoreSpeed, [.time(run.time)]), value: max(0, Int(jsRound((480 - Double(run.time)) * 5)))))
             if run.downs == 0 { parts.append(ScorePart(label: GameText(.scoreNoDowns), value: 500)) }
+            // Stage 1 R6 (design §1.4 «Scoring»): «Lights on at extraction 6/7» — a soft secondary goal, never a fail state
+            if run.lightsTotal > 0 {
+                parts.append(ScorePart(label: GameText(.scoreLights, [.int(run.lightsOn), .int(run.lightsTotal)]), value: run.lightsOn * LIGHT_SCORE))
+            }
         }
         var raw = 0
         for p in parts { raw += p.value }

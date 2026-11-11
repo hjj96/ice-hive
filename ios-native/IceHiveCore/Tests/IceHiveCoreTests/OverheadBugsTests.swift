@@ -508,3 +508,25 @@ final class OverheadBugsMissionTests: XCTestCase {
         XCTAssertLessThanOrEqual(pins, drops)
     }
 }
+
+/// R4 × R6: the overhead's bugs on a station with its interactives — a steam curtain frees a pinned marine (the lit deck's
+/// no-drop circles hold for the Dropper through R2's dropSpotOK: PropsTests).
+final class OverheadBugsPropsTests: XCTestCase {
+    func testASteamCurtainScaldsAPinningDropperOff() {
+        let g = propsGame(god: true)
+        g.playerAlone(13, 28.6)
+        let i = g.debugPinMarine(0)
+        XCTAssertGreaterThanOrEqual(i, 0)
+        XCTAssertTrue(g.player.pinned)
+        g.clearEvents()
+        g.debugBurstValve(0, by: 1)
+        var cause: PinBreak? = nil, freer = -2
+        for _ in 0..<Int(1.2 / SIM_DT) where cause == nil {
+            g.step(1)
+            g.drainEvents { e in if case .pinBroken(_, _, let c, let f) = e { cause = c; freer = f } }
+        }
+        XCTAssertEqual(cause, .fire, "the scald (40 HP/s on the deck) does the pin's 15 damage within the warning + 0.4 s")
+        XCTAssertEqual(freer, 1, "the marine who popped the valve freed it")
+        XCTAssertFalse(g.player.pinned)
+    }
+}

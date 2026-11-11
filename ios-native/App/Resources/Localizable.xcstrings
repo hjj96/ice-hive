@@ -2425,6 +2425,18 @@
         }
       }
     },
+    "score.lights" : {
+      "comment" : "Mission report score line, left of its «+N» (one line, shrinks). Light circuits lit at extraction / the station's light circuits (a soft secondary goal; only on stations with light circuits). Max width: 213 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lights on at extraction %1$lld/%2$lld"
+          }
+        }
+      }
+    },
     "score.no_downs" : {
       "comment" : "Mission report score line, left of its «+N» (one line, shrinks). Bonus for never going down. Max width: 213 pt.",
       "extractionState" : "manual",
@@ -2905,6 +2917,42 @@
         }
       }
     },
+    "toast.lights_cut" : {
+      "comment" : "Toast in the right column (uppercased; wraps, two lines at most). Squad radio: the hive broke a deck lamp near the squad (at most once in 25 s). Amber edge. Max width: 596 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "They're cutting the lights"
+          }
+        }
+      }
+    },
+    "toast.lights_up" : {
+      "comment" : "Toast in the right column (uppercased; wraps, two lines at most). Squad radio: a light circuit came back on (a marine held its breaker's ring). Gold edge. Max width: 596 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lights up"
+          }
+        }
+      }
+    },
+    "toast.locker" : {
+      "comment" : "Toast in the right column (uppercased; wraps, two lines at most). The player opened a supply locker: a medkit pops out and the ability is ready at once. Gold edge. Max width: 596 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resupplied — ability ready"
+          }
+        }
+      }
+    },
     "toast.mate_down" : {
       "comment" : "Toast in the right column (uppercased; wraps, two lines at most). Red edge. %@ = call-sign (Cupcake, Donut, Shadow, Muffin). Max width: 596 pt.",
       "extractionState" : "manual",
@@ -3001,6 +3049,18 @@
         }
       }
     },
+    "toast.tip.breaker" : {
+      "comment" : "Toast in the right column (uppercased; wraps, two lines at most). First time a dark light circuit's breaker is near the player: standing 6 s in its ring brings the deck's lamps back; nothing drops from the overhead onto lit deck. Amber edge. Max width: 596 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Breaker: hold its ring — no drops on lit deck"
+          }
+        }
+      }
+    },
     "toast.tip.brute" : {
       "comment" : "Toast in the right column (uppercased; wraps, two lines at most). First sighting. %@ = bug name. Max width: 596 pt.",
       "extractionState" : "manual",
@@ -3037,6 +3097,18 @@
         }
       }
     },
+    "toast.tip.locker" : {
+      "comment" : "Toast in the right column (uppercased; wraps, two lines at most). First time a stocked supply locker is near the player: 2 s in its ring give a medkit and the ability back (once). Amber edge. Max width: 596 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supply locker: stand in its ring to resupply"
+          }
+        }
+      }
+    },
     "toast.tip.perch" : {
       "comment" : "Toast in the right column (uppercased; wraps, two lines at most). First spitter perched up on the overhead this mission (it spits from height and stands still: shoot it down). %@ = bug name (Spitter). Max width: 596 pt.",
       "extractionState" : "manual",
@@ -3057,6 +3129,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@: acid spit — step out of the rings"
+          }
+        }
+      }
+    },
+    "toast.tip.valve" : {
+      "comment" : "Toast in the right column (uppercased; wraps, two lines at most). First time a steam valve (on a pipe above a deck) is near the player: shooting it scalds everything under its pipe for 5 s. Amber edge. Max width: 596 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Steam valve: shoot it — scalds the deck below"
           }
         }
       }

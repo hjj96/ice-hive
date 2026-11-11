@@ -109,6 +109,16 @@ jobs:
           .build/release/icehive-calib --preset overhead --jobs 3 --out "$GITHUB_WORKSPACE/results/calib-overhead.jsonl" \
             --summary "$GITHUB_WORKSPACE/results/calib-overhead.txt" > /dev/null 2>&1 || true
           tail -n 9 "$GITHUB_WORKSPACE/results/calib-overhead.txt" || true
+      # Stage 1 R6 (interactive props): «Operation Cold Light» on «Кельвин-9» with its valves, light circuits and supply
+      # locker laid (Recruit and Veteran) — informational: the props stay off for the classic mission until R5 / R7
+      - name: Calibration with the interactive props laid (informational)
+        if: success() || failure()
+        continue-on-error: true
+        working-directory: ios-native/IceHiveCore
+        run: |
+          .build/release/icehive-calib --preset props --jobs 3 --out "$GITHUB_WORKSPACE/results/calib-props.jsonl" \
+            --summary "$GITHUB_WORKSPACE/results/calib-props.txt" > /dev/null 2>&1 || true
+          tail -n 8 "$GITHUB_WORKSPACE/results/calib-props.txt" || true
       - name: Collect log
         if: always()
         run: |
@@ -354,7 +364,7 @@ jobs:
     env:
       # every frame-gated demo, all landscape (the app is landscape-only); `layout` (the four-phone layout check)
       # runs as well but builds ~40 screens in one go, so it is not gated
-      DEMOS: firstlaunch combat beacon waves overhead overheadbugs swarmshot swarmshot-dots swarm swarm3x calm squad squadclose squadtight squadfire fxsheet fxsheet-high fxpeak stress1400 punchin extract-cine title title-fresh title-return title-nm title-left probe hold extract holdhint queen queenlock coach coach3 pressure pressure-amber levelup pause pause-nm end report-first report-win report-loss report-chip release-combat swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud
+      DEMOS: firstlaunch combat beacon waves overhead overheadbugs interactives swarmshot swarmshot-dots swarm swarm3x calm squad squadclose squadtight squadfire fxsheet fxsheet-high fxpeak stress1400 punchin extract-cine title title-fresh title-return title-nm title-left probe hold extract holdhint queen queenlock coach coach3 pressure pressure-amber levelup pause pause-nm end report-first report-win report-loss report-chip release-combat swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud
       MENUS: levelup,pause,pause-nm,end,report-first,report-win,report-loss,report-chip
     steps:
       - uses: actions/checkout@v4
@@ -464,6 +474,10 @@ jobs:
           # arm and spits from height, a pack rattles in the duct and the player shoots it shut, a second Dropper climbs the
           # riser and pins the player — time almost frozen 0.25 s into that pin for the screenshot («Pinned — dash!»)
           run_demo overheadbugs 15 "-demo overheadbugs -seed 7" 0
+          # Stage 1 R6: «Кельвин-9» with its interactives (PropLayout.kelvinDemo) and the overhead slice: a pack along the bridge
+          # valve's span, the valve popped (the scald curtain), a pack frozen by the catwalk's coolant line, the hub's lights cut,
+          # the player in the breaker's ring, the lights back lamp by lamp (`props: …` lines); the screenshot after it
+          run_demo interactives 20 "-demo interactives -seed 7" 0
           # the App Store 2-swarm moment staged in the app (gunner at the crossing, the store's 600 bugs under the live cap
           # — 350 on High since native-vx-feel —, firing, time ~frozen), now in landscape (874x402 @3x)
           run_demo swarmshot 4 "-demo swarmshot -seed 7" 0
@@ -566,6 +580,13 @@ jobs:
           pull_burst burst-duct
           run_demo burst-dash 13 "-demo overheadbugs -obDash -seed 7 -burst dash 9.4 24 5"
           pull_burst burst-dash
+          # Stage 1 R6: the steam valve bursting over the pack and its scald curtain (every 8th present ≈ 3 s), and the hub's
+          # breaker bringing its lamps back (-ixLights: the lights part only from the hub's centre, its restore ≈ 8.5 s in;
+          # every 5th present ≈ 2 s)
+          run_demo burst-valve 8 "-demo interactives -seed 7 -hideHUD -burst valve 1.3 24 8"
+          pull_burst burst-valve
+          run_demo burst-lights 13 "-demo interactives -seed 7 -hideHUD -ixLights -burst lights 7.9 24 5"
+          pull_burst burst-lights
           # WP5 effects look-dev: every effect staged around the squad and frozen mid-air (-fxSheet: blasts, napalm, the
           # flamer jet, the cryo beam, hits, kills, a frozen shatter, acid, a nova, casings, a row of every stain), on
           # Efficient and on High (wet decals, heat haze); the plan's scripted peak (three chained boomers + napalm +
@@ -787,7 +808,8 @@ jobs:
                    layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo banner-beacon banner-queen banner-pseudo \
                    swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud calm-deckmask calm-bright-nohud \
                    burst-fire burst-tight burst-combat burst-anim burst-loco burst-loco-game burst-acta burst-actb burst-actc burst-defeat burst-win burst-bugs burst-pack burst-packold burst-mix burst-mixold validate-stress validate-fxpeak validate-extract lifecycle \
-                   overhead burst-overhead burst-parallax overhead-nohud overheadbugs burst-dropper burst-perch burst-duct burst-dash; do
+                   overhead burst-overhead burst-parallax overhead-nohud overheadbugs burst-dropper burst-perch burst-duct burst-dash \
+                   interactives burst-valve burst-lights; do
             grep -q 'scene ready' "results/app-$d.log" || { fail "$d: no 'scene ready'"; }
             if grep -q 'ERROR' "results/app-$d.log"; then fail "$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; fi
           done
@@ -883,6 +905,19 @@ jobs:
           need burst-dash 'hb bugs droppers=[0-9]+ up=[0-9]+ pins=2 dash=1 fire=1 '
           python3 ios-native/ci/overhead_vis.py results overhead-nohud burst-parallax > results/overhead-vis.txt 2>&1 || fail "overhead visibility: $(tail -n 1 results/overhead-vis.txt)"
           cat results/overhead-vis.txt
+          # Stage 1 R6: the interactives demo — the props laid, the valve burst and its curtain, the hub's circuit cut and
+          # brought back by its breaker ring, every circuit lit again
+          need interactives 'demo interactives: 5 valves, 7 circuits, 48 lamps, 1 lockers; lit 7/7'
+          need interactives 'props: valve 0 burst by'
+          need interactives 'props: valve 0 curtain up'
+          need interactives 'props: valve 4 \(coolant\) mist up'
+          need interactives 'props: circuit 1 cut'
+          need interactives 'props: circuit 1 restored, lamps 6/6, lit circuits 7/7'
+          need interactives 'hb props lit=7/7 lamps=48/48 valves=c'
+          need burst-valve 'burst valve written \(24 frames\)'
+          need burst-valve 'props: valve 0 curtain up'
+          need burst-lights 'burst lights written \(24 frames\)'
+          need burst-lights 'props: circuit 1 restored'
           need burst-pack 'demo swarmpack: spawned [1-9][0-9]* bugs .*swarm life'
           need burst-packold 'demo swarmpack: spawned [1-9][0-9]* bugs .*swarm legacy'
           # native-vx-fix: the mission's live-bug cap is the tier's under the device class's (the simulator stands in for the

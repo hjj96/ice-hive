@@ -124,6 +124,17 @@ final class KitMesh {
     var triangles: Int { indices.count / 3 }
     var isEmpty: Bool { indices.isEmpty }
 
+    /// Stage 1 R6: vertices `from`… (just added) become head k of vs_kit's table (they turn about its pivot by its yaw;
+    /// their painted faces take its colour).
+    func markHead(from v0: Int, _ k: Int, paint: Bool) {
+        for i in v0..<vertices.count {
+            var ex = vertices[i].extra
+            ex = (ex & 0x00ff_ffff) | (KitFlag.head << 16) | (UInt32(k & 255) << 24)
+            if paint { ex |= KitFlag.paint << 16 }
+            vertices[i].extra = ex
+        }
+    }
+
     @inline(__always) func add(_ v: KitVertex) -> UInt32 {
         vertices.append(v)
         let p = F3(v.px, v.py, v.pz)
@@ -385,8 +396,9 @@ final class KitMesh {
     /// A kit piece placed with a yaw, an optional scale (`scaleY` vertical, `scaleX` / `scaleZ` along the piece's own
     /// axes, all before the yaw) and a paint colour (KitFlag.paint faces take it).
     /// `headIndex`: the piece is beacon head k (KitFlag.head on every vertex, k in extra.w; vs_kit spins it).
+    /// `paintHead`: only its painted faces are head k (Stage 1 R6: a lamp's lens takes its colour from the head table).
     func place(_ p: KitPiece, at t: F3, yaw: Float = 0, scaleY: Float = 1, scaleX: Float = 1, scaleZ: Float = 1,
-               paint: UInt32? = nil, headIndex: UInt32? = nil, caster: Bool = false) {
+               paint: UInt32? = nil, headIndex: UInt32? = nil, paintHead: UInt32? = nil, caster: Bool = false) {
         let c = cosf(yaw), s = sinf(yaw)
         @inline(__always) func rot(_ v: F3) -> F3 { F3(c * v.x + s * v.z, v.y, -s * v.x + c * v.z) }
         let base = UInt32(vertices.count)
@@ -421,6 +433,7 @@ final class KitMesh {
             }
             var ex = p.extra[i]
             if let k = headIndex { ex = (ex & 0x00ff_ffff) | (KitFlag.head << 16) | ((k & 255) << 24) }
+            else if let k = paintHead, (p.extra[i] >> 16) & KitFlag.paint != 0 { ex = (ex & 0x00ff_ffff) | (KitFlag.head << 16) | ((k & 255) << 24) }
             _ = add(KitVertex(px: w.x, py: w.y, pz: w.z, nrm: KitMesh.snorm(n), tan: KitMesh.snorm(tr, tg.w),
                               u: uv.x, v: uv.y, uv1: p.uv1[i], tint: tint, extra: ex))
         }

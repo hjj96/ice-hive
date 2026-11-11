@@ -91,12 +91,22 @@ final class LightingHub {
     /// nil = LightGrid reads the legacy floor light pools of Meshes/level_glow.mesh.
     private(set) var stationLamps: [(F3, F3)]?
     private(set) var stationLampsVersion = 0
+    /// Stage 1 R6: the light of each station lamp 0…1+ (index into `stationLamps`; missing = 1): WorldProps dims the lamps
+    /// the hive broke or whose circuit is off, and flickers them back on.
+    private(set) var lampLevels: [Float] = []
 
     /// Register the station's lamps (the level module, after it assembled the level): each becomes a short-range grid
     /// light while it is within 30 m of the player (no specular; teal walkway lamps, red vents, amber pads …).
     func setStationLamps(_ lamps: [(F3, F3)]) {
         stationLamps = lamps
         stationLampsVersion += 1
+    }
+
+    /// Station lamp `i`'s light this frame (Stage 1 R6).
+    func setLampLevel(_ i: Int, _ level: Float) {
+        guard i >= 0 && i < 4096 else { return }
+        if i >= lampLevels.count { lampLevels += [Float](repeating: 1, count: i + 1 - lampLevels.count) }
+        lampLevels[i] = level
     }
 
     /// A light for this frame only (call before MetalWorld fills the frame uniforms, e.g. from the effects' update):
@@ -400,9 +410,12 @@ final class LightGrid {
             let pulse: Float = b.state == 1 ? 0.7 + 0.3 * sinf(time * 6 + Float(k)) : 1
             add(F3(b.x, gy + 3.0, b.z), col, intensity: 30 * pulse, range: 10, priority: 8)
         }
-        // the station's lamps near the grid
-        for (p, c) in lamps where abs(p.x - focus.x) < 30 && abs(p.z - focus.z) < 30 {
-            add(p, c, intensity: 9, range: 7, spec: false, priority: 1)
+        // the station's lamps near the grid (R6: × each lamp's light — broken, its circuit off, flickering back on)
+        let lv = hub.lampLevels
+        for (i, (p, c)) in lamps.enumerated() where abs(p.x - focus.x) < 30 && abs(p.z - focus.z) < 30 {
+            let k: Float = i < lv.count ? lv[i] : 1
+            if k < 0.02 { continue }
+            add(p, c, intensity: 9 * k, range: 7, spec: false, priority: 1)
         }
         // keep the 32 that matter most: priority × intensity, falling off with the distance to the grid centre
         if candidates.count > LightingHub.maxLights {

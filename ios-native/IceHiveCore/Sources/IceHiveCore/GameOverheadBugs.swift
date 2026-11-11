@@ -489,6 +489,7 @@ extension Game {
         let x0 = S.x[i], z0 = S.z[i]
         G.x0[k] = x0; G.z0[k] = z0; G.x1[k] = S.ax[i]; G.z1[k] = S.az[i]; G.t[k] = 0; G.dur[k] = PERCH_GLOB
         G.h0[k] = maxf(0, S.y[i] - level.groundY(S.ax[i], S.az[i]) - 0.6)
+        G.lamp[k] = -1
         oh.stats.perchSpits += 1
         if !simOnly {
             emit(.acidFromPerch(from: SIMD3<Float>(x0, S.y[i], z0), to: Vec2(S.ax[i], S.az[i]), flight: PERCH_GLOB))
