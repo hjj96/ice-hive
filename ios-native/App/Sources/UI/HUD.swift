@@ -901,7 +901,8 @@ final class HUD {
 
     /// Every hint line (core hints, the three tiers' hold hints, the revive lines, the app's control hint), resolved.
     static var hintSamples: [String] {
-        var out = [TextID.hintPlayerDown, .hintReviveNear, .hintBackToRing, .hintRingContested, .hintStepInRing, .hintToPlatform].map { L10n.string(GameText($0)) }
+        var out = [TextID.hintPlayerDown, .hintReviveNear, .hintBackToRing, .hintRingContested, .hintStepInRing, .hintToPlatform,
+                   .hintBackToSwitch, .hintBackToGenerator].map { L10n.string(GameText($0)) }
         out += Difficulty.tiers.map { L10n.string(Game.holdHintText($0)) }
         out += CoachText.reviveLines.map { L10n.string($0) }
         out.append(L10n.ui(.hudControlHint))
@@ -920,7 +921,12 @@ final class HUD {
          (GameText(.bannerExtract), GameText(.bannerExtractSub)),
          (GameText(.bannerQueen), GameText(.bannerQueenSub)),
          (GameText(.bannerQueenRage), .hordeSubtitle),
-         (GameText(.bannerQueenDead), GameText(.bannerQueenDeadSub))]
+         (GameText(.bannerQueenDead), GameText(.bannerQueenDeadSub)),
+         // Stage 1 R7: Breaker Run's and Vent Purge's drop banners, the breakers live, the generator hold
+         (GameText(.bannerBreakerRun), GameText(.bannerBreakerRunSub, [.name(.sector(letter: 11, number: 88))])),
+         (GameText(.bannerBreakersLive), GameText(.bannerBreakersLiveSub)),
+         (GameText(.bannerGenerator), GameText(.bannerGeneratorSub, [.int(60)])),
+         (GameText(.bannerVentPurge), GameText(.bannerVentPurgeSub, [.name(.sector(letter: 11, number: 88))]))]
     }
 
     // (native-vx-feel: a calmer screen — the red vignette of a bite, the white flash of a blast and the red edge of a horde

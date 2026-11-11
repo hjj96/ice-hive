@@ -50,6 +50,9 @@ struct LaunchOptions {
     var pressure: String?
     /// Station seed (`-station N`): only with the generated-stations flag (logged and ignored otherwise).
     var station: UInt32?
+    /// Stage 1 R7: the mission every sortie of this launch plays (`-mission cold-light|breaker-run|vent-purge`; default the
+    /// classic «Operation Cold Light»). Its station — Kelvin-9 with its interactive props for R7's two — is built at launch.
+    var mission: String?
     /// Log the rects of every title / report / pause element and any overlap or off-screen element (`-layoutCheck`).
     var layoutCheck: Bool = false
     /// `-holdBanner` (CI shots): the latest banner of the game stays on screen at full strength instead of fading.
@@ -102,6 +105,7 @@ struct LaunchOptions {
             case "-report", "--report": result.report = value()
             case "-pressure", "--pressure": result.pressure = value()
             case "-station", "--station": if let v = value(), let n = UInt32(v) { result.station = n }
+            case "-mission", "--mission": result.mission = value()
             case "-layoutCheck", "--layoutCheck": result.layoutCheck = flag()
             case "-holdBanner", "--holdBanner": result.holdBanner = flag()
             case "-pseudoLoc", "--pseudoLoc": if let v = value(), let n = Double(v), n >= 1, n <= 3 { result.pseudoLoc = n }
@@ -134,6 +138,7 @@ struct LaunchOptions {
         if let r = report { parts.append("report=\(r)") }
         if let p = pressure { parts.append("pressure=\(p)") }
         if let s = station { parts.append("station=\(s)") }
+        if let m = mission { parts.append("mission=\(m)") }
         if layoutCheck { parts.append("layoutCheck") }
         if let p = pseudoLoc { parts.append("pseudoLoc=\(p)") }
         if holdBanner { parts.append("holdBanner") }

@@ -34,6 +34,20 @@ final class GameScene: SKScene {
     private var audio: AudioEngine?
     private var demo: DemoScript?
     private var selectedClass: MarineClass = .assault
+    /// Stage 1 R7: the mission every sortie of this launch plays — a demo's own (`breakerrun`, `ventpurge`), else
+    /// `-mission <id>`, else the classic «Operation Cold Light». Its station (Kelvin-9 with its interactive props laid for
+    /// Breaker Run and Vent Purge) is the level built at launch: MetalWorld has no runtime station switch, so the choice is
+    /// per launch (the operation select / mission list on the title is package R15's).
+    private lazy var mission: MissionTemplate = {
+        if let m = self.demo?.mission { return m }
+        if let id = self.options.mission {
+            if let t = MissionTemplate.playable.first(where: { $0.id == id }) { return t }
+            AppLog.error("unknown mission \(id) (\(MissionTemplate.playable.map { $0.id }.joined(separator: "|"))): playing cold-light")
+        }
+        return .coldLight
+    }()
+    /// The mission is the classic one (no plan of its own in the game config: byte for byte as before R7).
+    private var classicMission: Bool { mission.id == MissionTemplate.coldLight.id }
     private var surrendered = false
     /// Seconds of the defeat beat played (A3: the report waits for the deaths and the push-in).
     private var defeatBeat: Float = 0
@@ -202,9 +216,9 @@ final class GameScene: SKScene {
     /// view), the HUD / input / audio meanwhile.
     private func loadMetal() {
         let t0 = FrameTimer.now()
-        // (the overhead demo plays «Кельвин-9» with the overhead's showcase laid; every other run the classic mission's station,
-        // «Кельвин-9» Mk II since Stage 1 R5: its overhead routes and interactive props laid)
-        let lv = Level(source: demo?.levelSource ?? KelvinStation.mk2, seed: 1)
+        // (the overhead demos play «Кельвин-9» with the overhead's showcase laid; R7's missions their own station; every other run
+        // the classic mission's station, «Кельвин-9» Mk II since Stage 1 R5: its overhead routes and interactive props laid)
+        let lv = Level(source: demo?.levelSource ?? mission.station ?? KelvinStation.mk2, seed: 1)
         level = lv
         cameraCtl.node.addChild(hud.root)
         cameraCtl.node.addChild(titleScreen.root)
@@ -413,7 +427,10 @@ final class GameScene: SKScene {
         cfg.attract = attract
         // v1.1: the tier is fixed for the mission; the coach and the revive line only in real missions
         cfg.difficulty = Difficulty.tier(tier)
-        cfg.coach = coach && !attract
+        // R7: Breaker Run / Vent Purge play their own plan (the title's attract swarm and the classic: no plan in the config);
+        // the coach teaches the classic mission (its last step is a beacon)
+        if !attract && !classicMission { cfg.mission = mission }
+        cfg.coach = coach && !attract && classicMission
         cfg.reviveLineArmed = !attract && settings.profile.runs < 3
         if options.queen { cfg.queenAt = 0 }
         cfg.queenHp = options.queenHp
@@ -476,6 +493,10 @@ final class GameScene: SKScene {
         demo?.begin(game: g)
         AppLog.info("mode playing class=\(cls.id) seed=\(g.seed) demo=\(demo?.name ?? "-")")
         AppLog.info("v11 start tier=\(g.difficulty.id) coach=\(g.coach.active ? 1 : 0) station=\(g.stationName.logID) seed=\(g.seed)")
+        // R7: which mission, its steps and modifiers (CI: the mission demos check it)
+        AppLog.info("mission start \(g.mission.id) steps=\(g.mission.steps.map { $0.module.rawValue }.joined(separator: ",")) "
+                    + "modifiers=\(g.mission.modifiers.map { $0.rawValue }.sorted().joined(separator: ",")) props=\(g.hasProps ? 1 : 0) "
+                    + "lit=\(g.lightsLit)/\(g.circuits.count) vents=\(g.level.layout.vents.count) ducts=\(g.ducts.count)")
         AppLog.info("bug cap \(g.bugCap) (graphics \(qualityName) \((QualityTier(rawValue: qualityName) ?? .med).bugCap), device \(world?.renderer.quality.deviceBugCap ?? 0))")
     }
 
@@ -1000,6 +1021,25 @@ final class GameScene: SKScene {
                 if diag { AppLog.info(String(format: "route: knocked down at (%.1f, %.1f) from %.1f m", pos.x, pos.y, h)) }
             case .bugKilled(_, let pos, _, let src, _, _, let h) where h > 2:
                 if diag { AppLog.info(String(format: "route: killed up there at (%.1f, %.1f) %.1f m, source %d", pos.x, pos.y, h, src)) }
+            // R7: the mission plan's steps, its switches and vents (the mission demos' log lines; CI greps «mission: …»)
+            case .missionStep(let k, let m):
+                if diag { AppLog.info(String(format: "mission: step %d %@ t=%.1f", k, m.rawValue, g.time)) }
+            case .switchStarted(let k):
+                if diag, k < g.switches.count {
+                    let s = g.switches[k].site
+                    AppLog.info(String(format: "mission: %@ %d started at (%.1f, %.1f) t=%.1f", s.kind.rawValue, k, s.x, s.z, g.time))
+                }
+            case .switchThrown(let k):
+                if diag, k < g.switches.count {
+                    AppLog.info(String(format: "mission: %@ %d thrown, %d/%d, stream %.2f t=%.1f", g.switches[k].site.kind.rawValue, k,
+                                       g.switchesThrown, g.mission.switchCount, g.streamK, g.time))
+                }
+            case .ventSealed(let k):
+                if diag { AppLog.info(String(format: "mission: vent %d sealed for good t=%.1f", k, g.time)) }
+            case .ventPour(let k, let n):
+                if diag { AppLog.info(String(format: "mission: vent %d pours %d t=%.1f", k, n, g.time)) }
+            case .holdStarted:
+                if diag { AppLog.info(String(format: "mission: hold started t=%.1f (%.0f s)", g.time, g.liftDur)) }
             // Stage 1 R4: the overhead's bugs — a squeal as the Dropper pins, a thump as it is thrown off, the slam of a duct
             // mouth shot shut; the log lines of the overheadbugs demo (CI)
             case .pinned(let k, let pos, let t):
@@ -1012,7 +1052,11 @@ final class GameScene: SKScene {
                 if diag { AppLog.info("bugs: duct \(k) rattles") }
             case .ductSealed(let k):
                 if k >= 0 && k < g.ducts.count { audio?.playOverhead(.thud, pos: Vec2(g.ducts[k].pos.x, g.ducts[k].pos.z), listener: lis, gain: 1.0) }
-                if diag { AppLog.info("bugs: duct \(k) shot shut") }
+                // (R7: a Vent Purge seal shuts it for ever — shutT = ∞; R4: shot shut for DUCT_SHUT s)
+                if diag {
+                    let forGood = k >= 0 && k < g.ducts.count && g.ducts[k].shutT.isInfinite
+                    AppLog.info(forGood ? String(format: "mission: duct %d sealed for good t=%.1f", k, g.time) : "bugs: duct \(k) shot shut")
+                }
             case .ductOpened(let k):
                 if diag { AppLog.info("bugs: duct \(k) open again") }
             case .perched(let p):

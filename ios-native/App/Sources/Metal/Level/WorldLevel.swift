@@ -132,6 +132,10 @@ final class WorldLevel {
     /// colour. WorldProps sets each lamp's light from the core's lamp states (`setLampLevel`).
     struct LampLink { let x: Float; let z: Float; let head: Int; let light: Int; let glow: Int; let lens: F3; let pool: F3 }
     private(set) var lampLinks: [LampLink] = []
+    /// Stage 1 R7: every vent as built (`LevelLayout.vents` order) — its grid light and its floor glow quad with that quad's
+    /// colour; WorldMission darkens a vent a seal shut and flares one pouring a pack (`setVentLevel`).
+    struct VentLink { let light: Int; let glow: Int; let pool: F3 }
+    private(set) var ventLinks: [VentLink] = []
     /// The heads WorldProps' geometry took (valve wheels / gauges, breaker lamps, locker doors / lights; −1 none).
     var propHeads = WorldProps.Heads()
     private var nextHead = WorldLevel.beaconHeads
@@ -165,6 +169,20 @@ final class WorldLevel {
             }
         }
         LightingHub.current?.setLampLevel(l.light, level)
+    }
+    /// Stage 1 R7: vent `k`'s light 0…1+ (over 1: a pour's flare): its floor glow and its grid light.
+    func setVentLevel(_ k: Int, _ level: Float) {
+        guard k >= 0 && k < ventLinks.count else { return }
+        let v = ventLinks[k]
+        if v.glow >= 0 && v.glow < glowCount, let gb = glowV {
+            let f = gb.contents().bindMemory(to: Float.self, capacity: glowCount * 4 * 13)
+            let c = v.pool * min(2.8, max(0, level))
+            for q in 0..<4 {
+                let o = (v.glow * 4 + q) * 13 + 6
+                f[o] = c.x; f[o + 1] = c.y; f[o + 2] = c.z
+            }
+        }
+        LightingHub.current?.setLampLevel(v.light, level)
     }
     /// The grid lights WorldLevel registers with WP2's light grid (lamps, pillar strips, vent slats; the beacons are
     /// LightGrid's own) — WorldOverhead adds its duct-mouth glows to them.
@@ -265,11 +283,14 @@ final class WorldLevel {
             turretBase.instances.append(MeshInstance(model: Mat4.translation(T.x, ty, T.z), tint: one, emissive: none))
             turretHead.instances.append(MeshInstance(model: Mat4.translation(T.x, ty + 0.95, T.z) * Mat4.rotationY(T.angle), tint: one, emissive: none))
         }
-        // beacon heads: on the mast top, rotating, lens in the state colour (idle red, charging amber, done teal)
+        // beacon heads: on the mast top, rotating, lens in the state colour (idle red, charging amber, done teal); R7: a beacon
+        // the mission's plan does not charge stands dormant — a dead lens, still
         for (k, b) in game.beacons.enumerated() where k < WorldLevel.beaconHeads {
             let gy = level.groundY(b.x, b.z)
-            let col: F3 = b.state == 2 ? linearRGB(0x2af5e0) : (b.state == 1 ? linearRGB(0xffa21a) : linearRGB(0xff2a3a))
-            headTable[k] = F4(b.x, gy + WorldLevel.mastTop, b.z, time * (b.state == 1 ? 4 : 1.2) + Float(k))
+            let dormant = k < game.beaconInPlan.count && !game.beaconInPlan[k] && b.state == 0
+            let col: F3 = dormant ? F3(0.006, 0.008, 0.011)
+                : (b.state == 2 ? linearRGB(0x2af5e0) : (b.state == 1 ? linearRGB(0xffa21a) : linearRGB(0xff2a3a)))
+            headTable[k] = F4(b.x, gy + WorldLevel.mastTop, b.z, dormant ? Float(k) : time * (b.state == 1 ? 4 : 1.2) + Float(k))
             headTable[WorldLevel.maxHeads + k] = F4(col.x, col.y, col.z, 0)
         }
     }
@@ -490,6 +511,7 @@ final class WorldLevel {
         glowQuads.removeAll()
         lights.removeAll()
         lampLinks.removeAll()
+        ventLinks.removeAll()
         propHeads = WorldProps.Heads()
         nextHead = WorldLevel.beaconHeads
         let t0 = FrameTimer.now()
@@ -1007,6 +1029,7 @@ final class WorldLevel {
             for v in level.layout.vents {
                 let y = level.groundY(v.x, v.y)
                 cell(v.x, v.y).place(p, at: F3(v.x, y, v.y))
+                ventLinks.append(VentLink(light: lights.count, glow: glowQuads.count, pool: linearRGB(Col.orange) * 0.18))
                 glowQuads.append((F3(v.x, y, v.y), 2.8, Col.orange, 0.18))
                 lights.append(StationLight(kind: .vent, pos: F3(v.x, y + 0.3, v.y), color: linearRGB(Col.orange)))
             }

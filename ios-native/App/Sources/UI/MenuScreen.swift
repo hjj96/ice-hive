@@ -314,10 +314,12 @@ final class MenuScreen {
         title.node.position = CGPoint(x: 0, y: -d.title * 0.5)
         tN.addChild(title.node)
         push(Block(name: "title", node: tN, height: d.title, gapAbove: 6))
-        // the stage strip (web .r-strip: 4 × 1fr, 1.2fr, 1.75fr; 3 pt top border; teal on a win, amber on a loss)
+        // the stage strip (web .r-strip: 4 × 1fr, 1.2fr, 1.75fr; 3 pt top border; teal on a win, amber on a loss). R7: a
+        // mission's own strip may have fewer stages — the last (the extraction) stays 1.75, the one before it 1.2, the rest 1
         let stN = SKNode()
-        let fr: [CGFloat] = [1, 1, 1, 1, 1.2, 1.75]
-        let unit = (colW - 15) / fr.reduce(0, +)
+        let ns = r.strip.count
+        let fr: [CGFloat] = (0..<ns).map { $0 == ns - 1 ? 1.75 : ($0 == ns - 2 ? 1.2 : 1) }
+        let unit = (colW - CGFloat(max(0, ns - 1)) * 3) / max(1, fr.reduce(0, +))
         var x: CGFloat = 0
         let onColor = r.won ? UIPalette.teal : UIPalette.amber
         for (k, it) in r.strip.enumerated() {

@@ -433,6 +433,9 @@ public final class Game {
     // ---------- mission plan (Mission.swift, GameMission.swift) ----------
     /// This mission's plan (classic: «Operation Cold Light» for the station).
     public let mission: MissionPlan
+    /// R7: the station's beacons a RING step of the plan charges (by index): the renderer draws their rings and state lamps,
+    /// the others stand dormant (Breaker Run and Vent Purge have none).
+    public let beaconInPlan: [Bool]
     /// Index of the current step (the last one stays current after the mission is won).
     public internal(set) var missionStep = 0
     /// The current step's phase: on the way (between its rings) or active (a ring charging, holding, fighting, riding).
@@ -446,6 +449,18 @@ public final class Game {
     /// The switches of the current SWITCH step and the one being thrown (-1 none).
     public internal(set) var switches: [SwitchState] = []
     public internal(set) var activeSwitch = -1
+    /// Switches thrown over the whole plan (the report's switch line and strip).
+    public internal(set) var switchesThrown = 0
+    /// R7: the station's vents a seal shut for good (Vent Purge; by `LevelLayout.vents` index): no pack pours out of them.
+    public internal(set) var ventShut: [Bool] = []
+    /// R7: the hive's stream — the trickle, the packs, the surges and the hordes × this (1; each thinning switch thrown × (1 −
+    /// its `thins`)).
+    public internal(set) var streamK: Float = 1
+    /// R7: seconds to the next pour out of an open seal's vent (a SWITCH step with `pour`).
+    var pourT: Float = 0
+    /// R7: the circuits a relighting hold brings back (nearest to its zone first) and how many it has done.
+    var relightQueue: [Int] = []
+    var relightNext = 0
 
     // ---------- director (DIR) ----------
     /// The coarse stage (set by the plan's phases).
@@ -552,6 +567,9 @@ public final class Game {
         let lv = level ?? Level(source: config.levelSource, seed: seed)
         self.level = lv
         self.mission = (config.mission ?? MissionTemplate.coldLight).build(lv)
+        var inPlan = [Bool](repeating: false, count: lv.layout.beacons.count)
+        for s in mission.steps { if case .ring(let r) = s { for k in r.sites where k >= 0 && k < inPlan.count { inPlan[k] = true } } }
+        self.beaconInPlan = inPlan
         self.difficulty = config.difficulty
         self.bugCap = config.bugCap ?? (config.difficulty.waves ? config.quality.bugCap : config.quality.legacyCap)
         self.rng = SeededRNG(seed: seed == 0 ? 0x9E37_79B9 : seed)

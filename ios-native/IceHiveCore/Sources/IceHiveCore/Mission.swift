@@ -89,14 +89,17 @@ public struct RingStep: Equatable {
     public var chargeText: TextID = .objHoldBeacon
     /// The stage name (rows also mark b1…b3 when a ring starts, c1…c3 when one is done, «trav» between them).
     public var names = StepNames(approach: "beacons", active: "beacons")
+    /// The report strip's label of each beacon (nil: the classic strip — see `MissionPlan.ownStrip`).
+    public var stripText: TextID? = nil
 
     public init(sites: [Int]) { self.sites = sites }
 }
 
 /// What a switch ring sits on (presentation; a `.breaker` switch standing on a light circuit's breaker brings that
-/// circuit back when it is thrown — R6, GameProps.swift).
+/// circuit back when it is thrown — R6, GameProps.swift; a `.seal` switch shuts its vent for good when it is thrown:
+/// no pack pours out of it again — R7's Vent Purge).
 public enum SwitchKind: String, CaseIterable {
-    case breaker, valve, door, crane, panel
+    case breaker, valve, door, crane, panel, seal
 }
 
 /// One switch: a short ring on the deck (it is not a prop in the walk grid).
@@ -106,8 +109,15 @@ public struct SwitchSite: Equatable {
     /// Seconds of standing in the ring (design: 3–6 s).
     public var time: Float
     public var kind: SwitchKind
-    public init(x: Float, z: Float, radius: Float = 2.2, time: Float = 4, kind: SwitchKind = .panel) {
-        self.x = x; self.z = z; self.radius = radius; self.time = time; self.kind = kind
+    /// A seal's vent: an index into the station's `vents` (−1 none). Thrown, the vent is shut for good; while the step
+    /// runs and it is open, it may pour packs (`SwitchStep.pour`).
+    public var vent: Int
+    /// A seal's duct mouth up on the overhead: an index into `Game.ducts` (package R4's duct mouths, −1 none). Thrown, it is
+    /// shut for good (design §1.4: «for good in Vent Purge»); while the step runs and it is open, its pours climb out of it
+    /// onto the routes (R4's rattle first).
+    public var duct: Int
+    public init(x: Float, z: Float, radius: Float = 2.2, time: Float = 4, kind: SwitchKind = .panel, vent: Int = -1, duct: Int = -1) {
+        self.x = x; self.z = z; self.radius = radius; self.time = time; self.kind = kind; self.vent = vent; self.duct = duct
     }
 }
 
@@ -117,6 +127,8 @@ public struct SwitchState: Equatable {
     /// 0 waiting, 1 being thrown, 2 thrown.
     public internal(set) var state = 0
     public internal(set) var progress: Float = 0
+    /// The hive's pushes at this switch so far (`SwitchStep.pushes`).
+    public internal(set) var pushes = 0
     public var position: Vec2 { Vec2(site.x, site.z) }
     public init(site: SwitchSite) { self.site = site }
 }
@@ -133,6 +145,13 @@ public struct SwitchStep: Equatable {
     public var escalates = false
     /// The surge that answers a switch starting (× the tier's horde, × its population scale on the wave pacing); 0 = none.
     public var alarm = PacingValue(legacy: 40, waves: 10)
+    /// The hive pushes again at these marks of a switch's progress (0…1): a surge of `alarm` × `pushK` from two sides at the
+    /// switch, the last one from three (R7: a mission's main switches are defended like small beacons). Empty = none.
+    public var pushes: [Float] = []
+    public var pushK: Float = 1
+    /// The progress drains while nobody stands in the ring: `drains` × the fill rate (R6's breaker ring drains too). 0 = it
+    /// keeps what it has.
+    public var drains: Float = 0
     /// Trickle / wave volume while a switch is being thrown (between switches × 1).
     public var stageMul = PacingValue(legacy: 2.0, waves: 1.25)
     /// HUD lines: between switches (done, total), the hive waking / converging, a switch being thrown.
@@ -141,6 +160,22 @@ public struct SwitchStep: Equatable {
     public var convergeText: TextID = .objConvergeMove
     public var throwText: TextID = .objHoldRing
     public var names = StepNames(approach: "switch", active: "switch")
+    /// Each switch thrown thins the hive's stream for the rest of the mission: the trickle, the packs, the surges and the
+    /// hordes × (1 − thins) (R7's Vent Purge: «each seal thins the spawns»). 0 = none.
+    public var thins: Float = 0
+    /// The open vents of the step's seals pour packs while the step runs: every `pourGap` s (± 2 s) one of them, picked at
+    /// random, pours `pour` bugs (× the tier's horde, × its population scale on the wave pacing, × the stream). nil = none.
+    public var pour: PacingValue? = nil
+    public var pourGap: Float = 10
+    /// Banner when the step begins (not as the first step: the plan's briefing is the drop banner) — nil none.
+    public var banner: BannerText? = nil
+    /// Toast when a switch is thrown (nil none).
+    public var doneToast: TextID? = nil
+    /// The report: the strip's label of each switch needed (nil: the classic strip), the score line (thrown, needed) and
+    /// the score of each switch thrown.
+    public var stripText: TextID? = nil
+    public var scoreText: TextID? = nil
+    public var score: Int = 0
 
     public init(sites: [SwitchSite], required: Int? = nil) { self.sites = sites; self.required = required }
     /// The number that completes the step (clamped to the sites).
@@ -185,9 +220,20 @@ public struct HoldStep: Equatable {
     /// The opening horde when the hold starts, and the seconds to the first hold horde after it.
     public var openHorde = PacingValue(legacy: 480, waves: 105)
     public var firstHorde = PacingValue(legacy: 3, waves: 16)
+    /// × the hold's periodic hordes (every 18–24 s on the wave pacing).
+    public var hordeK: Float = 1
     /// The walk to the zone is the objective: the pressure clock waits for the travel allowance (path at full speed
     /// × 1.3 + 5 s).
     public var travelAllowance = true
+    /// The station's dark light circuits come back one by one over the hold (R7's Breaker Run: the main generator spins
+    /// up): the nearest to the zone first, at even shares of the countdown, the last one before it runs out.
+    public var relights = false
+    /// The report strip's label of the hold (nil: the classic strip; the boss rider adds her own item).
+    public var stripText: TextID? = nil
+    /// A deck hold's hint while the player is out of its zone (nil: none; the lift has its own hints).
+    public var outHint: TextID? = nil
+    /// The subtitle of the hold's periodic hordes (the lift: «They're climbing onto the platform»; a deck: the generic one).
+    public var hordeSub: TextID
     /// Banner when the step begins (the lift: «Lift inbound»), and when the hold starts (also the opening horde's).
     public var callBanner: BannerText?
     public var holdBanner: BannerText?
@@ -204,6 +250,7 @@ public struct HoldStep: Equatable {
     /// The defaults follow the zone: the lift keeps the classic lines and banners, a deck zone gets the generic ones.
     public init(zone: MissionZone, time: Float, pulse: Bool = false, boss: BossRider? = nil, releaseWithPlayer: Bool = false) {
         self.zone = zone; self.time = time; self.pulse = pulse; self.boss = boss; self.releaseWithPlayer = releaseWithPlayer
+        hordeSub = zone == .lift ? .bannerHordeLiftSub : .bannerHordeSub
         if zone == .lift {
             callBanner = BannerText(title: .bannerLiftCalled, sub: .bannerLiftCalledSub)
             holdBanner = BannerText(title: .bannerHold, sub: .bannerHoldSub)
@@ -236,6 +283,8 @@ public struct BossStep: Equatable {
     /// The fight (and the warning before it): her name.
     public var fightText: TextID = .objKillBoss
     public var names = StepNames(approach: "toBoss", active: "boss")
+    /// The report strip's label (nil: the classic strip).
+    public var stripText: TextID? = nil
 
     public init(_ boss: BossKind = .queen, zone: MissionZone, delay: Float = 3) { self.boss = boss; self.zone = zone; self.delay = delay }
 }
@@ -251,6 +300,8 @@ public struct ExtractStep: Equatable {
     public var convergeText: TextID = .objConvergeLift
     public var rideText: TextID = .objExtract
     public var names = StepNames(approach: "toLift", active: "extract")
+    /// The report strip's label (nil: the classic strip).
+    public var stripText: TextID? = nil
 
     public init() {}
 }
@@ -272,6 +323,17 @@ public enum MissionStep: Equatable {
         case .extract: return .extract
         }
     }
+
+    /// The step's report strip label (nil: it keeps the classic strip).
+    public var stripText: TextID? {
+        switch self {
+        case .ring(let r): return r.stripText
+        case .switches(let s): return s.stripText
+        case .hold(let h): return h.stripText
+        case .boss(let b): return b.stripText
+        case .extract(let e): return e.stripText
+        }
+    }
 }
 
 /// Mission modifiers (design §1.6). DARK (R6): every light circuit of the station starts off — the squad takes the light
@@ -288,6 +350,9 @@ public struct MissionPlan: Equatable {
     public var modifiers: Set<MissionModifier>
     /// The drop banner (nil = none): its subtitle takes the station name when its id asks for one.
     public var briefing: BannerText?
+    /// The hive's stream on Recruit, Veteran, Nightmare (× the trickle, the packs, the surges and the hordes for the whole
+    /// mission; nil = 1 on every tier): a mission's own tier scaling on top of the tier's numbers.
+    public var tierStream: [Float]? = nil
 
     public init(id: String, steps: [MissionStep], modifiers: Set<MissionModifier> = [], briefing: BannerText? = nil) {
         self.id = id; self.steps = steps; self.modifiers = modifiers; self.briefing = briefing
@@ -299,40 +364,79 @@ public struct MissionPlan: Equatable {
         for s in steps { if case .ring(let r) = s { n += r.sites.count } }
         return n
     }
+
+    /// Switches the plan's SWITCH steps need (the report's switch score line).
+    public var switchCount: Int {
+        var n = 0
+        for s in steps { if case .switches(let w) = s { n += w.needed } }
+        return n
+    }
+
+    /// The plan draws its own report strip (a step names its strip label: R7's missions); else the report keeps the classic
+    /// strip, BEACON ×3 · LIFT · QUEEN · EXTRACTION.
+    public var ownStrip: Bool { steps.contains { $0.stripText != nil } }
 }
 
 // ---------------------------------------------------------------- templates and their calibration
 
-/// A win-rate band of a template's calibration rows (autopilot, medium graphics) on one tier.
+/// A win-rate band of a template's calibration rows (autopilot, medium graphics) on one tier, and optionally a ceiling on
+/// the squad downs per run (the classic Recruit band: ≤ 0.5).
 public struct CalibBand: Equatable {
     public var tier: Int
     public var winLo: Float?
     public var winHi: Float?
-    public init(tier: Int, winLo: Float? = nil, winHi: Float? = nil) { self.tier = tier; self.winLo = winLo; self.winHi = winHi }
+    public var downsHi: Float?
+    public init(tier: Int, winLo: Float? = nil, winHi: Float? = nil, downsHi: Float? = nil) {
+        self.tier = tier; self.winLo = winLo; self.winHi = winHi; self.downsHi = downsHi
+    }
 }
 
-/// A template's calibration preset (`icehive-calib --preset <id>`): runs per class on each tier, seeds from its own
-/// base, its bands; `gated` templates join the CI gate (their rows follow the classic rows of `--preset gate`).
+/// An AFK band of a template: one AFK run per class on `tier` (420 s, nobody touches the screen), the player's first down
+/// within `firstDownMax` s in every run (the classic bands: Veteran 120 s, Recruit 270 s).
+public struct AFKBand: Equatable {
+    public var tier: Int
+    public var firstDownMax: Float
+    public init(tier: Int, firstDownMax: Float) { self.tier = tier; self.firstDownMax = firstDownMax }
+}
+
+/// A template's calibration preset (`icehive-calib --preset <id>`): runs per class on each tier (`tierRuns` overrides
+/// `runs` per tier), seeds from its own base, its bands; `gated` templates are the CI's mission gate (`--preset missions`,
+/// its own step and rows: the classic `gate` rows and calib.jsonl stay as they were).
 public struct MissionCalib {
     public var tiers: [Int]
     public var runs: Int
+    public var tierRuns: [Int: Int]
     public var seedBase: UInt32
     public var bands: [CalibBand]
+    public var afk: [AFKBand]
     public var gated: Bool
-    public init(tiers: [Int] = [0, 1], runs: Int = 2, seedBase: UInt32, bands: [CalibBand], gated: Bool = false) {
-        self.tiers = tiers; self.runs = runs; self.seedBase = seedBase; self.bands = bands; self.gated = gated
+    public init(tiers: [Int] = [0, 1], runs: Int = 2, tierRuns: [Int: Int] = [:], seedBase: UInt32, bands: [CalibBand],
+                afk: [AFKBand] = [], gated: Bool = false) {
+        self.tiers = tiers; self.runs = runs; self.tierRuns = tierRuns; self.seedBase = seedBase; self.bands = bands; self.afk = afk
+        self.gated = gated
     }
+    /// Runs per class on `tier`.
+    public func runs(_ tier: Int) -> Int { tierRuns[tier] ?? runs }
 }
 
-/// A named plan builder (the plan of a station: its beacons, its lift, its decks) and its calibration preset.
+/// A named plan builder (the plan of a station: its beacons, its lift, its decks), the station it is played on and its
+/// calibration preset.
 public struct MissionTemplate {
     public let id: String
+    /// The mission's name (the title's mission choice, logs); nil for the drills.
+    public let name: TextID?
+    /// The station the mission is played on (nil: the station given — the classic «Кельвин-9» in the app, a generated
+    /// station in calibration). R7's missions lay Kelvin-9's interactive props (`KelvinStation.missions`).
+    public let station: LevelSource?
     public let calib: MissionCalib?
     public let build: (Level) -> MissionPlan
 
-    public init(id: String, calib: MissionCalib? = nil, build: @escaping (Level) -> MissionPlan) {
-        self.id = id; self.calib = calib; self.build = build
+    public init(id: String, name: TextID? = nil, station: LevelSource? = nil, calib: MissionCalib? = nil, build: @escaping (Level) -> MissionPlan) {
+        self.id = id; self.name = name; self.station = station; self.calib = calib; self.build = build
     }
+
+    /// The level this mission plays (its own station, else `fallback`).
+    public func level(seed: UInt32 = 0, fallback: LevelSource = KelvinStation()) -> Level { Level(source: station ?? fallback, seed: seed) }
 
     /// A fixed plan (tests, demos).
     public static func custom(_ plan: MissionPlan) -> MissionTemplate { MissionTemplate(id: plan.id) { _ in plan } }
@@ -340,7 +444,7 @@ public struct MissionTemplate {
     /// «Operation Cold Light», the classic mission: RING every beacon → HOLD the lift 100 s (its shock pulse, the tier's
     /// Queen 35 / 35 / 30 s in, locked while she lives, the lift leaves with the player on it) → EXTRACT. Its
     /// calibration preset is the classic `gate`.
-    public static let coldLight = MissionTemplate(id: "cold-light") { level in
+    public static let coldLight = MissionTemplate(id: "cold-light", name: .missionColdLight) { level in
         MissionPlan(id: "cold-light", steps: [
             .ring(RingStep(sites: Array(level.layout.beacons.indices))),
             .hold(HoldStep(zone: .lift, time: LIFT_TIME, pulse: true, boss: BossRider(.queen), releaseWithPlayer: true)),
@@ -382,8 +486,11 @@ public struct MissionTemplate {
         ]
     }()
 
+    /// The missions a player can start (the classic first; R7: Breaker Run, Vent Purge — MissionsKelvin.swift).
+    public static var playable: [MissionTemplate] { [coldLight] + missions }
+
     /// Every template (the classic first).
-    public static var all: [MissionTemplate] { [coldLight] + drills }
+    public static var all: [MissionTemplate] { [coldLight] + missions + drills }
 
     public static func named(_ id: String) -> MissionTemplate? { all.first { $0.id == id } }
 }

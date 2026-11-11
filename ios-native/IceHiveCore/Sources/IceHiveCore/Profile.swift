@@ -42,6 +42,14 @@ public struct RunSummary {
     /// Light circuits lit at the end and the station's circuits (Stage 1 R6; 0 / 0 on a station without them — no line).
     public var lightsOn: Int
     public var lightsTotal: Int
+    /// R7: the plan's switch score line — its label («Breakers 3/3», «Vents sealed 4/4»), switches thrown / needed and the
+    /// score of each thrown (nil: no line — the classic mission). A plan without beacons drops the beacons line.
+    public var switchLine: TextID? = nil
+    public var switchesDone = 0
+    public var switchesTotal = 0
+    public var switchScore = 0
+    /// R7: the plan's own report strip (nil: the classic BEACON ×3 · LIFT · QUEEN · EXTRACTION from the run's numbers).
+    public var strip: [ReportStripItem]? = nil
 
     public init(cls: MarineClass, won: Bool, surrendered: Bool, time: Float, playerKills: Int, beaconsDone: Int, queenSpawned: Bool, queenDone: Bool,
                 downs: Int, downBy: DamageSource, tierIndex: Int, tierMul: Float, stage: MissionStage, pressureLoss: Bool,
@@ -215,8 +223,14 @@ public struct RunScore: Equatable {
     public let total: Int
 
     public static func make(_ run: RunSummary) -> RunScore {
-        var parts = [ScorePart(label: GameText(.scoreKills), value: run.playerKills),
-                     ScorePart(label: GameText(.scoreBeacons, [.int(run.beaconsDone), .int(run.beaconsTotal)]), value: run.beaconsDone * 500)]
+        var parts = [ScorePart(label: GameText(.scoreKills), value: run.playerKills)]
+        // (R7: a plan without beacons but with a switch line — Breaker Run, Vent Purge — scores its switches instead)
+        if run.beaconsTotal > 0 || run.switchLine == nil {
+            parts.append(ScorePart(label: GameText(.scoreBeacons, [.int(run.beaconsDone), .int(run.beaconsTotal)]), value: run.beaconsDone * 500))
+        }
+        if let s = run.switchLine {
+            parts.append(ScorePart(label: GameText(s, [.int(run.switchesDone), .int(run.switchesTotal)]), value: run.switchesDone * run.switchScore))
+        }
         if run.queenSpawned && run.queenDone { parts.append(ScorePart(label: GameText(.scoreQueen), value: 1000)) }
         if run.won {
             parts.append(ScorePart(label: GameText(.scoreExtract), value: 1500))
@@ -359,6 +373,7 @@ public struct ReportLine: Equatable {
 public struct ReportStripItem: Equatable {
     public let label: GameText
     public let on: Bool
+    public init(label: GameText, on: Bool) { self.label = label; self.on = on }
 }
 
 public struct ReportTip: Equatable {
@@ -433,7 +448,7 @@ public struct MissionReport {
         let lift = won || run.stage == .hold || run.stage == .extract
         let on = [d > 0, d > 1, d > 2, lift, won || (run.queenSpawned && run.queenDone), won]
         let names: [TextID] = [.reportStripBeacon, .reportStripBeacon, .reportStripBeacon, .reportStripLift, .reportStripQueen, .reportStripExtract]
-        let strip = (0..<6).map { ReportStripItem(label: GameText(names[$0]), on: on[$0]) }
+        let strip = run.strip ?? (0..<6).map { ReportStripItem(label: GameText(names[$0]), on: on[$0]) }
         let sc = result.score
         let note: GameText? = result.record ? GameText(.reportRecord) : (result.first ? nil : GameText(.reportBest, [.num(result.prev.best)]))
         let parts = sc.parts.map { ReportLine(label: $0.label, value: GameText(.fmtPlus, [.num($0.value)])) }

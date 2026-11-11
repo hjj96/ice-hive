@@ -156,9 +156,18 @@ extension Game {
             if b >= 0 && hypotf2(beacons[b].x - P.x, beacons[b].z - P.z) < 9 { return HintLine(text: GameText(.hintStepInRing), urgent: false) }
             return nil
         case .hold(let h)? where stepPhase == .active && h.zone == .lift:
-            // (the lift's hints; a hold on a deck has none of its own yet)
+            // (the lift's hints)
             if !level.onLift(P.x, P.z) { return HintLine(text: GameText(.hintToPlatform), urgent: true) }
             if h.pulse && liftT > liftDur - 8 { return HintLine(text: holdHint, urgent: false) }
+            return nil
+        case .hold(let h)? where stepPhase == .active && h.outHint != nil:
+            // R7: a hold on a deck with its own hint (Breaker Run's generator) — the player out of its zone
+            if !inZone(h.zone, P.x, P.z), let t = h.outHint { return HintLine(text: GameText(t), urgent: true) }
+            return nil
+        case .switches(let s)? where activeSwitch >= 0 && s.drains > 0:
+            // R7: a switch being thrown drains while nobody stands in its ring (Breaker Run's breakers, Vent Purge's seals)
+            let w = switches[activeSwitch].site
+            if standingIn(w.x, w.z, w.radius) == 0 { return HintLine(text: GameText(.hintBackToSwitch), urgent: true) }
             return nil
         default:
             return nil
@@ -196,12 +205,23 @@ extension Game {
 
     /// What the profile and the mission report need from this run (call at mission end; surrender counts as a loss).
     public func runSummary(won: Bool, surrendered: Bool) -> RunSummary {
-        RunSummary(cls: playerClass, won: won, surrendered: surrendered && !won, time: time, playerKills: playerKills,
-                   beaconsDone: beaconsDone, queenSpawned: queen.spawned, queenDone: queen.done, downs: downs, downBy: downBy,
-                   tierIndex: difficulty.index, tierMul: difficulty.scoreMul, stage: stage,
-                   pressureLoss: pressure >= difficulty.pressureGrace && idleMul > 1,
-                   shots: Int(shots.rounded()), hits: Int(hits.rounded()), accuracy: accuracy, bestCombo: bestCombo, level: xpLevel,
-                   station: stationName, beaconsTotal: mission.ringSiteCount, lightsOn: lightsLit, lightsTotal: props.circuits.count)
+        // (R7: escalating switches count as escalation steps too — the beacons line counts the beacons lit)
+        var lit = 0
+        for b in beacons where b.state == 2 { lit += 1 }
+        var r = RunSummary(cls: playerClass, won: won, surrendered: surrendered && !won, time: time, playerKills: playerKills,
+                           beaconsDone: lit, queenSpawned: queen.spawned, queenDone: queen.done, downs: downs, downBy: downBy,
+                           tierIndex: difficulty.index, tierMul: difficulty.scoreMul, stage: stage,
+                           pressureLoss: pressure >= difficulty.pressureGrace && idleMul > 1,
+                           shots: Int(shots.rounded()), hits: Int(hits.rounded()), accuracy: accuracy, bestCombo: bestCombo, level: xpLevel,
+                           station: stationName, beaconsTotal: mission.ringSiteCount, lightsOn: lightsLit, lightsTotal: props.circuits.count)
+        // R7: the plan's switch line (its first SWITCH step that scores) and its own report strip
+        for s in mission.steps {
+            guard case .switches(let w) = s, let t = w.scoreText else { continue }
+            r.switchLine = t; r.switchesDone = min(switchesThrown, mission.switchCount); r.switchesTotal = mission.switchCount; r.switchScore = w.score
+            break
+        }
+        r.strip = planStrip(won: won)
+        return r
     }
 
     /// Visual laser length of a marine (first bug along the aim, max 24 m), measured on the current hash.

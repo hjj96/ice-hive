@@ -7,10 +7,12 @@ import IceHiveCore
 //    swift run -c release icehive-calib --tiers 1 --n 8 --mode auto --th '{"trickle":1.3}' --tag t13 --out t.jsonl
 //    swift run -c release icehive-calib --agg a.jsonl b.jsonl        (aggregate only; web rows work too)
 //    swift run -c release icehive-calib --preset drills --out d.jsonl (the module drills, reported bands)
+//    swift run -c release icehive-calib --preset missions --out m.jsonl --gate (R7's missions: Breaker Run, Vent Purge — gated)
 //    swift run -c release icehive-calib --preset overhead --out o.jsonl (generated stations with the overhead on, informational)
 //    swift run -c release icehive-calib --preset props --out p.jsonl (Кельвин-9 with its interactives laid, informational)
-//  Options: --preset gate|full|stations|legacy|drills|overhead|props|<mission template id> · --mission <template id> (cold-light,
-//  drill-ring, drill-switch, drill-hold, drill-boss, drill-extract, drill-all) · --tiers 0,1,2 (-1 = legacy v1.0 row) · --n runs per class and tier
+//  Options: --preset gate|full|stations|legacy|drills|missions|overhead|props|<mission template id> · --mission <template id>
+//  (cold-light, breaker-run, vent-purge, drill-ring, drill-switch, drill-hold, drill-boss, drill-extract, drill-all) · --tiers 0,1,2
+//  (-1 = legacy v1.0 row) · --n runs per class and tier
 //  · --classes assault,pyro,cryo,gunner · --mode auto|passive|afk|afkbeacon · --maxs s · --seed0 1000 · --station N
 //  · --kelvin mk2|props|bare (station 0, the classic mission: Kelvin-9 Mk II — the overhead and the props, the classic
 //  station since Stage 1 R5 —, the props only, or the bare v1.0 layout; default mk2; the legacy row is always bare)
@@ -74,7 +76,7 @@ if let agg = flags["agg"] {
     var runs: [CalibRun] = []
     if let p = flags["preset"] {
         guard let r = Calibration.preset(p, seed0: seed0, th: th, tag: tag) else {
-            fail("unknown preset \(p) (\((Calibration.presetNames + MissionTemplate.drills.map { $0.id }).joined(separator: "|")))")
+            fail("unknown preset \(p) (\((Calibration.presetNames + (MissionTemplate.missions + MissionTemplate.drills).map { $0.id }).joined(separator: "|")))")
         }
         runs = r
     } else {
@@ -117,7 +119,9 @@ var summary = Calibration.aggregate(rows)
 let (passed, gateText) = Calibration.gateText(rows)
 // (the bands: the classic gate, and the reported bands of the module drills / a template's own preset)
 let preset = flags["preset"] ?? ""
-if flags["gate"] != nil || preset == "gate" || preset == "drills" || MissionTemplate.named(preset) != nil { summary += "\n\n" + gateText }
+if flags["gate"] != nil || preset == "gate" || preset == "drills" || preset == "missions" || MissionTemplate.named(preset) != nil {
+    summary += "\n\n" + gateText
+}
 summary += String(format: "\n\n%d rows in %.1f s\n", rows.count, Date().timeIntervalSince(t0))
 print(summary)
 write(summary, to: flags["summary"], append: false)
