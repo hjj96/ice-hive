@@ -181,6 +181,17 @@ public enum TextID: String, CaseIterable {
     case objKillBoss = "obj.kill_boss"
     case objWakingMove = "obj.waking_move"
     case objConvergeMove = "obj.converge_move"
+    // ---- objective lines of the missions on Kelvin-9 (R7: Breaker Run, Vent Purge — MissionsKelvin.swift)
+    case objRestorePower = "obj.restore_power"
+    case objHoldBreaker = "obj.hold_breaker"
+    case objToGenerator = "obj.to_generator"
+    case objHoldGenerator = "obj.hold_generator"
+    case objSealVents = "obj.seal_vents"
+    case objHoldSeal = "obj.hold_seal"
+    // ---- mission names (the title's mission choice)
+    case missionColdLight = "mission.cold_light"
+    case missionBreakerRun = "mission.breaker_run"
+    case missionVentPurge = "mission.vent_purge"
     // ---- context hints (between the stick rings)
     case hintPlayerDown = "hint.player_down"
     case hintReviveNear = "hint.revive_near"
@@ -220,6 +231,8 @@ public enum TextID: String, CaseIterable {
     case toastTipValve = "toast.tip.valve"
     case toastTipBreaker = "toast.tip.breaker"
     case toastTipLocker = "toast.tip.locker"
+    // ---- R7 missions: squad radio
+    case toastVentSealed = "toast.vent_sealed"
     // ---- banners (title + subtitle) and horde titles
     case bannerDrop = "banner.drop"
     case bannerDropSub = "banner.drop.sub"
@@ -241,6 +254,15 @@ public enum TextID: String, CaseIterable {
     case bannerQueenRage = "banner.queen_rage"
     case bannerQueenDead = "banner.queen_dead"
     case bannerQueenDeadSub = "banner.queen_dead.sub"
+    // ---- R7 missions: the drop banners, the generator
+    case bannerBreakerRun = "banner.breaker_run"
+    case bannerBreakerRunSub = "banner.breaker_run.sub"
+    case bannerBreakersLive = "banner.breakers_live"
+    case bannerBreakersLiveSub = "banner.breakers_live.sub"
+    case bannerGenerator = "banner.generator"
+    case bannerGeneratorSub = "banner.generator.sub"
+    case bannerVentPurge = "banner.vent_purge"
+    case bannerVentPurgeSub = "banner.vent_purge.sub"
     // ---- run score lines
     case scoreKills = "score.kills"
     case scoreBeacons = "score.beacons"
@@ -249,6 +271,8 @@ public enum TextID: String, CaseIterable {
     case scoreSpeed = "score.speed"
     case scoreNoDowns = "score.no_downs"
     case scoreLights = "score.lights"
+    case scoreBreakers = "score.breakers"
+    case scoreVents = "score.vents"
     // ---- mission report
     case reportTag = "report.tag"
     case reportTitleWon = "report.title.won"
@@ -260,6 +284,9 @@ public enum TextID: String, CaseIterable {
     case reportStripLift = "report.strip.lift"
     case reportStripQueen = "report.strip.queen"
     case reportStripExtract = "report.strip.extract"
+    case reportStripBreaker = "report.strip.breaker"
+    case reportStripVent = "report.strip.vent"
+    case reportStripGenerator = "report.strip.generator"
     case reportScore = "report.score"
     case reportRecord = "report.record"
     case reportBest = "report.best"
@@ -335,6 +362,7 @@ public enum TextID: String, CaseIterable {
     public var signature: String {
         switch self {
         case .objHoldBeacon, .objHoldLift, .objHoldArea, .objKillBoss, .coachAbility, .coachAbilityKeys, .coachRevive: return "@"
+        case .objHoldGenerator, .bannerBreakerRunSub, .bannerVentPurgeSub: return "@"
         case .toastMateDown, .toastMateUp, .toastTipSpitter, .toastTipBrute, .toastTipBoomer, .toastUpgrade: return "@"
         case .bannerDropSub, .bannerDefendSub, .scoreSpeed, .reportTag, .reportSubWon, .reportBest, .reportXP, .reportRankUp: return "@"
         case .reportChip, .tipLossSpitter, .tipLossBrute, .tipLossBoomer, .tipLossQueen, .tipPromo, .tipLonger: return "@"
@@ -344,10 +372,12 @@ public enum TextID: String, CaseIterable {
         case .reportTierLine, .reportRankTitle, .reportMedal, .goalRank, .titleProfileRuns: return "@@"
         case .titleProfile: return "@@@"
         case .hintPulse, .hintPulseFalloff, .toastMedkit, .bannerHoldSub, .titleRuns, .titleWins, .titleRankChip: return "d"
+        case .bannerGeneratorSub: return "d"
         case .fmtCombo, .fmtPercent, .fmtInt: return "d"
         case .upgDmg, .upgRof, .upgRange, .upgArad, .upgAcd, .upgSpd, .upgHp, .upgDash, .upgSquad, .upgCluster: return "d"
         case .upgBurn, .upgCone, .upgShatter, .upgChill, .upgCool: return "d"
         case .objLightBeacons, .objSwitches, .coachCounter, .bannerBeaconOnlineSub, .scoreBeacons, .scoreLights, .upgTurret: return "dd"
+        case .objRestorePower, .objSealVents, .scoreBreakers, .scoreVents: return "dd"
         default: return ""
         }
     }

@@ -96,6 +96,10 @@ public enum GameEvent {
     /// A switch of a SWITCH step started / was thrown (`Game.switches[index]`; R6's props listen).
     case switchStarted(index: Int)
     case switchThrown(index: Int)
+    /// R7 (Vent Purge): the station's vent `index` (`LevelLayout.vents`) was sealed for good; a pack pours out of an open
+    /// seal's vent `index`.
+    case ventSealed(index: Int)
+    case ventPour(index: Int, count: Int)
     case levelUp(level: Int)
     case combo(count: Int)
     case victory

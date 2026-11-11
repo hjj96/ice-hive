@@ -124,7 +124,9 @@ extension Game {
     }
 
     /// `title` / `sub` (nil = the default horde banner) are only evaluated when the game shows text (not `simOnly`).
-    func startHorde(_ size00: Int, _ title: @autoclosure () -> GameText? = nil, _ sub: @autoclosure () -> GameText? = nil, _ rate: Float = 40) {
+    func startHorde(_ size000: Int, _ title: @autoclosure () -> GameText? = nil, _ sub: @autoclosure () -> GameText? = nil, _ rate: Float = 40) {
+        // (R7: the hive's stream thinned by seals; 1 on every other plan — the size as given)
+        let size00 = streamK != 1 ? Int((Float(size000) * streamK).rounded()) : size000
         let size0: Int
         if difficulty.waves && !attract {
             // wave pacing: packs from 2–4 sides, staggered (GameWaves)
@@ -198,7 +200,8 @@ extension Game {
             // the mission plan: the current step's module (it may finish the step and begin the next one); nil = the
             // last step is done and the mission is won
             guard let m = missionTick(dt) else { return }
-            stageMul = m
+            // (× the hive's stream: R7's thinning switches; 1 on every other plan)
+            stageMul = m * streamK
         } else {
             // (the title's attract swarm: smaller on the wave pacing)
             stageMul = D.waves ? (bugs.count < 95 ? 0.8 : 0) : (bugs.count < 220 ? 1.5 : 0)
@@ -254,7 +257,7 @@ extension Game {
             if hordeT <= 0 {
                 if posture == .hold {
                     hordeT = 13 + rng.next() * 4
-                    startHorde(Int(((360 + rng.next() * 160) * hordeScale()).rounded()), .hordeTitle, GameText(.bannerHordeLiftSub), 55)
+                    startHorde(Int(((360 + rng.next() * 160) * hordeScale() * holdHordeK).rounded()), .hordeTitle, GameText(holdHordeSub), 55)
                 } else {
                     hordeT = 45 + rng.next() * 15
                     startHorde(Int((min(520, 120 + 55 * Float(beaconsDone) + 25 * minutes) * hordeScale()).rounded()))

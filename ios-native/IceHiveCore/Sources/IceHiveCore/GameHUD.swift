@@ -194,12 +194,23 @@ extension Game {
 
     /// What the profile and the mission report need from this run (call at mission end; surrender counts as a loss).
     public func runSummary(won: Bool, surrendered: Bool) -> RunSummary {
-        RunSummary(cls: playerClass, won: won, surrendered: surrendered && !won, time: time, playerKills: playerKills,
-                   beaconsDone: beaconsDone, queenSpawned: queen.spawned, queenDone: queen.done, downs: downs, downBy: downBy,
-                   tierIndex: difficulty.index, tierMul: difficulty.scoreMul, stage: stage,
-                   pressureLoss: pressure >= difficulty.pressureGrace && idleMul > 1,
-                   shots: Int(shots.rounded()), hits: Int(hits.rounded()), accuracy: accuracy, bestCombo: bestCombo, level: xpLevel,
-                   station: stationName, beaconsTotal: mission.ringSiteCount, lightsOn: lightsLit, lightsTotal: props.circuits.count)
+        // (R7: escalating switches count as escalation steps too — the beacons line counts the beacons lit)
+        var lit = 0
+        for b in beacons where b.state == 2 { lit += 1 }
+        var r = RunSummary(cls: playerClass, won: won, surrendered: surrendered && !won, time: time, playerKills: playerKills,
+                           beaconsDone: lit, queenSpawned: queen.spawned, queenDone: queen.done, downs: downs, downBy: downBy,
+                           tierIndex: difficulty.index, tierMul: difficulty.scoreMul, stage: stage,
+                           pressureLoss: pressure >= difficulty.pressureGrace && idleMul > 1,
+                           shots: Int(shots.rounded()), hits: Int(hits.rounded()), accuracy: accuracy, bestCombo: bestCombo, level: xpLevel,
+                           station: stationName, beaconsTotal: mission.ringSiteCount, lightsOn: lightsLit, lightsTotal: props.circuits.count)
+        // R7: the plan's switch line (its first SWITCH step that scores) and its own report strip
+        for s in mission.steps {
+            guard case .switches(let w) = s, let t = w.scoreText else { continue }
+            r.switchLine = t; r.switchesDone = min(switchesThrown, mission.switchCount); r.switchesTotal = mission.switchCount; r.switchScore = w.score
+            break
+        }
+        r.strip = planStrip(won: won)
+        return r
     }
 
     /// Visual laser length of a marine (first bug along the aim, max 24 m), measured on the current hash.

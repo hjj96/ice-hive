@@ -36,7 +36,7 @@ extension Game {
                 default:
                     beatT = 6 + rng.next() * 3
                     let c = squadCenter()
-                    let n = Int(((13 + 5 * done + 2.5 * minutes) * D.horde * D.popK).rounded())
+                    let n = Int(((13 + 5 * done + 2.5 * minutes) * D.horde * D.popK * streamK).rounded())
                     // the overhead (Stage 1 R2): the two-flank surge gets a third direction, from above (35 %)
                     let up = overheadSurgeShare(n, near: c, chance: 0.35, share: 0.33)
                     surge(n - up, sides: 2, near: c, dmin: 14, dmax: 30, rate: 8)
@@ -71,7 +71,7 @@ extension Game {
         if hordeT <= 0 {
             if posture == .hold {
                 hordeT = 18 + rng.next() * 6
-                startHorde(Int(((80 + rng.next() * 35) * hordeScale()).rounded()), .hordeTitle, GameText(.bannerHordeLiftSub), 55)
+                startHorde(Int(((80 + rng.next() * 35) * hordeScale() * holdHordeK).rounded()), .hordeTitle, GameText(holdHordeSub), 55)
                 lullT = 9
             } else {
                 hordeT = 45 + rng.next() * 15
@@ -100,7 +100,9 @@ extension Game {
         if waveT <= 0 {
             waveT = 7 + rng.next() * 3
             let n = Int(((7 + 2 * done) * D.horde * D.popK).rounded())
-            let vents = level.layout.vents.filter { hypotf2($0.x - b.x, $0.y - b.z) < 14 }
+            // (R7: a vent shut by a seal pours nothing)
+            let vents = level.layout.vents.indices.filter { ventOpen($0) && hypotf2(level.layout.vents[$0].x - b.x, level.layout.vents[$0].y - b.z) < 14 }
+                .map { level.layout.vents[$0] }
             if !vents.isEmpty && rng.next() < 0.6 {
                 queueBurst(-1, n, 6, vents[rng.int(vents.count)])
             } else {
@@ -118,7 +120,9 @@ extension Game {
         if rng.next() < 0.22 {
             var pick: Vec2? = nil
             var seen = 0
-            for v in level.layout.vents {
+            for (k, v) in level.layout.vents.enumerated() {
+                // (R7: a vent shut by a seal pours nothing)
+                if !ventOpen(k) { continue }
                 let d = hypotf2(v.x - c.x, v.y - c.y)
                 if d < 7 || d > 18 { continue }
                 seen += 1

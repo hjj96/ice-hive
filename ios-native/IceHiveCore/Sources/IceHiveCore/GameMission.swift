@@ -38,6 +38,13 @@ extension Game {
         missionStep = 0
         switches.removeAll(); activeSwitch = -1
         liftDur = LIFT_TIME
+        // (R7: no vent shut, the full stream, no relight pending)
+        switchesThrown = 0
+        ventShut = [Bool](repeating: false, count: level.layout.vents.count)
+        let ts = mission.tierStream, ti = difficulty.index
+        streamK = ts.map { ti >= 0 && ti < $0.count ? $0[ti] : 1 } ?? 1
+        pourT = 0
+        relightQueue.removeAll(); relightNext = 0
         beginStep()
     }
 
@@ -51,7 +58,10 @@ extension Game {
         case .switches(let s):
             switches = s.sites.map { SwitchState(site: $0) }
             activeSwitch = -1
+            // (R7: the first pour out of an open seal's vent 4 s in)
+            pourT = 4
             enterPhase(.approach)
+            if !simOnly && missionStep > 0, let b = s.banner { banner(stepLine(b.title, []), stepLine(b.sub, []), true) }
             if s.needed == 0 { completeStep() }
         case .hold(let h):
             resetBossIfMet(h.boss != nil)
@@ -223,7 +233,8 @@ extension Game {
         if D.waves { wavesBeaconTick(k, dt) } else { waveT -= dt }
         if !D.waves && waveT <= 0 {
             waveT = 6 + rng.next() * 3
-            let vents = level.layout.vents.filter { hypotf2($0.x - b.x, $0.y - b.z) < 14 }
+            let vents = level.layout.vents.indices.filter { ventOpen($0) && hypotf2(level.layout.vents[$0].x - b.x, level.layout.vents[$0].y - b.z) < 14 }
+                .map { level.layout.vents[$0] }
             if !vents.isEmpty {
                 let v = vents[rng.int(vents.count)]
                 queueBurst(-1, Int(((38 + 8 * Float(beaconsDone)) * hordeScale() * D.horde).rounded()), 22, v)
@@ -269,14 +280,16 @@ extension Game {
 
     func switchTick(_ s: SwitchStep, _ dt: Float) -> Float? {
         let D = difficulty
+        // R7 (Vent Purge): the open seals' vents pour packs while the step runs
+        if let p = s.pour { ventPourTick(s, p, dt) }
         if activeSwitch < 0 {
             for k in switches.indices where switches[k].state == 0 {
                 let w = switches[k].site
                 if standingIn(w.x, w.z, w.radius) > 0 {
                     switches[k].state = 1; activeSwitch = k
                     enterPhase(.active)
-                    // the hive answers: a surge from two sides at the switch
-                    let n = Int((s.alarm.value(D) * D.horde * (D.waves ? D.popK : 1)).rounded())
+                    // the hive answers: a surge from two sides at the switch (× the stream: R7's thinning)
+                    let n = Int((s.alarm.value(D) * D.horde * (D.waves ? D.popK : 1) * streamK).rounded())
                     if n > 0 { surge(n, sides: 2, near: Vec2(w.x, w.z), dmin: 10, dmax: 26, rate: 9) }
                     if !simOnly { emit(.switchStarted(index: k)); events.append(.sound(.beacon, pos: nil, loud: nil)) }
                     break
@@ -287,7 +300,16 @@ extension Game {
         let k = activeSwitch
         let w = switches[k].site
         let mul = s.stageMul.value(D)
-        chargeRing(w.x, w.z, w.radius, &switches[k].progress, dt, w.time)
+        if !chargeRing(w.x, w.z, w.radius, &switches[k].progress, dt, w.time) && s.drains > 0 {
+            switches[k].progress = maxf(0, switches[k].progress - dt / w.time * s.drains)
+        }
+        // R7: the hive pushes again at the step's marks of the progress (the last push from three sides)
+        let p = switches[k].pushes
+        if p < s.pushes.count && switches[k].progress >= s.pushes[p] {
+            switches[k].pushes = p + 1
+            let n = Int((s.alarm.value(D) * s.pushK * D.horde * (D.waves ? D.popK : 1) * streamK).rounded())
+            if n > 0 { surge(n, sides: p == s.pushes.count - 1 ? 3 : 2, near: Vec2(w.x, w.z), dmin: 10, dmax: 26, rate: 9) }
+        }
         if switches[k].progress >= 1 && !throwSwitch(k, s) { return nil }
         return mul
     }
@@ -297,7 +319,11 @@ extension Game {
     @discardableResult
     func throwSwitch(_ k: Int, _ s: SwitchStep) -> Bool {
         switches[k].state = 2; switches[k].progress = 1; activeSwitch = -1
+        switchesThrown += 1
         if s.escalates { beaconsDone += 1 }
+        // R7: each thinning switch thins the hive's stream; a seal shuts its vent for good
+        if s.thins > 0 { streamK *= 1 - s.thins }
+        if switches[k].site.kind == .seal { sealVent(switches[k].site.vent) }
         // R6's seam: a breaker switch brings back the light circuit whose breaker it stands on
         if !props.circuits.isEmpty { propsSwitchThrown(switches[k].site) }
         enterPhase(.approach)
@@ -305,9 +331,49 @@ extension Game {
             emit(.switchThrown(index: k))
             events.append(.sound(.beaconDone, pos: nil, loud: nil))
             haptic(.success)
+            if let t = s.doneToast { toast(GameText(t), .gold) }
         }
         if switchesDone >= s.needed { return completeStep() }
         return true
+    }
+
+    // ---------------------------------------------------------------- R7: vents, pours, the stream
+
+    /// Vent `k` of the station takes packs (not shut by a seal).
+    @inline(__always) func ventOpen(_ k: Int) -> Bool { k < 0 || k >= ventShut.count || !ventShut[k] }
+
+    /// The station's vent `k` is sealed for good (a seal switch thrown): no pack pours out of it again.
+    func sealVent(_ k: Int) {
+        guard k >= 0 && k < ventShut.count, !ventShut[k] else { return }
+        ventShut[k] = true
+        if !simOnly {
+            let v = level.layout.vents[k]
+            emit(.ventSealed(index: k))
+            sound(.shock, v.x, v.y)
+        }
+    }
+
+    /// Every `pourGap` s (± 2 s) one open seal's vent of the step (waiting: not being sealed, not shut), picked at random,
+    /// pours a pack: `pour` × the tier's horde (× its population scale on the wave pacing) × the stream.
+    func ventPourTick(_ s: SwitchStep, _ pour: PacingValue, _ dt: Float) {
+        pourT -= dt
+        if pourT > 0 { return }
+        pourT = s.pourGap + (rng.next() - 0.5) * 4
+        var open = 0
+        for w in switches where w.state == 0 && w.site.vent >= 0 && w.site.vent < ventShut.count && !ventShut[w.site.vent] { open += 1 }
+        if open == 0 { return }
+        var pick = rng.int(open), k = -1
+        for (j, w) in switches.enumerated() where w.state == 0 && w.site.vent >= 0 && w.site.vent < ventShut.count && !ventShut[w.site.vent] {
+            if pick == 0 { k = j; break }
+            pick -= 1
+        }
+        if k < 0 { return }
+        let D = difficulty
+        let n = Int((pour.value(D) * D.horde * (D.waves ? D.popK : 1) * streamK).rounded())
+        if n <= 0 { return }
+        let vi = switches[k].site.vent, v = level.layout.vents[vi]
+        queueBurst(-1, n, 5, v)
+        emit(.ventPour(index: vi, count: n))
     }
 
     // ---------------------------------------------------------------- HOLD (the classic walk to the lift and its hold)
@@ -341,6 +407,8 @@ extension Game {
                 }
             }
         }
+        // R7 (Breaker Run): the station's dark circuits come back one by one over the hold
+        if h.relights && relightNext < relightQueue.count { relightTick() }
         // the hold waits for its boss: it cannot end before she has come and died
         if let q = h.boss, q.locks, liftT <= 0 && (queen.alive || (!queen.spawned && riderExpected(q))) { liftT = 0.01 }
         if liftT <= 0 {
@@ -353,10 +421,31 @@ extension Game {
         return mul
     }
 
+    /// R7: the next dark circuit of the queue comes back each time the countdown passes another even share of the hold
+    /// (n circuits: at 1/(n+1), 2/(n+1), …, n/(n+1)); one fixed already (a bot, the hive left it whole) is skipped.
+    func relightTick() {
+        guard liftDur.isFinite && liftDur > 0 else { return }
+        let f = 1 - max(0, liftT) / liftDur, n = relightQueue.count
+        while relightNext < n && f >= Float(relightNext + 1) / Float(n + 1) {
+            let c = relightQueue[relightNext]
+            relightNext += 1
+            if c >= 0 && c < props.circuits.count && props.circuits[c].needsRestore { restoreCircuit(c) }
+        }
+    }
+
     /// The player stepped into the zone: the countdown, the opening horde (a share over the zone's rim).
     func startHold(_ h: HoldStep) {
         enterPhase(.active)
         liftT = h.time; liftDur = h.time; hordeT = h.firstHorde.value(difficulty); pulseT = 4
+        // R7 (Breaker Run): the circuits still dark (or with lamps out) when the hold starts, nearest to the zone first
+        relightQueue.removeAll(); relightNext = 0
+        if h.relights && !props.circuits.isEmpty {
+            let c = zoneCenter(h.zone)
+            relightQueue = props.circuits.indices.filter { props.circuits[$0].needsRestore }.sorted {
+                let a = props.circuits[$0].site, b = props.circuits[$1].site
+                return hypotf2(a.x - c.x, a.z - c.y) < hypotf2(b.x - c.x, b.z - c.y)
+            }
+        }
         // (an endless hold — a holdout — has no countdown to name)
         let n = h.time.isFinite ? Int(h.time) : 0
         if !simOnly {
@@ -369,6 +458,18 @@ extension Game {
             startHorde(Int((open * hordeScale()).rounded()), hb.map { stepLine($0.title, [.int(n)]) }, hb.map { stepLine($0.sub, [.int(n)]) }, 70)
         }
         if difficulty.waves { lullT = 10 }
+    }
+
+    /// × the current HOLD step's periodic hordes (1 outside a hold: the classic numbers).
+    var holdHordeK: Float {
+        if case .hold(let h)? = currentStep { return h.hordeK }
+        return 1
+    }
+
+    /// The subtitle of the current hold's periodic hordes (the lift's outside a hold).
+    var holdHordeSub: TextID {
+        if case .hold(let h)? = currentStep { return h.hordeSub }
+        return .bannerHordeLiftSub
     }
 
     /// The rider comes on this tier (or the debug `queenAt` sends her).
@@ -472,9 +573,40 @@ extension Game {
         return calibStage
     }
 
-    /// Objective lines of the modules beyond the classic ones, at their widest arguments (the HUD's layout check).
+    /// Objective lines of the modules beyond the classic ones, at their widest arguments (the HUD's layout check; R7's
+    /// missions' lines too).
     public static var moduleObjectiveSamples: [GameText] {
         [GameText(.objSwitches, [.int(6), .int(6)]), GameText(.objHoldRing), GameText(.objReach), GameText(.objHoldArea, [.clock(599)]),
-         GameText(.objKillBoss, [.name(.queen)]), GameText(.objWakingMove), GameText(.objConvergeMove)]
+         GameText(.objKillBoss, [.name(.queen)]), GameText(.objWakingMove), GameText(.objConvergeMove),
+         GameText(.objRestorePower, [.int(6), .int(6)]), GameText(.objHoldBreaker), GameText(.objToGenerator),
+         GameText(.objHoldGenerator, [.clock(599)]), GameText(.objSealVents, [.int(6), .int(6)]), GameText(.objHoldSeal)]
+    }
+
+    /// R7: the report strip of a plan that draws its own (`MissionPlan.ownStrip`; nil: the classic strip): one item per
+    /// beacon of a RING step, per switch a SWITCH step needs, per HOLD (+ its boss rider), BOSS and EXTRACT — at most six
+    /// (the report's strip). On: a beacon lit, a switch thrown, a hold or boss fight reached, the boss killed, the ride.
+    func planStrip(won: Bool) -> [ReportStripItem]? {
+        guard mission.ownStrip else { return nil }
+        var out: [ReportStripItem] = []
+        var lit = 0
+        for b in beacons where b.state == 2 { lit += 1 }
+        var rings = 0, thrown = 0
+        for (k, step) in mission.steps.enumerated() {
+            let reached = won || missionStep > k || (missionStep == k && stepPhase == .active)
+            switch step {
+            case .ring(let r):
+                for _ in r.sites { out.append(ReportStripItem(label: GameText(r.stripText ?? .reportStripBeacon), on: lit > rings)); rings += 1 }
+            case .switches(let s):
+                for _ in 0..<s.needed { out.append(ReportStripItem(label: GameText(s.stripText ?? .reportStripBeacon), on: switchesThrown > thrown)); thrown += 1 }
+            case .hold(let h):
+                out.append(ReportStripItem(label: GameText(h.stripText ?? .reportStripLift), on: reached))
+                if h.boss != nil { out.append(ReportStripItem(label: GameText(.reportStripQueen), on: won || (queen.spawned && queen.done))) }
+            case .boss(let b):
+                out.append(ReportStripItem(label: GameText(b.stripText ?? .reportStripQueen), on: won || (queen.spawned && queen.done)))
+            case .extract(let e):
+                out.append(ReportStripItem(label: GameText(e.stripText ?? .reportStripExtract), on: won))
+            }
+        }
+        return Array(out.prefix(6))
     }
 }

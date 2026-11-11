@@ -414,6 +414,18 @@ public final class Game {
     /// The switches of the current SWITCH step and the one being thrown (-1 none).
     public internal(set) var switches: [SwitchState] = []
     public internal(set) var activeSwitch = -1
+    /// Switches thrown over the whole plan (the report's switch line and strip).
+    public internal(set) var switchesThrown = 0
+    /// R7: the station's vents a seal shut for good (Vent Purge; by `LevelLayout.vents` index): no pack pours out of them.
+    public internal(set) var ventShut: [Bool] = []
+    /// R7: the hive's stream — the trickle, the packs, the surges and the hordes × this (1; each thinning switch thrown × (1 −
+    /// its `thins`)).
+    public internal(set) var streamK: Float = 1
+    /// R7: seconds to the next pour out of an open seal's vent (a SWITCH step with `pour`).
+    var pourT: Float = 0
+    /// R7: the circuits a relighting hold brings back (nearest to its zone first) and how many it has done.
+    var relightQueue: [Int] = []
+    var relightNext = 0
 
     // ---------- director (DIR) ----------
     /// The coarse stage (set by the plan's phases).
