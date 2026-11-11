@@ -107,6 +107,6 @@ final class WorldMission {
         AppLog.info(String(format: "hb mission %@ step=%d/%d %@ %@ switches=%@ vents shut=%d stream=%.2f hold=%.1f lit=%d/%d", game.mission.id,
                            game.missionStep + 1, game.mission.steps.count, game.currentModule?.rawValue ?? "-",
                            game.stepPhase == .active ? "active" : "approach", sw.joined(separator: ","), game.ventShut.filter { $0 }.count,
-                           game.streamK, game.holdActive ? game.liftT : -1, game.lightsLit, game.circuits.count))
+                           game.streamK, game.holdActive ? game.liftT : Float(-1), game.lightsLit, game.circuits.count))
     }
 }
