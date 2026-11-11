@@ -171,7 +171,7 @@ final class Corpses {
         switch cause {
         case .fire: return 3
         case .frost: return 4
-        case .blast: return type == .runner ? 2 : 1
+        case .blast: return type == .runner ? 2 : (type == .dropper ? 0 : 1)
         case .bullet:
             switch type {
             case .runner:
@@ -179,6 +179,7 @@ final class Corpses {
                 if front > 0.35 { return 1 }            // crumpled forward onto its belly, sliding
                 return left > 0 ? 0 : (seed < 0.5 ? 2 : 1)   // rolled away from the shot
             case .spitter: return front < -0.2 ? 1 : 0  // flipped back / the sac bursts, slumping
+            case .dropper: return 0                     // Stage 1 R4: thrown over onto its back (its one bullet death)
             default: return abs(front) > 0.5 ? 0 : 1    // brute: collapses forward / topples onto its side
             }
         }

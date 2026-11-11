@@ -68,6 +68,8 @@ struct ClipSet {
     let walkSpeed: Float, runSpeed: Float
     /// native-vx-swarm-life: per-bug variants and deaths by cause (-1 = none for this type).
     let runB: Int, walkB: Int, pounce: Int, skitter: Int, rear: Int, deathBurn: Int, deathFrost: Int
+    /// Stage 1 R4 (the Dropper): the drop's telegraph (coil), the dive, the pin and the struggle (-1 = none for this type).
+    let coil: Int, drop: Int, pin: Int, struggle: Int
 
     init(_ c: IHVCreature) {
         func k(_ n: String) -> Int { c.clip(n) ?? -1 }
@@ -82,6 +84,7 @@ struct ClipSet {
         charge = k("charge")
         runB = k("run_b"); walkB = k("walk_b"); pounce = k("pounce"); skitter = k("skitter"); rear = k("rear")
         deathBurn = k("death_burn"); deathFrost = k("death_frost")
+        coil = k("coil"); drop = k("drop"); pin = k("pin"); struggle = k("struggle")
         let cw = c.clips[walk], cr = c.clips[run]
         walkSpeed = cw.stride > 0 && cw.duration > 0 ? cw.stride / cw.duration : 1
         runSpeed = cr.stride > 0 && cr.duration > 0 ? cr.stride / cr.duration : 2.5
@@ -152,7 +155,9 @@ final class SwarmAnimator {
         var lastFlash: Float = 0
         var hitT: Float = -1, atkT: Float = -1
         var leanX: Float = 0, leanZ: Float = 0, leanVX: Float = 0, leanVZ: Float = 0
-        var mode: UInt8 = 0         // 0 locomotion, 1 special (spit / wind / swell), 2 charge, 3 climb, 4 leap (pounce)
+        var mode: UInt8 = 0         // 0 locomotion, 1 special (spit / wind / swell), 2 charge, 3 climb, 4 leap (pounce),
+                                    // Stage 1 R4: 5 coil, 6 drop, 7 pin (the Dropper)
+        var pinPh: Float = 0        // the pin loop's phase
         var lod: UInt8 = 255
         var fromRows: UInt32 = 0
         var fromFrac: Float = 0
@@ -296,7 +301,20 @@ final class SwarmAnimator {
         // ---- mode by the core's state
         var mode: UInt8 = 0
         var special = ClipSample.zero
-        if climbing {
+        // Stage 1 R4, the Dropper: its own clips for the drop's telegraph (stT = the coil's progress 0…1), the dive (the
+        // flight's progress) and the pin (a loop; the struggle blends in on its hits)
+        if st == BugState.coil.rawValue && cs.coil >= 0 {
+            mode = 5
+            special = clipShot(cl[cs.coil], max(0, min(1, stT)) * cl[cs.coil].duration)
+        } else if st == BugState.drop.rawValue && cs.drop >= 0 {
+            mode = 6
+            special = clipShot(cl[cs.drop], max(0, min(1, stT)) * cl[cs.drop].duration)
+        } else if st == BugState.pin.rawValue && cs.pin >= 0 {
+            mode = 7
+            e.pointee.pinPh += dt / max(0.1, cl[cs.pin].duration)
+            e.pointee.pinPh -= floorf(e.pointee.pinPh)
+            special = clipLoop(cl[cs.pin], e.pointee.pinPh)
+        } else if climbing {
             mode = 3
             e.pointee.u += max(0, min(1.5, dPH)) * 0.09
         } else if st == BugState.wind.rawValue && cs.special >= 0 && t != BugType.boomer.rawValue {
@@ -404,7 +422,7 @@ final class SwarmAnimator {
         var secondary = ClipSample.zero
         var wSec: Float = 0
         switch mode {
-        case 1, 4:
+        case 1, 4, 5, 6, 7:
             o.a = special
         case 2:
             o.a = clipLoop(cl[cs.charge >= 0 ? cs.charge : cs.run], e.pointee.u)
@@ -463,6 +481,13 @@ final class SwarmAnimator {
                 o.b = clipShot(c, e.pointee.rearT)
                 wB = smoothf(0, 0.1, e.pointee.rearT) * (1 - smoothf(c.duration * 0.85, c.duration, e.pointee.rearT))
             }
+        }
+        // Stage 1 R4: a pinning Dropper struggles while it is shot at (its hit flash), over the pin loop
+        if mode == 7 && cs.struggle >= 0 {
+            o.b = clipLoop(cl[cs.struggle], e.pointee.pinPh * 1.5)
+            wB = max(wB, min(1, flash * 3))
+        } else if mode >= 5 {
+            wB = 0   // (no lunge / hit / rear overlays over the telegraph and the dive)
         }
         if wB < 0.01 {
             if e.pointee.fromW > 0 {

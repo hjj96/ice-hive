@@ -18,8 +18,9 @@
 //                    dissolves through an ordered dither (instance flags
 //                    bits 2–7, WorldSwarm.nearLevel); its own pipeline
 //   vs_swarm_glint   the dorsal pores of every live bug once more as
-//                    tiny HDR dots at their socket points (one draw, all
-//                    four types): steady sparkle at phone size
+//                    tiny HDR dots at their socket points (one draw, every
+//                    type — Stage 1 R4: five, the Dropper's two eyes):
+//                    steady sparkle at phone size
 //   vs_creature_proxy  the 20-triangle shadow blob of a bug inside a
 //                    flashlight cone (shadow atlas casters)
 //  native-vx-swarm-life: the head look and abdomen sway — vertices of the
@@ -31,8 +32,8 @@
 //  the glints on those bones turn with them.
 //  Bindings: vertex buffer 0 the LOD's vertices (the IHV file buffer),
 //  1 Frame, 2 instances, 3 SwarmParams (both stages), 4 the glow table;
-//  vertex texture 6 the bone texture (glints: 6–9 one per type, glow
-//  tables 11–14, sockets 10). LIGHTING_PARAMS (buffer 5, textures 3–5)
+//  vertex texture 6 the bone texture (glints: 6–10 one per type, glow
+//  tables 11–15, sockets 10). LIGHTING_PARAMS (buffer 5, textures 3–5)
 //  are bound for the whole world pass by LightGrid.
 // ================================================================
 #include "Common.h"
@@ -158,8 +159,8 @@ vertex CreatureOut vs_creature(uint vid [[vertex_id]], uint iid [[instance_id]],
     float3 rp = float3(rest.xyz), rn = float3(nr.xyz) * (1.0 / 127.0);
     uint grp = (vflags & IHV_HEADG) != 0u ? 1u : ((vflags & IHV_ABDG) != 0u ? 2u : 0u);
     if (grp != 0u && (b.fx.w >> 8) != 0u) {
-        uint ty = (b.anim.w >> 16) & 3u;
-        lookTurn(grp, b.fx.w, lookPivot[grp == 1u ? ty : 4u + ty].xyz, rp, rn);
+        uint ty = min((b.anim.w >> 16) & 0xffu, SWARM_TYPES - 1u);
+        lookTurn(grp, b.fx.w, lookPivot[grp == 1u ? ty : SWARM_TYPES + ty].xyz, rp, rn);
     }
     float3 p = xform(P.M, rp);
     float3 n = xformDir(P.M, rn);
@@ -201,8 +202,9 @@ vertex CreatureOut vs_creature(uint vid [[vertex_id]], uint iid [[instance_id]],
     return o;
 }
 
-// polish: albedo lift of the living shell per type (runner, spitter, brute, boomer)
-constant float kBodyLift[4] = {1.9, 1.7, 1.15, 1.2};
+// polish: albedo lift of the living shell per type (runner, spitter, brute, boomer; Stage 1 R4: the Dropper — its plates are
+// pale already)
+constant float kBodyLift[SWARM_TYPES] = {1.9, 1.7, 1.15, 1.2, 1.0};
 
 /// The chitin's colour (fs_chitin; fs_chitin_near after its fade).
 static float4 chitin(CreatureOut in, constant SwarmParams& SP, constant Frame& F, constant LightBlock& LB,
@@ -211,7 +213,7 @@ static float4 chitin(CreatureOut in, constant SwarmParams& SP, constant Frame& F
     float3 V = normalize(F.camPos.xyz - in.world);
     float NoV = saturate(dot(N, V));
     float hit = in.state.x, burn = in.state.y, frz = in.state.z, dead = in.state.w;
-    uint vf = in.flags & 0xffu, type = (in.flags >> 8) & 3u, inst = in.flags >> 16;
+    uint vf = in.flags & 0xffu, type = min((in.flags >> 8) & 0xffu, SWARM_TYPES - 1u), inst = in.flags >> 16;
     SwarmType T = SP.types[type];
     bool gland = (vf & IHV_GLAND) != 0u, eyeF = (vf & IHV_EYE) != 0u, sac = (vf & IHV_SAC) != 0u, edge = (vf & IHV_EDGE) != 0u;
     float3 albedo = float3(in.albedo);
@@ -324,13 +326,16 @@ vertex GlintOut vs_swarm_glint(uint vid [[vertex_id]], uint iid [[instance_id]],
                                const device float4* G1 [[buffer(12)]],
                                const device float4* G2 [[buffer(13)]],
                                const device float4* G3 [[buffer(14)]],
+                               const device float4* G4 [[buffer(15)]],
                                texture2d<half, access::read> T0 [[texture(6)]],
                                texture2d<half, access::read> T1 [[texture(7)]],
                                texture2d<half, access::read> T2 [[texture(8)]],
                                texture2d<half, access::read> T3 [[texture(9)]],
+                               texture2d<half, access::read> T4 [[texture(10)]],
                                constant float4* lookPivot [[buffer(7)]]) {
     // the type whose glint range holds this instance (ranges are cumulative; an empty range is skipped)
-    uint t = uint(iid >= SP.types[1].glint.z) + uint(iid >= SP.types[2].glint.z) + uint(iid >= SP.types[3].glint.z);
+    uint t = uint(iid >= SP.types[1].glint.z) + uint(iid >= SP.types[2].glint.z) + uint(iid >= SP.types[3].glint.z)
+           + uint(iid >= SP.types[4].glint.z);
     uint4 gi = SP.types[t].glint;
     uint per = max(gi.y, 1u);
     uint local = iid - gi.z;
@@ -339,13 +344,14 @@ vertex GlintOut vs_swarm_glint(uint vid [[vertex_id]], uint iid [[instance_id]],
     uint bw = uint(gs.pos.w);
     uint bone = bw & 255u, grp = bw >> 8;
     float3 gp = gs.pos.xyz, gn = float3(0.0, 1.0, 0.0);
-    if (grp != 0u && (b.fx.w >> 8) != 0u) lookTurn(grp, b.fx.w, lookPivot[grp == 1u ? t : 4u + t].xyz, gp, gn);
+    if (grp != 0u && (b.fx.w >> 8) != 0u) lookTurn(grp, b.fx.w, lookPivot[grp == 1u ? t : SWARM_TYPES + t].xyz, gp, gn);
     Pose P;
     switch (t) {
         case 0: P = poseOf(T0, G0, bone, b.anim); break;
         case 1: P = poseOf(T1, G1, bone, b.anim); break;
         case 2: P = poseOf(T2, G2, bone, b.anim); break;
-        default: P = poseOf(T3, G3, bone, b.anim); break;
+        case 3: P = poseOf(T3, G3, bone, b.anim); break;
+        default: P = poseOf(T4, G4, bone, b.anim); break;
     }
     float3 w = b.pos.xyz + placeOffset(b, xform(P.M, gp));
     float4 st = unpack_unorm4x8_to_float(b.fx.x);
@@ -391,7 +397,7 @@ vertex ShadowOut vs_creature_proxy(uint vid [[vertex_id]], uint iid [[instance_i
                                    const device CreatureInstance* I [[buffer(2)]],
                                    constant SwarmParams& SP [[buffer(3)]]) {
     CreatureInstance b = I[iid];
-    float4 pr = SP.types[(b.anim.w >> 16) & 3u].proxy;
+    float4 pr = SP.types[min((b.anim.w >> 16) & 0xffu, SWARM_TYPES - 1u)].proxy;
     float3 p = float3(Pv[vid]) * pr.xyz + float3(0.0, pr.w, 0.0);
     ShadowOut o;
     o.position = F.shadowMatrix * float4(b.pos.xyz + placeOffset(b, p), 1.0);

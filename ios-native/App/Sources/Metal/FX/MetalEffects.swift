@@ -346,6 +346,9 @@ final class MetalEffects {
             if k >= 0 && k < game.marines.count { reloadDrop(game.marines[k], k) }
         case .acidLaunched(let from, let to):
             spit(from.x, from.y, to.x - from.x, to.y - from.y)
+        case .acidFromPerch(let from, let to, _):
+            // Stage 1 R4: a perched spitter spits from up on the overhead
+            spit(from.x, from.z, to.x - from.x, to.y - from.z, y: from.y)
         case .queenKilled(let pos):
             queenDeath(pos.x, pos.y)
         case .queenSpawned(let pos):
@@ -357,7 +360,7 @@ final class MetalEffects {
 
     // ---------------------------------------------------------------- bugs
     /// Ichor (albedo of the droplets) and the stain tint of each bug type.
-    private static func ichor(_ t: Int) -> F3 { WorldSwarm.ichor[max(0, min(3, t))] }
+    private static func ichor(_ t: Int) -> F3 { WorldSwarm.ichor[max(0, min(WorldSwarm.types - 1, t))] }
     private static let chitin = F4(0.045, 0.04, 0.05, 1)
 
     private func bugDeath(_ type: BugType, _ x: Float, _ z: Float, _ frozen: Bool, _ hd: Float, _ sc: Float, _ y: Float) {
@@ -898,11 +901,12 @@ final class MetalEffects {
                   bounce: 0.3)
     }
 
-    /// A spitter's spit leaves its mouth: lime droplets and a wisp of vapour along the throw.
-    private func spit(_ x: Float, _ z: Float, _ dx: Float, _ dz: Float) {
+    /// A spitter's spit leaves its mouth: lime droplets and a wisp of vapour along the throw (`y`: an absolute mouth height —
+    /// a perched spitter's, Stage 1 R4).
+    private func spit(_ x: Float, _ z: Float, _ dx: Float, _ dz: Float, y: Float? = nil) {
         let l = max(1e-3, (dx * dx + dz * dz).squareRoot())
         let d = F3(dx / l, 0, dz / l)
-        let p = F3(x, gy(x, z) + 0.8, z) + d * 0.35
+        let p = F3(x, y.map { $0 + 0.35 } ?? gy(x, z) + 0.8, z) + d * 0.35
         gpu.burst(.ichor, num(5), at: p, vel: d * 3.5 + F3(0, 1.6, 0), velJitter: F3(1.2, 0.8, 1.2), life: (0.4, 0.7), size: (0.06, 0.04),
                   color: F4(0.28, 0.4, 0.04, 1), gravity: 12)
         gpu.burst(.glow, num(3), at: p, vel: d * 2.5, velJitter: F3(0.6, 0.6, 0.6), life: (0.15, 0.3), size: (0.25, 0.05),

@@ -354,7 +354,7 @@ jobs:
     env:
       # every frame-gated demo, all landscape (the app is landscape-only); `layout` (the four-phone layout check)
       # runs as well but builds ~40 screens in one go, so it is not gated
-      DEMOS: firstlaunch combat beacon waves overhead swarmshot swarmshot-dots swarm swarm3x calm squad squadclose squadtight squadfire fxsheet fxsheet-high fxpeak stress1400 punchin extract-cine title title-fresh title-return title-nm title-left probe hold extract holdhint queen queenlock coach coach3 pressure pressure-amber levelup pause pause-nm end report-first report-win report-loss report-chip release-combat swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud
+      DEMOS: firstlaunch combat beacon waves overhead overheadbugs swarmshot swarmshot-dots swarm swarm3x calm squad squadclose squadtight squadfire fxsheet fxsheet-high fxpeak stress1400 punchin extract-cine title title-fresh title-return title-nm title-left probe hold extract holdhint queen queenlock coach coach3 pressure pressure-amber levelup pause pause-nm end report-first report-win report-loss report-chip release-combat swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud
       MENUS: levelup,pause,pause-nm,end,report-first,report-win,report-loss,report-chip
     steps:
       - uses: actions/checkout@v4
@@ -459,6 +459,11 @@ jobs:
           # `.dropZone` rings, the frost-dust streams, the eye glints), the squad shoots them off; time almost frozen on a
           # telegraph for the screenshot
           run_demo overhead 10 "-demo overhead -seed 7" 0
+          # Stage 1 R4: the overhead's own bugs on the showcase (-demo overheadbugs, on the sim clock): a Dropper out of the
+          # duct mouth drops on the player and pins it (the squad shoots it off), a spitter perches over the void on the far
+          # arm and spits from height, a pack rattles in the duct and the player shoots it shut, a second Dropper climbs the
+          # riser and pins the player — time almost frozen 0.25 s into that pin for the screenshot («Pinned — dash!»)
+          run_demo overheadbugs 15 "-demo overheadbugs -seed 7" 0
           # the App Store 2-swarm moment staged in the app (gunner at the crossing, the store's 600 bugs under the live cap
           # — 350 on High since native-vx-feel —, firing, time ~frozen), now in landscape (874x402 @3x)
           run_demo swarmshot 4 "-demo swarmshot -seed 7" 0
@@ -549,6 +554,18 @@ jobs:
           # player's tile (the other overhead runs are on the default tier)
           run_demo burst-parallax 8 "-demo overhead -ohWalk -ohHigh -seed 7 -hideHUD -ohVis -burst parallax 2.0 24 5"
           pull_burst burst-parallax
+          # Stage 1 R4: the overhead's bugs frame by frame at phone size, the HUD on (the pin's hint): the Dropper's telegraph,
+          # drop, pin and the squad's fire throwing it off (every 5th present from 3.2 s); the perched spitter's wind-up and
+          # its glob from height (every 6th from 4.2 s); the duct's rattle and the player shooting it shut (every 5th from
+          # 5.7 s); the second Dropper's pin and the dash out of it (-obDash, every 5th from 9.4 s)
+          run_demo burst-dropper 7 "-demo overheadbugs -seed 7 -burst dropper 3.2 24 5"
+          pull_burst burst-dropper
+          run_demo burst-perch 8 "-demo overheadbugs -seed 7 -burst perch 4.2 24 6"
+          pull_burst burst-perch
+          run_demo burst-duct 9 "-demo overheadbugs -seed 7 -burst duct 5.7 24 5"
+          pull_burst burst-duct
+          run_demo burst-dash 13 "-demo overheadbugs -obDash -seed 7 -burst dash 9.4 24 5"
+          pull_burst burst-dash
           # WP5 effects look-dev: every effect staged around the squad and frozen mid-air (-fxSheet: blasts, napalm, the
           # flamer jet, the cryo beam, hits, kills, a frozen shatter, acid, a nova, casings, a row of every stain), on
           # Efficient and on High (wet decals, heat haze); the plan's scripted peak (three chained boomers + napalm +
@@ -770,7 +787,7 @@ jobs:
                    layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo banner-beacon banner-queen banner-pseudo \
                    swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud calm-deckmask calm-bright-nohud \
                    burst-fire burst-tight burst-combat burst-anim burst-loco burst-loco-game burst-acta burst-actb burst-actc burst-defeat burst-win burst-bugs burst-pack burst-packold burst-mix burst-mixold validate-stress validate-fxpeak validate-extract lifecycle \
-                   overhead burst-overhead burst-parallax overhead-nohud; do
+                   overhead burst-overhead burst-parallax overhead-nohud overheadbugs burst-dropper burst-perch burst-duct burst-dash; do
             grep -q 'scene ready' "results/app-$d.log" || { fail "$d: no 'scene ready'"; }
             if grep -q 'ERROR' "results/app-$d.log"; then fail "$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; fi
           done
@@ -849,6 +866,21 @@ jobs:
           need burst-parallax 'oh vis: on \(pipelines ok'
           need burst-parallax 'hb overhead draws=.* casters=[1-9][0-9]*/[1-9][0-9]* tier=high'
           need overhead-nohud 'oh vis: on \(pipelines ok'
+          # Stage 1 R4: the overhead's bugs — the duct rattling before its pack, the Dropper's pin and the squad's fire breaking
+          # it, the perched spitter, the duct shot shut, the second pin frozen under its hint; the dash out of it (burst-dash)
+          need overheadbugs 'demo overheadbugs: routes 15 edges, 1 duct mouths, [1-9][0-9]* perch points'
+          need overheadbugs 'bugs: duct 0 rattles'
+          need overheadbugs 'bugs: pinned marine 0 at'
+          need overheadbugs 'bugs: pin broken marine 0 by fire'
+          need overheadbugs 'bugs: spitter perched at'
+          need overheadbugs 'bugs: duct 0 shot shut'
+          need overheadbugs 'demo overheadbugs: frozen ts=[0-9.]+ td=[0-9.]+ pinned=1 hint=hint\.pinned'
+          need burst-dropper 'burst dropper written \(24 frames\)'
+          need burst-perch 'burst perch written \(24 frames\)'
+          need burst-duct 'burst duct written \(24 frames\)'
+          need burst-dash 'burst dash written \(24 frames\)'
+          need burst-dash 'bugs: pin broken marine 0 by dash'
+          need burst-dash 'hb bugs droppers=[0-9]+ up=[0-9]+ pins=2 dash=1 fire=1 '
           python3 ios-native/ci/overhead_vis.py results overhead-nohud burst-parallax > results/overhead-vis.txt 2>&1 || fail "overhead visibility: $(tail -n 1 results/overhead-vis.txt)"
           cat results/overhead-vis.txt
           need burst-pack 'demo swarmpack: spawned [1-9][0-9]* bugs .*swarm life'
