@@ -208,7 +208,7 @@ final class GameTests: XCTestCase {
         XCTAssertEqual(g.objective, GameText(.objHoldLift, [.clock(100)]))
         g.tick()
         g.debugSkip()   // the Матка dies (or never comes) first
-        XCTAssertTrue(g.queen.done)
+        XCTAssertTrue(g.boss.done)
         g.step(5)
         XCTAssertEqual(g.stage, .extract)
         g.step(5 * 60)
@@ -286,7 +286,7 @@ final class GameTests: XCTestCase {
         g.debugSetLiftTime(1)
         g.step(120)
         XCTAssertEqual(g.stage, .extract)
-        XCTAssertFalse(g.queen.spawned)
+        XCTAssertFalse(g.boss.spawned)
     }
 
     func testEventBufferIsBounded() {

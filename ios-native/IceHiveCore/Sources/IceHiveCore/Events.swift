@@ -34,7 +34,7 @@ public enum SoundID: String, CaseIterable {
     case throwGrenade = "throw"
     case napalm, shock, thud
     case kill, combo, hordeRoar, nova, turret, heal, spit, acid, roar, swell, siren, beacon, beaconDone, lift, levelup, click, heart, victory, defeat
-    /// The Матка climbs onto the deck (v1.1; non-positional).
+    /// The Матка climbs onto the deck (v1.1; non-positional; her roar: `BossSpec.roar`).
     case queen
 }
 
@@ -105,15 +105,25 @@ public enum GameEvent {
     case victory
     case defeat
 
-    // --- v1.1 «Ставки»: the Матка and the first-run coach ---
-    /// 2 s red ring where the Матка will climb over the lift rim.
-    case queenWarning(pos: Vec2)
-    /// She is on the deck (banner, siren + queen sound, shake and haptic come as their own events).
-    case queenSpawned(pos: Vec2)
-    /// Below half health once: faster, and the hive answers with a horde.
-    case queenEnraged(pos: Vec2)
-    /// She died (emitted before its `.hitStop`: the app resets its hit-stop cooldown so this one always plays).
-    case queenKilled(pos: Vec2)
+    // --- the bosses (Stage 2 B1, GameBoss.swift; v1.1's Матка is the first) ---
+    /// Its warning: the red ring (`BossSpec.warn` s, the Queen's 2 s) where it will come (the Queen: over the lift rim).
+    case bossWarning(kind: BossKind, pos: Vec2)
+    /// It is there (banner, siren + its roar, shake and haptic come as their own events).
+    case bossSpawned(kind: BossKind, pos: Vec2)
+    /// It entered phase `phase` (below its health threshold; the Queen's 1: enraged — faster, and the hive answers).
+    case bossPhase(kind: BossKind, phase: Int, enraged: Bool, pos: Vec2)
+    /// It died (emitted before its `.hitStop`: the app resets its hit-stop cooldown so this one always plays).
+    case bossKilled(kind: BossKind, pos: Vec2)
+    /// A telegraphed move's wind-up starts (`move`: its index in the spec's moves; its telegraph comes as `.telegraph`).
+    case bossMove(kind: BossKind, move: Int, pos: Vec2)
+    /// A weak-point window opens on part `part` for `time` s (the head down: its damage × its `downK`).
+    case bossWindow(kind: BossKind, part: Int, pos: Vec2, time: Float)
+    /// Part `part`'s own pool is spent (a node popped: dark, the boss staggers).
+    case bossPartPopped(kind: BossKind, part: Int, pos: Vec2)
+    /// Part `part` froze (a boss that is not freeze-immune: its body locks instead).
+    case bossPartFrozen(kind: BossKind, part: Int, pos: Vec2)
+
+    // --- v1.1 «Ставки»: the first-run coach ---
 
     // --- Stage 1 R2: the overhead ---
     /// A bug up on a route committed to a drop: from its place (x, absolute y, z) onto the deck point `to`, landing in
@@ -202,18 +212,27 @@ public enum TelegraphShape: Int {
     case lane
     /// Disc that fills up as the impact approaches (acid globs).
     case fill
+    // ---- Stage 2 B1: the boss framework's shapes (cause `.bossMove`; drawn by the boss's renderer)
+    /// A cone from (x, z) along (dx, dz): `len` long, half-angle `w` (rad) — a sweep turns it while it is lit.
+    case cone
+    /// A thin line from (x, z) along (dx, dz), `len` long and `w` wide: pulses during `wind`, lit while it acts.
+    case beam
+    /// A drop target: a ring closing r0 → r1 at (x, z) over its life (something lands there).
+    case drop
 }
 
 public enum TelegraphCause: Int {
     case acidTarget, bruteLane, boomerSwell, napalm, nova, pulse, other
-    /// v1.1: where the Матка will climb up (red, 2 s) / her acid volley (one ring + fill per marine).
-    case queenRim, queenVolley
+    /// Where a boss will come (red, its warning: the Queen's rim, 2 s) / a boss's acid volley (one ring + fill per marine).
+    case bossRim, bossVolley
     /// Stage 1 R2: something drops from the overhead HERE — a closing ring (DROP_RING0 → DROP_RING) for the whole warning,
     /// in the pink-white of the hive's pores (the telegraph lexicon's «lands here», design §1.1.4).
     case dropZone
     /// Stage 1 R6: a steam valve bursts — its amber ring («it explodes»: the lexicon's valve about to burst) and the strip
     /// of its scald curtain on the deck (a steam-white lane: pulsing through the warning, fading over the curtain).
     case steam
+    /// Stage 2 B1: a boss's telegraphed move (any shape; its colour from the move).
+    case bossMove
 }
 
 public struct Telegraph {

@@ -111,7 +111,7 @@ final class MissionPlanTests: XCTestCase {
                 case .switchThrown: thrown += 1
                 case .holdStarted: holds += 1
                 case .extractStarted: rides += 1
-                case .queenKilled: queens += 1
+                case .bossKilled: queens += 1
                 default: break
                 }
             }
@@ -122,7 +122,7 @@ final class MissionPlanTests: XCTestCase {
             if has.contains(.switches) { XCTAssertEqual(thrown, 3, t.id); XCTAssertEqual(g.switchesDone, 3, t.id) }
             if has.contains(.hold) { XCTAssertEqual(holds, 1, t.id) }
             if has.contains(.extract) { XCTAssertEqual(rides, 1, t.id) }
-            if has.contains(.boss) { XCTAssertEqual(queens, 1, t.id); XCTAssertTrue(g.queen.done) }
+            if has.contains(.boss) { XCTAssertEqual(queens, 1, t.id); XCTAssertTrue(g.boss.done) }
             if has.contains(.ring) { XCTAssertEqual(g.beacons.filter { $0.state == 2 }.count, 1, t.id) }
         }
     }
@@ -214,32 +214,32 @@ final class MissionPlanTests: XCTestCase {
     }
 
     func testBossStep() {
-        let g = planGame(MissionPlan(id: "t-boss", steps: [.boss(BossStep(.queen, zone: .lift, delay: 2))]), autopilot: true) { $0.queenHp = 400 }
+        let g = planGame(MissionPlan(id: "t-boss", steps: [.boss(BossStep(.queen, zone: .lift, delay: 2))]), autopilot: true) { $0.bossHp = 400 }
         XCTAssertEqual(g.stage, .boss); XCTAssertEqual(g.objective, GameText(.objReach)); XCTAssertEqual(g.calibStage, "toBoss")
         g.debugSkip()
         XCTAssertEqual(g.stepPhase, .active); XCTAssertEqual(g.posture, .hold); XCTAssertEqual(g.calibStage, "boss")
         XCTAssertEqual(g.objective, GameText(.objKillBoss, [.name(.queen)]))
         var warnAt: Float = -1, spawnAt: Float = -1, warnPos = Vec2(0, 0)
         let t0 = g.time
-        run(g, seconds: 6, until: { g.queen.spawned }) { e in
-            if case .queenWarning(let p) = e { warnAt = g.time; warnPos = p }
-            if case .queenSpawned = e { spawnAt = g.time }
+        run(g, seconds: 6, until: { g.boss.spawned }) { e in
+            if case .bossWarning(_, let p) = e { warnAt = g.time; warnPos = p }
+            if case .bossSpawned = e { spawnAt = g.time }
         }
         XCTAssertEqual(warnAt - t0, 2, accuracy: 0.05, "the step's delay")
         XCTAssertEqual(spawnAt - warnAt, 2, accuracy: 0.05)
         let L = g.level.lift
         XCTAssertLessThan(warnPos.y - L.z, -4, "the far rim of her arena")
-        XCTAssertEqual(g.threatState, .queen); XCTAssertEqual(g.objectiveStyle, .boss)
-        XCTAssertEqual(g.objectiveProgress, 1 - g.queen.hpFraction, accuracy: 1e-5)
+        XCTAssertEqual(g.threatState, .boss); XCTAssertEqual(g.objectiveStyle, .boss)
+        XCTAssertEqual(g.objectiveProgress, 1 - g.boss.hpFraction, accuracy: 1e-5)
         run(g, seconds: 60, until: { g.phase != .playing })
         XCTAssertEqual(g.phase, .won, "her death ends the step and the mission")
-        XCTAssertTrue(g.queen.done)
+        XCTAssertTrue(g.boss.done)
         // a tier without a Queen (the legacy row) skips the step
         let l = planGame(MissionPlan(id: "t-boss-v10", steps: [.boss(BossStep(.queen, zone: .lift))]), tier: .legacyV10)
         l.debugSkip()
         run(l, seconds: 0.2, until: { l.phase != .playing })
         XCTAssertEqual(l.phase, .won)
-        XCTAssertFalse(l.queen.spawned)
+        XCTAssertFalse(l.boss.spawned)
     }
 
     func testExtractFromTheDeck() {

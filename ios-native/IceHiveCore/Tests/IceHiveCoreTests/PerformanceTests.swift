@@ -51,7 +51,7 @@ final class PerformanceTests: XCTestCase {
             }
             let dt = ProcessInfo.processInfo.systemUptime - t0
             print(String(format: "[perf] mission %@ %d ticks in %.2f s: %.3f ms/tick avg, %.2f ms max, %@ queen=%@ [%@]", label, g.tickCount, dt,
-                         dt * 1000 / Double(max(1, g.tickCount)), maxTick * 1000, "\(g.phase)", g.queen.done ? "killed" : (g.queen.spawned ? "alive" : "none"),
+                         dt * 1000 / Double(max(1, g.tickCount)), maxTick * 1000, "\(g.phase)", g.boss.done ? "killed" : (g.boss.spawned ? "alive" : "none"),
                          PerformanceTests.optimized ? "release" : "debug"))
             if tier.index < 0 { XCTAssertEqual(g.phase, .won) }
             XCTAssertLessThan(dt * 1000 / Double(max(1, g.tickCount)), 1.0, "\(label): average tick")

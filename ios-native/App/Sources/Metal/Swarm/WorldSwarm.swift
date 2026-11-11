@@ -424,7 +424,8 @@ final class WorldSwarm {
         let toCam = F3(0.7071, 0, 0.7071)
         let brute = UInt8(BugType.brute.rawValue)
         let dropperType = WorldSwarm.dropperType
-        let queenUid: Int32 = game.queen.alive ? game.queen.uid : -1
+        // (the boss framework: the Queen's bug body gets her violet tint and rim light; a chain boss is drawn by its own renderer)
+        let queenUid: Int32 = game.boss.alive && game.boss.kind == .queen && game.bossPartCount == 0 ? game.boss.uid : -1
         let marines = game.marines
         deadList.removeAll(keepingCapacity: true)
         var i = 0

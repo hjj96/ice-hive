@@ -6,9 +6,9 @@ import Foundation
 //  clock itself runs in tickDirector, the AFK clock in tickMarines.
 // ================================================================
 
-/// 0 calm · 1 the hive wakes (amber) · 2 the swarm converges (red, heartbeat, urgent marker) · 3 the Матка lives.
+/// 0 calm · 1 the hive wakes (amber) · 2 the swarm converges (red, heartbeat, urgent marker) · 3 the boss lives (the Матка).
 public enum ThreatState: Int {
-    case calm, waking, converging, queen
+    case calm, waking, converging, boss
 }
 
 /// Objective panel variant the HUD draws.
@@ -22,7 +22,7 @@ extension Game {
     public var threatState: ThreatState {
         if attract { return .calm }
         switch posture {
-        case .hold: return queen.alive ? .queen : .calm
+        case .hold: return boss.alive ? .boss : .calm
         case .defend, .ride: return .calm
         case .travel: break
         }
@@ -37,7 +37,7 @@ extension Game {
         case .calm: return .normal
         case .waking: return .waking
         case .converging: return .converging
-        case .queen: return .boss
+        case .boss: return .boss
         }
     }
 

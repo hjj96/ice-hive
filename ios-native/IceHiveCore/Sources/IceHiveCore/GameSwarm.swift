@@ -26,6 +26,7 @@ extension Game {
         let k = 0.88 + rng.next() * 0.24
         S.type[i] = type; S.ms[i] = T.mass; S.dead[i] = 0; S.hit[i] = 0; S.bsrc[i] = -1; S.uid[i] = S.uidSeq; S.uidSeq &+= 1
         S.up[i] = 0; S.re[i] = 0   // (not on the overhead: GameOverhead.spawnRouteBug sets these after)
+        S.boss[i] = 0   // (not a boss's: GameBoss.bossSpawn marks its body after)
         S.r[i] = T.radius * k; S.sc[i] = T.scale * k; S.spd[i] = T.speed * (0.85 + rng.next() * 0.3)
         // fodder is fodder: runners keep the tier's flat runner HP (13.2–16.8), so one rifle bolt always kills them; every
         // other type scales with the director's HP multiplier (the bench keeps its 1e5 multiplier on every type; the legacy
@@ -55,14 +56,40 @@ extension Game {
         return i
     }
 
+    /// Stage 2 B1: a slot for part `part` of a boss's chain body at (x, absolute height y, z) — no random draw, no
+    /// first-sighting tip (every Swarm array set, as spawnBug does): state `.boss` (the swarm's AI never moves it; the boss
+    /// places it every tick), heavy (the swarm flows round it), its own health `hp`.
+    func spawnBossPart(_ type: UInt8, _ x: Float, _ z: Float, _ y: Float, _ r: Float, _ sc: Float, hp: Float, part: Int) -> Int {
+        let S = bugs
+        if S.count >= S.capacity { return -1 }
+        let i = S.count
+        S.count += 1
+        S.type[i] = type; S.ms[i] = 40; S.dead[i] = 0; S.hit[i] = 0; S.bsrc[i] = -1; S.uid[i] = S.uidSeq; S.uidSeq &+= 1
+        S.up[i] = 0; S.re[i] = 0; S.rs[i] = 0; S.rx[i] = x; S.ry[i] = y; S.rz[i] = z
+        S.boss[i] = UInt8(clamping: part + 1)
+        S.r[i] = r; S.sc[i] = sc; S.spd[i] = 0
+        S.hp[i] = hp; S.hpMax[i] = hp
+        S.vx[i] = 0; S.vz[i] = 0; S.cd[i] = 0
+        S.chill[i] = 0; S.frz[i] = 0; S.burn[i] = 0; S.fl[i] = 0
+        S.ph[i] = 0; S.vr[i] = 0.5
+        S.mood[i] = M_CALM; S.mdx[i] = 0; S.mdz[i] = 0; S.mt[i] = 0; S.lt[i] = 0
+        S.st[i] = S_BOSS; S.t[i] = 0; S.x[i] = x; S.z[i] = z; S.y[i] = y; S.hd[i] = 0; S.ax[i] = 0; S.az[i] = 0
+        S.px[i] = x; S.pz[i] = z
+        return i
+    }
+
     // ---------- damage ----------
-    /// dot = continuous damage (burn, flame, beam): no hit flash. Returns true when the bug died.
+    /// dot = continuous damage (burn, flame, beam): no hit flash. `dir`: the hit's direction (a round's flight, a blast's
+    /// push) — a boss part struck from behind takes its `rearK`. Returns true when the bug died (a boss part: the boss).
     @discardableResult
-    func hitBug(_ i: Int, _ dmg0: Float, _ src: Int, _ dot: Bool = false) -> Bool {
+    func hitBug(_ i: Int, _ dmg0: Float, _ src: Int, _ dot: Bool = false, dir: Vec2? = nil) -> Bool {
         let S = bugs
         if S.dead[i] != 0 { return false }
         var dmg = dmg0
         if S.frz[i] > 0 { dmg *= 2.5 }
+        // Stage 2 B1: a part of a boss's chain body routes the hit to the boss bar (its multipliers, its pool)
+        let bb = S.boss[i]
+        if bb != 0 && bb != BOSS_BUG { return bossPartHit(i, Int(bb) - 1, dmg, src, dot, dir) }
         S.hp[i] -= dmg
         if !dot && S.fl[i] < 0.6 { S.fl[i] = 0.6 }
         if S.hp[i] <= 0 { killBug(i, src); return true }
@@ -75,16 +102,18 @@ extension Game {
         let S = bugs
         // the overhead (Stage 1 R2): its drop telegraph goes with it; its height is absolute up there (R4: a pinning Dropper
         // lets its marine go, a perched spitter frees its perch)
+        // (Stage 2 B1: a boss's chain part keeps an absolute height too, but it is no route bug)
         let routeSt = S.st[i] >= S_HIGH
         let hKill: Float = routeSt ? S.y[i] - level.groundY(S.x[i], S.z[i]) : S.y[i]
-        if routeSt { overheadBugDied(i, src) }
+        if routeSt && S.st[i] != S_BOSS { overheadBugDied(i, src) }
         S.dead[i] = 1; S.deadPending += 1
         let x = S.x[i], z = S.z[i], ty = S.type[i]
         let frozen = S.frz[i] > 0
-        let isQueen = queen.alive && S.uid[i] == queen.uid
-        if isQueen { xp += 60 }   // before onBugKilled, so its level-up loop counts the bounty
+        // the boss's body (the Queen; a chain's head): its bounty, its death (GameBoss.bossKilled)
+        let isBoss = boss.alive && S.uid[i] == boss.uid
+        if isBoss { xp += bossSpec.reward.xp }   // before onBugKilled, so its level-up loop counts the bounty
         onBugKilled(ty, src, x, z)
-        if isQueen { queenKilled(x, z) }
+        if isBoss { bossKilled(x, z) }
         else if ty == T_BOOM { queueBoom(x, z, 3.1, 70, src, .boomer) }
         else if ty == T_BRUTE && !simOnly && src >= 0 && hypotf2(x - marines[0].x, z - marines[0].z) < 16 { hitStop(0.085, 0.12) }
         else if frozen {
@@ -100,7 +129,7 @@ extension Game {
                 sound(.squish, x, z)
             }
         }
-        if ty == T_BRUTE && !isQueen && rng.next() < difficulty.medkitChance { dropMedkit(x, z) }
+        if ty == T_BRUTE && !isBoss && rng.next() < difficulty.medkitChance { dropMedkit(x, z) }
     }
 
     // ---------- explosions (deferred, so chain reactions ripple tick by tick) ----------
@@ -112,7 +141,7 @@ extension Game {
         let n = booms.count
         if n == 0 { return }
         let S = bugs
-        let qUid = queen.uid
+        let pulseImmune = bossSpec.immune.pulse
         do {
             var k = 0
             while k < n {
@@ -127,15 +156,15 @@ extension Game {
                     while q < cnt {
                         defer { q += 1 }
                         let b = hash.qb[q]
-                        // the Матка shrugs off the lift pulse, frost and knockback
-                        let qb = S.uid[b] == qUid
-                        if qb && pulse { continue }
+                        // a boss (the Матка) shrugs off frost and knockback, and the lift pulse when its spec says so
+                        let qb = S.boss[b] != 0
+                        if qb && pulse && pulseImmune { continue }
                         let dx = S.x[b] - e.x, dz = S.z[b] - e.z, d = (dx * dx + dz * dz).squareRoot() + 1e-4
                         // the lift pulse fades toward the rim on the harder tiers (no binary deck wipe)
                         let f: Float = pulse ? 1 - falloff * minf(1, d / e.r) : 1 - 0.55 * minf(1, d / e.r)
                         if e.kind == .frost && !qb { S.chill[b] = minf(1, S.chill[b] + 0.45) }
-                        if S.type[b] != T_BRUTE { S.vx[b] += dx / d * knock * f; S.vz[b] += dz / d * knock * f }
-                        hitBug(b, e.dmg * f, e.src)
+                        if S.type[b] != T_BRUTE && !qb { S.vx[b] += dx / d * knock * f; S.vz[b] += dz / d * knock * f }
+                        hitBug(b, e.dmg * f, e.src, dir: Vec2(dx / d, dz / d))
                     }
                 }
                 // the overhead (Stage 1 R2): blasts reach up at BLAST_UP × their radius and knock the bugs up there down
@@ -152,7 +181,7 @@ extension Game {
                     while q < cnt2 {
                         let b = hash.qb[q]
                         q += 1
-                        if S.dead[b] != 0 || S.type[b] == T_BRUTE || S.uid[b] == qUid || S.st[b] != S_MOVE { continue }
+                        if S.dead[b] != 0 || S.type[b] == T_BRUTE || S.boss[b] != 0 || S.st[b] != S_MOVE { continue }
                         let dx = S.x[b] - e.x, dz = S.z[b] - e.z, d = (dx * dx + dz * dz).squareRoot()
                         if d < 0.05 { continue }
                         S.mood[b] = M_FLEE; S.mt[b] = (0.45 + 0.5 * rng.next()) * (1.2 - 0.5 * d / fr)
@@ -263,7 +292,8 @@ extension Game {
         while ci < n {
             let i = ci
             ci += 1
-            if DEAD[i] != 0 { continue }
+            // (Stage 2 B1: a boss's chain parts are no swarm bugs; its bug body — the Queen — counts as its type)
+            if DEAD[i] != 0 || ST[i] == S_BOSS { continue }
             switch TY[i] { case 0: ta0 += 1; case 1: ta1 += 1; case 2: ta2 += 1; case 3: ta3 += 1; default: ta4 += 1 }
         }
         typeAlive[0] = ta0; typeAlive[1] = ta1; typeAlive[2] = ta2; typeAlive[3] = ta3
@@ -277,8 +307,10 @@ extension Game {
         let liftFall = stage == .extract && extractT > 0.4
         let dmgMulL = dmgMul
         let UID = S.uid
-        // the Матка: her melee runs on its own clock (qMeleeCd), her charge hits count as hers
-        let qUid = queen.uid
+        // a boss's bug body (the Матка): no moods, no favourite marine; its bite × its spec's on its own clock
+        // (BossRuntime.biteCd), its bite and charge hits count as its source
+        let qUid = boss.uid
+        let qBite = bossSpec.bite, qSrc = bossSpec.source
         // hive pressure / AFK: part of the swarm hunts the player (even uids at idleMul ≥ 1.5, uid % 3 ≠ 0 after 12 s AFK)
         let huntP = huntPressure, huntA = huntAfk
         let anyHunt = MUP[0] != 0 && (huntP || huntA)
@@ -299,8 +331,9 @@ extension Game {
             if DEAD[i] != 0 { continue }
             let ty = TY[i]
             if FL[i] > 0 { FL[i] -= dt * 4 }
-            // --- up on the overhead (Stage 1 R2): its own update (GameOverhead); never true on a station without routes ---
-            if ST[i] >= S_HIGH { routeTick(i, dt); continue }
+            // --- up on the overhead (Stage 1 R2): its own update (GameOverhead); never true on a station without routes. A
+            // boss's chain part (Stage 2 B1): the boss places it ---
+            if ST[i] >= S_HIGH { if ST[i] != S_BOSS { routeTick(i, dt) }; continue }
             // --- status effects ---
             if BURN[i] > 0 {
                 BURN[i] -= dt
@@ -504,7 +537,7 @@ extension Game {
                             let rr = R[i] + 0.6
                             if dx * dx + dz * dz < rr * rr {
                                 HIT[i] |= UInt8(1 << k)
-                                hurtMarine(marines[k], 16 * dmgMulL, AX[i] * 13, AZ[i] * 13, u == qUid ? .queen : .brute)
+                                hurtMarine(marines[k], 16 * dmgMulL, AX[i] * 13, AZ[i] * 13, u == qUid ? qSrc : .brute)
                             }
                         }
                     }
@@ -596,18 +629,18 @@ extension Game {
             }
             X[i] = nx; Z[i] = nz; VX[i] = vx; VZ[i] = vz
             // --- melee ---
-            // (the Матка bites ×1.6 on her own clock: her cd only gates the ram, see queenTick)
+            // (a boss's bug body bites × its spec's on its own clock: its cd only gates its charge, see bossMoves)
             let qm = u == qUid
-            if dist < ri + 0.62 && (qm ? qMeleeCd <= 0 : CD[i] <= 0) && ST[i] == S_MOVE && ty != T_BOOM && MUP[best] != 0 {
+            if dist < ri + 0.62 && (qm ? bossRT.biteCd <= 0 : CD[i] <= 0) && ST[i] == S_MOVE && ty != T_BOOM && MUP[best] != 0 {
                 // attack slots: only a few small bugs can land a bite per second on one marine
                 let mm = marines[best]
                 if ty == T_BRUTE || mm.bite >= 1 {
                     if ty != T_BRUTE { mm.bite -= 1 }
                     let kb: Float = ty == T_BRUTE ? 6 : 0.6
                     let bk: Float = waves && (ty == T_RUN || ty == T_SPIT) ? biteK : 1
-                    hurtMarine(mm, BUG_SPECS[Int(ty)].dmg * dmgMulL * (qm ? 1.6 : 1) * bk, tx * kb, tz * kb, qm ? .queen : DamageSource(bugType: ty))
+                    hurtMarine(mm, BUG_SPECS[Int(ty)].dmg * dmgMulL * (qm ? qBite : 1) * bk, tx * kb, tz * kb, qm ? qSrc : DamageSource(bugType: ty))
                     let cd = BUG_SPECS[Int(ty)].atkCd * (0.8 + rng.next() * 0.4)
-                    if qm { qMeleeCd = cd } else { CD[i] = cd }
+                    if qm { bossRT.biteCd = cd } else { CD[i] = cd }
                     PH[i] += 1.5
                 } else { CD[i] = 0.15 + rng.next() * 0.2 }
             }

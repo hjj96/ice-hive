@@ -349,10 +349,10 @@ final class MetalEffects {
         case .acidFromPerch(let from, let to, _):
             // Stage 1 R4: a perched spitter spits from up on the overhead
             spit(from.x, from.z, to.x - from.x, to.y - from.z, y: from.y)
-        case .queenKilled(let pos):
-            queenDeath(pos.x, pos.y)
-        case .queenSpawned(let pos):
-            queenRise(pos.x, pos.y)
+        case .bossKilled(let kind, let pos):
+            switch kind { case .queen: queenDeath(pos.x, pos.y) }
+        case .bossSpawned(let kind, let pos):
+            switch kind { case .queen: queenRise(pos.x, pos.y) }
         default:
             break
         }
@@ -1105,10 +1105,13 @@ final class MetalEffects {
                     }
                 }
                 if !merged { acidPick.append((e.x, e.z, e.r0, u, col, 1, w)) }
+            case .cone, .beam, .drop:
+                // (Stage 2 B1: the boss framework's shapes — the boss's renderer draws them; no boss uses them yet)
+                continue
             case .ring:
                 // an acid glob's target is drawn once, as its merged fill below (rim + countdown); the core's pulsing lime
                 // ring of the same target (24 ticks) added one more ring per glob — 8–9 stacked over the player in CI combat
-                if e.cause == .acidTarget || e.cause == .queenVolley { continue }
+                if e.cause == .acidTarget || e.cause == .bossVolley { continue }
                 let y = gy(e.x, e.z) + 0.05
                 if e.pulse {
                     let inten = max(0, blink * min(1, u * 4 + 0.3))
