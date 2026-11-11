@@ -578,16 +578,20 @@ public enum Calibration {
             return batch(tier: -1, mode: .auto, n: 8, seed0: seed0, tag: tag)
         case "overhead":
             // Stage 1 R2 (informational): the routes the post-pass gives generated stations 1–4, Ветеран, the director sending
-            // `routes` of its packs up (--th can change it, or the caps); compare with `stations` (the same seeds, the overhead off)
+            // `routes` of its packs up (--th can change it, or the caps); since R5 the tiers carry the overhead and its bugs, so
+            // this first half turns the Dropper and perch channels off (R2's runners alone; compare with the second half)
             var t = th
             if t["routes"] == nil { t["routes"] = overheadRoutes }
+            if t["dropperGap"] == nil { t["dropperGap"] = 0 }
+            if t["perchGap"] == nil { t["perchGap"] = 0 }
             var out: [CalibRun] = []
             for s in 1...4 {
                 out += batch(tier: 1, mode: .auto, n: 2, seed0: seed0, tag: (tag.map { $0 + "-" } ?? "") + "oh-st\(s)", th: t, station: UInt32(s))
             }
             // Stage 1 R4: the same stations with the overhead's bugs — the Dropper channel (its pins), perched spitters, the
-            // duct mouths' rattles and seals
-            var tb = t
+            // duct mouths' rattles and seals (Veteran's own channels since R5)
+            var tb = th
+            if tb["routes"] == nil { tb["routes"] = overheadRoutes }
             if tb["dropperGap"] == nil { tb["dropperGap"] = overheadDropperGap }
             if tb["perchGap"] == nil { tb["perchGap"] = overheadPerchGap }
             for s in 1...4 {
