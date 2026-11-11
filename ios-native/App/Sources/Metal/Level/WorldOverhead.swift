@@ -255,16 +255,25 @@ final class WorldOverhead {
         block[Block.view] = F4(2 / Float(max(1, r.targetWidth)), 2 / Float(max(1, r.targetHeight)), camera.aspect, WorldOverhead.ghost)
         var n = 0
         let vp = camera.viewProj
-        func point(_ p: F3, weight: Float, rad: (Float, Float)) {
+        let tanHalf = tanf(camera.fov * Float.pi / 360)
+        /// A cut point: its screen spot, the view depth in front of which the overhead fades (`depthAt` + `pad`: a marine's
+        /// feet + 1 m — Stage 1 R5: with its chest's depth, a deck post or a riser column standing just in front of a marine's
+        /// legs was "behind the point" and stayed solid over them: Kelvin-9 Mk II's combat run hid 21 % of a marine), and its
+        /// radius kept at its game-camera size in the world in a close shot (the punch-in at ≈ 10 m makes a marine three
+        /// times taller on screen; at most × 3).
+        func point(_ p: F3, depthAt d: F3? = nil, pad: Float = 0, weight: Float, rad: (Float, Float)) {
             guard n < Block.maxPoints, weight > 0.01 else { return }
             let c = vp.point(p.x, p.y, p.z)
             guard c.w > 0.5 else { return }
-            block[Block.pts + n] = F4(c.x / c.w * camera.aspect, c.y / c.w, c.w, min(1, weight))
-            block[Block.rad + n] = F4(rad.0, rad.1, 0, 0)
+            let z = d.map { vp.point($0.x, $0.y, $0.z).w + pad } ?? c.w
+            let s = min(3, max(1, MetalCamera.halfHeight / (c.w * tanHalf)))
+            block[Block.pts + n] = F4(c.x / c.w * camera.aspect, c.y / c.w, z, min(1, weight))
+            block[Block.rad + n] = F4(rad.0 * s, rad.1 * s, 0, 0)
             n += 1
         }
         for k in 0..<min(game.marines.count, poses.count) {
-            point(F3(poses[k].x, poses[k].y + 1.1, poses[k].z), weight: 1, rad: WorldOverhead.marineRadius)
+            point(F3(poses[k].x, poses[k].y + 1.1, poses[k].z), depthAt: F3(poses[k].x, poses[k].y, poses[k].z), pad: 1.0, weight: 1,
+                  rad: WorldOverhead.marineRadius)
         }
         for z in game.dropZones where z.active {
             // eased in over 0.25 s (design §1.1.2: the overhead dithers down round every active drop warning)

@@ -93,16 +93,17 @@ extension OverheadLayout {
         let loopES = o.addNode(29.4, 0.5, 0.6, .joint)
         let loopERiser = o.addNode(29.4, 2, 11, .abyssRiser, riserFrom: -9)
         let loopEN = o.addNode(29.4, 3.5, 21.4, .joint)
-        // 7 · the lift cables: masts 17 m and rim anchors 10.8 m from the lift's centre at 165°, 205°, 245°, 285° (from +x
-        // toward +z; 1/64 m literals — no trigonometry in the data)
-        let liftMast165 = o.addNode(-19.421875, 2.5, -37.59375, .mast, riserFrom: -10)
-        let liftRim165 = o.addNode(-13.4375, -3, -39.203125, .joint)
-        let liftMast205 = o.addNode(-18.40625, 2.5, -49.1875, .mast, riserFrom: -10)
-        let liftRim205 = o.addNode(-12.78125, -3, -46.5625, .joint)
-        let liftMast245 = o.addNode(-10.1875, 2.5, -57.40625, .mast, riserFrom: -10)
-        let liftRim245 = o.addNode(-7.5625, -3, -51.78125, .joint)
-        let liftMast285 = o.addNode(1.40625, 2.5, -58.421875, .mast, riserFrom: -10)
-        let liftRim285 = o.addNode(-0.203125, -3, -52.4375, .joint)
+        // 7 · the lift cables: masts 17 m and rim anchors 10.8 m from the lift's centre at 150°, 195°, 255°, 300° (from +x
+        // toward +z; 1/64 m literals — no trigonometry in the data): two on the lift's flanks as the game camera sees it (left
+        // and right of the platform, not under the HUD's objective bar at the top of the screen), two on its far side
+        let liftMast150 = o.addNode(-17.71875, 2.5, -33.5, .mast, riserFrom: -10)
+        let liftRim150 = o.addNode(-12.359375, -3, -36.59375, .joint)
+        let liftMast195 = o.addNode(-19.421875, 2.5, -46.40625, .mast, riserFrom: -10)
+        let liftRim195 = o.addNode(-13.4375, -3, -44.796875, .joint)
+        let liftMast255 = o.addNode(-7.40625, 2.5, -58.421875, .mast, riserFrom: -10)
+        let liftRim255 = o.addNode(-5.796875, -3, -52.4375, .joint)
+        let liftMast300 = o.addNode(5.5, 2.5, -56.71875, .mast, riserFrom: -10)
+        let liftRim300 = o.addNode(2.40625, -3, -51.359375, .joint)
         // edges
         o.addEdge(spinePad, spineDuct1, .pipe)
         o.addEdge(spineDuct1, spineRiser1, .pipe)
@@ -137,10 +138,10 @@ extension OverheadLayout {
         o.addEdge(loopWRiser, loopWN, .tray)
         o.addEdge(loopES, loopERiser, .tray)
         o.addEdge(loopERiser, loopEN, .tray)
-        o.addEdge(liftMast165, liftRim165, .cable, sag: 0.3)
-        o.addEdge(liftMast205, liftRim205, .cable, sag: 0.3)
-        o.addEdge(liftMast245, liftRim245, .cable, sag: 0.3)
-        o.addEdge(liftMast285, liftRim285, .cable, sag: 0.3)
+        o.addEdge(liftMast150, liftRim150, .cable, sag: 0.3)
+        o.addEdge(liftMast195, liftRim195, .cable, sag: 0.3)
+        o.addEdge(liftMast255, liftRim255, .cable, sag: 0.3)
+        o.addEdge(liftMast300, liftRim300, .cable, sag: 0.3)
         return o
     }()
 }

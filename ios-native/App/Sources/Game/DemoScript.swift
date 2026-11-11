@@ -471,17 +471,21 @@ final class DemoScript {
                                                                 rc.length, rc.footprint * 100))
     }
     private func overheadInPlay(_ game: Game, _ dt: Float) {
-        guard DemoScript.overheadDemos.contains(name), game.level.overhead != nil else { return }
+        // (from «scene ready»: while loading the squad is not where the demo puts it — the hold's first pack found no entry)
+        guard DemoScript.overheadDemos.contains(name), game.level.overhead != nil, sinceReady >= 0 else { return }
         ohT -= dt
         if ohT > 0 { return }
         ohT = 5
-        if game.routeAlive >= 8 { return }
         let lift = game.stage == .hold || game.stage == .extract
-        let r = game.debugRoutePack(6, rate: 3)
-        let d = game.debugRoutePack(1, rate: 1, type: .dropper)
-        let s = lift ? 0 : game.debugRoutePack(1, rate: 1, type: .spitter)
-        AppLog.info(String(format: "demo %@: overhead packs td=%.2f runners %d dropper %d spitter %d, up %d", name, sinceReady, r, d, s,
-                           game.routeAlive))
+        var r = 0, d = 0, s = 0
+        if game.routeAlive < 8 {
+            r = game.debugRoutePack(6, rate: 3)
+            d = game.debugRoutePack(1, rate: 1, type: .dropper)
+            s = lift ? 0 : game.debugRoutePack(1, rate: 1, type: .spitter)
+        }
+        let c = game.overheadStateCounts
+        AppLog.info(String(format: "demo %@: overhead td=%.2f sent runners %d dropper %d spitter %d · up %d (high %d riser %d coil %d perch %d) "
+                           + "drops %d", name, sinceReady, r, d, s, game.routeAlive, c[0], c[1], c[2], c[6], game.overheadStats.drops))
     }
     /// extract-cine: the crowd (on the deck, 4–9 m out) and its top-ups (over the rim, the hold's own entrance) on the
     /// lift's two flanks as seen from the extraction camera (Cinematics: the eye on the shaft wall at MetalCamera.yaw + 20°),

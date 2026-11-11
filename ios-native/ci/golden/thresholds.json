@@ -1,6 +1,7 @@
 {
   "_note": "WP7 look gates (ci/look_metrics.py) and 2-up sheets (ci/twoup.py). Each scene: the shots tried in order (the first that exists is measured; a HUD-off one, `*-nohud-*`, is gated, a HUD-on one is measured inside the HUD mask and only reported), the gates, the golden today frame (native-metal 385e8a7, the tree before WP7, HUD on) and the concept panel. Ranges follow the user's blend (base «Кристалл» + horror's beams and deep darkness + frost's rime): frame median 35–50 (between crisp's 50–60 and horror's floor; the plan's frost-base swarmshot range 40–55 is printed next to it), the swarmshot gates of the plan (p95/p50 ≥ 3.6, specks ≥ 800, clipped ≤ 0.8 %, R−B highlights ≥ +25, shadows ≤ −10), near-black ≤ 30 % (horror's limit). native-vx-feel re-baseline (package F, the approved feel build: the swarm at the wave pacing's live caps, bigger and varied bugs, fewer and calmer effects): the reference frames today-<scene>.jpg are that build's own HUD-off shots (CI native-vx-feel c500515, the extraction's from its re-shoot) instead of the Russian HUD-on frames of native-metal 385e8a7; each scene carries `feel_baseline`, the numbers of that run; a gate moved only where the look changed on purpose (swarmshot._feel_note).",
-  "today_label": "reference: native-vx-feel c500515 (package F)",
+  "today_label": "reference: Stage 1 R5 «Kelvin-9 Mk II» e06fd59 (the classic mission with its overhead and props)",
+  "_r5_note": "Stage 1 R5 re-baseline (the owner's overhead becomes the classic mission: «Кельвин-9» Mk II — the overhead routes over the far rails and the void, a cable over the hub and one over the plaza, the plaza gantry, B's heat exchanger, A's mast, four lift cables, the upper truss over the hub and the plaza, R6's valves / breakers / locker — and the overhead's bugs in the director's mix): the reference frames today-<scene>.jpg are this build's own HUD-off shots (CI e06fd59; swarmshot and extract from their re-shoots) instead of package F's; each scene carries `r5_baseline`, the numbers of that run. The look changed on purpose (dark route silhouettes over the void, a few thin lines over the walkways, the props on the decks) but no classic gate had to move: against native-metal 64cd61a the medians moved by −1.8…+2.0 (swarmshot 39.4 → 37.6, punch-in 26.6 → 23.9, extraction 41.0 → 41.1, title 30.5 → 32.5, calm 37.2 → 36.7, calm deck 39.3 → 40.2, beacon 43.0 → 43.0), near-black by −4…+6 points (swarmshot 10.5 → 16.5 %, punch-in 32.8 → 36.2 %, title 29.1 → 25.2 %), every gate inside its band. Two first shots failed and passed their re-shoot (as on the trees before: those gates follow the moment): swarmshot warm +13.9 (re-shoot +53.4; the napalm and beams on screen at the shot) and extraction clip 1.20 % (re-shoot 0.40 %; R4's 64cd61a measured 0.97 % on the same gate). The overhead scene (R3's showcase demo, now without the upper truss over the start pad: tech.md §2.2's title-composition exclusion) is gated from R5 on.",
   "crop": {"left": 0.065, "right": 0.0, "top": 0.0, "bottom": 0.0},
   "hud_mask": [[0.0, 0.0, 1.0, 0.13], [0.0, 0.80, 1.0, 1.0], [0.0, 0.45, 0.30, 0.80], [0.62, 0.40, 1.0, 0.80], [0.95, 0.0, 1.0, 1.0]],
   "scenes": {
@@ -12,6 +13,7 @@
       "_r0_note": "R0 film fixes: p95/p50 3.2 -> 2.8. The store moment's highlights were largely the pyro bot's napalm field — its deck glow and two lights flooding the crossing orange, the effect the owner called the loudest in the feel build's film and R0 quiets on purpose (lights 140 / 110 -> 75 / 60, deck glow x0.45, flames and zone rim down): native-metal b96dd02 median 39.1, p95 140.3, p95/p50 3.59; native-vx-film-fixes 69cbf43 (the first, milder pass) median 38.3, p95 123.0, p95/p50 3.21 — the frame itself unchanged (median, dark 13.2 %, specks 1007, clip 0.04 %, warm +36 / cold -32 all inside their gates, which still catch a grey veil). 2.8 sits ~0.3 under the calmer napalm's expected value for the run-to-run spread (3.43–3.71 on one tree, see _feel_note). Warm (R−B of the brightest 5 %) 25 -> 15 for the same reason: those highlights were the napalm field's orange glow (b96dd02 +47.4); with the calmer field the beams and the deck's teal strips share the top 5 % — 69cbf43 +36.1, c631c07 (the final level) +23.7 / +21.3 on its first shot and re-shot, f5abdb7 (a deeper cut, reverted) +18.2 / +20.6; like the beacon's, this R−B follows the effect on screen at the shot. The cold shadows (≤ −10: −33) and every other gate are unchanged; the owner can ask for a warmer store moment (a staged blast instead of the napalm).",
       "feel_baseline": {"median": 39.1, "p95_p50": 3.46, "dark": 11.8, "clip": 0.08, "specks": 1109, "warm": 57.7, "cold": -32.6},
       "plan_median": [40, 55],
+      "r5_baseline": {"median": 37.61, "p95_p50": 4.07, "dark": 16.5, "clip": 0.15, "specks": 916, "warm": 53.45, "cold": -28.91},
       "today": "today-swarmshot.jpg",
       "concept": "concept-swarmshot.jpg",
       "concept_label": "Кристалл · бой с роем (+ лучи и тьма хоррора)"
@@ -21,6 +23,7 @@
       "gates": {"median": [35, 50], "clip": [null, 0.8], "cold": [null, -5], "dark": [null, 30]},
       "_warm_note": "R−B of the beacon's highlights is reported, not gated: it follows the effect on screen at the shot (+40 with fire, +9 with the cryo beam on two runs of the same tree)",
       "feel_baseline": {"median": 43.1, "p95_p50": 3.19, "dark": 9.1, "clip": 0.08, "specks": 885, "warm": 13.4, "cold": -38.6},
+      "r5_baseline": {"median": 42.99, "p95_p50": 3.01, "dark": 9.71, "clip": 0.03, "specks": 845, "warm": 18.92, "cold": -33.3},
       "today": "today-beacon.jpg",
       "concept": "concept-beacon.jpg",
       "concept_label": "Кристалл · удержание маяка (+ хоррор)"
@@ -32,6 +35,7 @@
       "_median_note": "a close-up: its median follows the framing (the lit deck around the squad fills the frame), so it is reported, not gated; the shot EV keeps the deck from going milky. native-vx-fix: contrast gated (p95/p50 ≥ 3.6, near-black ≥ 12 %) — native-metal 2d38dfd passed at median 66.7, p95/p50 3.31, dark 9.6 % under a grey veil (the effects' lights of a weapon firing near the lens; LightGrid.punchInFxLightCut)",
       "_feel_note": "native-vx-feel: gates unchanged. c6029ec's HUD-off punch-in failed on a grey veil over the middle of the frame (near-black 3.5 %, p95/p50 3.32 — the same flake as native-vx-marine-look 893760b, p95/p50 3.49, before package F): the pyro's flamer smoke hanging lit in its own flashlight cone at the held, frozen moment; the flamer smoke is thinner since (6 puffs/s at alpha 0.5, was 10 at 0.7). c500515 (thinner smoke): median 37.6, p95/p50 5.31, near-black 28.6 %; its HUD-off shot is the reference frame. A HUD-off shot that fails a gate is shot once more in sim-smoke (gate-reruns.txt) before this job gates it.",
       "feel_baseline": {"median": 37.6, "p95_p50": 5.31, "dark": 28.6, "clip": 0.26},
+      "r5_baseline": {"median": 23.9, "p95_p50": 8.36, "dark": 36.18, "clip": 0.43, "specks": 671, "warm": 20.08, "cold": -14.68},
       "today": "today-punchin.jpg",
       "concept": "concept-punchin.jpg",
       "concept_label": "Иней · наезд на маяк · Кристалл · маяк"
@@ -41,6 +45,7 @@
       "gates": {"median": [30, 50], "clip": [null, 1.0], "dark": [null, 42]},
       "_review_note": "feel-build review: near-black ceiling 35 -> 42. The extraction frame is darker by design since M1 / M2 (matte field-grey armour, only visors and lamps glow) and F / B1 (dark-chitin bugs on the deck): on identical code the HUD-off shot measured 24.9-41.1 % across 19 runs (first shots over 35 on 79eef3f, 9c93169, e765953, 45cc4c2, 8f1e677, 067cd21, eaf5b4d; native-metal e765953 / 8f1e677 red on it after the re-shoot). The 36.5-40.1 % frames of native-metal 8f1e677 / e765953 and eaf5b4d were checked at phone size: the squad lit side-on against the dark shaft, a brute on the deck in silhouette, nothing crushed. The median band (the hazy, looking-down failure) and the clip ceiling are unchanged.",
       "feel_baseline": {"median": 42.1, "p95_p50": 3.74, "dark": 28.7, "clip": 0.53, "specks": 574},
+      "r5_baseline": {"median": 41.06, "p95_p50": 4.03, "dark": 23.97, "clip": 0.4, "specks": 29, "warm": -27.91, "cold": -29.65},
       "today": "today-extract.jpg",
       "concept": "concept-extract.jpg",
       "concept_label": "Кристалл · эвакуация · Иней · камера со стены шахты"
@@ -49,6 +54,7 @@
       "shots": ["title-nohud-0s.png", "title-0s.png"],
       "gates": {"median": [25, 50], "clip": [null, 1.0], "dark": [null, 40]},
       "feel_baseline": {"median": 30.1, "p95_p50": 2.85, "dark": 31.7, "clip": 0.04},
+      "r5_baseline": {"median": 32.55, "p95_p50": 3.5, "dark": 25.21, "clip": 0.05, "specks": 96, "warm": -2.14, "cold": -24.02},
       "today": "today-title.jpg",
       "concept": "concept-title.jpg",
       "concept_label": "Кристалл · лист моделей (свет)"
@@ -58,16 +64,19 @@
       "deck_mask": ["calm-deckmask-0s.png"],
       "gates": {"median": [30, 50], "deck_median": [35, 50], "clip": [null, 0.5], "dark": [null, 30]},
       "feel_baseline": {"median": 37.2, "deck_median": 39.9, "dark": 10.7, "clip": 0.01},
+      "r5_baseline": {"median": 36.69, "p95_p50": 3.09, "dark": 11.37, "clip": 0.01, "specks": 17, "warm": -29.18, "cold": -37.03, "deck_median": 40.22},
       "today": "today-calm.jpg",
       "concept": "concept-calm.jpg",
       "concept_label": "Кристалл · кромки дорожек · Иней · иней и сугробы"
     },
     "overhead": {
       "shots": ["overhead-nohud-0s.png", "overhead-0s.png"],
-      "gates": {},
+      "gates": {"median": [30, 50], "p95_p50": [2.8, null], "clip": [null, 0.8], "dark": [null, 30]},
+      "_r5_note": "Stage 1 R5: gated (R3's handoff), with the swarmshot's / the frame's ranges: median 30–50 (the showcase's frame is darker than the classic scenes: 34.5 on 64cd61a, 35.5 on e06fd59), p95/p50 ≥ 2.8 (3.46 / 3.46), clip ≤ 0.8 % (0.21 / 0.10), near-black ≤ 30 % (21.2 / 17.8 %: the truss over the start pad gone). The squad-visibility gate stays the app's -ohVis metric (ci/overhead_vis.py).",
       "_note": "Stage 1 R3 (overhead render): reported, not gated yet (tech.md §2.8: thresholds reported first, then gated — package R5 gates the classic mission with the overhead on). The squad-visibility / occlusion gate is the app's own -ohVis metric (ci/overhead_vis.py). Reference: R2's debug stand-in (native-vx-overhead-core 4bfac94, a HUD-off burst frame); concept: the concept-station proof, AFTER without and with the cutaway.",
+      "r5_baseline": {"median": 35.48, "p95_p50": 3.46, "dark": 17.77, "clip": 0.1, "specks": 189, "warm": -7.86, "cold": -32.18},
       "today": "today-overhead.jpg",
-      "today_label": "reference: R2 stand-in 4bfac94",
+      "today_label": "reference: Stage 1 R5 e06fd59 (R3's showcase layer)",
       "concept": "concept-overhead.jpg",
       "concept_label": "concept-station · the overhead, no fade / with the cutaway"
     }

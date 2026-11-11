@@ -634,7 +634,7 @@ jobs:
           # <label>-look1-0s.png, its log as app-<label>-look1.log, the verdicts in gate-reruns.txt.
           : > results/gate-reruns.txt
           if python3 -m venv /tmp/lookpy && /tmp/lookpy/bin/pip install -q numpy pillow; then
-            /tmp/lookpy/bin/python ios-native/ci/look_metrics.py --gate --only swarmshot,beacon,punchin,extract,title,calm \
+            /tmp/lookpy/bin/python ios-native/ci/look_metrics.py --gate --only swarmshot,beacon,punchin,extract,title,calm,overhead \
               --failed results/look-run1-failed.txt results > results/look-run1.txt 2>&1 || true
             for shot in $(cat results/look-run1-failed.txt 2>/dev/null); do
               d=${shot%-0s.png}
@@ -850,12 +850,12 @@ jobs:
           need combat 'demo combat: Kelvin-9 Mk II overhead, 37 edges, 16 entries, 3 duct mouths, [1-9][0-9]* perch points, 4 valves, 7 circuits .*routeCheck ok'
           need combat 'overhead: [0-9]+ vertices, [0-9]+ triangles in [0-9]+ chunks'
           need combat 'hb overhead draws=[1-9][0-9]*\+[0-9]+ tris=[1-9]'
-          need combat 'demo combat: overhead packs td=[0-9.]+ runners [1-9]'
-          need beacon 'demo beacon: overhead packs td=[0-9.]+ runners [1-9]'
-          need hold 'demo hold: overhead packs td=[0-9.]+ runners [1-9]'
-          need queen 'demo queen: overhead packs td=[0-9.]+ runners [1-9]'
+          need combat 'demo combat: overhead td=[0-9.]+ sent runners [1-9]'
+          need beacon 'demo beacon: overhead td=[0-9.]+ sent runners [1-9]'
+          need hold 'demo hold: overhead td=[0-9.]+ .* up [1-9]'
+          need queen 'demo queen: overhead td=[0-9.]+ .* up [1-9]'
           need burst-mk2 'burst mk2 written \(24 frames\)'
-          need burst-mk2 'demo combat: overhead packs td=[0-9.]+ runners [1-9]'
+          need burst-mk2 'demo combat: overhead td=[0-9.]+ sent runners [1-9]'
           need combat 'oh vis: on \(pipelines ok'
           need hold 'oh vis: on \(pipelines ok'
           # native-vx-feel: the wave director staged its own beacon defence (no forced crowd) and the hive pushed

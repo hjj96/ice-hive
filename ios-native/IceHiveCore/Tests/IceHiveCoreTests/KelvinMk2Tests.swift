@@ -7,7 +7,7 @@ import XCTest
 /// presets' classic rows) with the overhead and the props on, and the legacy v1.0 row keeps the bare station.
 final class KelvinMk2Tests: XCTestCase {
     /// The golden hash of the route set (quantised to 1/64 m: the same on every platform).
-    static let golden: UInt32 = 2_929_740_998
+    static let golden: UInt32 = 1_061_185_425
 
     var mk2Level: Level { Level(source: KelvinStation.mk2, seed: 1) }
 
