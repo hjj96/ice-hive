@@ -571,12 +571,13 @@ jobs:
           # Stage 1 R4: the overhead's bugs frame by frame at phone size, the HUD on (the pin's hint): the Dropper's telegraph,
           # drop, pin and the squad's fire throwing it off (every 5th present from 3.2 s); the perched spitter's wind-up and
           # its glob from height (every 6th from 4.2 s); the duct's rattle and the player shooting it shut (every 5th from
-          # 5.7 s); the second Dropper's pin and the dash out of it (-obDash, every 5th from 9.4 s)
+          # 5.7 s, HUD off: the mouth sits 5 m up at the top right, under the toast column); the second Dropper's pin and the
+          # dash out of it (-obDash, every 5th from 9.4 s)
           run_demo burst-dropper 7 "-demo overheadbugs -seed 7 -burst dropper 3.2 24 5"
           pull_burst burst-dropper
           run_demo burst-perch 8 "-demo overheadbugs -seed 7 -burst perch 4.2 24 6"
           pull_burst burst-perch
-          run_demo burst-duct 9 "-demo overheadbugs -seed 7 -burst duct 5.7 24 5"
+          run_demo burst-duct 9 "-demo overheadbugs -seed 7 -hideHUD -burst duct 5.7 24 5"
           pull_burst burst-duct
           run_demo burst-dash 13 "-demo overheadbugs -obDash -seed 7 -burst dash 9.4 24 5"
           pull_burst burst-dash
