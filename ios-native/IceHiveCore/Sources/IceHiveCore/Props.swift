@@ -24,8 +24,8 @@ import Foundation
 //  The lamps are the station's own lamp posts: WorldLevel puts one every
 //  12 m along the railing runs and `StationLamps.place` is the same rule in
 //  the core, so the lit mask and the drawn lamps agree. The runtime is
-//  GameProps.swift. The classic «Кельвин-9» carries none (calibration
-//  byte-identical) until a mission (R7) or package R5 lays `PropLayout.kelvin`.
+//  GameProps.swift. The bare «Кельвин-9» carries none; the classic mission
+//  lays `PropLayout.kelvin` since package R5 (`KelvinStation.mk2`).
 // ================================================================
 
 // ---------- the numbers (design §1.1.5, §1.4) ----------
@@ -152,8 +152,8 @@ public struct PropLayout: Equatable {
     /// «Кельвин-9» Mk II's interactives (design §1.2.1): seven light circuits — one per deck and the lift — with their
     /// breakers; steam valves on the Spine Rack over the pad → hub bridge (the overhead's demo slice: 4.5 m, the far rail
     /// at z 26.4), on the heat exchanger along beacon B's far rail (4 m over the −3 deck) and on the plaza gantry over the
-    /// head of the stairs down to the lift (5 m); a supply locker on the hub. Missions lay it (R7: Breaker Run); the classic
-    /// mission does not until package R5.
+    /// head of the stairs down to the lift (5 m) — each on a pipe of the Mk II overhead (`OverheadLayout.kelvinMk2`); a supply
+    /// locker on the hub. The classic mission lays it since Stage 1 R5 (`KelvinStation.mk2`), and the missions on Kelvin-9.
     public static let kelvin: PropLayout = {
         func r(_ x0: Float, _ z0: Float, _ x1: Float, _ z1: Float) -> SIMD4<Float> { SIMD4(x0, z0, x1, z1) }
         // (each breaker clear of the vents, the crates and its deck's beacon ring; lamps per circuit 3 / 6 / 7 / 10 / 8 / 10 / 4)

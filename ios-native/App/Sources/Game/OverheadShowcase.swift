@@ -18,8 +18,9 @@ import IceHiveCore
 //    · a maintenance catwalk over the void to an abyss riser platform;
 //    · the Stair Chute: a tray along the hub → plaza stairs' far rail
 //      (4 → 1.2 m) fed from a hub deck post by a short cable.
-//  The classic mission has no routes (KelvinStation()); package R5
-//  authors the real Kelvin-9 Mk II set. GameScene logs routeCheck.
+//  The classic mission plays the real Kelvin-9 Mk II set since package
+//  R5 (OverheadLayout.kelvinMk2); this showcase stays the overhead's
+//  look-dev frame. GameScene logs routeCheck.
 // ================================================================
 enum OverheadShowcase {
     static let layout: OverheadLayout = {

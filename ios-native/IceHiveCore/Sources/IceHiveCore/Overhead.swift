@@ -15,8 +15,9 @@ import Foundation
 //     routes — its own random stream after genTry, so the station golden
 //     vectors stay byte-identical.
 //   · `OverheadLayout.kelvinSlice`: the demo / test route on «Кельвин-9»
-//     (the pad → hub corridor's far rail, tech.md §2.8). The classic mission
-//     has no routes until package R5 authors them (calibration unchanged).
+//     (the pad → hub corridor's far rail, tech.md §2.8). The classic
+//     mission's full set since package R5: `OverheadLayout.kelvinMk2`
+//     (KelvinMk2.swift), laid by `KelvinStation.mk2`.
 //  Readability rules baked in (concept-station README): big runs on the FAR
 //  side of a walkway (−x / −z: their image falls into the void), only thin
 //  kinds over walkable deck, heights 3–9 m above the deck they serve.
@@ -150,7 +151,7 @@ public struct OverheadLayout: Equatable {
     /// The demo / test route of «Кельвин-9» (tech.md §2.8, the first stretch of design §1.2.1's «Spine Rack»): a 4.5 m
     /// pipe rack 0.6 m outside the far (−z) rail of the pad → hub bridge (deck x 6…22, z 27…33), running 2 m into the pad
     /// and the hub, an abyss riser at mid-span, deck posts at both ends and a duct mouth 3 m out over the void feeding the
-    /// rack at a junction. The classic mission does not use it (KelvinStation() has no routes).
+    /// rack at a junction. It is the first stretch of Kelvin-9 Mk II's Spine Rack (`kelvinMk2`, Stage 1 R5).
     public static let kelvinSlice: OverheadLayout = {
         var o = OverheadLayout()
         let pad = o.addNode(24, 4.5, 26.4, .deckPost, riserFrom: 0)

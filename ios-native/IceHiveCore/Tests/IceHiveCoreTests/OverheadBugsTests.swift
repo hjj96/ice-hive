@@ -39,15 +39,19 @@ final class DropperTypeTests: XCTestCase {
         for _ in 0..<5000 { XCTAssertNotEqual(g.pickType(true), T_DROP) }
     }
 
-    func testTiersKeepThePinApprovedAndTheChannelsOff() {
+    func testTiersKeepThePinApprovedAndTheChannelsOn() {
         XCTAssertEqual(Difficulty.tiers.map { $0.dropperCap }, [4, 5, 6], "live Droppers 4 / 5 / 6")
         XCTAssertEqual(Difficulty.tiers.map { $0.pinT }, [0.8, 1.2, 1.2])
+        // (Stage 1 R5: the Dropper and perch channels are on for the classic mission — R4's 22 s / 28 s on Veteran and
+        // Nightmare, slower on Recruit; only on a station with routes)
+        XCTAssertEqual(Difficulty.tiers.map { $0.dropperGap }, [30, 22, 22])
+        XCTAssertEqual(Difficulty.tiers.map { $0.perchGap }, [36, 28, 28])
         for d in Difficulty.tiers {
             XCTAssertLessThanOrEqual(d.pinT, 1.2, "\(d.id): the owner approved a pin of up to 1.2 s")
-            XCTAssertEqual(d.dropperGap, 0, "\(d.id): off until package R5")
-            XCTAssertEqual(d.perchGap, 0)
-            XCTAssertEqual(d.routes, 0)
+            XCTAssertGreaterThan(d.routes, 0)
         }
+        XCTAssertEqual(Difficulty.legacyV10.dropperGap, 0)
+        XCTAssertEqual(Difficulty.legacyV10.perchGap, 0)
         var d = Difficulty.veteran
         XCTAssertEqual(d.override(["pinT": 5, "dropperCap": 2, "pinGnaw": 3, "dropperGap": 20, "perchGap": 30]), [])
         XCTAssertEqual(d.pinT, 1.2, "never past 1.2 s, whatever the override")

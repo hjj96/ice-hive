@@ -106,18 +106,20 @@ import IceHiveCore
 //                   the squad on the hub's centre, no pack, no valve, the cut at 1.0 s and the walk from 1.5 s (a shorter
 //                   burst run: the lights back ≈ 8.5 s in). `props: …` lines on
 //                   every prop event, `hb props …` and `demo interactives: …` once a second.
-//  Stage 1 R7 «Missions I» (each plays its mission on its own station — Kelvin-9 with its props — autopilot, squad
-//  invulnerable, the director on):
+//  Stage 1 R7 «Missions I» (each plays its mission on its own station — Kelvin-9 Mk II, the classic mission's: its overhead
+//  routes and props — autopilot, squad invulnerable, the director on):
 //    -demo breakerrun  Breaker Run in the dark: the squad on beacon B's deck 3 m from its breaker; the autopilot steps into
 //                   the breaker's ring (the hive's surge answers), at 1.2 s the demo jumps the ring to 0.8 (the hive's push at
 //                   half follows), the breaker is thrown ≈ 6 s later — B's deck lights up lamp by lamp from the breaker while
 //                   the plaza's catwalk beyond stays dark — and time almost stops 1.6 s after it (at 12 s at the latest) for the
 //                   screenshot. `demo breakerrun: …` once a second, `mission: …` / `props: …` lines, `hb mission …`
-//    -demo ventpurge   Vent Purge: the squad on beacon B's deck 3.5 m from the vent there; at 0.4 s a pack pours out of it,
-//                   the autopilot steps into its seal ring, at 1.4 s the demo jumps the ring to 0.9: the vent is sealed for good
-//                   (it goes dark, the stream thins); the squad heads for the plaza's seal, a pack pours out of that vent as it
-//                   comes, it steps into the ring, the demo jumps it to 0.75 and time almost stops once it passes 0.9 (at 14 s
-//                   at the latest) for the screenshot. `demo ventpurge: …` once a second, `mission: …` lines, `hb mission …`
+//    -demo ventpurge   Vent Purge: the squad on beacon A's deck 3.5 m from the vent there (the mission's fourth seal: the
+//                   other three are the rings under the overhead's duct mouths); at 0.4 s a pack pours out of the vent, the
+//                   autopilot steps into its seal ring, at 1.4 s the demo jumps the ring to 0.9: the vent is sealed for good
+//                   (it goes dark, the stream thins); the squad heads for the next seal — the ring on the hub → A walkway under
+//                   its duct mouth —, the mouth rattles and pours a pack onto the routes as it comes (10 m out), it steps into
+//                   the ring, the demo jumps it to 0.75 and time almost stops once it passes 0.9 (at 14 s at the latest) for
+//                   the screenshot. `demo ventpurge: …` once a second, `mission: …` / `bugs: duct …` lines, `hb mission …`
 //  R0 (film fixes):
 //    -demo win      like hold; 1 s after «scene ready» the lift leaves and the ride plays out to the win (4.6 s): the
 //                   report comes up at once and the world keeps animating under it (the lift eases to a stop with the
@@ -197,7 +199,8 @@ final class DemoScript {
         }
     }
 
-    /// The station the demo plays (nil = the classic «Кельвин-9»): the overhead demo lays the overhead showcase.
+    /// The station the demo plays (nil = the classic mission's «Кельвин-9» Mk II): the overhead demos lay the overhead
+    /// showcase, the interactives demo the slice and R6's demo props.
     var levelSource: LevelSource? {
         // (R6: the interactives demo lays «Кельвин-9»'s props and the slice its bridge valve hangs on)
         if name == "interactives" { return KelvinStation(overhead: .kelvinSlice, props: .kelvinDemo) }
@@ -347,11 +350,12 @@ final class DemoScript {
             AppLog.info("demo breakerrun: \(game.mission.id), lit \(game.lightsLit)/\(game.circuits.count), \(game.switches.count) breakers; "
                         + "squad on beacon B's deck by its breaker")
         case "ventpurge":
-            // R7: beacon B's deck, 3.5 m west of its vent (the nearest of the mission's four seals)
-            game.debugTeleport(31.5, -3.5)
+            // R7: beacon A's deck at the head of the hub → A walkway, 3.5 m from its vent (the nearest of the mission's four seals)
+            game.debugTeleport(-26.5, 24.5)
             target = 0
-            AppLog.info("demo ventpurge: \(game.mission.id), \(game.switches.count) seals on vents "
-                        + game.switches.map { "\($0.site.vent)" }.joined(separator: ",") + "; squad on beacon B's deck by its vent")
+            AppLog.info("demo ventpurge: \(game.mission.id), \(game.switches.count) seals: "
+                        + game.switches.map { $0.site.duct >= 0 ? "duct \($0.site.duct)" : "vent \($0.site.vent)" }.joined(separator: ", ")
+                        + "; squad on beacon A's deck by its vent")
         case "waves":
             // the wave director's own swarm: the squad in a beacon's ring, its defence starts on the first tick
             let k = max(0, min(game.beacons.count - 1, Int(demoNum("-waveBeacon", 1))))
@@ -362,14 +366,15 @@ final class DemoScript {
             if let b = game.beacons.first {
                 game.debugTeleport(b.x + 3, b.z - 3.5)
             }
-            target = crowd(350)
+            target = crowd(350) - overheadRoom(game)
             let n = game.debugSpawn(min(target, 600), type: nil, minRadius: 7, maxRadius: 24)
             AppLog.info("demo beacon: squad at beacon \(game.beacons.first.map { $0.name.logID } ?? "?"), spawned \(n) bugs")
         default:
-            target = crowd(600)
+            target = crowd(600) - overheadRoom(game)
             let n = game.debugSpawn(min(target, 900), type: nil, minRadius: 6, maxRadius: 26)
             AppLog.info("demo \(name): spawned \(n) bugs around the squad (target \(target), bug cap \(game.bugCap))")
         }
+        logOverhead(game)
     }
 
     /// Probe steps due this frame (executed by the scene: HUD / audio / haptics live there).
@@ -406,6 +411,7 @@ final class DemoScript {
         t += dt
         probe = nil
         request = nil
+        overheadInPlay(game, dt)
         if !requested && t >= 1.5 && sinceReady >= 2 {
             switch name {
             case "levelup": requested = true; game.debugLevelUp()
@@ -480,6 +486,45 @@ final class DemoScript {
     }
     private var spawned = 0
     private var logT: Float = 5
+
+    // ---------- Stage 1 R5: the overhead in play in the classic demos ----------
+    /// The classic demos play «Кельвин-9» Mk II: combat, beacon, hold and queen send packs up the overhead entries near the
+    /// squad by the director's own rule (`debugRoutePack` with no entry: a riser, a mast or a duct mouth 8–20 m away whose
+    /// routes pass near it) — a runner pack, a Dropper and (off the lift: no perch there) a spitter for a perch — from 0.5 s,
+    /// again every 5 s while fewer than 8 are up, so the CI shots show the overhead in play, not only its geometry.
+    private static let overheadDemos: Set<String> = ["combat", "beacon", "hold", "queen"]
+    private var ohT: Float = 0.5
+    /// Room the forced deck crowd leaves under the live cap for the overhead's bugs (route bugs count toward the cap).
+    private func overheadRoom(_ game: Game) -> Int {
+        DemoScript.overheadDemos.contains(name) && game.level.overhead != nil && override == nil ? 24 : 0
+    }
+    /// The station's overhead at the start of a classic demo (CI checks it): its routes, entries, duct mouths, perches and
+    /// routeCheck in the full set's band.
+    private func logOverhead(_ game: Game) {
+        guard DemoScript.overheadDemos.contains(name), let G = game.level.overhead else { return }
+        let rc = OverheadCheck.check(game.level.layout.overhead, level: game.level, lengthBand: KelvinMk2.lengthBand)
+        AppLog.info("demo \(name): \(game.level.layout.overhead == .kelvinMk2 ? "Kelvin-9 Mk II" : "a station") overhead, \(G.edgeCount) edges, "
+                    + "\(G.entries.count) entries, \(game.ducts.count) duct mouths, \(game.perchPoints.count) perch points, \(game.valves.count) valves, "
+                    + "\(game.circuits.count) circuits" + String(format: " | routeCheck %@ (%.0f m, footprint %.1f %%)", rc.ok ? "ok" : "FAIL " + rc.why,
+                                                                rc.length, rc.footprint * 100))
+    }
+    private func overheadInPlay(_ game: Game, _ dt: Float) {
+        // (from «scene ready»: while loading the squad is not where the demo puts it — the hold's first pack found no entry)
+        guard DemoScript.overheadDemos.contains(name), game.level.overhead != nil, sinceReady >= 0 else { return }
+        ohT -= dt
+        if ohT > 0 { return }
+        ohT = 5
+        let lift = game.stage == .hold || game.stage == .extract
+        var r = 0, d = 0, s = 0
+        if game.routeAlive < 8 {
+            r = game.debugRoutePack(6, rate: 3)
+            d = game.debugRoutePack(1, rate: 1, type: .dropper)
+            s = lift ? 0 : game.debugRoutePack(1, rate: 1, type: .spitter)
+        }
+        let c = game.overheadStateCounts
+        AppLog.info(String(format: "demo %@: overhead td=%.2f sent runners %d dropper %d spitter %d · up %d (high %d riser %d coil %d perch %d) "
+                           + "drops %d", name, sinceReady, r, d, s, game.routeAlive, c[0], c[1], c[2], c[6], game.overheadStats.drops))
+    }
     /// extract-cine: the crowd (on the deck, 4–9 m out) and its top-ups (over the rim, the hold's own entrance) on the
     /// lift's two flanks as seen from the extraction camera (Cinematics: the eye on the shaft wall at MetalCamera.yaw + 20°),
     /// ±50° around the perpendiculars: the squad fires across the frame, lit side-on, as in the shots before the wave pacing.
@@ -840,11 +885,13 @@ final class DemoScript {
         missionLog(game, dt)
     }
 
-    /// ventpurge: a pack out of B's vent at 0.4 s, its ring jumped to 0.9 (from 1.4 s); on the way to the plaza's seal a pack
-    /// pours out of its vent, its ring jumped to 0.75 once the squad is in it; time almost stopped past 0.9 (14 s at the latest).
+    /// ventpurge: a pack out of A's vent at 0.4 s, its ring jumped to 0.9 (from 1.4 s); on the way to the next seal (the ring
+    /// under the hub → A walkway's duct mouth) the mouth rattles and pours onto the routes, its ring jumped to 0.75 once the
+    /// squad is in it; time almost stopped past 0.9 (14 s at the latest).
     private func ventPurge(_ game: Game, _ dt: Float) {
         t += dt
-        let near = game.switches.indices.min { a, b in
+        // (the nearest seal still to throw: where the autopilot goes)
+        let near = game.switches.indices.filter { game.switches[$0].state != 2 }.min { a, b in
             hypotf(game.switches[a].site.x - game.player.x, game.switches[a].site.z - game.player.z)
                 < hypotf(game.switches[b].site.x - game.player.x, game.switches[b].site.z - game.player.z)
         }
@@ -864,19 +911,25 @@ final class DemoScript {
             AppLog.info(String(format: "demo ventpurge: vent sealed td=%.2f, stream %.2f, vents shut %d", sinceReady, game.streamK,
                                game.ventShut.filter { $0 }.count))
         }
-        if msStep == 3, let k = game.switches.firstIndex(where: { $0.state == 0 && $0.site.vent == 6 }) {
-            // the plaza's seal ahead: its vent pours as the squad comes (10 m out)
+        if msStep == 3, let k = near, game.switches[k].state == 0 {
+            // the next seal ahead: its duct mouth rattles and pours onto the routes as the squad comes (10 m out; a vent's pours
+            // onto the deck)
             let s = game.switches[k].site
             if hypotf(s.x - game.player.x, s.z - game.player.z) < 10 {
                 msStep = 4
-                game.debugVentPour(s.vent, count: 10)
-                AppLog.info(String(format: "demo ventpurge: a pack pours out of vent %d ahead td=%.2f", s.vent, sinceReady))
+                if s.duct >= 0 && s.duct < game.ducts.count {
+                    let n = game.debugRoutePack(10, entry: game.ducts[s.duct].node, rate: 3)
+                    AppLog.info(String(format: "demo ventpurge: duct %d rattles, pours %d ahead td=%.2f (seal %d)", s.duct, n, sinceReady, k))
+                } else {
+                    game.debugVentPour(s.vent, count: 10)
+                    AppLog.info(String(format: "demo ventpurge: a pack pours out of vent %d ahead td=%.2f (seal %d)", s.vent, sinceReady, k))
+                }
             }
         }
         if msStep == 4 && game.activeSwitch >= 0 {
             msStep = 5
             game.debugSwitchProgress(0.75)
-            AppLog.info(String(format: "demo ventpurge: the plaza seal's ring jumped to 0.75 td=%.2f", sinceReady))
+            AppLog.info(String(format: "demo ventpurge: the next seal's ring jumped to 0.75 td=%.2f (seal %d)", sinceReady, game.activeSwitch))
         }
         let ring = game.activeSwitch >= 0 ? game.switches[game.activeSwitch].progress : 0
         if freeze == 1 && ((msStep == 5 && ring >= 0.9) || sinceReady >= 14) {

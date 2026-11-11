@@ -293,7 +293,8 @@ final class WorldProps {
         heartbeat(game, st)
     }
 
-    /// Every lamp's light from the core's lamp states (all burning while the game has none: the classic mission, the title).
+    /// Every lamp's light from the core's lamp states (all burning while the game has none: a station without circuits, the
+    /// title's attract swarm).
     private func lamps(_ game: Game, _ L: WorldLevel) {
         let links = L.lampLinks
         if game.lamps.isEmpty {

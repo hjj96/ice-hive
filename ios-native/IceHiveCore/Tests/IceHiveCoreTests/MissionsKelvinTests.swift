@@ -38,7 +38,7 @@ final class MissionsKelvinTests: XCTestCase {
         XCTAssertEqual(t.name, .missionBreakerRun)
         let lv = t.level()
         XCTAssertEqual(lv.layout.props, .kelvin, "Kelvin-9 with its interactive props laid")
-        XCTAssertTrue(lv.layout.overhead.isEmpty, "the classic station's overhead (none until package R5)")
+        XCTAssertEqual(lv.layout.overhead, .kelvinMk2, "the classic station's overhead: Mk II's routes (package R5)")
         let p = t.build(lv)
         XCTAssertEqual(p.id, "breaker-run")
         XCTAssertEqual(p.modifiers, [.dark])
@@ -87,12 +87,24 @@ final class MissionsKelvinTests: XCTestCase {
         XCTAssertEqual(p.steps.map { $0.module }, [.switches, .hold, .extract])
         XCTAssertEqual(p.switchCount, 4)
         guard case .switches(let s) = p.steps[0], case .hold(let h) = p.steps[1] else { return XCTFail("plan shape") }
-        // the seals: on the vents of beacon A's, B's and C's decks and the plaza (Kelvin-9's vents 0, 3, 5, 6)
-        XCTAssertEqual(s.sites.map { $0.vent }, [0, 3, 5, 6])
+        // the seals: under the overhead's three duct mouths (over the pad → hub bridge, over the hub → A walkway, on the plaza
+        // gantry), then beacon A's deck vent (Kelvin-9's vent 0)
+        guard let G = lv.overhead else { return XCTFail("Mk II's routes") }
+        XCTAssertEqual(G.ducts, [KelvinMk2.bridgeDuct, KelvinMk2.hubDuct, KelvinMk2.plazaDuct])
+        XCTAssertEqual(s.sites.map { $0.duct }, [0, 1, 2, -1])
+        XCTAssertEqual(s.sites.map { $0.vent }, [-1, -1, -1, 0])
         for w in s.sites {
             XCTAssertEqual(w.kind, .seal)
-            XCTAssertEqual(Vec2(w.x, w.z), lv.layout.vents[w.vent], "the ring stands on its vent")
             XCTAssertTrue(lv.walkable(w.x, w.z))
+            if w.duct >= 0 {
+                let m = G.nodePos(G.ducts[w.duct])
+                XCTAssertLessThan(hypotf2(w.x - m.x, w.z - m.z), 6, "the ring on the deck under its duct mouth")
+            } else {
+                XCTAssertEqual(Vec2(w.x, w.z), lv.layout.vents[w.vent], "the ring stands on its vent")
+            }
+        }
+        for (a, b) in [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)] {
+            XCTAssertGreaterThan(hypotf2(s.sites[a].x - s.sites[b].x, s.sites[a].z - s.sites[b].z), 8, "rings apart")
         }
         XCTAssertNotNil(s.pour)
         XCTAssertGreaterThan(s.thins, 0)
@@ -167,15 +179,19 @@ final class MissionsKelvinTests: XCTestCase {
 
     // ---------------------------------------------------------------- Vent Purge: seals, pours, the stream
 
-    func testVentPurgeSealsShutTheVentsAndThinTheStream() {
+    func testVentPurgeSealsShutTheDuctsAndVentsAndThinTheStream() {
         let g = missionGame(.ventPurge, tier: .veteran, seed: 5, god: true)
-        let vents = MissionTemplate.ventPurge.build(g.level).steps.compactMap { s -> [Int]? in
-            if case .switches(let w) = s { return w.sites.map { $0.vent } }
+        let sites = MissionTemplate.ventPurge.build(g.level).steps.compactMap { s -> [SwitchSite]? in
+            if case .switches(let w) = s { return w.sites }
             return nil
         }.first!
+        let vents = sites.filter { $0.vent >= 0 }.map { $0.vent }, ducts = sites.filter { $0.duct >= 0 }.map { $0.duct }
+        XCTAssertEqual(vents, [0])
+        XCTAssertEqual(ducts, [0, 1, 2])
         XCTAssertEqual(g.streamK, VentPurge.tierStream[1], "Veteran's stream of this mission")
         XCTAssertEqual(g.ventShut, [Bool](repeating: false, count: 8))
-        var pours: [Int] = [], sealed: [Int] = []
+        XCTAssertTrue(g.ducts.allSatisfy { $0.open })
+        var pours: [Int] = [], sealed: [Int] = [], ductsShut: Set<Int> = []
         var shutAtPour: [Bool] = []
         run(g, seconds: 420, until: { g.phase != .playing }) { e in
             switch e {
@@ -183,18 +199,24 @@ final class MissionsKelvinTests: XCTestCase {
                 pours.append(k); shutAtPour.append(g.ventShut[k])
                 XCTAssertGreaterThan(n, 0)
             case .ventSealed(let k): sealed.append(k)
+            case .ductSealed(let d): ductsShut.insert(d)
             default: break
             }
         }
         XCTAssertEqual(g.phase, .won, g.debugState.description)
-        XCTAssertEqual(Set(sealed), Set(vents), "every seal shut its own vent")
-        XCTAssertEqual(sealed.count, 4)
-        XCTAssertFalse(pours.isEmpty, "open vents poured packs")
+        XCTAssertEqual(g.switchesThrown, 4)
+        XCTAssertEqual(sealed, vents, "the vent seal shut its own vent")
+        XCTAssertEqual(ductsShut, Set(ducts), "the duct seals slammed their mouths")
+        for d in ducts {
+            XCTAssertFalse(g.ducts[d].open)
+            XCTAssertEqual(g.ducts[d].shutT, .infinity, "duct mouth \(d) sealed for good")
+        }
+        XCTAssertFalse(pours.isEmpty, "the open vent poured packs")
         XCTAssertTrue(pours.allSatisfy { vents.contains($0) }, "only the seals' vents pour")
         XCTAssertFalse(shutAtPour.contains(true), "a shut vent never pours")
         XCTAssertEqual(g.streamK, VentPurge.tierStream[1] * powf(0.9, 4), accuracy: 1e-5, "each seal thins the stream by 10 %")
         for k in vents { XCTAssertTrue(g.ventShut[k]) }
-        XCTAssertEqual(g.ventShut.filter { $0 }.count, 4, "the station's other vents stay open")
+        XCTAssertEqual(g.ventShut.filter { $0 }.count, vents.count, "the station's other vents stay open")
     }
 
     func testVentPurgeSealsTheOverheadsDuctMouthsForGood() {
@@ -208,14 +230,18 @@ final class MissionsKelvinTests: XCTestCase {
         XCTAssertTrue(lv.canStand(seals[0].x, seals[0].z))
         XCTAssertLessThan(hypotf2(seals[0].x - 19, seals[0].z - 23.4), 6.5, "under the mouth")
         XCTAssertEqual(seals.dropFirst().map { $0.vent }, [0, 3, 5])
-        // Kelvin-9 today (no routes): the four vents, as before
-        XCTAssertEqual(VentPurge.seals(MissionTemplate.ventPurge.level()).map { $0.duct }, [-1, -1, -1, -1])
+        // a station without routes (the v1.0 layout with R6's props): the vents of beacon A's, B's and C's decks and the plaza
+        let bare = VentPurge.seals(Level(source: KelvinStation(props: .kelvin), seed: 1))
+        XCTAssertEqual(bare.map { $0.vent }, [0, 3, 5, 6])
+        XCTAssertEqual(bare.map { $0.duct }, [-1, -1, -1, -1])
         var c = GameConfig()
         c.difficulty = .veteran; c.god = true; c.mission = .ventPurge
+        // (the tier's own overhead channels shut: every pack up there is the duct's pour)
+        c.difficulty.routes = 0; c.difficulty.dropperGap = 0; c.difficulty.perchGap = 0
         let g = Game(seed: 5, playerClass: .assault, config: c, level: lv)
         XCTAssertEqual(g.ducts.count, 1)
         XCTAssertTrue(g.ducts[0].open)
-        // the open duct mouth pours onto the routes (the overhead's own queue, R4's rattle first) — the tier's channel is shut
+        // the open duct mouth pours onto the routes (the overhead's own queue, R4's rattle first)
         var rattles = 0
         run(g, seconds: 200, until: { g.overheadStats.packs > 0 && rattles > 0 }) { e in if case .ductRattle = e { rattles += 1 } }
         XCTAssertGreaterThan(g.overheadStats.packs, 0, "a pour climbed out of the duct mouth")

@@ -216,9 +216,9 @@ final class GameScene: SKScene {
     /// view), the HUD / input / audio meanwhile.
     private func loadMetal() {
         let t0 = FrameTimer.now()
-        // (the overhead demo plays «Кельвин-9» with the overhead's demo route laid; R7's missions their own station — Kelvin-9
-        // with its props; every other run the classic station)
-        let lv = Level(source: demo?.levelSource ?? mission.station ?? KelvinStation(), seed: 1)
+        // (the overhead demos play «Кельвин-9» with the overhead's showcase laid; R7's missions their own station; every other run
+        // the classic mission's station, «Кельвин-9» Mk II since Stage 1 R5: its overhead routes and interactive props laid)
+        let lv = Level(source: demo?.levelSource ?? mission.station ?? KelvinStation.mk2, seed: 1)
         level = lv
         cameraCtl.node.addChild(hud.root)
         cameraCtl.node.addChild(titleScreen.root)
@@ -496,7 +496,7 @@ final class GameScene: SKScene {
         // R7: which mission, its steps and modifiers (CI: the mission demos check it)
         AppLog.info("mission start \(g.mission.id) steps=\(g.mission.steps.map { $0.module.rawValue }.joined(separator: ",")) "
                     + "modifiers=\(g.mission.modifiers.map { $0.rawValue }.sorted().joined(separator: ",")) props=\(g.hasProps ? 1 : 0) "
-                    + "lit=\(g.lightsLit)/\(g.circuits.count) vents=\(g.level.layout.vents.count)")
+                    + "lit=\(g.lightsLit)/\(g.circuits.count) vents=\(g.level.layout.vents.count) ducts=\(g.ducts.count)")
         AppLog.info("bug cap \(g.bugCap) (graphics \(qualityName) \((QualityTier(rawValue: qualityName) ?? .med).bugCap), device \(world?.renderer.quality.deviceBugCap ?? 0))")
     }
 
@@ -1051,7 +1051,11 @@ final class GameScene: SKScene {
                 if diag { AppLog.info("bugs: duct \(k) rattles") }
             case .ductSealed(let k):
                 if k >= 0 && k < g.ducts.count { audio?.playOverhead(.thud, pos: Vec2(g.ducts[k].pos.x, g.ducts[k].pos.z), listener: lis, gain: 1.0) }
-                if diag { AppLog.info("bugs: duct \(k) shot shut") }
+                // (R7: a Vent Purge seal shuts it for ever — shutT = ∞; R4: shot shut for DUCT_SHUT s)
+                if diag {
+                    let forGood = k >= 0 && k < g.ducts.count && g.ducts[k].shutT.isInfinite
+                    AppLog.info(forGood ? String(format: "mission: duct %d sealed for good t=%.1f", k, g.time) : "bugs: duct \(k) shot shut")
+                }
             case .ductOpened(let k):
                 if diag { AppLog.info("bugs: duct \(k) open again") }
             case .perched(let p):

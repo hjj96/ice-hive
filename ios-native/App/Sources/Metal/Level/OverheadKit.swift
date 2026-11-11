@@ -528,7 +528,9 @@ final class OverheadBuild {
     /// One lattice girder 11 m above every big deck that carries no beacon (≥ 12 m both ways; a beacon's light column and
     /// the punch-in framing stay clear), along z and 6 m past both ends: Kelvin-9's corridors run along x, so the girders
     /// cross them instead of adding more parallel lines (concept-station README «what to avoid»). Thin, dark, no lights —
-    /// a plane that slides at ≈ 1.45× the deck's speed (design §1.1.7).
+    /// a plane that slides at ≈ 1.45× the deck's speed (design §1.1.7). Not over the start deck (Stage 1 R5): the title's
+    /// composition and the mission's first frames (tech.md §2.2's exclusion; R3's look call — at 11 m over the pad, close to
+    /// the camera, it was a broad dark band across the frame); on Kelvin-9 the girders stand over the hub and the plaza.
     private func upperTruss() {
         // (no frost flag: no pale crust on the chords — the truss stays a dark silhouette high over the deck)
         let mat = KitMat(tint: Col.girder, metal: 0.6, layer: Trim.rails, uv: .strip(Trim.girder, F3(1, 0, 0)))
@@ -537,6 +539,8 @@ final class OverheadBuild {
             let w = r.x1 - r.x0, d = r.z1 - r.z0
             guard w >= 12 && d >= 12, !r.height.isStairs else { continue }
             if level.layout.beacons.contains(where: { $0.x >= r.x0 && $0.x <= r.x1 && $0.z >= r.z0 && $0.z <= r.z1 }) { continue }
+            let st = level.layout.start
+            if st.x > r.x0 && st.x < r.x1 && st.y > r.z0 && st.y < r.z1 { continue }
             let y = max(r.height.height(atZ: r.z0), r.height.height(atZ: r.z1)) + 11
             let A = F3((r.x0 + r.x1) / 2, y, r.z0 - 6), B = F3((r.x0 + r.x1) / 2, y, r.z1 + 6)
             let L = ((B - A) * (B - A)).sum().squareRoot()

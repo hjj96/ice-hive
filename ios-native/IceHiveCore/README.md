@@ -76,10 +76,15 @@ switch game.phase { case .won, .lost: /* экран итогов: game.stats */ 
   (фаза ready / burst / venting / recharge, `gauge`, `hot`), `game.circuits` (питание, лампы, горящие, кольцо, `lit`,
   `needsRestore`, `restoredAt`), `game.lamps` (`on`, `hp`, `changedAt` — для мерцания), `game.lockers`, `game.lightsLit`,
   `game.lit(x, z)` (освещённая палуба — круги «без прыжков» верхнего яруса), `game.propStats`.
+- «Кельвин-9» Mk II (Stage 1 R5, `KelvinMk2.swift`): станция классической миссии — `KelvinStation.mk2` (маршруты
+  `OverheadLayout.kelvinMk2` + `PropLayout.kelvin`; приложение строит её для каждого запуска, кроме витрин), голый
+  `KelvinStation()` — раскладка v1.0 (`GameConfig.levelSource` по умолчанию: тесты механик, строка legacy); именованные узлы
+  набора — `KelvinMk2` (стояк и устье над мостом, устья, насесты площади, мачты лифта, полоса длины 150–450 м). Калибровка:
+  `CalibRun.mk2` (классические строки пресетов `gate` / `full` на Mk II), CLI `--kelvin mk2|props|bare`.
 - Миссии I (Stage 1 R7, `MissionsKelvin.swift`): шаблоны `MissionTemplate.breakerRun` / `.ventPurge` (`missions`,
-  `playable` — классика и эти две; у шаблона своя станция `station` — `KelvinStation.missions`, «Кельвин-9» с
-  интерактивами — и имя `name`), пломба — `SwitchSite.vent` / `.duct` (вентиляция палубы / устье воздуховода R4: заварены
-  навсегда), состояние — `game.switchesThrown`, `game.ventShut` (вентиляции, заваренные пломбами),
+  `playable` — классика и эти две; у шаблона своя станция `station` — `KelvinStation.missions` = `.mk2`, «Кельвин-9» Mk II
+  классики — и имя `name`), пломба — `SwitchSite.duct` / `.vent` (устье воздуховода R4 / вентиляция палубы: заварены
+  навсегда; сначала устья, у Mk II — три), состояние — `game.switchesThrown`, `game.ventShut` (вентиляции, заваренные пломбами),
   `game.streamK` (поток улья: × каждой пломбы), `game.beaconInPlan` (маяки, которые заряжает план), отчёт —
   `RunSummary.switchLine` / `strip` (своя полоса этапов плана); события `.ventSealed(index:)`, `.ventPour(index:count:)`.
 - `game.mission` (план), `game.missionStep`, `game.stepPhase`, `game.switches`, `game.missionZone`, `game.objectiveKey`,
@@ -105,8 +110,9 @@ switch game.phase { case .won, .lost: /* экран итогов: game.stats */ 
 `debugSetNoDropZones(_:)`, `debugHoldFire`; R4 — `debugRoutePack(n, entry:, rate:, type:)` (тип стаи),
 `debugRouteFocus` (все маршрутные жуки целят в этого бойца; −1 — обычное правило), `debugPinMarine`, `debugHurtDuct`;
 интерактивы — `debugBurstValve(k, by:)`, `debugCutCircuit(k)`, `debugRestoreCircuit(k)`, `debugBreakLamp(k)`,
-`debugSpawnLine(n, type:, from:, to:)`; миссии (R7) — `debugSwitchProgress(p)`, `debugVentPour(k, count:)`. Замедление/ускорение
-времени — на стороне приложения (сколько тиков вызвать за кадр).
+`debugSpawnLine(n, type:, from:, to:)`; миссии (R7) — `debugSwitchProgress(p)`, `debugVentPour(k, count:)` (излив устья —
+`debugRoutePack(n, entry: ducts[d].node)`). Замедление/ускорение времени — на стороне приложения (сколько тиков вызвать за
+кадр).
 
 ### Детерминизм
 Вся случайность идёт через один `SeededRNG` (mulberry32). Одинаковые seed, класс, конфигурация и
@@ -143,3 +149,4 @@ switch game.phase { case .won, .lost: /* экран итогов: game.stats */ 
 | `GameHUD.swift` | тексты задачи и подсказок, статистика, лазеры |
 | `GameDebug.swift` | отладочные хуки, бенчмарк |
 | `GameOverheadBugs.swift` | жуки яруса (R4): прижим Dropper, плевуны на насестах, устья коробов (дребезг, закрытие огнём) |
+| `KelvinMk2.swift` | «Кельвин-9» Mk II (R5): маршруты верхнего яруса ручной карты, `KelvinStation.mk2` — станция классической миссии |
