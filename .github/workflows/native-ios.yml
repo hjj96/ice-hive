@@ -1227,12 +1227,28 @@ jobs:
             note "film $label: $(ls "frames/$label" | wc -l | tr -d ' ') of $n frames in $((SECONDS - t)) s; $(grep -h -E 'film [a-z]+ (start|written)|demo [a-z0-9]+ \(video\)|demo (punchin|queen|extract-cine|overhead|overheadbugs|interactives|breakerrun|ventpurge):|cine (punchin|extraction)|queen (spawn|kill)|phase |mission (start|over)' "$log" | grep -v 'alive [0-9]* td=' | tr '\n' '|')"
             stop_app
           }
-          # (third capture: the missions only — the gameplay and overhead scenes of f5c64c5's capture are kept; the same game
-          # code) the missions reel (R7, started with the launch option -mission), the mission clock where the moment falls in
-          # a real run (-videoTime: the app's control hint of the first 7 s gone): Breaker Run — the dark station, B's breaker
-          # ring under the hive's push, B's deck lit again (≈ 0:40); the generator hold relighting the station (≈ 2:30); Vent
-          # Purge — A's vent pouring, its seal ring, the vent and the hub → A duct mouth sealed for good (≈ 1:00); the lift hold
-          # (≈ 2:40)
+          # Stage 1 «Overhead» (Kelvin-9 Mk II) — the final capture, on native-metal with the review's fixes. The gameplay film
+          # (Veteran, the game's own director, autopilot): the title, combat at beacon Beta with R5's packs up the overhead,
+          # beacon Alpha with the punch-in, R6's props on Mk II (the bridge valve's curtain, the hub's lights cut and restored at
+          # its breaker), the heaviest fight (third beacon), the walk to the lift under the plaza gantry and the hold, the finale
+          # (the hold, the Queen, the extraction, the report over the moving world); -videoTime: the mission clock where the
+          # moment falls in a real mission
+          film title 0.3 8 -demo title -profile veteran -video
+          film combat 3.0 26 -demo combat -seed 7 -profile veteran -video -videoAt 1
+          film beacon 3.0 16 -demo punchin -seed 7 -profile veteran -video -punchAt 9 -videoOverhead
+          film props 0.5 21 -demo interactives -seed 7 -profile veteran -video -videoMk2
+          film stress 5.0 17 -demo stress1400 -seed 11 -profile veteran -video -videoAt 2
+          film tolift 2.0 22 -demo combat -seed 5 -profile veteran -video -videoToLift -videoTime 280 -videoPack 2.5,20,6
+          film finale 2.5 34 -demo queen -tier 1 -seed 3 -profile veteran -video -queenAt 9 -queenHp 1100 -videoTime 300
+          # the overhead reel: the walk along the Spine Rack (the pad → hub bridge, under the hub's cable span, the hub → A
+          # catwalk) at half the run speed with packs up its risers and duct mouths; R4's overheadbugs staging on Mk II with the
+          # bridge's circuit cut (lit deck forbids drops): a Dropper's pin shot off by the squad, a perched spitter, a duct mouth
+          # shot shut, a second pin and the dash out (both also at the drawable's own size for 100 % crops)
+          film ohwalk 0.5 22 -demo overhead -ohWalk -seed 7 -video -videoMk2 -videoPath 21.5,30.5/7,30.5/0,24.5/-7,27.5/-22,28 -videoWalkK 0.5 -videoFireAt 9 -videoPack 5,8,6 -videoPack 7,7,5 -videoPack 8,7,1,dropper
+          film ohbugs 0.3 14 -demo overheadbugs -obDash -seed 7 -video -videoMk2 -videoCut 1
+          # the missions reel (R7, started with the launch option -mission): Breaker Run — the dark station, B's breaker ring under
+          # the hive's push, B's deck lit again (≈ 0:40); the generator hold relighting the station (≈ 2:30); Vent Purge — A's
+          # vent pouring, its seal ring, the vent and the hub → A duct mouth sealed for good (≈ 1:00); the lift hold (≈ 2:40)
           film brring 0.3 21 -demo breakerrun -mission breaker-run -seed 7 -profile veteran -video -videoTime 40
           film brhold 0.3 18 -demo breakerrun -mission breaker-run -seed 7 -profile veteran -video -videoScene hold -videoTime 150
           film vpseal 0.3 19 -demo ventpurge -mission vent-purge -seed 7 -profile veteran -video -videoTime 60
