@@ -202,6 +202,7 @@ extension Game {
         let k = G.count
         G.count += 1
         G.x0[k] = x0; G.z0[k] = z0; G.x1[k] = x1; G.z1[k] = z1; G.t[k] = 0; G.dur[k] = 0.95
+        G.h0[k] = 0
         if !simOnly { emit(.acidLaunched(from: Vec2(x0, z0), to: Vec2(x1, z1))); sound(.spit, x0, z0) }
     }
 
@@ -221,6 +222,7 @@ extension Game {
             G.count -= 1
             let l = G.count
             G.x0[k] = G.x0[l]; G.z0[k] = G.z0[l]; G.x1[k] = G.x1[l]; G.z1[k] = G.z1[l]; G.t[k] = G.t[l]; G.dur[k] = G.dur[l]
+            G.h0[k] = G.h0[l]
         }
     }
 

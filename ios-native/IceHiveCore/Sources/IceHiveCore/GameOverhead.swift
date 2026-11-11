@@ -353,6 +353,8 @@ extension Game {
     /// closer (the wave pacing's rule on the deck). -1 when nobody stands.
     func routeTarget(_ i: Int) -> Int {
         let S = bugs
+        // (Stage 1 R4: a demo / test focus)
+        if oh.focus >= 0 && oh.focus < marines.count && !marines[oh.focus].downed { return oh.focus }
         var best = -1
         var bd: Float = .infinity
         var k = 0

@@ -488,6 +488,7 @@ extension Game {
         G.count += 1
         let x0 = S.x[i], z0 = S.z[i]
         G.x0[k] = x0; G.z0[k] = z0; G.x1[k] = S.ax[i]; G.z1[k] = S.az[i]; G.t[k] = 0; G.dur[k] = PERCH_GLOB
+        G.h0[k] = maxf(0, S.y[i] - level.groundY(S.ax[i], S.az[i]) - 0.6)
         oh.stats.perchSpits += 1
         if !simOnly {
             emit(.acidFromPerch(from: SIMD3<Float>(x0, S.y[i], z0), to: Vec2(S.ax[i], S.az[i]), flight: PERCH_GLOB))
@@ -671,6 +672,13 @@ extension Game {
         typeAlive[Int(T_DROP)] += 1
         pinMarine(i, m, -FWD_X, -FWD_Z)
         return i
+    }
+
+    /// Demo / tests: every route bug goes for marine `k` while it stands (-1: the usual rule — the favourite, uid % 4,
+    /// unless another is much closer).
+    public var debugRouteFocus: Int {
+        get { oh.focus }
+        set { oh.focus = newValue }
     }
 
     /// The uid of the bug pinning marine `k` (0 none).

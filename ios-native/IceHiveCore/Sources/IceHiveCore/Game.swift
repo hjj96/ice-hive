@@ -270,6 +270,8 @@ struct OverheadState {
     var dropperT: Float = 0, perchT: Float = 0
     /// First sightings shown this mission (the perched spitter, the rattling duct).
     var tipPerch = false, tipDuct = false
+    /// Demo / tests: every route bug goes for this marine while it stands (-1: the usual rule).
+    var focus = -1
 }
 
 /// Projectiles (pulse bolts, minigun & turret rounds) as SoA.
@@ -328,7 +330,11 @@ public final class AcidGlobs {
     var x0 = [Float](repeating: 0, count: 64), z0 = [Float](repeating: 0, count: 64)
     var x1 = [Float](repeating: 0, count: 64), z1 = [Float](repeating: 0, count: 64)
     var t = [Float](repeating: 0, count: 64), dur = [Float](repeating: 0, count: 64)
+    /// Stage 1 R4: how far above the deck's throw point a glob starts (a perched spitter's, m; 0 = a deck spitter's).
+    var h0 = [Float](repeating: 0, count: 64)
     public func from(_ k: Int) -> Vec2 { Vec2(x0[k], z0[k]) }
+    /// Stage 1 R4: the glob's start height above the deck's throw (a perched spitter spits from up on the overhead).
+    public func launchHeight(_ k: Int) -> Float { h0[k] }
     public func to(_ k: Int) -> Vec2 { Vec2(x1[k], z1[k]) }
     /// Flight progress 0..1 (lands at 1).
     public func progress(_ k: Int) -> Float { dur[k] > 0 ? min(1, t[k] / dur[k]) : 1 }
