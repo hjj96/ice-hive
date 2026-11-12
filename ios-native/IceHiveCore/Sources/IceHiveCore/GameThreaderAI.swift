@@ -7,10 +7,11 @@ import Foundation
 //  seat) do against it. GameAI / GameMarines call in here only while the
 //  Threader lives (`threaderActive`): every other mission, the Queen and B1's
 //  toy chain keep their numbers and random draws.
-//    TARGETS   the head while it is down first, then the nodes not popped
-//              (the Gunner presses them hardest), never the ×0.25 body; up
-//              on a trunk the rounds go up (the overhead's footprint hits);
-//              the turret watches the nodes; the player's aim assist
+//    TARGETS   the head while it is down first (once seen: a bot's
+//              reaction, the autopilot's a person's), then the exposed nodes
+//              not popped (the Gunner presses them hardest), never the ×0.25
+//              body nor anything behind armour up on the trunks (the
+//              turret's job: it watches the nodes); the player's aim assist
 //              prefers them too. Its parts count for no ability's crowd.
 //    DODGES    out of the lure's light when it comes within 2 m (the
 //              autopilot later: a person), out of the strike's closing
@@ -19,7 +20,8 @@ import Foundation
 //              frozen segments opened), out of the rime lane, the squeeze's
 //              curtains, the pull-down's lane and a charge's path.
 //    ABILITIES the Cryo's Ice Wave on the head down (brittle), the Assault's
-//              grenade on the head down or on a node of a coil (it lets go),
+//              grenade on the head down or on a node of a shrinking coil
+//              (it lets go),
 //              the Pyro's napalm under a strike spot (the recoil), the
 //              Gunner's turret near the nodes.
 //    PLACES    the autopilot fights from a corner of the pump housing (away

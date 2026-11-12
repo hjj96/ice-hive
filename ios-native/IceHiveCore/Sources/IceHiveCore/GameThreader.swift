@@ -7,17 +7,24 @@ import Foundation
 //  (Manifold.swift). A CHAIN body: an armoured head with a hanging lantern
 //  organ, 18 frost-plated segments (1.6 m) following the head's path by arc
 //  length, five lantern nodes on segments 3 / 6 / 9 / 12 / 15. Every hit is
-//  routed to one boss bar: the head ×1 (×2 while it is down), the nodes ×1.5
-//  with their own 8 % pools (popped: dark, a scream, a 1.5 s stagger), the
-//  body ×0.25. Its moves — all `.custom`, played here:
+//  routed to one boss bar: the head ×1 (×2 while it is down; ×0.25 up on a
+//  trunk — its crest to the deck), the nodes ×1.5 with their own 8 % pools
+//  (popped: dark, a scream, a 1.5 s stagger; up on a trunk in P1 / P2 behind
+//  their frost plates, ×1/6), the body ×0.25. PAIN: 20 % of its health in one
+//  exposure (a punish window and its way back up, a coil) and it screams —
+//  the head pulls back up at once, the coil lets go, the ice on it breaks.
+//  Its moves — all `.custom`, played here (one that cannot start now tries
+//  again in 0.5 s):
 //    LURE & STRIKE  the lure beam sweeps the deck in slow arcs; 0.8 s in its
 //                   light locks it (hot white, a closing ring at the
 //                   marine's predicted place); 1.2 s later the head drops:
 //                   a 3 m slam, 30 × the damage multiplier, the knock-down;
-//                   the head stays down 2 s (×2), then pulls back up its path
+//                   the head stays down 2 s (×2), then pulls back up its path;
+//                   no lock for 6 s after its arrival or a phase, 16 s after
+//                   a strike
 //    SHED           every 14 s, frost dust along the body for 1.5 s, then
 //                   4–6 «ticks» — R4's Droppers, small — along the body
-//    CLIMB (P1)     every 25 s up a riser pipe to the 8 m ring duct:
+//    CLIMB (P1)     at 14 s, then every 25 s up a riser pipe to the 8 m duct:
 //                   untouchable for 4 s while the beam sweeps from above,
 //                   then down onto a different trunk
 //    COIL (P2)      the body lowers to 2 m round a deck section: a 7 m ring
@@ -25,7 +32,8 @@ import Foundation
 //                   anyone inside (the bugs inside die too); escape: a dash
 //                   through a gap (walking out is blocked: marines collide
 //                   with its parts), two frozen ring segments open a gap,
-//                   a grenade on a node makes it let go (a node popped too)
+//                   a grenade on a node makes it let go (so does its pain);
+//                   its ring stays over the island
 //    RIME SPIT (P2) a red lane along a trunk's footprint, 12
 //    SQUEEZE (P2)   it crushes a trunk: the valves of its pipe burst one by
 //                   one along it, 1.5 s of warning each, then a scald
@@ -35,14 +43,16 @@ import Foundation
 //                   crashes across the deck: an obstacle on the island (its
 //                   snapped middle open) and a bridge over the gaps — the
 //                   walk grid changes; the body comes down onto the deck
-//    DECK CHASE (P3) it slithers at deck height: charges that curve after
-//                   their marine behind the lure beam pointing along the
-//                   path (1 s), strikes from low height with a 0.6 s ring
+//    DECK CHASE (P3) it slithers at deck height: away to the ring and round
+//                   it for 4 s after the crash, a charge or a lunge; charges
+//                   from there that curve after their marine behind the lure
+//                   beam pointing along the path (1 s); strikes from low
+//                   height with a 0.6 s ring
 //  Phases: P1 100–66 % «hunting the racks» (lure & strike, shed, climb); P2
 //  66–33 % «constrict» (+ coil, rime spit, squeeze; the duct mouths pour
 //  packs); P3 33–0 % «breach» (pull down, the deck chase, enraged ×1.3, the
 //  nodes exposed). Class counterplay: the Cryo's frozen part locks the body
-//  2 s (the head stays down), its Ice Wave on the head down makes it brittle
+//  2 s (the head down stays down), its Ice Wave on the head down: brittle
 //  (+50 %); the Pyro's napalm under a strike spot makes the head recoil (+1 s
 //  down), its torch strips a node's frost plates (+25 % to that node for the
 //  squad); the Assault's pierce rounds go through a segment into a node; the
