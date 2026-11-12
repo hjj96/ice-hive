@@ -360,6 +360,28 @@ final class BossFrameworkTests: XCTestCase {
         XCTAssertEqual(simd_len(g.bossPart(0).position - a), 4 * 1.3 * 0.5, accuracy: 0.1)
     }
 
+    func testAMoveUnderWayFinishesAcrossAPhaseChange() {
+        // the slam only in phase 0, the rime only in phase 1, no stagger on the phase change: the slam caught in its wind-up
+        // by the change still lands and frees the boss — the rime (exclusive too) comes after it
+        var s = BossFrameworkTests.toySpec()
+        s.moves[0].phases = 0b01; s.moves[0].windUp = 1.5
+        s.phases[1].stagger = 0
+        let g = toyGame(spec: s)
+        var slamAt: Float = -1, landed = false, rimeAt: Float = -1
+        run(g, seconds: 3, until: { slamAt >= 0 }) { if case .bossMove(_, 0, _) = $0 { slamAt = g.time } }
+        XCTAssertGreaterThan(slamAt, 0)
+        // mid-wind-up: below half health
+        g.hitBug(g.bossPart(3).slot, g.bugs.hpMax[g.bossPart(0).slot] * 0.55 / 0.25, 0)
+        run(g, seconds: 6, until: { rimeAt >= 0 }) { e in
+            if case .bossWindow(_, 0, _, _) = e { landed = true }
+            if case .bossMove(_, 1, _) = e { rimeAt = g.time }
+        }
+        XCTAssertEqual(g.boss.phase, 1)
+        XCTAssertTrue(landed, "the slam under way landed (its window opened)")
+        XCTAssertGreaterThan(rimeAt, slamAt + 1.4, "the rime waited for the slam")
+        XCTAssertLessThan(rimeAt, slamAt + 3, "and was not blocked by it")
+    }
+
     func testDeathTakesEveryPartAndEndsTheStep() {
         let g = toyGame()
         let slots = (0..<9).map { g.bossPart($0).slot }

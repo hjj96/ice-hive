@@ -400,7 +400,8 @@ extension Game {
         while m < n {
             defer { m += 1 }
             let mv = B.moves[m]
-            if !mv.runs(in: boss.phase) { continue }
+            // (a move starts only in its phases; one already under way when the phase changed finishes)
+            if !mv.runs(in: boss.phase) && R.stage[m] == 0 { continue }
             switch mv.kind {
             case .brood:
                 // adds burst from its body (only while the swarm cap has room)
@@ -496,13 +497,14 @@ extension Game {
         }
     }
 
-    /// The move is over: its cooldown (× the phase's), the boss free again; a custom move's end.
+    /// The move is over: its cooldown (× the phase's), the boss free again; a custom move's end (2) or its cancel (3: a
+    /// stagger broke its wind-up).
     func bossMoveEnds(_ m: Int, _ mv: BossMove, _ ph: BossPhase, landed: Bool) {
         let R = bossRT
         R.stage[m] = 0; R.timer[m] = 0
         R.clock[m] = mv.cooldown * ph.cooldownK(m)
         if R.busy == m { R.busy = -1 }
-        if mv.kind == .custom && landed { _ = bossOwnMove(m, 2) }
+        if mv.kind == .custom { _ = bossOwnMove(m, landed ? 2 : 3) }
     }
 
     /// Where a telegraphed move aims (false: nobody to aim at). Slam / drop: the point; lane / cone: from the body toward it.
@@ -865,7 +867,7 @@ extension Game {
     }
 
     /// A `.custom` move of the boss's own file: `stage` 0 its wind-up starts (false: skip it this time), 1 it lands, 2 it
-    /// ends.
+    /// ends, 3 it was cancelled (a stagger broke its wind-up).
     func bossOwnMove(_ m: Int, _ stage: Int) -> Bool {
         switch boss.kind {
         case .queen: return false
