@@ -125,7 +125,8 @@ switch game.phase { case .won, .lost: /* экран итогов: game.stats */ 
 `debugRouteFocus` (все маршрутные жуки целят в этого бойца; −1 — обычное правило), `debugPinMarine`, `debugHurtDuct`;
 интерактивы — `debugBurstValve(k, by:)`, `debugCutCircuit(k)`, `debugRestoreCircuit(k)`, `debugBreakLamp(k)`,
 `debugSpawnLine(n, type:, from:, to:)`; миссии (R7) — `debugSwitchProgress(p, quiet:)` (M1: `quiet` — натиски улья ниже `p`
-считаются прошедшими), `debugVentPour(k, count:)` (излив устья —
+считаются прошедшими), `debugReopenDuct(k)` (M1: улей прогрызает забитое устье на следующем тике, `.ductOpened`; навсегда
+заваренное не трогает), `debugVentPour(k, count:)` (излив устья —
 `debugRoutePack(n, entry: ducts[d].node)`). Замедление/ускорение времени — на стороне приложения (сколько тиков вызвать за
 кадр).
 
