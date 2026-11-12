@@ -1,0 +1,11 @@
+LOOK (ci/look_metrics.py; gates: ci/golden/thresholds.json — HUD-off shots gated, HUD-on shots masked and reported)
+swarmshot  swarmshot-0s.png             median  33.1 (plan 40–55) mean  58.2 p95 194.3 p95/p50 5.88 dark 20.7% clip 0.46% specks  686 R-B hi +28.1 lo -24.8 colorf 47.1 [HUD on, masked: reported only] would fail: median 33.05 not 35–50; specks 686.00 not ≥ 800
+beacon     beacon-0s.png                median  39.3 mean  53.1 p95 159.7 p95/p50 4.06 dark 16.1% clip 0.08% specks  145 R-B hi +17.0 lo -25.9 colorf 48.7 [HUD on, masked: reported only] in range
+punchin    no shot (punchin-nohud-0s.png, punchin-0s.png)
+extract    no shot (extract-cine-nohud-0s.png, extract-cine-0s.png, extract-nohud-0s.png, extract-0s.png)
+title      no shot (title-nohud-0s.png, title-0s.png)
+calm       calm-0s.png                  median  32.9 mean  46.4 p95 137.0 p95/p50 4.16 dark 19.7% clip 0.02% specks   13 R-B hi +41.9 lo -30.3 colorf 46.7 [HUD on, masked: reported only] in range
+overhead   overhead-0s.png              median  34.5 mean  43.7 p95 112.5 p95/p50 3.26 dark 17.0% clip 0.02% specks   46 R-B hi +30.5 lo -31.8 colorf 44.2 [HUD on, masked: reported only] in range
+brightness: no shots
+punch-in entry: no log
+LOOK GATE: passed
