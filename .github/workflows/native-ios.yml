@@ -6,6 +6,8 @@ name: native-ios
 #   missions' own gate: Breaker Run, Vent Purge), calib-drills.txt (mission module drills), build.log, release-check.txt,
 #   metrics.txt, fps.txt, hitches.txt, <demo>-<s>s.png (upright landscape: the app is landscape-only), other-phones.txt,
 #   app-<demo>.log, app.log
+# The simulator demos run in two parts at once (sim-smoke (a) and (b), each on its own runner and simulator; Stage 2 C1):
+# the report job merges both parts into that one result set, as one job wrote it before.
 on:
   push:
     branches: ['native*']
@@ -30,6 +32,22 @@ env:
   HOMEBREW_NO_AUTO_UPDATE: '1'
   HOMEBREW_NO_INSTALL_CLEANUP: '1'
   BUNDLE_ID: com.hjj96.icehive
+  # every frame-gated demo, all landscape (the app is landscape-only); `layout` (the four-phone layout check)
+  # runs as well but builds ~40 screens in one go, so it is not gated
+  DEMOS: firstlaunch combat beacon waves overhead overheadbugs interactives breakerrun ventpurge swarmshot swarmshot-dots swarm swarm3x calm squad squadclose squadtight squadfire fxsheet fxsheet-high fxpeak stress1400 punchin extract-cine title title-fresh title-return title-nm title-left probe hold extract holdhint queen queenlock coach coach3 pressure pressure-amber levelup pause pause-nm end report-first report-win report-loss report-chip release-combat swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud
+  MENUS: levelup,pause,pause-nm,end,report-first,report-win,report-loss,report-chip
+  # the runs whose -ohVis samples ci/overhead_vis.py gates (Stage 1 R3 / R5)
+  OH_VIS: overhead-nohud burst-parallax combat beacon hold queen breakerrun ventpurge
+  # C1 — the two sim-smoke parts: an item (a run_demo label, or the checks `other-phones` and `failmetal`) runs in part b
+  # when its label is listed here, every other one in part a. Part b: the title, the menus and reports, the layout and
+  # pseudo-localised runs (layout, *-pseudo) and the layout check on the other phones; part a: the world (firstlaunch — the
+  # cold launch —, gameplay and the HUD in a mission: banners, hints, coach, pressure; swarm, squad, effects, every burst,
+  # the HUD-off look shots with their re-shoots, the Metal validation runs, failmetal, the Release block). Keep together in
+  # one part: calm with swarm3x and release-combat (calm is their GPU-drawn baseline in frame_metrics.py), the HUD-off look
+  # shots (calm-nohud, calm-deckmask, calm-bright-nohud are measured against each other). Balanced by measured times (a
+  # 33–39 min, b 30–44 on the runs before the split; b's spread is the other phones, 20–32 min). README «CI» →
+  # «Как добавить демо и выбрать его часть».
+  SMOKE_B: title title-fresh title-return title-nm title-left layout layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo banner-pseudo levelup pause pause-nm end report-first report-win report-loss report-chip other-phones
 
 jobs:
   core-tests:
@@ -365,23 +383,38 @@ jobs:
           path: results/
           retention-days: 7
 
+  # C1: two parts at once, each on its own runner and simulator, with the same steps — the run script, Verify, the frame
+  # gate (its single re-run of a failed demo inside the part), the layout check on the other phones (in the part that owns
+  # `other-phones`), crash logs; part b runs the items named in SMOKE_B (workflow env), part a every other one. Each part
+  # uploads its results as sim-smoke-<part>; the report job merges them into one result set. needs.sim-smoke.result is
+  # both parts' result (failure when either fails).
   sim-smoke:
-    name: sim-smoke
+    name: sim-smoke (${{ matrix.part }})
     needs: build
     runs-on: ${{ vars.NATIVE_MACOS_RUNNER || 'macos-26' }}
-    # 90: the L10n shots (other phones, pseudo-localised, held banners) took the job to 64.5 of 65 min (4d0ffc6)
-    timeout-minutes: 90
+    # a hang guard: one job ran 58–86 min before the split (the layout check on the other phones 20–32 of them); a part
+    # runs about 30–46 (README «CI»)
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [a, b]
     env:
-      # every frame-gated demo, all landscape (the app is landscape-only); `layout` (the four-phone layout check)
-      # runs as well but builds ~40 screens in one go, so it is not gated
-      DEMOS: firstlaunch combat beacon waves overhead overheadbugs interactives breakerrun ventpurge swarmshot swarmshot-dots swarm swarm3x calm squad squadclose squadtight squadfire fxsheet fxsheet-high fxpeak stress1400 punchin extract-cine title title-fresh title-return title-nm title-left probe hold extract holdhint queen queenlock coach coach3 pressure pressure-amber levelup pause pause-nm end report-first report-win report-loss report-chip release-combat swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud
-      MENUS: levelup,pause,pause-nm,end,report-first,report-win,report-loss,report-chip
+      PART: ${{ matrix.part }}
     steps:
       - uses: actions/checkout@v4
         with:
           sparse-checkout: ios-native/ci
       - name: Select Xcode
         run: ios-native/ci/select_xcode.sh
+      # this part's frame-gated demos (PART_DEMOS: the frame gate and its re-run measure only what the part ran)
+      - name: This part's demos
+        run: |
+          mine() { case " $SMOKE_B " in *" $1 "*) [ "$PART" = b ];; *) [ "$PART" = a ];; esac; }
+          pd=""
+          for d in $DEMOS; do if mine "$d"; then pd="$pd $d"; fi; done
+          echo "PART_DEMOS=${pd# }" >> "$GITHUB_ENV"
+          echo "sim-smoke part $PART — frame-gated demos:$pd"
       - uses: actions/download-artifact@v4
         with:
           name: app
@@ -408,6 +441,7 @@ jobs:
           cp sim.txt results/simulator.txt
           tar -xzf IceHive-app.tgz
           xcrun simctl install "$UDID" IceHive.app
+          installed=debug
           # Unified log of the app process (os_log / Logger output).
           # default level (notice/error/fault) keeps app.log readable; AppLog uses .notice
           xcrun simctl spawn "$UDID" log stream --style compact \
@@ -415,6 +449,13 @@ jobs:
           echo $! > logstream.pid
           sleep 3
           : > results/alive.txt
+          : > results/loading.txt
+          : > results/shots.txt
+          : > results/demo-specs.txt
+          # C1: this script runs in both sim-smoke parts; an item runs in part b when its label is in SMOKE_B (workflow env),
+          # else in part a — run_demo, pull_burst and the blocks below skip the other part's items. The report job merges the
+          # two parts' files (README «CI»).
+          mine() { case " $SMOKE_B " in *" $1 "*) [ "$PART" = b ];; *) [ "$PART" = a ];; esac; }
           # The app is landscape-only: every run is pinned to landscape right (-orient right: Dynamic Island on the
           # left) and each screenshot (the simulator writes the portrait framebuffer) is turned upright by the side the
           # app logged («iface=landscapeRight|Left»; ios-native/ci/upright.sh), so every PNG is a landscape picture.
@@ -425,6 +466,7 @@ jobs:
           # simulator's GPU while it runs, so it must not overlap the measurement. Offsets count from "demo done".
           run_demo() {
             local label=$1 secs=$2 args=$3; shift 3
+            mine "$label" || return 0
             # (the launch of every label, for the frame gate's single re-run of a failed demo)
             printf '%s|%s|%s\n' "$label" "$secs" "$args" >> results/demo-specs.txt
             local side="-orient right"
@@ -465,6 +507,22 @@ jobs:
             done
             sleep 1
           }
+          # C1: the part without the cold first launch warms its fresh install first — one launch of firstlaunch's scene,
+          # not measured and not kept (its log stays out of results/) —, so its first measured demo starts on a warm Metal
+          # shader cache like every demo after firstlaunch
+          if ! mine firstlaunch; then
+            xcrun simctl launch --terminate-running-process \
+              --stdout="$RUNNER_TEMP/warm-up.log" --stderr="$RUNNER_TEMP/warm-up-stderr.log" \
+              "$UDID" "$BUNDLE_ID" -demo combat -seed 7 -orient right -seconds 6 -debugHUD
+            for _ in $(seq 1 150); do grep -q 'demo done' "$RUNNER_TEMP/warm-up.log" 2>/dev/null && break; sleep 1; done
+            grep -h -E 'pipelines built|loading took|demo done' "$RUNNER_TEMP/warm-up.log" || echo "warm-up: no 'demo done'"
+            xcrun simctl terminate "$UDID" "$BUNDLE_ID" || true
+            for _ in 1 2 3 4 5 6 7 8 9 10; do
+              xcrun simctl spawn "$UDID" launchctl list | grep -q 'UIKitApplication:com.hjj96.icehive' || break
+              sleep 1
+            done
+            sleep 1
+          fi
           # first launch after install: the simulator's Metal shader cache is cold (20 world pipelines + SpriteKit's
           # own for the HUD); measured separately, the other runs start with a warm cache
           # Stage 1 R5: the classic demos play «Кельвин-9» Mk II (its overhead routes and interactive props laid); combat, beacon,
@@ -523,6 +581,7 @@ jobs:
           # takes seconds and only ever shows one frame of them). Not in DEMOS: the blits and JPEG encodes are not play.
           pull_burst() {
             local c
+            mine "$1" || return 0
             c=$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data 2>/dev/null) || { echo "burst: no data container"; return 0; }
             for f in "$c"/Documents/burst/*.jpg; do
               [ -f "$f" ] || continue
@@ -649,8 +708,11 @@ jobs:
           # (ci/look_metrics.py --only <scenes> --failed), and each failing shot's demo is shot once more; the look-gate job
           # then gates the final shots, so a real regression (it fails the re-shoot too) still fails. The first shot stays as
           # <label>-look1-0s.png, its log as app-<label>-look1.log, the verdicts in gate-reruns.txt.
+          # (C1: in the part that took the HUD-off shots — look-run1.txt and look-run1-failed.txt come from it)
           : > results/gate-reruns.txt
-          if python3 -m venv /tmp/lookpy && /tmp/lookpy/bin/pip install -q numpy pillow; then
+          if ! ls results/*-nohud-0s.png > /dev/null 2>&1; then
+            echo "look: the HUD-off shots and their re-shoots are in the other part"
+          elif python3 -m venv /tmp/lookpy && /tmp/lookpy/bin/pip install -q numpy pillow; then
             /tmp/lookpy/bin/python ios-native/ci/look_metrics.py --gate --only swarmshot,beacon,punchin,extract,title,calm,overhead \
               --failed results/look-run1-failed.txt results > results/look-run1.txt 2>&1 || true
             for shot in $(cat results/look-run1-failed.txt 2>/dev/null); do
@@ -734,33 +796,39 @@ jobs:
           # app lifecycle in a mission (-lifecycleProbe): the background / foreground notifications and a memory warning
           run_demo lifecycle 8 "-demo combat -seed 7 -lifecycleProbe"
           # Metal unusable (-failMetal): a readable message instead of an endless loading screen
-          xcrun simctl launch --terminate-running-process \
-            --stdout="$PWD/results/app-failmetal.log" --stderr="$PWD/results/app-failmetal-stderr.log" \
-            "$UDID" "$BUNDLE_ID" -demo title -failMetal -orient right
-          for _ in $(seq 1 40); do grep -q 'failure screen shown' results/app-failmetal.log 2>/dev/null && break; sleep 1; done
-          sleep 2
-          xcrun simctl io "$UDID" screenshot results/failmetal-0s.png || true
-          upright results/failmetal-0s.png results/app-failmetal.log
-          xcrun simctl terminate "$UDID" "$BUNDLE_ID" || true
-          sleep 2
-          # the Release build (simulator): a plain launch writes nothing to stdout; then one measured demo
-          tar -xzf release-sim/IceHive-release-sim.tgz -C release-sim
-          xcrun simctl install "$UDID" release-sim/IceHive.app
-          xcrun simctl launch --terminate-running-process \
-            --stdout="$PWD/results/app-release-quiet.log" --stderr="$PWD/results/app-release-quiet-stderr.log" \
-            "$UDID" "$BUNDLE_ID"
-          sleep 10
-          if xcrun simctl spawn "$UDID" launchctl list | grep -q 'UIKitApplication:com.hjj96.icehive'; then
-            echo "release-quiet alive" >> results/alive.txt
-          else
-            echo "release-quiet DEAD" >> results/alive.txt
+          if mine failmetal; then
+            xcrun simctl launch --terminate-running-process \
+              --stdout="$PWD/results/app-failmetal.log" --stderr="$PWD/results/app-failmetal-stderr.log" \
+              "$UDID" "$BUNDLE_ID" -demo title -failMetal -orient right
+            for _ in $(seq 1 40); do grep -q 'failure screen shown' results/app-failmetal.log 2>/dev/null && break; sleep 1; done
+            sleep 2
+            xcrun simctl io "$UDID" screenshot results/failmetal-0s.png || true
+            upright results/failmetal-0s.png results/app-failmetal.log
+            xcrun simctl terminate "$UDID" "$BUNDLE_ID" || true
+            sleep 2
           fi
-          xcrun simctl io "$UDID" screenshot results/release-title-0s.png || true
-          # (a plain Release launch logs nothing: it opens in the Info.plist's first orientation, landscape right)
-          upright results/release-title-0s.png /dev/null
-          xcrun simctl terminate "$UDID" "$BUNDLE_ID" || true
-          sleep 2
-          run_demo release-combat 10 "-demo combat -seed 7" 0
+          # the Release build (simulator): a plain launch writes nothing to stdout; then one measured demo (the block goes
+          # with release-combat's part)
+          if mine release-combat; then
+            tar -xzf release-sim/IceHive-release-sim.tgz -C release-sim
+            xcrun simctl install "$UDID" release-sim/IceHive.app
+            installed=release
+            xcrun simctl launch --terminate-running-process \
+              --stdout="$PWD/results/app-release-quiet.log" --stderr="$PWD/results/app-release-quiet-stderr.log" \
+              "$UDID" "$BUNDLE_ID"
+            sleep 10
+            if xcrun simctl spawn "$UDID" launchctl list | grep -q 'UIKitApplication:com.hjj96.icehive'; then
+              echo "release-quiet alive" >> results/alive.txt
+            else
+              echo "release-quiet DEAD" >> results/alive.txt
+            fi
+            xcrun simctl io "$UDID" screenshot results/release-title-0s.png || true
+            # (a plain Release launch logs nothing: it opens in the Info.plist's first orientation, landscape right)
+            upright results/release-title-0s.png /dev/null
+            xcrun simctl terminate "$UDID" "$BUNDLE_ID" || true
+            sleep 2
+            run_demo release-combat 10 "-demo combat -seed 7" 0
+          fi
           xcrun simctl spawn "$UDID" launchctl list | grep -i icehive | tee results/launchctl.txt || true
           # The frame gate fails on single host-side seconds of the simulator at random (a different demo each run). A demo
           # that fails it is measured once more, here in the same job; the gate (next steps) reads the second run, so the job
@@ -769,12 +837,12 @@ jobs:
           # and Metal shader cache go with it) — and last, so no other re-run starts on a cold cache (native-metal 9c47b72:
           # 5.09 s with a 1.1 s host command buffer in the cover, renderer wait 0.00 s).
           # (gate-reruns.txt already holds the look re-shoots of the HUD-off shots, above)
+          # (C1: each part gates and re-runs its own demos, PART_DEMOS; the cold first launch stays in the part that runs it)
           touch results/gate-reruns.txt
-          python3 ios-native/ci/frame_metrics.py --gate --cold firstlaunch --cold-max-ms 150 --menus "$MENUS" results $DEMOS > results/gate-run1.txt 2>&1 || true
+          python3 ios-native/ci/frame_metrics.py --gate --cold firstlaunch --cold-max-ms 150 --menus "$MENUS" results $PART_DEMOS > results/gate-run1.txt 2>&1 || true
           failed=$(sed -n 's/^  \([a-z0-9-]*\): .*/\1/p' results/gate-run1.txt | sort -u | grep -v -x firstlaunch || true)
           if grep -q '^  firstlaunch: ' results/gate-run1.txt; then failed="$failed firstlaunch"; fi
           if [ -n "${failed// /}" ]; then
-            installed=release
             for d in $failed; do
               spec=$(grep -m 1 "^$d|" results/demo-specs.txt) || continue
               want=debug; [ "$d" = release-combat ] && want=release
@@ -793,38 +861,32 @@ jobs:
             done
             cat results/gate-reruns.txt
           fi
-          demos="$DEMOS"
-          for d in $demos; do
-            f=results/app-$d.log
-            { echo "== $f"; grep -h -E 'loading took|pipelines built|metal world ready|demo done' "$f" || true; } >> results/fps.txt
-          done
-          for d in $demos; do grep -H 'hitch' "results/app-$d.log" >> results/hitches.txt || true; done
-          grep -H -E '\] probe [a-z]+ td=' results/app-probe.log >> results/hitches.txt || true
-          # GPU-side seconds: frames completed, longest gap between two, slowest command buffer (commit -> done)
-          echo "== GPU-side stalls (hb lines with gap > 50 ms)" >> results/hitches.txt
-          for d in $demos; do grep -H -E 'hb t=.* gap=([5-9][0-9]|[0-9]{3,})ms' "results/app-$d.log" | sed -E 's/ (mode|bugs|vis|parts|stage|hp|kills|mem|avail|demo|rend|cpu|main|dc|inst|tris)=[^ ]*//g' >> results/hitches.txt || true; done
-          python3 ios-native/ci/frame_metrics.py --cold firstlaunch --cold-max-ms 150 --menus "$MENUS" results $demos > results/metrics.txt || true
-          # v1.1 lines (start, title, threat, queen, lift lock, coach, run) and the layout checks (+ the four-phone run)
-          for d in $demos layout layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo; do
-            grep -H -E 'v11 |layout (ok|FAIL)|layout sizes|report: tightest|hint 2 lines|l10n ' "results/app-$d.log" >> results/v11.txt || true
-          done
-          cat results/alive.txt results/loading.txt results/fps.txt results/shots.txt results/hitches.txt results/metrics.txt results/v11.txt
+          # (C1: the tables over the whole demo list — fps.txt, hitches.txt, metrics.txt, v11.txt — are written by the
+          # report job from both parts' logs)
+          cat results/alive.txt results/loading.txt results/shots.txt
       - name: Verify app is alive and rendered
         run: |
           # every failed check is written to results/verify.txt (and annotated); the step fails at its end
           : > results/verify.txt
           bad=0
           fail() { echo "::error::$*"; echo "$*" >> results/verify.txt; bad=1; }
-          echo "--- combat stdout ---"; cat results/app-combat.log || true
-          echo "--- combat stderr ---"; tail -n 50 results/app-combat-stderr.log || true
-          for f in results/app-beacon.log results/app-title.log results/app-calm.log results/app-layout.log results/app-extract.log results/app-end.log results/app-failmetal.log; do echo "--- $f ---"; tail -n 25 "$f" || true; done
+          # (C1: each part checks the items it ran — the labels in SMOKE_B in part b, every other one in part a)
+          mine() { case " $SMOKE_B " in *" $1 "*) [ "$PART" = b ];; *) [ "$PART" = a ];; esac; }
+          if mine combat; then
+            echo "--- combat stdout ---"; cat results/app-combat.log || true
+            echo "--- combat stderr ---"; tail -n 50 results/app-combat-stderr.log || true
+          fi
+          for d in beacon title calm layout extract end failmetal; do mine "$d" || continue; f=results/app-$d.log; echo "--- $f ---"; tail -n 25 "$f" || true; done
           if grep -q DEAD results/alive.txt; then fail "app died during a demo: $(grep DEAD results/alive.txt | tr '\n' ' ')"; fi
-          cp results/app-combat.log results/app-stdout.log
-          cp results/app-combat-stderr.log results/app-stderr.log
-          grep -q 'scene ready' results/app-stdout.log || { fail "no 'scene ready' line in app stdout"; }
-          grep -q 'hb t=' results/app-stdout.log || { fail "no heartbeat lines in app stdout"; }
-          grep -q 'mode=playing' results/app-stdout.log || { fail "combat demo never reached the mission"; }
+          if mine combat; then
+            cp results/app-combat.log results/app-stdout.log
+            cp results/app-combat-stderr.log results/app-stderr.log
+            grep -q 'scene ready' results/app-stdout.log || { fail "no 'scene ready' line in app stdout"; }
+            grep -q 'hb t=' results/app-stdout.log || { fail "no heartbeat lines in app stdout"; }
+            grep -q 'mode=playing' results/app-stdout.log || { fail "combat demo never reached the mission"; }
+          fi
           for d in combat beacon waves swarmshot title extract queen levelup pause end release-combat; do
+            mine "$d" || continue
             grep -q 'scene ready' "results/app-$d.log" || { fail "$d: no 'scene ready'"; }
             grep -q 'rend=metal' "results/app-$d.log" || { fail "$d: no Metal heartbeat lines"; }
             if grep -q 'ERROR' "results/app-$d.log"; then fail "$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; fi
@@ -835,17 +897,20 @@ jobs:
                    burst-fire burst-tight burst-combat burst-anim burst-loco burst-loco-game burst-acta burst-actb burst-actc burst-defeat burst-win burst-bugs burst-pack burst-packold burst-mix burst-mixold validate-stress validate-fxpeak validate-extract lifecycle \
                    overhead burst-overhead burst-parallax overhead-nohud overheadbugs burst-dropper burst-perch burst-duct burst-dash \
                    interactives burst-valve burst-lights burst-mk2 breakerrun ventpurge; do
+            mine "$d" || continue
             grep -q 'scene ready' "results/app-$d.log" || { fail "$d: no 'scene ready'"; }
             if grep -q 'ERROR' "results/app-$d.log"; then fail "$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; fi
           done
-          # v1.1 log checks (spec §7.2)
-          need() { grep -q -E "$2" "results/app-$1.log" || { fail "$1: no line matching '$2'"; }; }
+          # v1.1 log checks (spec §7.2) — need <label> <pattern>: in the label's part
+          need() { mine "$1" || return 0; grep -q -E "$2" "results/app-$1.log" || { fail "$1: no line matching '$2'"; }; }
           need title-fresh 'v11 title tier=rec runs=0'
           need title-return 'v11 title tier=vet'
           need title-nm 'v11 title tier=nm .*pick=2'
           # -orient left: the scene presents on the Info.plist's first side, then turns over; the last side logged is left
-          lastSide=$(grep -o -E 'iface=landscape(Left|Right)' results/app-title-left.log | tail -n 1)
-          [ "$lastSide" = "iface=landscapeLeft" ] || fail "title-left: last interface side '${lastSide:-none}', not iface=landscapeLeft"
+          if mine title-left; then
+            lastSide=$(grep -o -E 'iface=landscape(Left|Right)' results/app-title-left.log | tail -n 1)
+            [ "$lastSide" = "iface=landscapeLeft" ] || fail "title-left: last interface side '${lastSide:-none}', not iface=landscapeLeft"
+          fi
           need title-left 'interface (rotated|settled) iface=landscapeLeft'
           need pause-nm 'v11 start tier=nm '
           need coach 'v11 start .*coach=1'
@@ -942,8 +1007,14 @@ jobs:
           need burst-dash 'bugs: pin broken marine 0 by dash'
           need burst-dash 'hb bugs droppers=[0-9]+ up=[0-9]+ pins=2 dash=1 fire=1 '
           # (Stage 1 R5: and the classic demos on Kelvin-9 Mk II — the squad moving, at beacon Alpha, holding the lift, the Queen)
-          python3 ios-native/ci/overhead_vis.py results overhead-nohud burst-parallax combat beacon hold queen breakerrun ventpurge > results/overhead-vis.txt 2>&1 || fail "overhead visibility: $(tail -n 1 results/overhead-vis.txt)"
-          cat results/overhead-vis.txt
+          # (C1: the runs of OH_VIS in this part; the report job writes overhead-vis.txt again over all of them)
+          ov=""
+          for d in $OH_VIS; do if mine "$d"; then ov="$ov $d"; fi; done
+          if [ -n "$ov" ]; then
+            # shellcheck disable=SC2086
+            python3 ios-native/ci/overhead_vis.py results $ov > results/overhead-vis.txt 2>&1 || fail "overhead visibility: $(tail -n 1 results/overhead-vis.txt)"
+            cat results/overhead-vis.txt
+          fi
           # Stage 1 R6: the interactives demo — the props laid, the valve burst and its curtain, the hub's circuit cut and
           # brought back by its breaker ring, every circuit lit again
           need interactives 'demo interactives: 5 valves, 7 circuits, 48 lamps, 1 lockers; lit 7/7'
@@ -990,6 +1061,7 @@ jobs:
           need combat 'particles: compute ready .* with the pipelines'
           # Metal API validation runs: alive, no debug-layer report
           for d in validate-stress validate-fxpeak validate-extract; do
+            mine "$d" || continue
             # (the layer's own banner «Metal API Validation Enabled» is the one line a clean run writes)
             grep -q 'Metal API Validation Enabled' "results/app-$d-stderr.log" 2>/dev/null || fail "$d: the Metal debug layer did not come on"
             if grep -v 'Metal API Validation Enabled' "results/app-$d-stderr.log" 2>/dev/null | grep -q -i -E 'MTLDebug|validation|failed assertion|-\[MTL' \
@@ -1006,17 +1078,20 @@ jobs:
           # WP4: the four skinned marines loaded (IHV1 skinned + texture arrays) and animated (rig CPU, foot slide,
           # hand-to-grip error once a second)
           for d in combat squad squadclose squadtight squadfire; do
+            mine "$d" || continue
             need "$d" 'squad: 4 marines'
             need "$d" 'hb squad cpu='
             if grep -q 'ERROR' "results/app-$d.log"; then fail "$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; fi
           done
           # landscape-only: every run reports a landscape interface
           for d in $DEMOS layout; do
+            mine "$d" || continue
             need "$d" 'scene presented size=[0-9]+x[0-9]+ iface=landscape'
             if grep -q -E 'iface=portrait' "results/app-$d.log"; then fail "$d: portrait interface"; fi
           done
           for d in title-fresh title-return title-nm title-left holdhint coach coach3 levelup pause pause-nm report-first report-win report-loss report-chip layout \
                    layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo; do
+            mine "$d" || continue
             need "$d" 'layout (ok|FAIL)'
             if grep -q 'layout FAIL' "results/app-$d.log"; then fail "$d: $(grep -m 2 'layout FAIL' "results/app-$d.log" | tr '\n' ' ')"; fi
           done
@@ -1030,26 +1105,34 @@ jobs:
           if grep -l 'l10n missing' results/app-*.log > /dev/null 2>&1; then
             fail "l10n missing: $(grep -h -m 1 'l10n missing' results/app-*.log | sort -u | head -5 | tr '\n' ' ')"
           fi
-          grep -q 'failure screen shown' results/app-failmetal.log || { fail "-failMetal: no failure screen"; }
-          if [ -s results/app-release-quiet.log ]; then fail "plain Release launch wrote to stdout: $(head -3 results/app-release-quiet.log)"; fi
+          if mine failmetal; then
+            grep -q 'failure screen shown' results/app-failmetal.log || { fail "-failMetal: no failure screen"; }
+          fi
+          if mine release-combat; then
+            if [ -s results/app-release-quiet.log ]; then fail "plain Release launch wrote to stdout: $(head -3 results/app-release-quiet.log)"; fi
+          fi
           cat results/verify.txt
           exit $bad
       # warm demos: minFps >= 55 on the game loop and no loop hitch > 50 ms after the first second (metrics.txt);
       # runs after a failed «Verify» too, so one run reports both
       - name: Frame metrics gate
         if: success() || failure()
+        # (C1: this part's demos; metrics.txt over all of them is written by the report job)
         # shellcheck disable=SC2086
-        run: python3 ios-native/ci/frame_metrics.py --gate --cold firstlaunch --cold-max-ms 150 --menus "$MENUS" results $DEMOS
+        run: python3 ios-native/ci/frame_metrics.py --gate --cold firstlaunch --cold-max-ms 150 --menus "$MENUS" results $PART_DEMOS
       # LAND: the other landscape phones on real simulators — iPhone SE (667 x 375, no insets), iPhone 16e (844 x 390,
       # notch) and iPhone 16 Plus (932 x 430, Dynamic Island), each when the runtime offers it: the title, the HUD
       # (hold hint, coach card + ghost thumb), the pause, the level-up cards and a report with -layoutCheck, upright
       # landscape screenshots (other-<phone>-<demo>-0s.png), the result lines in other-phones.txt; a «layout FAIL» on
       # any of them fails the job (the virtual four-phone check of the `layout` demo covers all four sizes)
+      # (C1: once, in the part that owns `other-phones`)
       - name: Layout check on the other landscape phones
         if: always()
         env:
           UDID: ${{ steps.sim.outputs.udid }}
         run: |
+          mine() { case " $SMOKE_B " in *" $1 "*) [ "$PART" = b ];; *) [ "$PART" = a ];; esac; }
+          if ! mine other-phones; then echo "the layout check on the other phones runs in the other part"; exit 0; fi
           set -x
           mkdir -p results
           : > results/other-phones.txt
@@ -1102,10 +1185,11 @@ jobs:
           # keep app.log reasonably small
           if [ -f results/app.log ]; then tail -n 2000 results/app.log > results/app.log.tmp && mv results/app.log.tmp results/app.log; fi
           ls -la results
+      # (not results-*: the report job merges the two parts itself, file by file)
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: results-sim-smoke
+          name: sim-smoke-${{ matrix.part }}
           path: results/
           retention-days: 7
 
@@ -1129,6 +1213,72 @@ jobs:
           merge-multiple: true
           path: results
         continue-on-error: true
+      # C1: the two sim-smoke parts, each into its own folder (smoke/sim-smoke-a, smoke/sim-smoke-b)
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: sim-smoke-*
+          path: smoke
+        continue-on-error: true
+      # C1: one result set from the two parts, as the one sim-smoke job wrote it before the split. Every demo, burst and
+      # check runs in one part, so its files are copied as they are; the text files both parts write are joined, part a
+      # first (each part's lines in its run order; app.log: the last 1000 lines of each; simulator.txt once when both
+      # parts' are the same); the tables over the whole demo list (fps.txt, hitches.txt, metrics.txt, v11.txt,
+      # overhead-vis.txt) are written again from the merged logs with the single job's commands — both parts in DEMOS
+      # order (the gates themselves ran in the parts)
+      - name: Merge the sim-smoke parts
+        if: always()
+        run: |
+          mkdir -p results
+          joined="simulator.txt alive.txt loading.txt shots.txt demo-specs.txt burst.txt look-run1.txt look-run1-failed.txt gate-run1.txt gate-reruns.txt verify.txt launchctl.txt"
+          again="fps.txt hitches.txt metrics.txt v11.txt overhead-vis.txt app.log"
+          parts=""
+          for p in a b; do
+            d=smoke/sim-smoke-$p
+            if [ ! -d "$d" ]; then echo "::warning::sim-smoke ($p) left no results"; continue; fi
+            parts="$parts $d"
+            echo "sim-smoke ($p): $(find "$d" -type f | wc -l | tr -d ' ') files"
+            for f in "$d"/*; do
+              [ -e "$f" ] || continue
+              n=${f##*/}
+              case " $joined $again " in *" $n "*) continue;; esac
+              if [ -e "results/$n" ]; then echo "::warning::$n came from two jobs (sim-smoke ($p)'s kept)"; fi
+              cp -R "$f" results/
+            done
+          done
+          for n in $joined; do
+            src=""
+            for d in $parts; do if [ -f "$d/$n" ]; then src="$src $d/$n"; fi; done
+            # (simulator.txt: once when both parts booted the same simulator — the runner image's — as they do)
+            if [ "$n" = simulator.txt ] && [ -f "smoke/sim-smoke-a/$n" ] && cmp -s "smoke/sim-smoke-a/$n" "smoke/sim-smoke-b/$n"; then src="smoke/sim-smoke-a/$n"; fi
+            # shellcheck disable=SC2086
+            if [ -n "$src" ]; then cat $src > "results/$n"; fi
+          done
+          src=""
+          for d in $parts; do if [ -f "$d/app.log" ]; then src="$src $d/app.log"; fi; done
+          if [ -n "$src" ]; then for f in $src; do tail -n 1000 "$f"; done > results/app.log; fi
+          if [ -n "$parts" ]; then
+            demos="$DEMOS"
+            for d in $demos; do
+              f=results/app-$d.log
+              { echo "== $f"; grep -h -E 'loading took|pipelines built|metal world ready|demo done' "$f" || true; } >> results/fps.txt
+            done
+            for d in $demos; do grep -H 'hitch' "results/app-$d.log" >> results/hitches.txt || true; done
+            grep -H -E '\] probe [a-z]+ td=' results/app-probe.log >> results/hitches.txt || true
+            # GPU-side seconds: frames completed, longest gap between two, slowest command buffer (commit -> done)
+            echo "== GPU-side stalls (hb lines with gap > 50 ms)" >> results/hitches.txt
+            for d in $demos; do grep -H -E 'hb t=.* gap=([5-9][0-9]|[0-9]{3,})ms' "results/app-$d.log" | sed -E 's/ (mode|bugs|vis|parts|stage|hp|kills|mem|avail|demo|rend|cpu|main|dc|inst|tris)=[^ ]*//g' >> results/hitches.txt || true; done
+            # shellcheck disable=SC2086
+            python3 ios-native/ci/frame_metrics.py --cold firstlaunch --cold-max-ms 150 --menus "$MENUS" results $demos > results/metrics.txt || true
+            # v1.1 lines (start, title, threat, queen, lift lock, coach, run) and the layout checks (+ the four-phone run)
+            for d in $demos layout layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo; do
+              grep -H -E 'v11 |layout (ok|FAIL)|layout sizes|report: tightest|hint 2 lines|l10n ' "results/app-$d.log" >> results/v11.txt || true
+            done
+            # shellcheck disable=SC2086
+            python3 ios-native/ci/overhead_vis.py results $OH_VIS > results/overhead-vis.txt 2>&1 || true
+          fi
+          rm -rf smoke
+          echo "merged: $(find results -type f | wc -l | tr -d ' ') files in results/"
+          tail -n 4 results/metrics.txt 2>/dev/null || true
       # WP7 «Режиссура»: look numbers of the scenes (ci/look_metrics.py; gates in ci/golden/thresholds.json: HUD-off shots
       # are gated, HUD-on ones measured inside the HUD mask and reported) and the 2-up sheets today | concept | commit
       # (twoup-<scene>.jpg) — informational here until the HUD-off look shots run on every push (FrameLoop -hideHUD)
