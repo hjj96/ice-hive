@@ -1,0 +1,90 @@
+Test Case '-[IceHiveCoreTests.PerformanceTests testBench1500]' passed (0.467 seconds).
+Test Case '-[IceHiveCoreTests.PerformanceTests testGeneratorSweep1000]' passed (0.321 seconds).
+Test Case '-[IceHiveCoreTests.PerformanceTests testMissionThroughput]' passed (1.947 seconds).
+[perf] bench  500 bugs (spawned  500, alive  500): sparse 0.103 ms/tick, dense 0.166 ms/tick, combat 0.124 ms/tick [release]
+[perf] bench 1500 bugs (spawned 1500, alive 1500): sparse 0.394 ms/tick, dense 0.421 ms/tick, combat 0.323 ms/tick [release]
+[perf] bench 3000 bugs (spawned 3000, alive 3000): sparse 0.601 ms/tick, dense 0.750 ms/tick, combat 0.610 ms/tick [release]
+[perf] generator 1000 seeds in 0.32 s (0.32 ms avg, 1.4 ms worst): 1000 valid, tour p10/p50/p90 207/252/301
+[perf] mission v1.0 19877 ticks in 1.08 s: 0.054 ms/tick avg, 1.20 ms max, won queen=none [release]
+[perf] mission v1.1 vet 20677 ticks in 0.87 s: 0.042 ms/tick avg, 0.72 ms max, won queen=killed [release]
+release perf tests exit code: 0
+415 |         runAside(g, seconds: 0.05) { e in if case .bossCue(.threader, .shed, _, _) = e { dust = true } }
+    |                                    `- warning: backward matching of the unlabeled trailing closure is deprecated; label the argument with '_' to suppress this warning [#TrailingClosureMatching]
+416 |         XCTAssertTrue(dust, "frost dust along the body first")
+417 |         XCTAssertGreaterThan(g.threader.shedWarn, 1.3)
+
+/Users/runner/work/ice-hive/ice-hive/ios-native/IceHiveCore/Tests/IceHiveCoreTests/ThreaderTests.swift:419:35: warning: backward matching of the unlabeled trailing closure is deprecated; label the argument with '_' to suppress this warning [#TrailingClosureMatching]
+ 55 |     /// The bots out of the way (on the landing pad: far from the arena), every tick of `seconds` (or until `cond`).
+ 56 |     @discardableResult
+ 57 |     func runAside(_ g: Game, seconds: Float, keep: Set<Int> = [0], heal: Bool = false, until cond: (() -> Bool)? = nil,
+    |          `- note: 'runAside(_:seconds:keep:heal:until:_:)' declared here
+ 58 |                   _ onEvent: ((GameEvent) -> Void)? = nil) -> Bool {
+ 59 |         for _ in 0..<Int(seconds * 60) {
+    :
+417 |         XCTAssertGreaterThan(g.threader.shedWarn, 1.3)
+418 |         XCTAssertEqual(g.droppersAlive, d0, "nothing yet")
+419 |         runAside(g, seconds: 1.6) { e in if case .bossCue(.threader, .ticks, _, let n) = e { ticks = n } }
+    |                                   `- warning: backward matching of the unlabeled trailing closure is deprecated; label the argument with '_' to suppress this warning [#TrailingClosureMatching]
+420 |         XCTAssertGreaterThanOrEqual(ticks, 1)
+421 |         XCTAssertLessThanOrEqual(ticks, 6)
+
+/Users/runner/work/ice-hive/ice-hive/ios-native/IceHiveCore/Tests/IceHiveCoreTests/ThreaderTests.swift:550:36: warning: backward matching of the unlabeled trailing closure is deprecated; label the argument with '_' to suppress this warning [#TrailingClosureMatching]
+ 55 |     /// The bots out of the way (on the landing pad: far from the arena), every tick of `seconds` (or until `cond`).
+ 56 |     @discardableResult
+ 57 |     func runAside(_ g: Game, seconds: Float, keep: Set<Int> = [0], heal: Bool = false, until cond: (() -> Bool)? = nil,
+    |          `- note: 'runAside(_:seconds:keep:heal:until:_:)' declared here
+ 58 |                   _ onEvent: ((GameEvent) -> Void)? = nil) -> Bool {
+ 59 |         for _ in 0..<Int(seconds * 60) {
+    :
+548 |         f.bossRT.frozen[fk] = 2; f.bossRT.frozen[fk + 1] = 2
+549 |         var gap = false
+550 |         runAside(f, seconds: 0.05) { e in if case .bossCue(.threader, .coilGap, _, let s) = e { gap = s == fk } }
+    |                                    `- warning: backward matching of the unlabeled trailing closure is deprecated; label the argument with '_' to suppress this warning [#TrailingClosureMatching]
+551 |         XCTAssertTrue(gap); XCTAssertEqual(f.threader.coilGap, fk)
+552 |         put(f, 0, fc.x, fc.y)
+
+/Users/runner/work/ice-hive/ice-hive/ios-native/IceHiveCore/Tests/IceHiveCoreTests/ThreaderTests.swift:568:35: warning: backward matching of the unlabeled trailing closure is deprecated; label the argument with '_' to suppress this warning [#TrailingClosureMatching]
+ 55 |     /// The bots out of the way (on the landing pad: far from the arena), every tick of `seconds` (or until `cond`).
+ 56 |     @discardableResult
+ 57 |     func runAside(_ g: Game, seconds: Float, keep: Set<Int> = [0], heal: Bool = false, until cond: (() -> Bool)? = nil,
+    |          `- note: 'runAside(_:seconds:keep:heal:until:_:)' declared here
+ 58 |                   _ onEvent: ((GameEvent) -> Void)? = nil) -> Bool {
+ 59 |         for _ in 0..<Int(seconds * 60) {
+    :
+566 |         n.queueBoom(np.x, np.z, 2.5, 50, 0, .frag)
+567 |         var letGo = false
+568 |         runAside(n, seconds: 0.1) { e in if case .bossCue(.threader, .coilLetGo, _, _) = e { letGo = true } }
+    |                                   `- warning: backward matching of the unlabeled trailing closure is deprecated; label the argument with '_' to suppress this warning [#TrailingClosureMatching]
+569 |         XCTAssertTrue(letGo)
+570 |         let hurt0 = bossHurt(n)
+
+[#TrailingClosureMatching]: <https://docs.swift.org/compiler/documentation/diagnostics/trailing-closure-matching>
+[12/14] Compiling IceHiveCorePackageTests runner.swift
+[12/14] Write Objects.LinkFileList
+[13/14] Linking IceHiveCorePackageTests
+Build complete! (106.41s)
+Test Suite 'Selected tests' started at 2026-11-12 19:05:23.858.
+Test Suite 'IceHiveCorePackageTests.xctest' started at 2026-11-12 19:05:23.866.
+Test Suite 'PerformanceTests' started at 2026-11-12 19:05:23.866.
+Test Case '-[IceHiveCoreTests.PerformanceTests testBench1500]' started.
+Test Case '-[IceHiveCoreTests.PerformanceTests testBench1500]' passed (0.467 seconds).
+Test Case '-[IceHiveCoreTests.PerformanceTests testGeneratorSweep1000]' started.
+Test Case '-[IceHiveCoreTests.PerformanceTests testGeneratorSweep1000]' passed (0.321 seconds).
+Test Case '-[IceHiveCoreTests.PerformanceTests testMissionThroughput]' started.
+Test Case '-[IceHiveCoreTests.PerformanceTests testMissionThroughput]' passed (1.947 seconds).
+Test Suite 'PerformanceTests' passed at 2026-11-12 19:05:26.602.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 2.735 (2.736) seconds
+Test Suite 'IceHiveCorePackageTests.xctest' passed at 2026-11-12 19:05:26.602.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 2.735 (2.736) seconds
+Test Suite 'Selected tests' passed at 2026-11-12 19:05:26.602.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 2.735 (2.744) seconds
+[perf] bench  500 bugs (spawned  500, alive  500): sparse 0.103 ms/tick, dense 0.166 ms/tick, combat 0.124 ms/tick [release]
+[perf] bench 1500 bugs (spawned 1500, alive 1500): sparse 0.394 ms/tick, dense 0.421 ms/tick, combat 0.323 ms/tick [release]
+[perf] bench 3000 bugs (spawned 3000, alive 3000): sparse 0.601 ms/tick, dense 0.750 ms/tick, combat 0.610 ms/tick [release]
+[perf] generator 1000 seeds in 0.32 s (0.32 ms avg, 1.4 ms worst): 1000 valid, tour p10/p50/p90 207/252/301
+[perf] mission v1.0 19877 ticks in 1.08 s: 0.054 ms/tick avg, 1.20 ms max, won queen=none [release]
+[perf] mission v1.1 vet 20677 ticks in 0.87 s: 0.042 ms/tick avg, 0.72 ms max, won queen=killed [release]
+◇ Test run started.
+↳ Testing Library Version: 1902
+↳ Target Platform: arm64e-apple-macos14.0
+✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.
