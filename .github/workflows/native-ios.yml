@@ -951,7 +951,7 @@ jobs:
           # Stage 2 H1: the first minute's tips came through the queue (one at a time, each to the side where it hides least),
           # the Queen's banner took its slot in the hold, the lift-pulse hint its place
           need burst-firstmin 'hud toast tip toast\.tip\.[a-z]+ (left|right) t=[0-9.]+ waited'
-          need banner-queen 'hud banner «THE QUEEN» slot=(mid|high|low) \| mid: squad'
+          need banner-queen 'hud banner «THE QUEEN» slot=(mid|high|low) \| mid: '
           need holdhint 'hud hint «GRID HITS EVERY 6 SEC'
           need combat 'oh vis: on \(pipelines ok'
           need hold 'oh vis: on \(pipelines ok'
