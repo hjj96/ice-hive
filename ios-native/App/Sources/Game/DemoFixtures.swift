@@ -71,9 +71,9 @@ enum DemoFixtures {
             return Report(name: "loss", meta: m, tier: 1, won: false, time: 252, playerKills: 640, beacons: 3, queenKilled: false,
                           stage: .hold, downs: 2, downBy: .queen, pressure: nil, idleMul: nil)
         case "breaker":
-            // Stage 1 R7: a Breaker Run extraction on Ветеран — «Breakers 3/3», «Lights on at extraction 7/7», the strip
-            // BREAKER ×3 · GENERATOR · EXTRACTION (the layout check of its five stages on every phone)
-            return Report(name: "breaker", meta: .returning, tier: 1, won: true, time: 215, playerKills: 1650, beacons: 0, queenKilled: nil,
+            // Stage 1 R7: a Breaker Run extraction on Ветеран — M1: «Breakers 4/4», «Lights on at extraction 7/7», the strip
+            // BREAKER ×4 · GENERATOR · EXTRACTION (the layout check of its six stages on every phone), a 6:40 run
+            return Report(name: "breaker", meta: .returning, tier: 1, won: true, time: 400, playerKills: 2900, beacons: 0, queenKilled: nil,
                           stage: .extract, downs: 0, downBy: .environment, pressure: nil, idleMul: nil, plan: MissionTemplate.breakerRun.id)
         case "chip":
             // the second early loss on Ветеран while the hive converged: the pressure tip + «Попробуйте «Новобранец»»
@@ -114,9 +114,10 @@ enum DemoFixtures {
                              shots: 2000, hits: 1500, accuracy: 75, bestCombo: 48, level: 9, station: station)
         if r.plan == MissionTemplate.breakerRun.id {
             run.beaconsTotal = 0
-            run.switchLine = .scoreBreakers; run.switchesDone = 3; run.switchesTotal = 3; run.switchScore = 500
+            run.switchLine = .scoreBreakers; run.switchesDone = 4; run.switchesTotal = 4; run.switchScore = 375
             run.lightsOn = 7; run.lightsTotal = 7
-            run.strip = [TextID.reportStripBreaker, .reportStripBreaker, .reportStripBreaker, .reportStripGenerator, .reportStripExtract]
+            run.strip = [TextID.reportStripBreaker, .reportStripBreaker, .reportStripBreaker, .reportStripBreaker, .reportStripGenerator,
+                         .reportStripExtract]
                 .map { ReportStripItem(label: GameText($0), on: r.won) }
         }
         let res = p.commit(run, diffPicked: false)

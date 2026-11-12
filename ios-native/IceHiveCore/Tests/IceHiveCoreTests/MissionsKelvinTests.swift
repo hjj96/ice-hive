@@ -4,7 +4,9 @@ import XCTest
 /// Stage 1 R7 «Missions I»: Breaker Run and Vent Purge on Kelvin-9 — their plans and station, the darkness and the
 /// generator's staged relights, the seals (vents shut for good, pours, the thinning stream), the defended switch rings
 /// (pushes, drain), both missions won on autopilot, their report lines and strip, their gated calibration preset, and the
-/// classic mission untouched.
+/// classic mission untouched. Stage 2 M1 «Missions I at full length»: four contested breakers and a 90 s generator; the seals
+/// under real pressure (the seal being worked pours) and the duct mouth held shut (its weld fills only while the grille is
+/// shot shut, which the hive chews through in 10 s); the planned work long enough for a 6–8 min mission.
 
 /// A game of mission `t` on its own station.
 func missionGame(_ t: MissionTemplate, tier: Difficulty = .recruit, seed: UInt32 = 11, cls: MarineClass = .assault,
@@ -45,16 +47,21 @@ final class MissionsKelvinTests: XCTestCase {
         XCTAssertEqual(p.steps.map { $0.module }, [.switches, .hold, .extract])
         XCTAssertEqual(p.briefing, BannerText(title: .bannerBreakerRun, sub: .bannerBreakerRunSub))
         XCTAssertEqual(p.ringSiteCount, 0)
-        XCTAssertEqual(p.switchCount, 3)
+        XCTAssertEqual(p.switchCount, 4)
         XCTAssertTrue(p.ownStrip)
         guard case .switches(let s) = p.steps[0], case .hold(let h) = p.steps[1] else { return XCTFail("plan shape") }
-        // the breakers of the beacon decks A, B, C (circuits 2, 4, 5), defended rings
+        // the breakers of the beacon decks A, B, C (circuits 2, 4, 5) and (M1) the hub's (circuit 1): defended, contested rings
         let C = PropLayout.kelvin.circuits
-        XCTAssertEqual(s.sites.map { Vec2($0.x, $0.z) }, [2, 4, 5].map { Vec2(C[$0].x, C[$0].z) })
+        XCTAssertEqual(s.sites.map { Vec2($0.x, $0.z) }, [2, 4, 5, 1].map { Vec2(C[$0].x, C[$0].z) })
         XCTAssertTrue(s.sites.allSatisfy { $0.kind == .breaker && $0.time == BreakerRun.breakerTime && $0.radius == BREAKER_R })
         XCTAssertTrue(s.escalates)
-        XCTAssertEqual(s.pushes, [0.5])
+        XCTAssertEqual(s.pushes, [0.3, 0.6, 0.85], "the hive pushes three times, the last from three sides")
         XCTAssertGreaterThan(s.drains, 0)
+        XCTAssertEqual(s.contestedAt, BreakerRun.contestedAt)
+        XCTAssertGreaterThan(s.contestedAt, 0)
+        XCTAssertLessThan(s.contestedRate, 1)
+        XCTAssertFalse(s.weldShut)
+        XCTAssertEqual(s.workPourGap, 0)
         XCTAssertEqual(s.lineText, .objRestorePower)
         XCTAssertEqual(s.throwText, .objHoldBreaker)
         // the generator: a 4 m disc of open plaza deck (height −3), 60 s, relighting, no boss, no pulse
@@ -69,7 +76,9 @@ final class MissionsKelvinTests: XCTestCase {
                 XCTAssertTrue(lv.canStand(gx + cosf2(a) * r, gz + sinf2(a) * r), "open deck at \(r) m, \(k * 15)°")
             }
         }
-        XCTAssertEqual(h.time, 60)
+        XCTAssertEqual(h.time, BreakerRun.holdTime)
+        XCTAssertEqual(h.time, 90, "M1: a 90 s generator hold in stages")
+        XCTAssertLessThan(h.stageMul.waves, HoldStep(zone: .lift, time: 1).stageMul.waves, "an open deck without the lift's pulse")
         XCTAssertTrue(h.relights)
         XCTAssertNil(h.boss)
         XCTAssertFalse(h.pulse)
@@ -108,12 +117,23 @@ final class MissionsKelvinTests: XCTestCase {
         }
         XCTAssertNotNil(s.pour)
         XCTAssertGreaterThan(s.thins, 0)
+        // M1: the seal being worked pours too; a duct mouth is held shut (its weld waits for the grille shot shut, which the
+        // hive chews through in `ductShut` s); the line while it waits
+        XCTAssertTrue(s.sites.allSatisfy { $0.time == VentPurge.sealTime })
+        XCTAssertEqual(s.workPourGap, VentPurge.workPourGap)
+        XCTAssertGreaterThan(s.workPourGap, 0)
+        XCTAssertEqual(s.ductShut, VentPurge.ductShut)
+        XCTAssertLessThan(s.ductShut, DUCT_SHUT)
+        XCTAssertTrue(s.weldShut)
+        XCTAssertEqual(s.shutText, .objShutDuct)
+        XCTAssertEqual(s.pushes.count, 2)
         XCTAssertEqual(s.lineText, .objSealVents)
         XCTAssertEqual(s.doneToast, .toastVentSealed)
         XCTAssertEqual(h.zone, .lift)
         XCTAssertTrue(h.pulse)
         XCTAssertNil(h.boss)
         XCTAssertEqual(h.time, VentPurge.holdTime)
+        XCTAssertEqual(h.hordeK, VentPurge.hordeK)
         XCTAssertEqual(h.hordeSub, .bannerHordeLiftSub)
         // every template id is unique; the playable missions are the classic and R7's two
         XCTAssertEqual(MissionTemplate.playable.map { $0.id }, ["cold-light", "breaker-run", "vent-purge"])
@@ -129,7 +149,7 @@ final class MissionsKelvinTests: XCTestCase {
         XCTAssertEqual(g.lightsLit, 0)
         var restored: [Int] = [], duringHold: [(Int, Float)] = []
         var holdStart: Float = -1
-        run(g, seconds: 420, until: { g.phase != .playing }) { e in
+        run(g, seconds: 600, until: { g.phase != .playing }) { e in
             switch e {
             case .circuitRestored(let k):
                 restored.append(k)
@@ -140,16 +160,16 @@ final class MissionsKelvinTests: XCTestCase {
         }
         XCTAssertEqual(g.phase, .won, g.debugState.description)
         XCTAssertGreaterThan(holdStart, 0)
-        // the three breaker switches brought A, B and C back (each the moment its ring filled)
-        for c in [2, 4, 5] { XCTAssertTrue(restored.contains(c), "circuit \(c) restored by its breaker") }
+        // the four breaker switches brought A, B, C and the hub back (each the moment its ring filled)
+        for c in [2, 4, 5, 1] { XCTAssertTrue(restored.contains(c), "circuit \(c) restored by its breaker") }
         // the generator brought the rest back in stages over the hold, nearest to it first, the last before it ran out
         XCTAssertFalse(duringHold.isEmpty)
         let fr = duringHold.map { $0.1 }
         XCTAssertEqual(fr, fr.sorted(), "one stage after another")
         XCTAssertLessThan(fr.last ?? 1, 0.95)
         XCTAssertTrue(g.circuits.allSatisfy { $0.powered }, "the whole station has power at the end")
-        XCTAssertEqual(g.switchesThrown, 3)
-        XCTAssertEqual(g.beaconsDone, 3, "each breaker is an escalation step")
+        XCTAssertEqual(g.switchesThrown, 4)
+        XCTAssertEqual(g.beaconsDone, 4, "each breaker is an escalation step")
         XCTAssertTrue(g.beacons.allSatisfy { $0.state == 0 }, "no beacon in this plan")
     }
 
@@ -193,7 +213,7 @@ final class MissionsKelvinTests: XCTestCase {
         XCTAssertTrue(g.ducts.allSatisfy { $0.open })
         var pours: [Int] = [], sealed: [Int] = [], ductsShut: Set<Int> = []
         var shutAtPour: [Bool] = []
-        run(g, seconds: 420, until: { g.phase != .playing }) { e in
+        run(g, seconds: 600, until: { g.phase != .playing }) { e in
             switch e {
             case .ventPour(let k, let n):
                 pours.append(k); shutAtPour.append(g.ventShut[k])
@@ -246,12 +266,32 @@ final class MissionsKelvinTests: XCTestCase {
         run(g, seconds: 200, until: { g.overheadStats.packs > 0 && rattles > 0 }) { e in if case .ductRattle = e { rattles += 1 } }
         XCTAssertGreaterThan(g.overheadStats.packs, 0, "a pour climbed out of the duct mouth")
         XCTAssertGreaterThan(rattles, 0, "its grille rattled first")
-        // the squad seals it: shut for good
-        var sealed = 0
+        // the squad steps in (M1): the weld waits for the grille shot shut — no weld while the mouth is open
         g.playerAlone(seals[0].x, seals[0].z)
         run(g, seconds: 2, until: { g.activeSwitch == 0 })
         XCTAssertEqual(g.activeSwitch, 0)
+        if !g.ducts[0].open { run(g, seconds: DUCT_SHUT + 1, until: { g.ducts[0].open }) }
+        XCTAssertTrue(g.weldWaits, "the weld waits for the grille shot shut")
+        XCTAssertEqual(g.objective, GameText(.objShutDuct))
+        let p0 = g.switches[0].progress
+        g.step(60 * 3)
+        XCTAssertEqual(g.switches[0].progress, p0, "no weld, no drain, while the mouth is open and the squad holds the ring")
+        // shot shut: shut for `ductShut` s only (the hive chews through fast where it pushes), and the weld fills
+        XCTAssertTrue(g.debugHurtDuct(0, DUCT_HP + 1))
+        XCTAssertEqual(g.ducts[0].shutT, VentPurge.ductShut, accuracy: 0.05)
+        XCTAssertFalse(g.weldWaits)
+        XCTAssertEqual(g.objective, GameText(.objHoldSeal))
+        g.step(60 * 2)
+        XCTAssertGreaterThan(g.switches[0].progress, p0 + 1.5 / VentPurge.sealTime)
+        // the hive chews through: the weld waits once more
+        run(g, seconds: VentPurge.ductShut, until: { g.ducts[0].open })
+        XCTAssertTrue(g.ducts[0].open)
+        XCTAssertTrue(g.weldWaits)
+        // shut again and the weld nearly full: thrown — the mouth sealed for good
+        XCTAssertTrue(g.debugHurtDuct(0, DUCT_HP + 1))
+        g.clearEvents()
         g.debugSwitchProgress(0.99)
+        var sealed = 0
         run(g, seconds: 2, until: { g.switches[0].state == 2 }) { e in if case .ductSealed(let d) = e, d == 0 { sealed += 1 } }
         XCTAssertEqual(g.switches[0].state, 2)
         XCTAssertEqual(sealed, 1)
@@ -335,6 +375,109 @@ final class MissionsKelvinTests: XCTestCase {
         XCTAssertNil(HoldStep(zone: .lift, time: 10).outHint)
     }
 
+    // ---------------------------------------------------------------- M1: the beats that ask more
+
+    func testAContestedSwitchRingFillsSlowerWhileBugsCrowdIt() {
+        var s = SwitchStep(sites: [SwitchSite(x: 30, z: 26, radius: BREAKER_R, time: 10, kind: .panel)])
+        s.alarm = PacingValue(legacy: 0, waves: 0)
+        s.drains = 0.5
+        s.contestedAt = 2
+        var c = GameConfig()
+        c.difficulty = .recruit; c.god = true; c.mission = .custom(MissionPlan(id: "crowd", steps: [.switches(s), .extract(ExtractStep())]))
+        let g = Game(seed: 4, playerClass: .assault, config: c)
+        g.calm = true   // (no trickle, no hordes: the only bugs are the test's)
+        g.playerAlone(30, 31)
+        g.step(60 * 8)   // (the game's own hints start 7 s in)
+        g.playerAlone(30, 26)
+        g.step(60)   // 1 s: a tenth
+        XCTAssertEqual(g.activeSwitch, 0)
+        XCTAssertEqual(g.switches[0].progress, 0.1, accuracy: 0.02)
+        XCTAssertFalse(g.switches[0].contested)
+        XCTAssertNil(g.contextHint)
+        // three runners in the ring: contested — it fills at `contestedRate`, the hint says «Clear the ring»
+        XCTAssertEqual(g.debugSpawnLine(3, type: .runner, from: Vec2(29.3, 26.5), to: Vec2(30.7, 26.5)), 3)
+        g.step(2)
+        XCTAssertTrue(g.switches[0].contested)
+        XCTAssertEqual(g.contextHint, HintLine(text: GameText(.hintRingContested), urgent: true))
+        let p1 = g.switches[0].progress
+        g.step(60)
+        XCTAssertEqual(g.switches[0].progress - p1, 0.1 * s.contestedRate, accuracy: 0.01)
+        // cleared: the full rate again
+        for i in 0..<g.bugs.count where g.bugs.dead[i] == 0 { g.killBug(i, 0) }
+        g.step(2)
+        XCTAssertFalse(g.switches[0].contested)
+        let p2 = g.switches[0].progress
+        g.step(60)
+        XCTAssertEqual(g.switches[0].progress - p2, 0.1, accuracy: 0.01)
+        // (off by default: the drills and every other switch fill whatever stands in the ring)
+        XCTAssertEqual(SwitchStep(sites: []).contestedAt, 0)
+        XCTAssertEqual(DrillSpots(MissionTemplate.breakerRun.level()).switchStep.contestedAt, 0)
+    }
+
+    func testTheSealBeingWorkedPours() {
+        // a vent seal whose only pours are the work pour: it pours while worked, every `workPourGap` s (± 1 s), never sealed
+        let lv = Level(source: KelvinStation(props: .kelvin), seed: 1)
+        let v = 0, p = lv.layout.vents[v]
+        var s = SwitchStep(sites: [SwitchSite(x: p.x, z: p.y, radius: 2.2, time: 30, kind: .seal, vent: v)])
+        s.alarm = PacingValue(legacy: 0, waves: 0)
+        s.pour = PacingValue(legacy: 32, waves: 8)
+        s.pourGap = 1000
+        s.workPourGap = 5
+        var c = GameConfig()
+        c.difficulty = .recruit; c.god = true; c.mission = .custom(MissionPlan(id: "work", steps: [.switches(s), .extract(ExtractStep())]))
+        let g = Game(seed: 6, playerClass: .assault, config: c, level: lv)
+        g.calm = true
+        g.playerAlone(p.x, p.y)
+        var at: [Float] = []
+        run(g, seconds: 21, until: { false }) { e in if case .ventPour(let k, let n) = e, k == v { at.append(g.time); XCTAssertGreaterThan(n, 0) } }
+        XCTAssertEqual(g.activeSwitch, 0)
+        XCTAssertGreaterThanOrEqual(at.count, 3, "it pours while it is worked")
+        XCTAssertEqual(at.first ?? 0, 2.5, accuracy: 0.2, "the first half a gap in")
+        for (a, b) in zip(at, at.dropFirst()) { XCTAssertEqual(b - a, 5, accuracy: 1.05) }
+        g.debugSwitchProgress(0.99)
+        run(g, seconds: 1, until: { g.switches[0].state == 2 })
+        XCTAssertTrue(g.ventShut[v])
+        let n = at.count
+        run(g, seconds: 12, until: { false }) { e in if case .ventPour = e { at.append(g.time) } }
+        XCTAssertEqual(at.count, n, "sealed: no more pours")
+    }
+
+    func testTheAutopilotHoldsTheDuctShutWhileItWelds() {
+        // Vent Purge on Kelvin-9 Mk II: the squad by the seal under the hub → A duct mouth; the autopilot shoots the grille shut
+        // whenever the hive chews through it, and the weld ends with the mouth sealed for good
+        let g = missionGame(.ventPurge, tier: .veteran, seed: 7, god: true)
+        guard let k = g.switches.firstIndex(where: { $0.site.duct == 1 }) else { return XCTFail("the hub → A seal") }
+        let w = g.switches[k].site
+        g.debugTeleport(w.x - 1, w.z)
+        var shut = 0, opened = 0
+        run(g, seconds: 150, until: { g.switches[k].state == 2 }) { e in
+            if case .ductSealed(let d) = e, d == 1 { shut += 1 }
+            if case .ductOpened(let d) = e, d == 1 { opened += 1 }
+        }
+        XCTAssertEqual(g.switches[k].state, 2, "the seal is welded on autopilot: \(g.debugState)")
+        XCTAssertGreaterThanOrEqual(opened, 2, "the hive chewed through the grille while the weld ran")
+        XCTAssertGreaterThanOrEqual(shut, opened + 1, "shot shut each time, then sealed for good")
+        XCTAssertTrue(g.ducts[1].shutT.isInfinite)
+    }
+
+    func testThePlannedWorkFillsAFullLengthMission() {
+        // design §3.4: a standard mission runs 6–9 min; the rings and holds alone — no travel, no fight, no contested or
+        // waiting rings — take ≥ 5 min of both missions (the calibration's Veteran medians: 6–8 min)
+        func work(_ p: MissionPlan) -> Float {
+            var t: Float = 0
+            for st in p.steps {
+                switch st {
+                case .switches(let w): t += w.sites.prefix(w.needed).reduce(0) { $0 + $1.time }
+                case .hold(let h): t += h.time
+                default: break
+                }
+            }
+            return t
+        }
+        XCTAssertGreaterThanOrEqual(work(BreakerRun.plan(MissionTemplate.breakerRun.level())), 300)
+        XCTAssertGreaterThanOrEqual(work(VentPurge.plan(MissionTemplate.ventPurge.level())), 300)
+    }
+
     // ---------------------------------------------------------------- won on autopilot; the report
 
     func testBothMissionsPlayThroughOnAutopilot() {
@@ -344,7 +487,7 @@ final class MissionsKelvinTests: XCTestCase {
             let g = missionGame(t, seed: 600 + UInt32(k), cls: cls, god: true)
             var modules: [MissionModule] = [g.mission.steps[0].module]
             var thrown = 0, holds = 0, rides = 0, banners: [TextID] = []
-            run(g, seconds: 8 * 60, until: { g.phase != .playing }) { e in
+            run(g, seconds: 10 * 60, until: { g.phase != .playing }) { e in
                 switch e {
                 case .missionStep(let i, let m): XCTAssertEqual(i, modules.count, t.id); modules.append(m)
                 case .switchThrown: thrown += 1
@@ -379,7 +522,7 @@ final class MissionsKelvinTests: XCTestCase {
             XCTAssertNotNil(parts.first { $0.label.id == .scoreLights })
             let strip = try! XCTUnwrap(r.strip)
             let want: [TextID] = t.id == "breaker-run"
-                ? [.reportStripBreaker, .reportStripBreaker, .reportStripBreaker, .reportStripGenerator, .reportStripExtract]
+                ? [.reportStripBreaker, .reportStripBreaker, .reportStripBreaker, .reportStripBreaker, .reportStripGenerator, .reportStripExtract]
                 : [.reportStripVent, .reportStripVent, .reportStripVent, .reportStripVent, .reportStripLift, .reportStripExtract]
             XCTAssertEqual(strip.map { $0.label.id }, want)
             XCTAssertTrue(strip.allSatisfy { $0.on })
@@ -395,19 +538,20 @@ final class MissionsKelvinTests: XCTestCase {
         let g = missionGame(.breakerRun, seed: 8, god: true)
         run(g, seconds: 300, until: { g.switchesThrown >= 2 })
         let strip = try! XCTUnwrap(g.runSummary(won: false, surrendered: true).strip)
-        XCTAssertEqual(strip.map { $0.on }, [true, true, false, false, false])
+        XCTAssertEqual(strip.map { $0.on }, [true, true, false, false, false, false])
     }
 
     // ---------------------------------------------------------------- calibration
 
     func testTheMissionsPresetIsTheMissionGate() {
         let runs = Calibration.preset("missions") ?? []
-        // per mission: 8 runs per class on Recruit and Nightmare, 16 on Veteran, one AFK run per class on Veteran and Recruit
-        XCTAssertEqual(runs.count, 2 * 4 * (8 + 16 + 8 + 2))
+        // per mission: 8 runs per class on Recruit and Nightmare, 32 on Veteran (M1: its rate is the noisy one), one AFK run per
+        // class on Veteran and Recruit
+        XCTAssertEqual(runs.count, 2 * 4 * (8 + 32 + 8 + 2))
         XCTAssertEqual(Set(runs.map { $0.mission ?? "" }), ["breaker-run", "vent-purge"])
         XCTAssertEqual(runs.filter { $0.mode == .afk }.count, 16)
         XCTAssertEqual(Set(runs.map { "\($0.mission!) \($0.seed)" }).count, runs.count, "own seeds")
-        XCTAssertEqual(Calibration.preset("breaker-run")?.count, 4 * (8 + 16 + 8 + 2))
+        XCTAssertEqual(Calibration.preset("breaker-run")?.count, 4 * (8 + 32 + 8 + 2))
         // the classic gate preset keeps its rows (calib.jsonl byte-identical): no mission joins it
         XCTAssertEqual(Calibration.preset("gate")!.count, 212)
         XCTAssertTrue(Calibration.preset("gate")!.allSatisfy { $0.mission == nil })

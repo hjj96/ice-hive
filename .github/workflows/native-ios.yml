@@ -491,11 +491,13 @@ jobs:
           # valve's span, the valve popped (the scald curtain), a pack frozen by the catwalk's coolant line, the hub's lights cut,
           # the player in the breaker's ring, the lights back lamp by lamp (`props: …` lines); the screenshot after it
           run_demo interactives 20 "-demo interactives -seed 7" 0
-          # Stage 1 R7: the missions on their own station (Kelvin-9 with its props), the director on — Breaker Run in the dark
-          # (a breaker thrown: its deck lit lamp by lamp, the plaza's catwalk beyond still dark) and Vent Purge (a vent sealed
-          # for good, the plaza's seal ring nearly full, a pack out of its vent); time almost frozen for each screenshot
-          run_demo breakerrun 16 "-demo breakerrun -seed 7" 0
-          run_demo ventpurge 16 "-demo ventpurge -seed 7" 0
+          # Stage 1 R7: the missions on their own station (Kelvin-9 with its props), the director on — M1 «Missions I at full
+          # length»: Breaker Run in the dark (the hub's breaker, the fourth: thrown, the hub lit lamp by lamp, the bridge and
+          # the stairs beyond still dark) and Vent Purge (the weld under the hub → A duct mouth waits for its grille shot
+          # shut: «SHOOT THE DUCT SHUT» as the hive chews through it again); time almost frozen for each screenshot. Both run
+          # the overhead's visibility metric (-ohVis, gated by ci/overhead_vis.py below — the Stage 1 review's open issue 8)
+          run_demo breakerrun 16 "-demo breakerrun -seed 7 -ohVis" 0
+          run_demo ventpurge 16 "-demo ventpurge -seed 7 -ohVis" 0
           # the App Store 2-swarm moment staged in the app (gunner at the crossing, the store's 600 bugs under the live cap
           # — 350 on High since native-vx-feel —, firing, time ~frozen), now in landscape (874x402 @3x)
           run_demo swarmshot 4 "-demo swarmshot -seed 7" 0
@@ -940,7 +942,7 @@ jobs:
           need burst-dash 'bugs: pin broken marine 0 by dash'
           need burst-dash 'hb bugs droppers=[0-9]+ up=[0-9]+ pins=2 dash=1 fire=1 '
           # (Stage 1 R5: and the classic demos on Kelvin-9 Mk II — the squad moving, at beacon Alpha, holding the lift, the Queen)
-          python3 ios-native/ci/overhead_vis.py results overhead-nohud burst-parallax combat beacon hold queen > results/overhead-vis.txt 2>&1 || fail "overhead visibility: $(tail -n 1 results/overhead-vis.txt)"
+          python3 ios-native/ci/overhead_vis.py results overhead-nohud burst-parallax combat beacon hold queen breakerrun ventpurge > results/overhead-vis.txt 2>&1 || fail "overhead visibility: $(tail -n 1 results/overhead-vis.txt)"
           cat results/overhead-vis.txt
           # Stage 1 R6: the interactives demo — the props laid, the valve burst and its curtain, the hub's circuit cut and
           # brought back by its breaker ring, every circuit lit again
@@ -955,28 +957,28 @@ jobs:
           need burst-valve 'props: valve 0 curtain up'
           need burst-lights 'burst lights written \(24 frames\)'
           need burst-lights 'props: circuit 1 restored'
-          # Stage 1 R7: the missions' demos — each mission on its station (Kelvin-9 Mk II: its routes' three duct mouths), its
-          # switches (beacon B's breaker / beacon A's vent seal, then the ring under the hub → A duct mouth, which rattles to
-          # pour onto the routes), the light coming back / the vent and the duct mouth shut for good and the stream thinned,
-          # the mission's heartbeat, frozen for the screenshot
+          # Stage 1 R7 / Stage 2 M1: the missions' demos — each mission on its station (Kelvin-9 Mk II: its routes' three duct
+          # mouths), Breaker Run's four breakers (the hub's thrown, its lamps back) and Vent Purge's seal under the hub → A duct
+          # mouth (the weld waits for the grille shot shut, fills, waits again when the hive chews through), the mission's
+          # heartbeat, frozen for the screenshot
           need breakerrun 'mission start breaker-run steps=switch,hold,extract modifiers=dark props=1 lit=0/7 vents=8 ducts=3'
-          need breakerrun 'mission: breaker 1 started at \(24\.5, -3\.5\)'
-          need breakerrun 'mission: breaker 1 thrown, 1/3'
-          need breakerrun 'props: circuit 4 restored, lamps 8/8'
+          need breakerrun "demo breakerrun: breaker-run, lit 0/7, 4 breakers; squad in the hub breaker's ring"
+          need breakerrun 'mission: breaker 3 started at \(-5\.5, 23\.5\)'
+          need breakerrun "demo breakerrun: the breaker's ring jumped to 0\.99"
+          need breakerrun 'mission: breaker 3 thrown, 1/4'
+          need breakerrun 'props: circuit 1 restored, lamps 6/6'
           need breakerrun 'hb mission breaker-run step=1/3 switch'
           need breakerrun 'demo breakerrun: frozen td=[0-9.]+ step 2 lit [1-7]/7'
           need ventpurge 'mission start vent-purge steps=switch,hold,extract modifiers= props=1 lit=7/7 vents=8 ducts=3'
-          need ventpurge 'demo ventpurge: vent-purge, 4 seals: duct 0, duct 1, duct 2, vent 0;'
-          need ventpurge 'mission: vent 0 pours 10'
-          need ventpurge 'mission: seal 3 started at \(-27\.0, 21\.0\)'
-          need ventpurge 'mission: vent 0 sealed for good'
-          need ventpurge 'mission: seal 3 thrown, 1/4, stream 1\.35'
-          need ventpurge 'demo ventpurge: duct 1 rattles ahead, pours [0-9]+ td=[0-9.]+ \(seal 1, '
+          need ventpurge 'demo ventpurge: vent-purge, 4 seals: duct 0, duct 1, duct 2, vent 0; squad in the seal ring under duct 1'
           need ventpurge 'mission: seal 1 started at \(-11\.7, 26\.2\)'
-          need ventpurge 'mission: duct 1 sealed for good'
-          need ventpurge 'mission: seal 1 thrown, 2/4, stream 1\.2[12]'
+          need ventpurge 'demo ventpurge: in the seal ring under duct 1 td=[0-9.]+, weld waits [01]'
+          need ventpurge 'bugs: duct 1 shot shut'
+          need ventpurge 'demo ventpurge: duct 1 shot shut td=[0-9.]+, the weld fills'
+          need ventpurge 'bugs: duct 1 open again'
+          need ventpurge 'demo ventpurge: duct 1 open again td=[0-9.]+, weld waits 1'
           need ventpurge 'hb mission vent-purge step=1/3 switch'
-          need ventpurge 'demo ventpurge: frozen td=[0-9.]+ step 5 sealed 2'
+          need ventpurge 'demo ventpurge: frozen td=[0-9.]+ step 4 weld waits [01] ring 0\.6[0-9]'
           need burst-pack 'demo swarmpack: spawned [1-9][0-9]* bugs .*swarm life'
           need burst-packold 'demo swarmpack: spawned [1-9][0-9]* bugs .*swarm legacy'
           # native-vx-fix: the mission's live-bug cap is the tier's under the device class's (the simulator stands in for the
