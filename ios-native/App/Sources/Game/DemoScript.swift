@@ -873,8 +873,8 @@ final class DemoScript {
     private var msJump: Double = -1
     private var msPut = 0
     /// breakerrun: the squad starts in the hub breaker's ring and fights the hive's surge there; from 7.5 s after «scene
-    /// ready» (the control hint of the first 7 s gone) the ring is held at 0.99 (quietly; the squad put into it again after 2.5 s if it is not thrown yet), time almost stopped
-    /// 1.6 s after the throw (at 15.5 s at the latest).
+    /// ready» (the control hint of the first 7 s gone) the ring is held at 0.99 (quietly; the squad put into it again after
+    /// 2.5 s if it is not thrown yet), time almost stopped 1.6 s after the throw (at 15.5 s at the latest).
     private func breakerRun(_ game: Game, _ dt: Float) {
         t += dt
         if msStep == 0 && sinceReady >= 7.5 && game.activeSwitch >= 0 {
