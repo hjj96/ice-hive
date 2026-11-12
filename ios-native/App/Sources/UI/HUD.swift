@@ -1745,7 +1745,8 @@ final class HUD {
         markerBox = CGRect(x: p0.x - 22 + size.width / 2, y: size.height / 2 - p0.y - 12, width: 44, height: 42)
         markerOverTarget = inside
         var p = p0
-        for b in toastRects() {
+        // (not behind the loading cover: the warm-up's toasts are no toasts)
+        for b in warming ? [] : toastRects() {
             let r = CGRect(x: b.minX - 22, y: b.minY - 12, width: b.width + 44, height: b.height + 42)
             guard r.contains(p) else { continue }
             let len = (p.x * p.x + p.y * p.y).squareRoot()
