@@ -118,9 +118,10 @@ import IceHiveCore
 //                   autopilot steps into its seal ring, at 1.4 s the demo jumps the ring to 0.9: the vent is sealed for good
 //                   (it goes dark, the stream thins) and the next seal's duct mouth — over the hub → A walkway — rattles to
 //                   pour a pack onto the routes (the bots may shoot it shut for a while, R4); the squad steps into the ring
-//                   under it, the demo jumps it to 0.9, and 0.12 s after the duct mouth slams shut for good time almost stops
-//                   (at 14 s at the latest) for the screenshot. `demo ventpurge: …` once a second, `mission: …` / `bugs: duct …`
-//                   lines, `hb mission …`
+//                   under it (put into it if it is not there 4 s after the vent's seal), the demo jumps it to 0.9 and keeps it
+//                   there (put into it again after 2.5 s), and 0.12 s after the duct mouth slams shut for good time almost
+//                   stops (at 15.5 s at the latest) for the screenshot. `demo ventpurge: …` once a second, `mission: …` /
+//                   `bugs: duct …` lines, `hb mission …`
 //  Stage 2 H1 «the first minute's HUD»:
 //    -demo firstmin the classic mission from its drop as it plays — the director on, the autopilot, nothing staged,
 //                   nothing spawned (the squad invulnerable, the level-up cards picked for it): its first half-minute of
@@ -867,6 +868,12 @@ final class DemoScript {
     private var msStep = 0
     private var msAt: Double = -1
     private var msLogT: Float = 0
+    /// ventpurge: the next seal after the vent's (−1 until the vent is sealed), when the squad set off for it, when its ring was
+    /// jumped, and how many times the squad was put into a ring (once on the way, once more after the jump, at most).
+    private var msNext = -1
+    private var msGo: Double = -1
+    private var msJump: Double = -1
+    private var msPut = 0
     /// breakerrun: the ring jumped to 0.8 once the autopilot is in it (from 1.2 s; the squad put into it at 3 s if it is not),
     /// time almost stopped 1.6 s after the breaker is thrown (at 12 s at the latest).
     private func breakerRun(_ game: Game, _ dt: Float) {
@@ -896,8 +903,11 @@ final class DemoScript {
 
     /// ventpurge: a pack out of A's vent at 0.4 s, its ring jumped to 0.9 (from 1.4 s); as it is sealed the next seal's duct
     /// mouth (the hub → A walkway's) rattles to pour onto the routes ahead (the bots may shoot it shut for a while: R4); the
-    /// squad steps into the ring under it, the demo jumps the ring to 0.9, and 0.12 s after the duct mouth is sealed for good
-    /// time almost stops (14 s at the latest).
+    /// squad steps into the ring under it (put into it if it is not there 4 s after the vent's seal), the demo jumps the ring
+    /// to 0.9 and keeps it there (the ring drains while nobody stands in it; the squad put into it again after 2.5 s), and
+    /// 0.12 s after the duct mouth is sealed for good time almost stops (15.5 s at the latest). The walk through the pack
+    /// takes the autopilot 2–4 s on most runs and 7.5 s on a slow one, where the ring then sat at 0.89–0.94 as the squad
+    /// fought in and out of it until the old 14 s freeze (CI 43099865660): the staging no longer depends on either.
     private func ventPurge(_ game: Game, _ dt: Float) {
         t += dt
         // (the nearest seal still to throw: where the autopilot goes)
@@ -919,6 +929,8 @@ final class DemoScript {
         if msStep == 2 && game.switchesThrown > 0, let k = near {
             // the vent is sealed; the next seal ahead: its duct mouth rattles and pours onto the routes (a vent's onto the deck)
             msStep = 3
+            msNext = k
+            msGo = sinceReady
             AppLog.info(String(format: "demo ventpurge: vent sealed td=%.2f, stream %.2f, vents shut %d", sinceReady, game.streamK,
                                game.ventShut.filter { $0 }.count))
             let s = game.switches[k].site
@@ -933,15 +945,31 @@ final class DemoScript {
         }
         if msStep == 3 && game.activeSwitch >= 0 {
             msStep = 4
+            msJump = sinceReady
             game.debugSwitchProgress(0.9)
             AppLog.info(String(format: "demo ventpurge: the next seal's ring jumped to 0.90 td=%.2f (seal %d)", sinceReady, game.activeSwitch))
+        } else if msStep == 3 && msPut == 0 && msNext >= 0 && sinceReady >= msGo + 4 {
+            let s = game.switches[msNext].site
+            msPut = 1
+            game.debugTeleport(s.x, s.z)
+            AppLog.info(String(format: "demo ventpurge: the squad put into seal %d's ring td=%.2f", msNext, sinceReady))
+        }
+        if msStep == 4 && game.switchesThrown < 2 && game.activeSwitch >= 0 {
+            // keep the jump: the next moment anyone stands in the ring seals it
+            if game.switches[game.activeSwitch].progress < 0.97 { game.debugSwitchProgress(0.97) }
+            if msPut < 2 && sinceReady >= msJump + 2.5 {
+                let s = game.switches[game.activeSwitch].site
+                msPut = 2
+                game.debugTeleport(s.x, s.z)
+                AppLog.info(String(format: "demo ventpurge: the squad put into the ring again td=%.2f", sinceReady))
+            }
         }
         if msStep == 4 && game.switchesThrown > 1 {
             msStep = 5
             msAt = sinceReady
             AppLog.info(String(format: "demo ventpurge: the next seal thrown td=%.2f, stream %.2f", sinceReady, game.streamK))
         }
-        if freeze == 1 && ((msStep == 5 && sinceReady >= msAt + 0.12) || sinceReady >= 14) {
+        if freeze == 1 && ((msStep == 5 && sinceReady >= msAt + 0.12) || sinceReady >= 15.5) {
             freeze = 0.02
             AppLog.info(String(format: "demo ventpurge: frozen td=%.2f step %d sealed %d alive %d obj %@", sinceReady, msStep,
                                game.switchesThrown, game.bugsAlive, game.objective.map { "\($0)" } ?? "-"))

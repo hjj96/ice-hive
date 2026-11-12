@@ -20,7 +20,9 @@ import IceHiveCore
 //  (beacons the plan does not charge stand dormant: GroundGlyphs skips
 //  their rings, WorldLevel darkens their lamps.) Diagnostics: `hb mission
 //  …` once a second in a mission with a plan of its own.
-//  Nothing is drawn or touched in the classic mission or on the title.
+//  Nothing is drawn or touched in the classic mission or on the title
+//  (there only the vents a sortie sealed are lit again; a vent's shut
+//  time belongs to its sortie — every Game's sim clock starts at 0).
 // ================================================================
 final class WorldMission {
     let level: Level
@@ -34,6 +36,9 @@ final class WorldMission {
 
     /// This frame's rings into `glyphs.extra` (after WorldProps cleared and filled it) and the vents' light.
     func build(game: Game, time: Float, dt: Float, levelDraw L: WorldLevel, glyphs: GroundGlyphs) {
+        // (the vents first, the title's attract swarm included: its game has every vent open, so the vents a Vent Purge
+        // sortie sealed light up again behind the title instead of staying dark until the next sortie)
+        vents(game, L, time, dt)
         if game.attract { return }
         // switch rings (a breaker switch on a light circuit's breaker: WorldProps draws that one, with this progress)
         let blink: Float = 0.55 + 0.35 * sinf(time * 9)
@@ -50,7 +55,6 @@ final class WorldMission {
             glyphs.extra.append(GlyphInstance(center: F4(x, level.groundY(x, z) + 0.06, z, r), color: F4(0.2, 1.0, 0.82, 2),
                                               a: F4(prog, 32, -time * 0.1, game.holdActive ? 0.7 : 0.45 + 0.25 * blink), b: F4(time, 0, 0, 0)))
         }
-        vents(game, L, time, dt)
         heartbeat(game)
     }
 
@@ -65,11 +69,14 @@ final class WorldMission {
             if ventFlare[k] > 0 { ventFlare[k] = max(0, ventFlare[k] - dt) }
             var lv: Float = 1
             if game.ventShut[k] {
-                if ventShutAt[k] < 0 { ventShutAt[k] = st }
+                // (a time from an earlier sortie — every Game's sim clock starts at 0 — is no time: a stale one gave a
+                // negative age, and the flicker's (1 − u / 0.5) then drove the vent's grid light tens of times over)
+                if ventShutAt[k] < 0 || ventShutAt[k] > st { ventShutAt[k] = st }
                 let u = st - ventShutAt[k]
                 lv = u < 0.5 ? (WorldProps.hash(Float(Int(u * 30)) + Float(k)) > 0.45 ? 0.8 : 0.08) * (1 - u / 0.5) : 0
-            } else if ventFlare[k] > 0 {
-                lv = 1 + 1.8 * ventFlare[k] / 1.2
+            } else {
+                ventShutAt[k] = -1
+                if ventFlare[k] > 0 { lv = 1 + 1.8 * ventFlare[k] / 1.2 }
             }
             if lv != ventShown[k] { ventShown[k] = lv; L.setVentLevel(k, lv) }
         }
