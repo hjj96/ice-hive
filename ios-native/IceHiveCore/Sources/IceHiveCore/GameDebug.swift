@@ -42,15 +42,17 @@ public struct DebugState: CustomStringConvertible {
     public let station: NameRef
     public let threat: ThreatState
     public let pressure: Float
-    public let queenSpawned: Bool
-    public let queenAlive: Bool
-    /// Her current health (0 when not alive).
-    public let queenHp: Float
+    /// The step's boss (the Queen in the classic hold): came, alive, its current health (0 when not alive).
+    public let bossKind: BossKind
+    public let bossSpawned: Bool
+    public let bossAlive: Bool
+    public let bossHp: Float
 
     public var description: String {
         let nums = String(format: "t=%6.1f bugs=%d kills=%d beacons=%d liftT=%.1f lvl=%d hordes=%d hp=%.0f pos=(%.1f,%.1f) press=%.1f",
                           time, bugsAlive, kills, beaconsDone, liftT, level, hordes, playerHp, playerPos.x, playerPos.y, pressure)
-        let q = queenSpawned ? (queenAlive ? String(format: " queen=%.0f", queenHp) : " queen=dead") : ""
+        let k = bossKind.rawValue
+        let q = bossSpawned ? (bossAlive ? " \(k)=" + String(format: "%.0f", bossHp) : " \(k)=dead") : ""
         return nums + q + " \(phase) stage=\(stage) tier=\(tier) threat=\(threat.rawValue) downed=" + downed.map { $0 ? "1" : "0" }.joined() + " obj=" + (objective?.description ?? "-")
     }
 }
@@ -69,11 +71,11 @@ public struct ThreatDebug {
     public let runners: Int
     public let runnerHpMax: Float
     public let brutes: Int
-    public let queen: QueenState
-    /// Her slot values (0 / -1 when she is not alive).
-    public let queenHp: Float, queenHpMax: Float, queenFreeze: Float, queenChill: Float
-    public let queenBugState: Int
-    public let queenSlot: Int
+    public let boss: BossState
+    /// Its slot's values (a chain: the head's; 0 / -1 when it is not alive).
+    public let bossHp: Float, bossHpMax: Float, bossFreeze: Float, bossChill: Float
+    public let bossBugState: Int
+    public let bossSlot: Int
 }
 
 /// The coach as the tests see it (web `tut()`).
@@ -96,22 +98,12 @@ extension Game {
 
     public var debugState: DebugState {
         let P = marines[0]
-        let qs = queenSlotNow()
+        let qs = bossSlotNow()
         return DebugState(phase: phase, time: time, stage: stage, objective: objective, bugsAlive: bugs.aliveCount, kills: kills,
                           beaconsDone: beaconsDone, liftT: liftT, level: xpLevel, hordes: hordes, playerHp: P.hp,
                           playerPos: Vec2(P.x, P.z), downed: marines.map { $0.downed },
                           tier: difficulty.id, station: stationName, threat: threatState, pressure: pressure,
-                          queenSpawned: queen.spawned, queenAlive: queen.alive, queenHp: qs >= 0 ? bugs.hp[qs] : 0)
-    }
-
-    /// Her live slot, -1 when she is not alive.
-    func queenSlotNow() -> Int {
-        if !queen.alive { return -1 }
-        let S = bugs
-        if qSlot >= 0 && qSlot < S.count && S.uid[qSlot] == queen.uid && S.dead[qSlot] == 0 { return qSlot }
-        var i = 0
-        while i < S.count { if S.uid[i] == queen.uid && S.dead[i] == 0 { return i }; i += 1 }
-        return -1
+                          bossKind: boss.kind, bossSpawned: boss.spawned, bossAlive: boss.alive, bossHp: qs >= 0 ? bugs.hp[qs] : 0)
     }
 
     public var threatDebug: ThreatDebug {
@@ -125,27 +117,16 @@ extension Game {
             }
             i += 1
         }
-        let q = queenSlotNow()
+        let q = bossSlotNow()
         return ThreatDebug(tier: difficulty.id, stage: stage, liftT: liftT, pressure: pressure, idleMul: idleMul, afkTime: afkTime,
-                           state: threatState, downs: downs, downBy: downBy, runners: runners, runnerHpMax: rmax, brutes: brutes, queen: queen,
-                           queenHp: q >= 0 ? S.hp[q] : 0, queenHpMax: q >= 0 ? S.hpMax[q] : 0, queenFreeze: q >= 0 ? S.frz[q] : 0,
-                           queenChill: q >= 0 ? S.chill[q] : 0, queenBugState: q >= 0 ? Int(S.st[q]) : -1, queenSlot: q)
+                           state: threatState, downs: downs, downBy: downBy, runners: runners, runnerHpMax: rmax, brutes: brutes, boss: boss,
+                           bossHp: q >= 0 ? S.hp[q] : 0, bossHpMax: q >= 0 ? S.hpMax[q] : 0, bossFreeze: q >= 0 ? S.frz[q] : 0,
+                           bossChill: q >= 0 ? S.chill[q] : 0, bossBugState: q >= 0 ? Int(S.st[q]) : -1, bossSlot: q)
     }
 
     public var coachDebug: CoachDebug {
         CoachDebug(active: coach.active, step: coach.step, stepTime: coach.stepTime, calm: calm, beaconHordeMul: beaconHordeMul, hordes: hordes,
                    time: time, activeBeacon: activeBeacon, reviveTime: coach.reviveTime, groups: coachGroupCount)
-    }
-
-    /// The Матка climbs up right now (a hold or a boss arena only, before she came). `hp` overrides her health. Returns her
-    /// uid or 0.
-    @discardableResult
-    public func debugQueen(hp: Float? = nil) -> Int32 {
-        if posture != .hold || queen.spawned { return 0 }
-        qEdge = -1
-        queenSpawn()
-        if let h = hp, h > 0, qSlot >= 0 { bugs.hp[qSlot] = h; bugs.hpMax[qSlot] = h }
-        return queen.spawned ? queen.uid : 0
     }
 
     /// Set the hive pressure clock (s).
@@ -177,8 +158,8 @@ extension Game {
         if let im = im { idleMul = max(1, im) }
     }
 
-    /// Force report fixture fields (mission time, own kills, beacons done, the Матка's fate).
-    public func debugSetRun(time t: Float? = nil, playerKills pk: Int? = nil, beaconsDone bd: Int? = nil, queenKilled qk: Bool? = nil, stage st: MissionStage? = nil) {
+    /// Force report fixture fields (mission time, own kills, beacons done, the boss's fate — the Матка's in the classic).
+    public func debugSetRun(time t: Float? = nil, playerKills pk: Int? = nil, beaconsDone bd: Int? = nil, bossKilled qk: Bool? = nil, stage st: MissionStage? = nil) {
         if let t = t { time = max(0, t) }
         if let pk = pk { playerKills = max(0, pk) }
         if let bd = bd {
@@ -186,7 +167,7 @@ extension Game {
             for k in beacons.indices { beacons[k].state = k < beaconsDone ? 2 : 0; beacons[k].progress = k < beaconsDone ? 1 : 0 }
             activeBeacon = -1
         }
-        if let qk = qk { queen.spawned = true; queen.alive = false; queen.done = qk }
+        if let qk = qk { boss.spawned = true; boss.alive = false; boss.done = qk }
         if let st = st { stage = st }
     }
 
@@ -261,7 +242,7 @@ extension Game {
                 debugPutSquad(in: h.zone)
                 startHold(h)
             } else {
-                if h.boss != nil { queenSkip() }   // the Матка dies (or never comes) first
+                if h.boss != nil { bossSkip() }   // the boss (the Матка) dies (or never comes) first
                 liftT = 0.01
             }
         case .boss(let b):
@@ -269,7 +250,7 @@ extension Game {
                 debugPutSquad(in: b.zone)
                 enterPhase(.active)
             } else {
-                queenSkip()   // she dies (or never comes): the step ends on the next tick
+                bossSkip()   // it dies (or never comes): the step ends on the next tick
             }
         case .extract(let e):
             if stepPhase == .approach {

@@ -405,8 +405,8 @@ public enum Calibration {
             if g.holdActive && row.pressAtHold == nil { row.pressAtHold = r1(g.pressure) }
             if g.pressure > row.pressMax { row.pressMax = g.pressure }
             if row.firstBrute < 0 && g.typeAlive[2] > 0 { row.firstBrute = t }
-            // the Матка
-            let Q = g.queen
+            // the step's boss (the Матка in the classic; the rows' key stays «queen»)
+            let Q = g.boss
             if Q.spawned && row.queen == nil {
                 var qq = CalibQueen()
                 qq.spawnT = t; qq.liftT = r1(g.liftT)
@@ -817,7 +817,7 @@ public enum Calibration {
     /// mission), then each mission template's own bands on its rows (when the rows have any). Gated lines first, then the
     /// reported ones. `passed` only when every gated band holds and every gated classic group exists (a run of templates
     /// only skips the classic bands).
-    public static func gate(_ rows: [CalibRow]) -> (passed: Bool, lines: [GateLine]) {
+    public static func gate(_ rows: [CalibRow], templates: [MissionTemplate] = MissionTemplate.all) -> (passed: Bool, lines: [GateLine]) {
         let all = rows.filter { $0.error == nil && $0.station == 0 && $0.th.isEmpty && $0.mission == nil }
         let base = all.filter { $0.q == "med" }
         func grp(_ tier: Int, _ mode: String, q: String = "med") -> Group? {
@@ -868,7 +868,7 @@ public enum Calibration {
             }
         }
         // mission templates: their own rows and bands (autopilot, med quality, station 0, no overrides), and their AFK bands
-        for t in MissionTemplate.all {
+        for t in templates {
             guard let c = t.calib else { continue }
             let mine = rows.filter { $0.error == nil && $0.mission == t.id && $0.station == 0 && $0.th.isEmpty && $0.q == "med" }
             if mine.isEmpty { continue }
@@ -879,6 +879,12 @@ public enum Calibration {
                 let g = group(t.id, rs)
                 band("\(t.id) \(tierTag(b.tier))/auto wins", g.winPct, b.winLo, b.winHi, gated: c.gated, unit: "%")
                 if let d = b.downsHi { band("\(t.id) \(tierTag(b.tier))/auto downs/run", g.downsPerRun, nil, d, gated: c.gated) }
+                // (Stage 2 B1: a boss mission's boss bands — reached, killed of those reached, the kill median)
+                if let r = b.bossReachedLo { band("\(t.id) \(tierTag(b.tier))/auto boss reached", g.queenReachedPct, r, nil, gated: c.gated, unit: "%") }
+                if let k = b.bossKilledLo { band("\(t.id) \(tierTag(b.tier))/auto boss killed of reached", g.queenKilledPct, k, nil, gated: c.gated, unit: "%") }
+                if b.bossMedianLo != nil || b.bossMedianHi != nil {
+                    band("\(t.id) \(tierTag(b.tier))/auto boss kill median", g.queenKillMedian, b.bossMedianLo, b.bossMedianHi, gated: c.gated, unit: " s")
+                }
             }
             for a in c.afk {
                 let rs = mine.filter { $0.tierIx == a.tier && $0.mode == "afk" }

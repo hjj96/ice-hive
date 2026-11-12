@@ -207,7 +207,7 @@ extension Game {
                 let hx = sx + dx * segT, hz = sz + dz * segT
                 if (P.flags[k] & 1) != 0 && (P.flags[k] & 2) == 0 { hits += 1; P.flags[k] |= 2 }
                 S.vx[b] += dx * 1.2; S.vz[b] += dz * 1.2
-                let killed = hitBug(b, P.dmg[k], own)
+                let killed = hitBug(b, P.dmg[k], own, dir: Vec2(dx, dz))
                 emit(.bulletHit(pos: Vec2(hx, hz), dir: Vec2(dx, dz), killed: killed))
                 if own >= 0 && own < 4 && marines[own].mods.explosive > 0 && rng.next() < 0.12 * Float(marines[own].mods.explosive) {
                     queueBoom(hx, hz, 1.7, 22 * marines[own].mods.dmg, own, .mini)
@@ -342,7 +342,9 @@ extension Game {
                 let perp = abs(dx * m.az - dz * m.ax), w = 0.42 + t / len * 0.75
                 if perp > w + S.r[b] { continue }
                 hitAny = true
-                if S.frz[b] <= 0 && S.uid[b] != queen.uid {   // the Матка never freezes
+                // a boss never freezes (Stage 2 B1: its spec — the Матка is immune, another locks its body instead)
+                if S.boss[b] != 0 { bossBeamChill(b, C.chill * md.chill * dt) }
+                else if S.frz[b] <= 0 {
                     S.chill[b] += C.chill * md.chill * dt
                     if S.chill[b] >= 1 {
                         S.chill[b] = 1; S.frz[b] = S.type[b] == T_BRUTE ? 1.3 : 2.6
@@ -411,7 +413,8 @@ extension Game {
                 while q < cnt {
                     defer { q += 1 }
                     let b = hash.qb[q]
-                    if S.uid[b] != queen.uid { S.frz[b] = S.type[b] == T_BRUTE ? 1.6 : 3.2; S.chill[b] = 1; S.vx[b] = 0; S.vz[b] = 0 }
+                    if S.boss[b] == 0 { S.frz[b] = S.type[b] == T_BRUTE ? 1.6 : 3.2; S.chill[b] = 1; S.vx[b] = 0; S.vz[b] = 0 }
+                    else { bossPartFreeze(b, nova: true) }
                     hitBug(b, 30 * md.dmg, m.index)
                 }
             }

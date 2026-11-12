@@ -14,8 +14,7 @@ extension Game {
         calm = false; beaconHordeMul = 1; pressure = 0; idleMul = 1; huntPressure = false; huntAfk = false; heartAt = -9
         liftAllowance = -1
         beat = 0; beatT = 10; beaconPushes = 0; lullT = 0
-        queen = QueenState()
-        qWarn = -1; qEdge = -1; qSlot = -1; qBrood = 0; qVolley = 0; qRam = 0; qMeleeCd = 0; qArmed = false
+        boss = BossState(); bossRT.reset()
         // the mission plan starts over at its first step (GameMission.swift)
         resetMission()
     }
@@ -252,8 +251,8 @@ extension Game {
                     if e >= 0 { spawnBug(pickType(false), L.edgeX[e], L.edgeZ[e], mode: 1, nx: L.edgeNX[e], nz: L.edgeNZ[e]) }
                 }
             }
-            // periodic hordes (the timer pauses while a ring is defended, and while the Матка lives)
-            if posture != .defend && !queen.alive { hordeT -= dt }
+            // periodic hordes (the timer pauses while a ring is defended, and while the boss lives — the Матка: its spec)
+            if posture != .defend && !bossHoldsHordes { hordeT -= dt }
             if hordeT <= 0 {
                 if posture == .hold {
                     hordeT = 13 + rng.next() * 4

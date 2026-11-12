@@ -91,7 +91,7 @@ enum DemoFixtures {
 
     /// Force the fixture's outcome onto a running mission and end it (the scene then shows the report).
     static func apply(_ r: Report, to g: Game) {
-        g.debugSetRun(time: r.time, playerKills: r.playerKills, beaconsDone: r.beacons, queenKilled: r.queenKilled, stage: r.stage)
+        g.debugSetRun(time: r.time, playerKills: r.playerKills, beaconsDone: r.beacons, bossKilled: r.queenKilled, stage: r.stage)
         g.debugSetOutcome(downs: r.downs, downBy: r.downBy, pressure: r.pressure, idleMul: r.idleMul)
         g.debugEnd(won: r.won)
     }

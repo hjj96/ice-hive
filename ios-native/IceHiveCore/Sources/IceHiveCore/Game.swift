@@ -68,30 +68,13 @@ public struct GameConfig {
     public var coach: Bool = false
     /// The revive line (coach.revive) may show once in this mission (app: profile.runs < 3).
     public var reviveLineArmed: Bool = false
-    /// Debug: seconds of counted hold before the Матка's warning (overrides `difficulty.queen.at`; `-queen` → 0).
-    public var queenAt: Float? = nil
-    /// Debug / tests: her absolute health (not × hpMul; web `__dbg.queen(hp)`).
-    public var queenHp: Float? = nil
+    /// Debug: seconds before the step's boss's warning — of counted hold for the classic rider (overrides its row's `at`:
+    /// the Матка's 35 / 35 / 30 s; `-queen` → 0), of the hold or the arena for the other arrivals.
+    public var bossAt: Float? = nil
+    /// Debug / tests: its absolute health (not × hpMul; web `__dbg.queen(hp)`).
+    public var bossHp: Float? = nil
     /// The mission (its plan is built for the station); nil = «Operation Cold Light» (`MissionTemplate.coldLight`).
     public var mission: MissionTemplate? = nil
-    public init() {}
-}
-
-/// Public view of the Матка (web DIR.q + the HUD fields of QSTATE). `uid` stays after her death (uids are never reused).
-public struct QueenState {
-    public internal(set) var uid: Int32 = 0
-    public internal(set) var spawned = false
-    public internal(set) var alive = false
-    public internal(set) var done = false
-    public internal(set) var enraged = false
-    /// Mission time of her spawn, seconds she lived (set at her death).
-    public internal(set) var t0: Float = 0
-    public internal(set) var killT: Float = 0
-    /// Health 0…1 (boss bar = 1 − hpFraction).
-    public internal(set) var hpFraction: Float = 1
-    /// Seconds left of the warning ring before she climbs up, -1 = none.
-    public internal(set) var warning: Float = -1
-    public internal(set) var position = Vec2(0, 0)
     public init() {}
 }
 
@@ -518,11 +501,13 @@ public final class Game {
     /// objective flow first points at the lift (the walk at full speed × 1.3 + 5 s); -1 = not measured yet.
     public internal(set) var liftAllowance: Float = -1
 
-    // ---------- v1.1: the Матка ----------
-    public internal(set) var queen = QueenState()
-    var qWarn: Float = -1, qEdge = -1, qSlot = -1
-    var qBrood: Float = 0, qVolley: Float = 0, qRam: Float = 0, qMeleeCd: Float = 0
-    var qArmed = false
+    // ---------- Stage 2 B1: the boss framework (Boss.swift, GameBoss.swift; v1.1's Матка is its first boss) ----------
+    /// The current step's boss (the Queen in the classic hold): the public view (HUD, threat, report, calibration).
+    public internal(set) var boss = BossState()
+    /// Its row (the step's own spec, else the tier's: `Difficulty.boss(_:)`), set when a step that brings it begins.
+    public internal(set) var bossSpec = BossSpec.none
+    /// Its runtime: clocks, the chain body, the path history (fixed buffers: bossTick never allocates).
+    let bossRT = BossRuntime()
 
     // ---------- v1.1: the coach ----------
     public internal(set) var coach = CoachState()
@@ -740,6 +725,21 @@ public final class Game {
         e.r = cr; e.g = cg; e.b = cb; e.t = 0; e.life = life; e.pulse = false
         telegraphs[k] = e
         events.append(.telegraph(index: k, shape: .fill, cause: cause, pos: Vec2(x, z)))
+    }
+    /// The boss framework's telegraphs (cause `.bossMove`): any shape — a ring / fill / drop target at (x, z) of radius r0
+    /// (→ r1), a lane / beam from (x, z) along (dx, dz), `len` long and `w` wide, a cone from (x, z) along (dx, dz), `len`
+    /// long with half-angle `w` (rad); `wind` s of pulsing before a lane / beam / cone is lit. Returns its pool slot (-1).
+    @discardableResult
+    func teleShape(_ shape: TelegraphShape, _ x: Float, _ z: Float, dx: Float = 0, dz: Float = 1, len: Float = 1, w: Float = 1, r0: Float = 1,
+                   r1: Float? = nil, color: SIMD3<Float>, life: Float, wind: Float = 0, pulse: Bool = true) -> Int {
+        if simOnly { return -1 }
+        let k = teleAlloc(); if k < 0 { return -1 }
+        var e = Telegraph()
+        e.active = true; e.shape = shape; e.cause = .bossMove; e.x = x; e.z = z; e.dx = dx; e.dz = dz; e.len = len; e.w = w
+        e.r0 = r0; e.r1 = r1 ?? r0; e.r = color.x; e.g = color.y; e.b = color.z; e.t = 0; e.life = life; e.wind = wind; e.pulse = pulse
+        telegraphs[k] = e
+        events.append(.telegraph(index: k, shape: shape, cause: .bossMove, pos: Vec2(x, z)))
+        return k
     }
     /// Brute charge lane.
     func teleLane(_ x: Float, _ z: Float, _ dx: Float, _ dz: Float, _ len: Float, _ w: Float, _ wind: Float, _ charge: Float) {

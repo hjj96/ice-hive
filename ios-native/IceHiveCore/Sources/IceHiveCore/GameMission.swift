@@ -64,15 +64,15 @@ extension Game {
             if !simOnly && missionStep > 0, let b = s.banner { banner(stepLine(b.title, []), stepLine(b.sub, []), true) }
             if s.needed == 0 { completeStep() }
         case .hold(let h):
-            resetBossIfMet(h.boss != nil)
+            if let q = h.boss { bossBegin(q.kind, spec: q.spec) }
             liftAllowance = -1
             enterPhase(.approach)
             if !simOnly {
                 if h.zone == .lift { emit(.liftCalled) }
                 if let b = h.callBanner { banner(stepLine(b.title, []), stepLine(b.sub, []), true) }
             }
-        case .boss:
-            resetBossIfMet(true)
+        case .boss(let b):
+            bossBegin(b.boss, spec: b.spec)
             liftAllowance = -1
             enterPhase(.approach)
         case .extract(let e):
@@ -463,17 +463,20 @@ extension Game {
             return mul
         }
         var mul = h.stageMul.value(D)
-        // a boss comes into the hold `at` s into the counted hold; while she lives the trickle thins out (she is the horde)
+        // a boss comes into the hold by its arrival rule (the classic: `at` s into the counted hold); while it lives the
+        // stream thins out (the Queen: she is the horde); a periodic rider comes again after each death
         if let q = h.boss {
-            queenTick(dt, expected: riderExpected(q), due: liftDur - liftT >= riderAt(q))
-            if queen.alive { mul *= D.queen.trickle }
+            if boss.done { riderRearm(q) }
+            bossTick(dt, expected: riderExpected(q), due: riderDue(q))
+            if boss.alive { mul *= bossSpec.trickle }
         }
         var on = false
         for m in marines where !m.downed && inZone(h.zone, m.x, m.z) { on = true }
         if on {
             liftT -= dt
-            // lift defence circuit: periodic shock pulse across the deck (weaker toward the rim on the harder tiers)
-            if h.pulse {
+            // lift defence circuit: periodic shock pulse across the deck (weaker toward the rim on the harder tiers; a boss's
+            // phase may cut it while the boss lives)
+            if h.pulse && !(boss.alive && bossRT.pulseOff) {
                 pulseT -= dt
                 if pulseT <= 0 {
                     if D.pulseDamage > 0 {
@@ -486,8 +489,8 @@ extension Game {
         }
         // R7 (Breaker Run): the station's dark circuits come back one by one over the hold
         if h.relights && relightNext < relightQueue.count { relightTick() }
-        // the hold waits for its boss: it cannot end before she has come and died
-        if let q = h.boss, q.locks, liftT <= 0 && (queen.alive || (!queen.spawned && riderExpected(q))) { liftT = 0.01 }
+        // the hold waits for its boss: it cannot end before it has come and died
+        if let q = h.boss, q.locks, liftT <= 0 && (boss.alive || (!boss.spawned && riderExpected(q))) { liftT = 0.01 }
         if liftT <= 0 {
             liftT = 0
             // (the lift only leaves with the player on it: a downed player is carried back by the squad first)
@@ -549,23 +552,8 @@ extension Game {
         return .bannerHordeLiftSub
     }
 
-    /// The rider comes on this tier (or the debug `queenAt` sends her).
-    func riderExpected(_ q: BossRider) -> Bool { (config.queenAt ?? q.at ?? difficulty.queen.at).isFinite }
-
-    /// Seconds of counted hold before her warning.
-    func riderAt(_ q: BossRider) -> Float { config.queenAt ?? q.at ?? difficulty.queen.at }
-
-    /// A step that brings a boss starts from a fresh boss state when an earlier step already met her.
-    func resetBossIfMet(_ brings: Bool) {
-        if !brings || !queen.spawned { return }
-        queen = QueenState()
-        qWarn = -1; qEdge = -1; qSlot = -1; qBrood = 0; qVolley = 0; qRam = 0; qMeleeCd = 0; qArmed = false
-    }
-
     // ---------------------------------------------------------------- BOSS
-
-    /// The tier has the boss (the legacy row has none; a debug health brings her anyway).
-    var bossAvailable: Bool { config.queenHp != nil || difficulty.queen.hp > 0 }
+    // (the boss's arrival rules, its availability on the tier and its reset: GameBoss.swift)
 
     func bossStepTick(_ b: BossStep, _ dt: Float) -> Float? {
         let D = difficulty, P = marines[0]
@@ -578,9 +566,9 @@ extension Game {
         if !bossAvailable {
             return completeStep() ? mul : nil
         }
-        queenTick(dt, expected: true, due: stepTime >= (config.queenAt ?? b.delay))
-        if queen.alive { mul *= D.queen.trickle }
-        if queen.done && !completeStep() { return nil }
+        bossTick(dt, expected: true, due: stepTime >= (config.bossAt ?? b.delay))
+        if boss.alive { mul *= bossSpec.trickle }
+        if boss.done && !completeStep() { return nil }
         return mul
     }
 
@@ -697,9 +685,9 @@ extension Game {
                 for _ in 0..<s.needed { out.append(ReportStripItem(label: GameText(s.stripText ?? .reportStripBeacon), on: switchesThrown > thrown)); thrown += 1 }
             case .hold(let h):
                 out.append(ReportStripItem(label: GameText(h.stripText ?? .reportStripLift), on: reached))
-                if h.boss != nil { out.append(ReportStripItem(label: GameText(.reportStripQueen), on: won || (queen.spawned && queen.done))) }
+                if h.boss != nil { out.append(ReportStripItem(label: GameText(.reportStripQueen), on: won || (boss.spawned && boss.done))) }
             case .boss(let b):
-                out.append(ReportStripItem(label: GameText(b.stripText ?? .reportStripQueen), on: won || (queen.spawned && queen.done)))
+                out.append(ReportStripItem(label: GameText(b.stripText ?? .reportStripQueen), on: won || (boss.spawned && boss.done)))
             case .extract(let e):
                 out.append(ReportStripItem(label: GameText(e.stripText ?? .reportStripExtract), on: won))
             }

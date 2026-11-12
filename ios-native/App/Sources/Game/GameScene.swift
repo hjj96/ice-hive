@@ -432,8 +432,8 @@ final class GameScene: SKScene {
         if !attract && !classicMission { cfg.mission = mission }
         cfg.coach = coach && !attract && classicMission
         cfg.reviveLineArmed = !attract && settings.profile.runs < 3
-        if options.queen { cfg.queenAt = 0 }
-        cfg.queenHp = options.queenHp
+        if options.queen { cfg.bossAt = 0 }
+        cfg.bossHp = options.queenHp
         let seed: UInt32 = options.seed ?? UInt32(truncatingIfNeeded: Int(Date().timeIntervalSince1970 * 1000) & 0x7fff_ffff)
         Cinematics.shared.reset()
         return Game(seed: seed, playerClass: selectedClass, config: cfg, level: lv)
@@ -986,16 +986,16 @@ final class GameScene: SKScene {
                 noteFirst(5, "horde")
             case .downed:
                 noteFirst(6, "downed")
-            case .queenKilled:
-                // v1.1: the Матка's death always gets its hit-stop (the core emits it right after this event)
+            case .bossKilled(let kind, _):
+                // v1.1: a boss's death (the Матка's) always gets its hit-stop (the core emits it right after this event)
                 hitStopCd = 0
-                logQueen("kill", g)
-            case .queenWarning:
-                logQueen("warn", g)
-            case .queenSpawned:
-                logQueen("spawn", g)
-            case .queenEnraged:
-                logQueen("enrage", g)
+                logBoss("kill", kind, g)
+            case .bossWarning(let kind, _):
+                logBoss("warn", kind, g)
+            case .bossSpawned(let kind, _):
+                logBoss("spawn", kind, g)
+            case .bossPhase(let kind, let p, let enraged, _):
+                logBoss(enraged ? "enrage" : "phase\(p)", kind, g)
             case .coachStep(let k):
                 if diag { AppLog.info("v11 coach step=\(k)") }
             case .coachSeen:
@@ -1093,11 +1093,12 @@ final class GameScene: SKScene {
         }
     }
 
-    /// «v11 queen warn|spawn|enrage|kill t= uid= hp=» (diagnostics; her health from the core's threat view).
-    private func logQueen(_ what: String, _ g: Game) {
+    /// «v11 queen warn|spawn|enrage|kill t= uid= hp=» (diagnostics; the boss's kind names it — the Queen's lines as in v1.1;
+    /// its health from the core's threat view).
+    private func logBoss(_ what: String, _ kind: BossKind, _ g: Game) {
         guard AppLog.diagnostics else { return }
         let td = g.threatDebug
-        AppLog.info(String(format: "v11 queen %@ t=%.1f uid=%d hp=%.0f", what, g.time, Int(g.queen.uid), td.queenHpMax)
+        AppLog.info("v11 \(kind.rawValue) " + String(format: "%@ t=%.1f uid=%d hp=%.0f", what, g.time, Int(g.boss.uid), td.bossHpMax)
                     + " tier=\(g.difficulty.id)")
     }
 

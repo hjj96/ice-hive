@@ -65,9 +65,9 @@ final class MissionTests: XCTestCase {
             let (g, _) = runMission(cls, seed: 1100 + UInt32(cls.rawValue), tier: .recruit)
             XCTAssertTrue(g.stage == .hold || g.stage == .extract, "\(cls.id): never reached the lift hold: \(g.debugState)")
             // (a squad wiped in the first 35 s of the hold never meets her)
-            XCTAssertTrue(g.queen.spawned || g.phase == .lost, "\(cls.id): no Матка")
-            if g.phase == .won { XCTAssertTrue(g.queen.done, "\(cls.id): the lift left with her alive"); wins += 1 }
-            if g.queen.spawned { queens += 1 }
+            XCTAssertTrue(g.boss.spawned || g.phase == .lost, "\(cls.id): no Матка")
+            if g.phase == .won { XCTAssertTrue(g.boss.done, "\(cls.id): the lift left with her alive"); wins += 1 }
+            if g.boss.spawned { queens += 1 }
         }
         XCTAssertGreaterThanOrEqual(wins, 3)
         XCTAssertGreaterThanOrEqual(queens, 3)

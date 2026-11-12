@@ -304,6 +304,11 @@ extension Game {
             if S.dead[i] != 0 { continue }
             let st = S.st[i]
             if st == S_FALL { continue }
+            // (Stage 2 B1: a boss's chain part scalds like a deck bug — its hit routed to the boss bar — never dies of it)
+            if st == S_BOSS {
+                if s.covers(S.x[i], S.z[i], pad: S.r[i] * 0.5) || s.spanCovers(S.x[i], S.z[i]) { hitBug(i, CURTAIN_BUG_DPS * dt, v.src, true) }
+                continue
+            }
             // (Stage 1 R4: a Dropper pinning a marine, S_PIN, is on the deck)
             if (st >= S_HIGH && st != S_PIN) || S.up[i] != 0 {
                 // up on the span (or over the curtain): scalded off the pipe — dead
@@ -336,7 +341,12 @@ extension Game {
         let n = S.count
         while i < n {
             defer { i += 1 }
-            if S.dead[i] != 0 || S.uid[i] == queen.uid { continue }
+            // (a boss never freezes: the Матка is immune, a chain part locks its body instead)
+            if S.dead[i] != 0 { continue }
+            if S.boss[i] != 0 {
+                if S.boss[i] != BOSS_BUG && (s.covers(S.x[i], S.z[i]) || s.spanCovers(S.x[i], S.z[i])) { bossPartFreeze(i, nova: false) }
+                continue
+            }
             let st = S.st[i]
             if st == S_FALL { continue }
             if (st >= S_HIGH && st != S_PIN) || S.up[i] != 0 {
