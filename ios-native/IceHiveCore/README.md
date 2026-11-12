@@ -87,6 +87,12 @@ switch game.phase { case .won, .lost: /* экран итогов: game.stats */ 
   навсегда; сначала устья, у Mk II — три), состояние — `game.switchesThrown`, `game.ventShut` (вентиляции, заваренные пломбами),
   `game.streamK` (поток улья: × каждой пломбы), `game.beaconInPlan` (маяки, которые заряжает план), отчёт —
   `RunSummary.switchLine` / `strip` (своя полоса этапов плана); события `.ventSealed(index:)`, `.ventPour(index:count:)`.
+- Боссы (Stage 2 B1, `Boss.swift` / `GameBoss.swift` / `GameBossBody.swift`; Матка — `GameQueen.swift`): `game.boss`
+  (`BossState`: вид, uid, пришёл / жив / убит, ярость, фаза, здоровье 0…1, предупреждение, позиция, высота и курс головы,
+  неуязвимость, оглушение, блок, хрупкость, прибытия), `game.bossSpec` (строка босса шага), `game.bossHpFraction`;
+  тело-цепь — `game.bossPartCount`, `game.bossPart(k)` (`BossPartView`), `game.bossBodyPoint(behind:)`; у слотов
+  `bugs.isBoss(i)`, `bugs.bossPart(i)` (часть цепи, −1 — нет), состояние `boss` (13: абсолютная высота). Формы телеграфов
+  `cone`, `beam`, `drop` (причина `bossMove`).
 - `game.mission` (план), `game.missionStep`, `game.stepPhase`, `game.switches`, `game.missionZone`, `game.objectiveKey`,
   `game.beacons`, `game.stage`, `game.objective`, `game.objectiveProgress`, `game.objectiveMarker`,
   `game.contextHint`, `game.liftRise`, `game.kills`, `game.time`, `game.comboShown`, `game.xpLevel`, `game.xp/xpNext`.
@@ -99,12 +105,13 @@ switch game.phase { case .won, .lost: /* экран итогов: game.stats */ 
 масштаб — для трупов и пятен), взрывы, попадания пуль, выстрелы, перегрев, перезарядка, урон/падение/подъём
 бойцов, рывки, способности, телеграфы, кислота, аптечки, орды, маяки, лифт, уровень, комбо, победа/поражение,
 ярус R4 (`pinned`, `pinBroken` с причиной `PinBreak` dash / fire / timeout / down / release и освободителем,
-`ductRattle`, `ductHit`, `ductSealed`, `ductOpened`, `perched`, `acidFromPerch`),
+`ductRattle`, `ductHit`, `ductSealed`, `ductOpened`, `perched`, `acidFromPerch`), боссы (`bossWarning`, `bossSpawned`,
+`bossPhase`, `bossKilled`, `bossMove`, `bossWindow`, `bossPartPopped`, `bossPartFrozen` — у каждого `kind: BossKind`),
 тосты и баннеры (русский текст), `sound(SoundID, …)` с теми же именами, что `sfx()` веб-версии,
 `haptic`, `shake`, `hitStop`, `screenFlash`, `damageFlash`, `hordeFlash`.
 
 ### Отладка (аналог `window.__dbg`)
-`debugState`, `debugSpawn(n, type:)`, `debugSkip()`, `godMode`, `autopilot`, `fastForward(seconds:)`,
+`debugState`, `debugSpawn(n, type:)`, `debugSkip()`, `debugBoss(hp:)` (босс шага сейчас), `godMode`, `autopilot`, `fastForward(seconds:)`,
 `debugLevelUp()`, `debugHorde(n)`, `debugTeleport(x, z)`, `benchmark(counts:)`, `setQuality(_:)`,
 `directorEnabled`; верхний ярус — `debugRoutePack(n, entry:)`, `debugSpawnRouteBug(entry:)`,
 `debugSetNoDropZones(_:)`, `debugHoldFire`; R4 — `debugRoutePack(n, entry:, rate:, type:)` (тип стаи),
@@ -122,6 +129,9 @@ switch game.phase { case .won, .lost: /* экран итогов: game.stats */ 
 - `Difficulty` — таблица сложности («Новобранец / Ветеран / Кошмар»); `Difficulty.standard` равен v1.0,
   предварительные строки `recruit / veteran / nightmare` взяты из плана v1.1.
 - `LevelSource` → `LevelLayout` — генератор станций по сиду вместо фиксированной `KelvinStation`.
+- Боссы — строка `BossSpec` на уровень в `Difficulty`, свой файл с `bossOwnTick` / `bossOwnMove` / `bossOwnPart`
+  (`GameBoss.swift` переключает по `BossKind`), шаг плана `BossStep` или наездник удержания `BossRider` (правило
+  прибытия `BossArrival`).
 - Давление улья, часы застоя и «Матка» встраиваются в `tickDirector` (`GameDirector.swift`): темп
   подкрепления, орды, выбор типа жука (`pickType`) и спавн (`spawnBug`, `queueBurst`) — отдельные функции,
   новые события добавляются в `GameEvent`.
@@ -149,4 +159,8 @@ switch game.phase { case .won, .lost: /* экран итогов: game.stats */ 
 | `GameHUD.swift` | тексты задачи и подсказок, статистика, лазеры |
 | `GameDebug.swift` | отладочные хуки, бенчмарк |
 | `GameOverheadBugs.swift` | жуки яруса (R4): прижим Dropper, плевуны на насестах, устья коробов (дребезг, закрытие огнём) |
+| `Boss.swift` | каркас боссов (Stage 2 B1): `BossSpec` (тело, фазы, ходы, иммунитеты, крючки арены, награда), `BossState`, `BossKind` |
+| `GameBoss.swift` | рантайм боссов: предупреждение, появление, `bossTick`, фазы, ходы с телеграфами, урон частей, смерть, прибытия |
+| `GameBossBody.swift` | тело-цепь: история пути головы, сегменты по длине дуги, слоты частей, вид для рендера |
+| `GameQueen.swift` | Матка на каркасе: её строки `BossSpec.queen(…)` |
 | `KelvinMk2.swift` | «Кельвин-9» Mk II (R5): маршруты верхнего яруса ручной карты, `KelvinStation.mk2` — станция классической миссии |

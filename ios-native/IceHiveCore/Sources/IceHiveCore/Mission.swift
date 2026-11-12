@@ -182,25 +182,26 @@ public struct SwitchStep: Equatable {
     public var needed: Int { max(0, min(sites.count, required ?? sites.count)) }
 }
 
-/// The bosses a step can bring (R8's framework adds its own; the Queen is a scaled brute today, GameQueen.swift).
-public enum BossKind: String, CaseIterable {
-    case queen
-
-    /// Her name in the objective line and the boss bar.
-    public var name: NameRef {
-        switch self {
-        case .queen: return .queen
-        }
-    }
-}
-
-/// A boss that comes into a HOLD: `at` s into the counted hold (nil = the tier's `queen.at`; the debug `queenAt` wins
-/// over both); `locks`: the hold cannot end while she lives — or before she came.
+/// A boss that comes into a HOLD (the boss framework, Boss.swift / GameBoss.swift): `arrival` — when (the classic: `at` s
+/// into the counted hold, nil = its row's `at`, the Queen's 35 / 35 / 30 s; the debug `bossAt` wins over both); `locks`:
+/// the hold cannot end while it lives — or before it came; `spec`: its own row instead of the tier's (a variant, a test).
 public struct BossRider: Equatable {
     public var kind: BossKind
-    public var at: Float?
+    public var arrival: BossArrival
     public var locks: Bool
-    public init(_ kind: BossKind, at: Float? = nil, locks: Bool = true) { self.kind = kind; self.at = at; self.locks = locks }
+    public var spec: BossSpec?
+    public init(_ kind: BossKind, at: Float? = nil, locks: Bool = true, spec: BossSpec? = nil) {
+        self.kind = kind; self.arrival = .holdTime(at); self.locks = locks; self.spec = spec
+    }
+    /// Any arrival rule: an endless hold (`HoldStep.time` ∞) never counts, so its rider needs `.stepTime` or `.every`.
+    public init(_ kind: BossKind, arrival: BossArrival, locks: Bool = true, spec: BossSpec? = nil) {
+        self.kind = kind; self.arrival = arrival; self.locks = locks; self.spec = spec
+    }
+    /// The classic rule's seconds of counted hold (nil: the row's own, or another rule).
+    public var at: Float? {
+        if case .holdTime(let a) = arrival { return a }
+        return nil
+    }
 }
 
 /// HOLD: reach the zone (the player standing in it starts the hold), then hold it: the countdown runs while any standing
@@ -267,13 +268,15 @@ public struct HoldStep: Equatable {
     }
 }
 
-/// BOSS: reach the arena; `delay` s after the player stepped in, the boss's warning (2 s), then the boss. The step
-/// ends when she dies (a tier without a boss — the legacy row — skips the step).
+/// BOSS: reach the arena; `delay` s after the player stepped in, the boss's warning (its spec's, 2 s), then the boss. The
+/// step ends when it dies (a tier without the boss — the legacy row — skips the step).
 public struct BossStep: Equatable {
     public var boss: BossKind
     public var zone: MissionZone
-    /// Seconds in the arena before her warning (the debug `queenAt` wins).
+    /// Seconds in the arena before its warning (the debug `bossAt` wins).
     public var delay: Float
+    /// Its own row instead of the tier's (a variant, a test).
+    public var spec: BossSpec? = nil
     public var approachMul = PacingValue(legacy: 1.6, waves: 1.2)
     public var stageMul = PacingValue(legacy: 3.2, waves: 2.0)
     public var travelAllowance = true
@@ -286,7 +289,9 @@ public struct BossStep: Equatable {
     /// The report strip's label (nil: the classic strip).
     public var stripText: TextID? = nil
 
-    public init(_ boss: BossKind = .queen, zone: MissionZone, delay: Float = 3) { self.boss = boss; self.zone = zone; self.delay = delay }
+    public init(_ boss: BossKind = .queen, zone: MissionZone, delay: Float = 3, spec: BossSpec? = nil) {
+        self.boss = boss; self.zone = zone; self.delay = delay; self.spec = spec
+    }
 }
 
 /// EXTRACT: reach the lift (the player standing on it), then ride it out for `duration` s; the mission is won when the
@@ -380,14 +385,22 @@ public struct MissionPlan: Equatable {
 // ---------------------------------------------------------------- templates and their calibration
 
 /// A win-rate band of a template's calibration rows (autopilot, medium graphics) on one tier, and optionally a ceiling on
-/// the squad downs per run (the classic Recruit band: ≤ 0.5).
+/// the squad downs per run (the classic Recruit band: ≤ 0.5). Stage 2 B1: a boss mission's own boss bands (design §1.5 /
+/// tech §5.4: the boss reached in ≥ `bossReachedLo` % of the runs, killed in ≥ `bossKilledLo` % of those, its kill median
+/// in `bossMedianLo`…`bossMedianHi` s) — the rows' `queen` record is the run's boss, whatever its kind.
 public struct CalibBand: Equatable {
     public var tier: Int
     public var winLo: Float?
     public var winHi: Float?
     public var downsHi: Float?
-    public init(tier: Int, winLo: Float? = nil, winHi: Float? = nil, downsHi: Float? = nil) {
+    public var bossReachedLo: Float?
+    public var bossKilledLo: Float?
+    public var bossMedianLo: Float?
+    public var bossMedianHi: Float?
+    public init(tier: Int, winLo: Float? = nil, winHi: Float? = nil, downsHi: Float? = nil, bossReachedLo: Float? = nil,
+                bossKilledLo: Float? = nil, bossMedianLo: Float? = nil, bossMedianHi: Float? = nil) {
         self.tier = tier; self.winLo = winLo; self.winHi = winHi; self.downsHi = downsHi
+        self.bossReachedLo = bossReachedLo; self.bossKilledLo = bossKilledLo; self.bossMedianLo = bossMedianLo; self.bossMedianHi = bossMedianHi
     }
 }
 

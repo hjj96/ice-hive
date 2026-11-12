@@ -67,10 +67,14 @@ public enum BugState: UInt8 {
     /// A spitter perched on the overhead (design §1.1.3 «perched spitters»): still at a perch point against the void,
     /// spitting from height — longer range (14 m), slower wind-up (0.65 s) and glob (1.1 s flight).
     case perch = 12
+    // ---- Stage 2 B1, the boss framework (GameBoss.swift / GameBossBody.swift); `heights` stays absolute
+    /// A part of a boss's chain body: placed by the boss every tick along its head's path (the swarm's own AI never moves
+    /// it), its hits routed to the boss bar.
+    case boss = 13
 }
 let S_MOVE: UInt8 = 0, S_CLIMB: UInt8 = 1, S_WIND: UInt8 = 2, S_CHARGE: UInt8 = 3, S_SWELL: UInt8 = 4, S_LEAP: UInt8 = 5
 let S_HIGH: UInt8 = 6, S_RISER: UInt8 = 7, S_COIL: UInt8 = 8, S_DROP: UInt8 = 9, S_FALL: UInt8 = 10
-let S_PIN: UInt8 = 11, S_PERCH: UInt8 = 12
+let S_PIN: UInt8 = 11, S_PERCH: UInt8 = 12, S_BOSS: UInt8 = 13
 /// Seconds a runner's leap lasts (its state timer counts it down; height peaks halfway).
 public let LEAP_T: Float = 0.36
 
@@ -239,37 +243,13 @@ let WAVE_SPECIAL_CAP: [Int] = [0, 14, 5, 10, 0]
 // ================================================================
 //  DIFFICULTY — the v1.1 «Ставки» tiers (web 01-core.js DIFF / TH, calibrated rows of
 //  origin/v1.1/a-threat 8e95162). Every field multiplies or replaces a v1.0 constant
-//  where it acts (director, swarm, marines, the Матка). `legacyV10` is a hidden row that
+//  where it acts (director, swarm, marines, the bosses: a BossSpec row per boss — Boss.swift,
+//  the Queen's built in GameQueen.swift). `legacyV10` is a hidden row that
 //  reproduces v1.0 exactly (no Матка, no pressure, no stall clock, runners scale with HP):
 //  the calibration port check and the v1.0 regression test run on it.
 //  Native deviations from the web numbers are only allowed through the calibration
 //  protocol (ios-native/README.md «v1.1 Ставки»); each one is noted next to its field.
 // ================================================================
-
-/// The Матка (boss of the lift hold) per tier (web TH.q*).
-public struct QueenTuning: Equatable {
-    /// Seconds of counted hold (liftDur − liftT) before her 2 s warning; ∞ = she never comes.
-    public var at: Float
-    /// Health (× the director's HP multiplier at her spawn).
-    public var hp: Float
-    public var speed: Float
-    /// Seconds between rams (× 0.75 enraged), acid volleys (× 0.75), broods (× 0.7).
-    public var ramT: Float, volleyT: Float, broodT: Float
-    /// Runners per brood.
-    public var broodN: Int
-    /// Horde size when she enrages (× hordeScale, then × the tier's horde inside startHorde).
-    public var horde: Float
-    /// Trickle multiplier while she lives (she is the horde).
-    public var trickle: Float
-
-    public init(at: Float, hp: Float, speed: Float, ramT: Float, volleyT: Float, broodT: Float, broodN: Int, horde: Float, trickle: Float) {
-        self.at = at; self.hp = hp; self.speed = speed; self.ramT = ramT; self.volleyT = volleyT; self.broodT = broodT
-        self.broodN = broodN; self.horde = horde; self.trickle = trickle
-    }
-
-    /// No Матка (legacy v1.0 row).
-    public static let none = QueenTuning(at: .infinity, hp: 0, speed: 0, ramT: 0, volleyT: 0, broodT: 0, broodN: 0, horde: 0, trickle: 1)
-}
 
 /// Mission source of the Матка's damage: SRC_QUEEN in the web damage-source table.
 public let SRC_QUEEN = 4
@@ -342,7 +322,10 @@ public struct Difficulty: Equatable {
     public var pressureGrace: Float = .infinity
     /// Flat runner HP (one-shot fodder, × 0.88…1.12); 0 = v1.0 scaling (18 × hpMul × k).
     public var runnerHp: Float = 0
-    public var queen: QueenTuning = .none
+    /// The Матка, the boss of the lift hold (Stage 2 B1: a BossSpec row — `BossSpec.queen(…)`, GameQueen.swift: her warning
+    /// `at` s into the counted hold (∞: none), health × the HP multiplier, speed, ram / volley / brood clocks, brood size, the
+    /// horde of her rage, × the trickle while she lives).
+    public var queen: BossSpec = .queenNone
     /// native-vx-feel: the wave pacing — real lulls and peaks instead of a constant stream, packs climbing over the
     /// rails and out of vents from several sides, a smaller swarm of smarter bugs (favourite targets, flanking arcs,
     /// hesitation, feints and surges, runner leaps, flight from blasts, panic on fire). false = the v1.0 / v1.1 stream.
@@ -397,7 +380,7 @@ public struct Difficulty: Equatable {
         d.beaconHeal = 0.25; d.reviveHp = 0.45; d.medkitChance = 0.35; d.trickleMinDist = 12
         d.pulseDamage = 1.0; d.pulseInterval = 5; d.pulseFalloff = 0
         d.stallTime = 90; d.pressureGrace = 40; d.runnerHp = 15
-        d.queen = QueenTuning(at: 35, hp: 2500, speed: 1.5, ramT: 9, volleyT: 6, broodT: 8, broodN: 6, horde: 80, trickle: 0.4)
+        d.queen = .queen(at: 35, hp: 2500, speed: 1.5, ramT: 9, volleyT: 6, broodT: 8, broodN: 6, horde: 80, trickle: 0.4)
         d.waves = true; d.popK = 2.3; d.mix = 1.8; d.bite = 1.8; d.xpK = 1.6; d.runnerHp = 22
         d.routes = 0.15; d.routeCap = 12; d.dropCap = 2; d.dropWarn = 1.2; d.dropK = 1.2; d.dropGap = 1.0
         d.dropperCap = 4; d.pinT = 0.8; d.pinGnaw = 5; d.dropperGap = 30; d.perchGap = 36
@@ -411,7 +394,7 @@ public struct Difficulty: Equatable {
         d.beaconHeal = 0.20; d.reviveHp = 0.45; d.medkitChance = 0.35; d.trickleMinDist = 11
         d.pulseDamage = 1.0; d.pulseInterval = 6; d.pulseFalloff = 0.5
         d.stallTime = 60; d.pressureGrace = 25; d.runnerHp = 15
-        d.queen = QueenTuning(at: 35, hp: 3500, speed: 1.5, ramT: 9, volleyT: 6, broodT: 8, broodN: 6, horde: 80, trickle: 0.4)
+        d.queen = .queen(at: 35, hp: 3500, speed: 1.5, ramT: 9, volleyT: 6, broodT: 8, broodN: 6, horde: 80, trickle: 0.4)
         d.waves = true; d.popK = 2.5; d.mix = 1.8; d.bite = 2.25; d.xpK = 1.6; d.runnerHp = 22
         d.routes = 0.2; d.routeCap = 15; d.dropCap = 3; d.dropWarn = 0.9; d.dropK = 1.4; d.dropGap = 0.8
         d.dropperCap = 5; d.pinT = 1.2; d.pinGnaw = 5; d.dropperGap = 22; d.perchGap = 28
@@ -425,7 +408,7 @@ public struct Difficulty: Equatable {
         d.beaconHeal = 0.15; d.reviveHp = 0.35; d.medkitChance = 0.25; d.trickleMinDist = 10
         d.pulseDamage = 0.8; d.pulseInterval = 7; d.pulseFalloff = 0.6
         d.stallTime = 40; d.pressureGrace = 15; d.runnerHp = 15
-        d.queen = QueenTuning(at: 30, hp: 6000, speed: 1.6, ramT: 8, volleyT: 5, broodT: 7, broodN: 8, horde: 150, trickle: 0.6)
+        d.queen = .queen(at: 30, hp: 6000, speed: 1.6, ramT: 8, volleyT: 5, broodT: 7, broodN: 8, horde: 150, trickle: 0.6)
         d.waves = true; d.popK = 2.6; d.mix = 1.8; d.bite = 2.5; d.xpK = 1.6; d.runnerHp = 22
         d.routes = 0.2; d.routeCap = 18; d.dropCap = 3; d.dropWarn = 0.9; d.dropK = 1.5; d.dropGap = 0.6
         d.dropperCap = 6; d.pinT = 1.2; d.pinGnaw = 5; d.dropperGap = 22; d.perchGap = 28
@@ -481,11 +464,11 @@ public struct Difficulty: Equatable {
             case "qAt": queen.at = v
             case "qHp": queen.hp = v
             case "qSpd": queen.speed = v
-            case "qRamT": queen.ramT = v
-            case "qVolleyT": queen.volleyT = v
-            case "qBroodT": queen.broodT = v
-            case "qBroodN": queen.broodN = Int(v0.rounded())
-            case "qHorde": queen.horde = v
+            case "qRamT": queen.setMove("ram") { $0.cooldown = v }
+            case "qVolleyT": queen.setMove("volley") { $0.cooldown = v }
+            case "qBroodT": queen.setMove("brood") { $0.cooldown = v }
+            case "qBroodN": queen.setMove("brood") { $0.count = Int(v0.rounded()) }
+            case "qHorde": if queen.phases.count > 1 { queen.phases[1].horde = v }
             case "qTrickle": queen.trickle = v
             case "mul": scoreMul = v
             case "waves": waves = v != 0
@@ -512,6 +495,13 @@ public struct Difficulty: Equatable {
 
     /// The tier has a Матка (the lift waits for her).
     public var hasQueen: Bool { queen.at.isFinite }
+
+    /// The row of boss `kind` on this tier (a new boss adds its row and its case).
+    public func boss(_ kind: BossKind) -> BossSpec {
+        switch kind {
+        case .queen: return queen
+        }
+    }
 }
 
 // ================================================================

@@ -440,13 +440,13 @@ final class DemoScript {
         if (name == "queen" || name == "queenlock") && !queenSet && sinceReady >= 2 {
             queenSet = true
             // (the scene logs «v11 queen spawn …» from her event)
-            let uid = game.debugQueen(hp: options.queenHp ?? 1_000_000)
+            let uid = game.debugBoss(hp: options.queenHp ?? 1_000_000)
             if uid == 0 { AppLog.info("demo \(name): the Queen did not come (stage \(game.stage.rawValue))") }
         }
         if name == "queenlock" && !lockSet && queenSet && sinceReady >= 3.5 {
             lockSet = true
             game.debugSetLiftTime(0.01)
-            AppLog.info("demo queenlock: lift countdown out, queen alive=\(game.queen.alive)")
+            AppLog.info("demo queenlock: lift countdown out, queen alive=\(game.boss.alive)")
         }
         // holdhint: the countdown pinned in its first 8 s, so the tier's lift-pulse hint («Контур бьёт каждые 6 с — …»,
         // two lines on a phone) stays up for the screenshot taken after the measured window (mission time ≥ 7 s)

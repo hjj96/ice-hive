@@ -66,8 +66,8 @@ extension Game {
                 pack(n, near: c, dmin: D.trickleMinDist, dmax: 30, rate: 4)
             }
         }
-        // periodic hordes (the clock pauses while a ring is defended and while the Queen lives)
-        if !defending && !queen.alive { hordeT -= dt }
+        // periodic hordes (the clock pauses while a ring is defended and while the boss lives — the Queen: its spec)
+        if !defending && !bossHoldsHordes { hordeT -= dt }
         if hordeT <= 0 {
             if posture == .hold {
                 hordeT = 18 + rng.next() * 6

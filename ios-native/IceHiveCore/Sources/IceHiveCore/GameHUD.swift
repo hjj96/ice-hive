@@ -62,7 +62,7 @@ extension Game {
             return stepLine(s.lineText, [.int(switchesDone), .int(s.needed)])
         case .hold(let h):
             if stepPhase == .approach { return onTheWay(h.approachText, h.wakingText, h.convergeText) }
-            if ts == .queen { return stepLine(liftT <= 0.011 ? h.lockedText : h.bossText, [.name((h.boss?.kind ?? .queen).name)]) }
+            if ts == .boss { return stepLine(liftT <= 0.011 ? h.lockedText : h.bossText, [.name((h.boss?.kind ?? .queen).name)]) }
             return stepLine(h.holdText, [.time(liftT.rounded(.up))])
         case .boss(let b):
             if stepPhase == .approach { return onTheWay(b.approachText, b.wakingText, b.convergeText) }
@@ -89,10 +89,10 @@ extension Game {
         return k * 100_000 + hold
     }
 
-    /// Objective progress bar 0...1, or -1 = hidden (the Матка: her lost health; pressure: press / grace).
+    /// Objective progress bar 0...1, or -1 = hidden (the boss: its lost health; pressure: press / grace).
     public var objectiveProgress: Float {
         let ts = threatState
-        if ts == .queen { return 1 - queenHpFraction }
+        if ts == .boss { return 1 - bossHpFraction }
         if ts != .calm { return min(1, pressure / difficulty.pressureGrace) }
         switch currentStep {
         case .ring?: if activeBeacon >= 0 { return beacons[activeBeacon].progress }
@@ -199,8 +199,8 @@ extension Game {
 
     public var stats: MissionStats {
         MissionStats(time: time, kills: kills, playerKills: playerKills, accuracy: accuracy, bestCombo: bestCombo, level: xpLevel, won: phase == .won,
-                     downs: downs, downBy: downBy, tierIndex: difficulty.index, beaconsDone: beaconsDone, queenSpawned: queen.spawned,
-                     queenDone: queen.done, stage: stage)
+                     downs: downs, downBy: downBy, tierIndex: difficulty.index, beaconsDone: beaconsDone, queenSpawned: boss.spawned,
+                     queenDone: boss.done, stage: stage)
     }
 
     /// What the profile and the mission report need from this run (call at mission end; surrender counts as a loss).
@@ -209,7 +209,7 @@ extension Game {
         var lit = 0
         for b in beacons where b.state == 2 { lit += 1 }
         var r = RunSummary(cls: playerClass, won: won, surrendered: surrendered && !won, time: time, playerKills: playerKills,
-                           beaconsDone: lit, queenSpawned: queen.spawned, queenDone: queen.done, downs: downs, downBy: downBy,
+                           beaconsDone: lit, queenSpawned: boss.spawned, queenDone: boss.done, downs: downs, downBy: downBy,
                            tierIndex: difficulty.index, tierMul: difficulty.scoreMul, stage: stage,
                            pressureLoss: pressure >= difficulty.pressureGrace && idleMul > 1,
                            shots: Int(shots.rounded()), hits: Int(hits.rounded()), accuracy: accuracy, bestCombo: bestCombo, level: xpLevel,

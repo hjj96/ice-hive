@@ -47,7 +47,7 @@ extension Game {
     var overheadExtracting: Bool { stage == .extract }
 
     /// Bugs up on the overhead now (the sentinel bucket of the last rebuild + the ones spawned since).
-    public var routeAlive: Int { hash.overheadCount + oh.tickSpawns }
+    public var routeAlive: Int { hash.overheadCount - bossPartsUp + oh.tickSpawns }
     /// The drop telegraphs (slots; `active` ones are live).
     public var dropZones: [DropZone] { oh.zones }
     /// Live drop telegraphs.
@@ -198,7 +198,8 @@ extension Game {
             if oh.zones[k].t < -0.5 { oh.zones[k].active = false } else { zn += 1 }
         }
         if zn > oh.stats.maxZones { oh.stats.maxZones = zn }
-        if hash.overheadCount > oh.stats.maxUp { oh.stats.maxUp = hash.overheadCount }
+        let upNow = hash.overheadCount - bossPartsUp
+        if upNow > oh.stats.maxUp { oh.stats.maxUp = upNow }
         if overheadOn && directorEnabled && !calm { campTick(dt); channelTick(dt) }
         // Stage 1 R4: the duct mouths' clocks (shut → the hive chews through, rattles, pours)
         if !oh.ducts.isEmpty { ductTick(dt) }
@@ -516,7 +517,7 @@ extension Game {
     func knockDown(_ i: Int, src: Int) {
         let S = bugs
         let st = S.st[i]
-        if st < S_HIGH || st == S_FALL || st == S_PIN || S.dead[i] != 0 { return }
+        if st < S_HIGH || st == S_FALL || st == S_PIN || st == S_BOSS || S.dead[i] != 0 { return }
         cancelDropZone(i)
         if S.type[i] == T_SPIT { releasePerch(S.uid[i]) }
         let x = S.x[i], z = S.z[i]
@@ -685,7 +686,9 @@ extension Game {
             let perp = absf(dx * m.az - dz * m.ax), w = 0.42 + t / len * 0.75
             if perp > w + S.r[b] { continue }
             any = true
-            if S.frz[b] <= 0 {
+            // (Stage 2 B1: a boss's part up there never freezes: GameBoss.bossBeamChill)
+            if S.boss[b] != 0 { bossBeamChill(b, chillRate * dt) }
+            else if S.frz[b] <= 0 {
                 S.chill[b] += chillRate * dt
                 if S.chill[b] >= 1 {
                     S.chill[b] = 1; S.frz[b] = 2.6
@@ -709,6 +712,7 @@ extension Game {
             if S.dead[b] != 0 || S.up[b] == 0 { continue }
             let dx = S.x[b] - m.x, dz = S.z[b] - m.z
             if dx * dx + dz * dz >= (r + S.r[b]) * (r + S.r[b]) { continue }
+            if S.boss[b] != 0 { bossPartFreeze(b, nova: true); hitBug(b, dmg, m.index); continue }
             S.frz[b] = 3.2; S.chill[b] = 1
             knockDown(b, src: m.index)
             hitBug(b, dmg, m.index)
@@ -728,7 +732,7 @@ extension Game {
             if S.dead[b] != 0 || S.up[b] == 0 { continue }
             let dx = S.x[b] - e.x, dz = S.z[b] - e.z, d = (dx * dx + dz * dz).squareRoot()
             if d >= R + S.r[b] { continue }
-            if !hitBug(b, e.dmg * (1 - 0.55 * minf(1, d / R)), e.src) { knockDown(b, src: e.src) }
+            if !hitBug(b, e.dmg * (1 - 0.55 * minf(1, d / R)), e.src, dir: d > 1e-3 ? Vec2(dx / d, dz / d) : nil) { knockDown(b, src: e.src) }
         }
     }
 

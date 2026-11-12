@@ -57,6 +57,9 @@ public final class Swarm {
     /// Who set it on fire (-1 none).
     let bsrc: UnsafeMutablePointer<Int8>
     let uid: UnsafeMutablePointer<Int32>
+    /// Stage 2 B1, the boss framework: 0 = not a boss; BOSS_BUG (255) = a boss's bug body (the Queen); k + 1 = part k of a
+    /// boss's chain body (its hits route to the boss bar, GameBoss.bossPartHit). Its immunities read the boss's spec.
+    let boss: UnsafeMutablePointer<UInt8>
 
     private let floats: [UnsafeMutablePointer<Float>]
     private let bytes: [UnsafeMutablePointer<UInt8>]
@@ -69,13 +72,13 @@ public final class Swarm {
         chill = f(); frz = f(); burn = f(); ph = f(); hd = f(); fl = f(); ax = f(); az = f(); vr = f(); ms = f()
         mt = f(); mdx = f(); mdz = f(); lt = f()
         rs = f(); rx = f(); ry = f(); rz = f()
-        type = b(); st = b(); dead = b(); hit = b(); mood = b(); up = b()
+        type = b(); st = b(); dead = b(); hit = b(); mood = b(); up = b(); boss = b()
         bsrc = .allocate(capacity: capacity); bsrc.initialize(repeating: -1, count: capacity)
         uid = .allocate(capacity: capacity); uid.initialize(repeating: 0, count: capacity)
         re = .allocate(capacity: capacity); re.initialize(repeating: 0, count: capacity)
         floats = [x, z, px, pz, vx, vz, y, hp, hpMax, r, spd, sc, t, cd, chill, frz, burn, ph, hd, fl, ax, az, vr, ms, mt, mdx, mdz, lt,
                   rs, rx, ry, rz]
-        bytes = [type, st, dead, hit, mood, up]
+        bytes = [type, st, dead, hit, mood, up, boss]
     }
 
     deinit {
@@ -194,4 +197,10 @@ public final class Swarm {
     /// Distance along that edge from its node a (m).
     public var routeParams: UnsafePointer<Float> { UnsafePointer(rs) }
     public var overheadFlags: UnsafePointer<UInt8> { UnsafePointer(up) }
+    // the boss framework (Stage 2 B1)
+    /// The slot is a boss's: its bug body (the Queen) or a part of its chain body.
+    @inline(__always) public func isBoss(_ i: Int) -> Bool { boss[i] != 0 }
+    /// The chain part a slot is (0 the head, 1… the segments, then the nodes; `Game.bossPart(_:)`), -1 none (a bug body
+    /// too: it is drawn as its type).
+    @inline(__always) public func bossPart(_ i: Int) -> Int { boss[i] != 0 && boss[i] != BOSS_BUG ? Int(boss[i]) - 1 : -1 }
 }

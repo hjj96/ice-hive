@@ -24,7 +24,7 @@ final class QueenTests: XCTestCase {
         return false
     }
 
-    func queenSlot(_ g: Game) -> Int { g.queenSlotNow() }
+    func queenSlot(_ g: Game) -> Int { g.bossSlotNow() }
 
     func testWarningAtTheFarRimThenSpawn() {
         let g = holdGame()
@@ -32,19 +32,19 @@ final class QueenTests: XCTestCase {
         var warnAt: Float = -1, warnPos = Vec2(0, 0), spawnAt: Float = -1
         var ring: Telegraph? = nil
         var banners: [GameText] = [], sounds: [SoundID] = [], haptics: [HapticKind] = []
-        run(g, seconds: 45, until: { g.queen.spawned }) { e in
+        run(g, seconds: 45, until: { g.boss.spawned }) { e in
             switch e {
-            case .queenWarning(let p):
+            case .bossWarning(_, let p):
                 warnAt = g.time; warnPos = p
-                ring = g.telegraphs.first { $0.active && $0.cause == .queenRim }
-            case .queenSpawned: spawnAt = g.time
+                ring = g.telegraphs.first { $0.active && $0.cause == .bossRim }
+            case .bossSpawned: spawnAt = g.time
             case .banner(let t, _, _): banners.append(t)
             case .sound(let id, nil, _): sounds.append(id)
             case .haptic(let k): haptics.append(k)
             default: break
             }
         }
-        XCTAssertTrue(g.queen.spawned)
+        XCTAssertTrue(g.boss.spawned)
         // liftT runs while the squad stands on the deck: the warning comes queen.at = 35 s into the counted hold
         XCTAssertEqual(warnAt - hold0, 35, accuracy: 0.05)
         XCTAssertEqual(spawnAt - warnAt, 2, accuracy: 0.05)
@@ -64,32 +64,32 @@ final class QueenTests: XCTestCase {
         XCTAssertEqual(g.bugs.sc[i], 4.2)
         XCTAssertEqual(g.bugs.spd[i], 1.5)
         XCTAssertEqual(g.bugs.hpMax[i], 3500 * g.hpMul, accuracy: 0.5)
-        XCTAssertEqual(g.threatState, .queen)
+        XCTAssertEqual(g.threatState, .boss)
         XCTAssertEqual(g.objectiveStyle, .boss)
         XCTAssertEqual(g.objective, GameText(.objKillQueen))
     }
 
     func testOverridesAndDebugQueen() {
-        let a = holdGame { $0.queenAt = 0; $0.queenHp = 1000 }
-        run(a, seconds: 3, until: { a.queen.spawned })
-        XCTAssertTrue(a.queen.spawned)
+        let a = holdGame { $0.bossAt = 0; $0.bossHp = 1000 }
+        run(a, seconds: 3, until: { a.boss.spawned })
+        XCTAssertTrue(a.boss.spawned)
         XCTAssertEqual(a.bugs.hpMax[queenSlot(a)], 1000)
         let b = holdGame(.nightmare, seed: 52)
-        let uid = b.debugQueen(hp: 777)
+        let uid = b.debugBoss(hp: 777)
         XCTAssertNotEqual(uid, 0)
-        XCTAssertEqual(b.queen.uid, uid)
+        XCTAssertEqual(b.boss.uid, uid)
         XCTAssertEqual(b.bugs.hp[queenSlot(b)], 777)
-        XCTAssertEqual(b.debugQueen(), 0, "only once")
-        XCTAssertEqual(tierGame(.veteran).debugQueen(), 0, "hold only")
+        XCTAssertEqual(b.debugBoss(), 0, "only once")
+        XCTAssertEqual(tierGame(.veteran).debugBoss(), 0, "hold only")
         let n = holdGame(.nightmare, seed: 53)
-        n.debugQueen()
+        n.debugBoss()
         XCTAssertEqual(n.bugs.hpMax[queenSlot(n)], 6000 * n.hpMul, accuracy: 1)
         XCTAssertEqual(n.bugs.spd[queenSlot(n)], 1.6)
     }
 
     func testImmunities() {
         let g = holdGame(cls: .cryo)
-        g.debugQueen(hp: 100_000)
+        g.debugBoss(hp: 100_000)
         var i = queenSlot(g)
         let P = g.player
         // the cryo beam and the nova on her for 15 s: no freeze, chill ≤ 0.5, but she takes damage
@@ -108,7 +108,7 @@ final class QueenTests: XCTestCase {
         XCTAssertLessThan(g.bugs.hp[i], 100_000 - 500, "the beam and the nova still hurt her")
         // frost blasts add no chill to her, the lift pulse leaves her untouched — a brute beside her takes both
         let h = holdGame(seed: 54)
-        h.debugQueen(hp: 10_000)
+        h.debugBoss(hp: 10_000)
         let q = queenSlot(h)
         let L = h.level.lift
         h.bugs.x[q] = L.x; h.bugs.z[q] = L.z; h.bugs.chill[q] = 0
@@ -128,7 +128,7 @@ final class QueenTests: XCTestCase {
 
     func testMeleeRamVolleyAndBrood() {
         let g = holdGame(god: false)
-        g.debugQueen(hp: 100_000)
+        g.debugBoss(hp: 100_000)
         let t0 = g.time
         var i = queenSlot(g)
         // nothing else on the deck
@@ -141,7 +141,7 @@ final class QueenTests: XCTestCase {
         var bitAt: Float = -1
         var winds = 0, volleys = 0, broodAt: Float = -1
         var launched = 0
-        XCTAssertEqual([g.qBrood, g.qVolley, g.qRam], [4, 3, 6])
+        XCTAssertEqual(Array(g.bossRT.clock[0..<3]), [4, 3, 6], "brood, volley, ram: their first clocks")
         for _ in 0..<(12 * 60) {
             i = queenSlot(g)
             if g.time - t0 < 3 { g.bugs.x[i] = P.x + 1.4; g.bugs.z[i] = P.z }
@@ -155,7 +155,7 @@ final class QueenTests: XCTestCase {
                 bitAt = g.time
                 XCTAssertEqual(h - hurt0, BUG_SPECS[2].dmg * g.dmgMul * 1.6, accuracy: 0.01)
                 XCTAssertEqual(g.lastHit, .queen)
-                XCTAssertGreaterThan(g.qMeleeCd, 0)
+                XCTAssertGreaterThan(g.bossRT.biteCd, 0)
             }
             hurt0 = h
             if broodAt < 0 && i >= 0 {
@@ -174,10 +174,10 @@ final class QueenTests: XCTestCase {
         XCTAssertEqual(volleys, 1)
         // no brood while the swarm cap is full
         let c = holdGame(seed: 55)
-        c.debugQueen(hp: 100_000)
+        c.debugBoss(hp: 100_000)
         c.bugCap = c.bugs.count
         let n0 = c.bugs.count
-        c.qBrood = 0.01
+        c.bossRT.clock[0] = 0.01
         c.queue.removeAll()
         c.tick()
         XCTAssertEqual(c.bugs.count, n0)
@@ -185,7 +185,7 @@ final class QueenTests: XCTestCase {
 
     func testEnrageOnceBelowHalf() {
         let g = holdGame()
-        g.debugQueen(hp: 10_000)
+        g.debugBoss(hp: 10_000)
         g.queue.removeAll()
         g.clearEvents()
         let i = queenSlot(g)
@@ -194,9 +194,9 @@ final class QueenTests: XCTestCase {
         g.tick()
         g.drainEvents { e in
             if case .hordeStarted(let n, let t, _) = e { hordes.append((n, t)) }
-            if case .queenEnraged = e { enraged += 1 }
+            if case .bossPhase(_, _, true, _) = e { enraged += 1 }
         }
-        XCTAssertTrue(g.queen.enraged)
+        XCTAssertTrue(g.boss.enraged)
         XCTAssertEqual(enraged, 1)
         XCTAssertEqual(g.bugs.spd[queenSlot(g)], 1.5 * 1.35, accuracy: 1e-5)
         XCTAssertEqual(hordes.count, 1)
@@ -206,13 +206,13 @@ final class QueenTests: XCTestCase {
         let want = Int((Float(Int((80 * 0.5 * g.hordeScale()).rounded())) * v.horde * v.popK).rounded())
         XCTAssertEqual(hordes.first?.0, want)
         g.step(60)
-        g.drainEvents { if case .queenEnraged = $0 { enraged += 1 } }
+        g.drainEvents { if case .bossPhase(_, _, true, _) = $0 { enraged += 1 } }
         XCTAssertEqual(enraged, 1, "once")
     }
 
     func testHoldHordesPauseAndLiftLock() {
         let g = holdGame()
-        g.debugQueen(hp: 1_000_000)
+        g.debugBoss(hp: 1_000_000)
         g.hordeT = 5
         g.step(120)
         XCTAssertEqual(g.hordeT, 5, accuracy: 1e-4, "hold hordes pause while she lives")
@@ -224,7 +224,7 @@ final class QueenTests: XCTestCase {
         let rate = (0.5 + 0.12 * g.time / 60 + 0.15 * 3) * 2.0 * 0.4 * beat * v.trickle * v.popK
         XCTAssertEqual(g.trickle, rate * SIM_DT, accuracy: 1e-4)
         XCTAssertEqual(g.objective, GameText(.objKillQueen))
-        XCTAssertEqual(g.objectiveProgress, 1 - g.queen.hpFraction, accuracy: 1e-5)
+        XCTAssertEqual(g.objectiveProgress, 1 - g.boss.hpFraction, accuracy: 1e-5)
         XCTAssertLessThan(g.objectiveProgress, 0.01)
         g.debugSetLiftTime(0.01)
         g.step(60 * 10)
@@ -243,7 +243,7 @@ final class QueenTests: XCTestCase {
 
     func testDeath() {
         let g = holdGame()
-        g.debugQueen(hp: 5000)
+        g.debugBoss(hp: 5000)
         g.step(30)
         g.clearEvents()
         let i = queenSlot(g)
@@ -252,12 +252,12 @@ final class QueenTests: XCTestCase {
         let x = g.bugs.x[i], z = g.bugs.z[i]
         let xp0 = g.xp, lvl0 = g.xpLevel
         let med0 = g.medkits.filter { $0.active }.count
-        let t0 = g.queen.t0
+        let t0 = g.boss.t0
         g.killBug(i, 0)
         var order: [String] = []
         g.drainEvents { e in
             switch e {
-            case .queenKilled: order.append("killed")
+            case .bossKilled: order.append("killed")
             case .hitStop: order.append("hitStop")
             case .banner(let t, let s, let teal):
                 if t == GameText(.bannerQueenDead) { XCTAssertEqual(s, GameText(.bannerQueenDeadSub)); XCTAssertTrue(teal); order.append("banner") }
@@ -268,9 +268,9 @@ final class QueenTests: XCTestCase {
         XCTAssertEqual(order.first, "killed")
         XCTAssertEqual(Array(order.prefix(2)), ["killed", "hitStop"])
         XCTAssertTrue(order.contains("banner") && order.contains("haptic"))
-        XCTAssertFalse(g.queen.alive)
-        XCTAssertTrue(g.queen.done)
-        XCTAssertEqual(g.queen.killT, g.time - t0, accuracy: 1e-4)
+        XCTAssertFalse(g.boss.alive)
+        XCTAssertTrue(g.boss.done)
+        XCTAssertEqual(g.boss.killT, g.time - t0, accuracy: 1e-4)
         if g.xpLevel == lvl0 { XCTAssertEqual(g.xp - xp0, 60 + BUG_SPECS[2].xp) }
         let meds = g.medkits.filter { $0.active }
         XCTAssertEqual(meds.count - med0, 2, "two medkits, never a random one")
@@ -284,7 +284,7 @@ final class QueenTests: XCTestCase {
             let g = holdGame(tier, seed: 57)
             g.tick()
             g.debugSkip()
-            XCTAssertTrue(tier.hasQueen ? g.queen.done : !g.queen.spawned || g.queen.done, tier.id)
+            XCTAssertTrue(tier.hasQueen ? g.boss.done : !g.boss.spawned || g.boss.done, tier.id)
             g.step(5)
             XCTAssertEqual(g.stage, .extract, tier.id)
             g.step(5 * 60)
@@ -292,19 +292,19 @@ final class QueenTests: XCTestCase {
         }
         // a queen alive at the skip is killed first
         let g = holdGame(seed: 58)
-        g.debugQueen()
+        g.debugBoss()
         g.debugSkip()
-        XCTAssertFalse(g.queen.alive)
+        XCTAssertFalse(g.boss.alive)
         g.step(5 * 60 + 30)
         XCTAssertEqual(g.phase, .won)
     }
 
     func testQueenRunIsDeterministic() {
-        func run() -> (QueenState, Float, Int, Int) {
-            let g = holdGame(.veteran, seed: 59) { $0.queenAt = 1; $0.autopilot = true }
+        func run() -> (BossState, Float, Int, Int) {
+            let g = holdGame(.veteran, seed: 59) { $0.bossAt = 1; $0.autopilot = true }
             g.autopilot = true
             g.step(60 * 30)
-            return (g.queen, g.time, g.kills, g.bugsAlive)
+            return (g.boss, g.time, g.kills, g.bugsAlive)
         }
         let a = run(), b = run()
         XCTAssertEqual(a.0.uid, b.0.uid); XCTAssertEqual(a.0.hpFraction, b.0.hpFraction); XCTAssertEqual(a.0.position, b.0.position)
@@ -594,8 +594,8 @@ final class HudTextTests: XCTestCase {
 
     func testRunSummaryAndStats() {
         let g = holdGame(seed: 76)
-        g.debugQueen(hp: 10)
-        g.killBug(g.queenSlotNow(), 0)
+        g.debugBoss(hp: 10)
+        g.killBug(g.bossSlotNow(), 0)
         g.debugSetOutcome(downs: 2, downBy: .brute, pressure: nil, idleMul: nil)
         let r = g.runSummary(won: false, surrendered: true)
         XCTAssertTrue(r.surrendered)
