@@ -1,0 +1,566 @@
+[IceHive] launch v2.0.0 (1) core=2.0.0 options=demo=stress1400 seconds=8.0 debugHUD=true seed=7 orient=right
+[IceHive] view ready maxFPS=60 scale=3.0 worldScale=2.0
+[IceHive] frame loop resumed
+[IceHive] metal: view 874x402 pt, drawable 2622x1206 px (scale 3.0)
+[IceHive] settings: cls=assault best=0/0s muted=false vol=0.8 haptics=true quality=auto
+[IceHive] v11 meta: runs=0 wins=0 pick=- tut=0 sticks=0 tier=rec first=1 (demo, in memory)
+[IceHive] text warm-up: 157 wrapped strings in 463 ms
+[IceHive] glyph calibration in 762 ms: JetBrainsMono-Bold 17pt 1/1 dx=+0px dy=+4px width-1px bottom+0px; JetBrainsMono-Bold 17pt 1/1 dx=+0px dy=+4px width-1px bottom+0px; JetBrainsMono-Bold 16pt 1/1 dx=+0px dy=+4px width+0px bottom-1px; JetBrainsMono-Bold 13pt 2/1 dx=-4px dy=+3px width-1px bottom+0px; JetBrainsMono-Bold 12pt 1/1 dx=+4px dy=+3px width-1px bottom+0px; JetBrainsMono-Bold 12pt 0/1 dx=+0px dy=+3px width-1px bottom+0px; JetBrainsMono-Medium 9pt 1/3 2 lines dx=+3px dy=+10px width+0px bottom-1px
+[IceHive] frame loop: display link started, 2 frames in flight, max 60 Hz
+[IceHive] fonts: Oswald + JetBrains Mono registered
+[IceHive] scene presented size=874x402 iface=landscapeRight
+[IceHive] scene active
+[IceHive] metal: meshes 24 (5446 triangles, 0.4 MB) textures 9 in 785 ms glints 3/4/3/3 | kit 26 pieces (4687 triangles), trims ASTC, 6.7 MB in 456 ms (pieces 1, textures read 299, GPU upload wait 156)
+[IceHive] metal: pipelines built in 1383 ms (34 world + 5 post; first request 954 ms, then 38 in parallel 428 ms, slowest: creature 95, swarmGlint 88, occFade 88, creatureNear 85, marine 80) device=Apple iOS simulator GPU
+[IceHive] metal: post: grade LUTs gameplay/beacon/extraction/title, exposure table 4 moods in 7 ms | counters command-buffer totals | device class a13OrOlder (simulator) bug cap 1400 default tier efficient | world encodes > 2 ms logged
+[IceHive] squad: 4 marines (9964/9880/9900/9984 triangles, 4.55 MB, 38 clips each) maps ASTC in 209 ms
+[IceHive] metal: station: 213282 vertices, 111750 triangles in 27 chunks (9.6 MB; assembled in 29 ms) glows 72 | casters 17902 triangles | triangles decks 2310, edges 70226, supports 14948, props 15730, interactives 3386, lift 5150 | edges: 360 posts, 198 icicle fringes, 45 drifts, 48 lamps (54 ms)
+[IceHive] overhead: 48442 vertices, 23720 triangles in 24 chunks (2.93 MB; 20 ms) | pipes 113 m, cables 104 m, trays 53 m, catwalks 16 m, ducts 9 m | 0 arms, 46 supports, 73 pieces, 2 truss girders, 8 swaying cables, 3 lights
+[IceHive] swarm: creatures 1505 KB in 21.7 ms: runner 2886/436/146 tris 14 clips, spitter 2564/388/146 tris 12 clips, brute 2756/414/146 tris 13 clips, boomer 2512/410/146 tris 8 clips, dropper 2508/376/122 tris 12 clips
+[IceHive] particles: compute ready in 0 ms (built in 1114 ms with the pipelines), 32768 slots (3.0 MB), flipbooks fx_fire fx_blast fx_smoke | -fxSim off
+[IceHive] metal: environment probe 64x64, 5 mips, 256 KB in 5.0 ms
+[IceHive] metal: lighting: shadow atlas 2048x1024 D32F (8.0 MB), occupancy 2x256² RG8, probe 5 mips, 32 grid lights / 16² cells of 3 m
+[IceHive] metal world ready in 648 ms (preload 1409 ms, started 1087 ms before the scene) mem=81MB avail=0MB
+[IceHive] demo stress1400: spawned 1400 bugs (target 1400, cap 350), quality high — device capture: hb gpu per-pass lines
+[IceHive] mode playing class=assault seed=7 demo=stress1400
+[IceHive] v11 start tier=vet coach=0 station=kelvin-9 seed=7
+[IceHive] mission start cold-light steps=ring,hold,extract modifiers= props=1 lit=7/7 vents=8 ducts=3
+[IceHive] bug cap 350 (graphics high 350, device 1400)
+[IceHive] metal: world target 1748x804 px (allocation 1, RG11B10F, 4x MSAA, MSAA private (simulator), scene + bloom 7.3 MB) in 1.9 ms
+[IceHive] first banner td=-1.00
+[IceHive] first ability.grenade td=-1.00
+[IceHive] first ability.napalm td=-1.00
+[IceHive] first telegraph.ring td=-1.00
+[IceHive] first levelUp td=-1.00
+[IceHive] first ability.nova td=-1.00
+[IceHive] first ability.turret td=-1.00
+[IceHive] first toast td=-1.00
+[IceHive] first explosion.frost td=-1.00
+[IceHive] v11 threat 0 t=0.1 pressure=0.1
+[IceHive] hb gpu frame=0.00 max=0.00 passes=- (no counter sampling: command-buffer totals only) | ema=0.00 tier=high scale=2.00 range=1.50-2.00 view=1748x804 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.10
+[IceHive] hb squad cpu=0.522ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=3 turns=0 hits=0 twist=0deg acts=0 states=walk,idle,walk,walk
+[IceHive] hb swarm vis=949 lod=39/305/661 tris=342k corpses=56/56 glints=3796 proxies=0 build=0.06ms tier=high
+[IceHive] sights: glint 1.2 m (no laser line), first on marine 0 (assault)
+[IceHive] hb props lit=7/7 lamps=48/48 valves=rrrr bursts=0 kills=0+0 broken=0 spits=0 restores=0 lockers=0
+[IceHive] hb fx parts=0/32768 peak=0 fire=0/1400 peak=0 expl=0/4 peak=0 reduced=0 throttled=0 spawn=0/s rec=0/s decals=418/1600 beams=24 tracers=0 tracer=0.0m lights=2 floor=42+3 acid=0/0 heat=4 hitcut=39 cpu=0.090ms sim=off gpusim=- tier=high
+[IceHive] hint 2 lines widest=218 max=334 scale=1.00 «LEFT THUMB — MOVE» / «RIGHT THUMB — AIM, AUTO-FIRE»
+[IceHive] hb light lights=23 cells=180 tiles=4 beams=4 march occ=1038 tier=high
+[IceHive] hb level draws=1 tris=106534 chunks=24/27 casters=4/71608 tier=high
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=2 pts=4 sway=0.02m cpu=0.013ms casters=2/2486 tier=high
+[IceHive] metal: slow world encode 4 ms (thread cpu 2.8 ms) wall=1794505141.220
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.2 ms) wall=1794505141.286
+[IceHive] hb t=1.0 fps=28.5 drawn=19 mode=playing demo=stress1400
+[IceHive] first explosion.mini td=-1.00
+[IceHive] interface settled iface=landscapeRight
+[IceHive] audio: 38 sounds, 6 loops, 20 voices (874 ms)
+[IceHive] first explosion.frag td=-1.00
+[IceHive] first screenFlash td=-1.00
+[IceHive] hb gpu frame=0.00 max=0.00 passes=- (no counter sampling: command-buffer totals only) | ema=0.00 tier=high scale=2.00 range=1.50-2.00 view=1748x804 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=-0.04
+[IceHive] hb squad cpu=0.304ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=2 turns=0 hits=0 twist=1deg acts=0 states=run,walk,walk,run
+[IceHive] hb swarm vis=1063 lod=29/202/1236 tris=351k corpses=404/404 glints=4252 proxies=600 build=0.32ms tier=high
+[IceHive] hb props lit=7/7 lamps=48/48 valves=rrrr bursts=0 kills=0+0 broken=0 spits=0 restores=0 lockers=0
+[IceHive] hb fx parts=0/32768 peak=0 fire=0/1400 peak=0 expl=4/4 peak=4 reduced=1 throttled=0 spawn=0/s rec=0/s decals=785/1600 beams=24 tracers=3 tracer=1.8m lights=3 floor=41+1 acid=0/0 heat=8 hitcut=265 cpu=0.122ms sim=off gpusim=- tier=high
+[IceHive] hb light lights=27 cells=195 tiles=4 beams=4 march occ=1103 tier=high
+[IceHive] hb level draws=1 tris=106534 chunks=24/27 casters=4/71608 tier=high
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=2 pts=4 sway=0.04m cpu=0.059ms casters=2/2486 tier=high
+[IceHive] metal: slow world encode 4 ms (thread cpu 3.8 ms) wall=1794505142.485
+[IceHive] hb t=2.0 fps=60.0 drawn=1 mode=playing demo=stress1400
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.5 ms) wall=1794505142.689
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.2 ms) wall=1794505142.730
+[IceHive] metal: slow world encode 6 ms (thread cpu 5.9 ms) wall=1794505142.945
+[IceHive] metal: slow world encode 4 ms (thread cpu 4.2 ms) wall=1794505142.983
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.8 ms) wall=1794505142.999
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.5 ms) wall=1794505143.015
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.5 ms) wall=1794505143.051
+[IceHive] metal: slow world encode 6 ms (thread cpu 5.7 ms) wall=1794505143.101
+[IceHive] metal: slow world encode 4 ms (thread cpu 3.6 ms) wall=1794505143.115
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.5 ms) wall=1794505143.148
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.0 ms) wall=1794505143.166
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.8 ms) wall=1794505143.199
+[IceHive] hb gpu frame=1.55 max=30.69 passes=- (no counter sampling: command-buffer totals only) | ema=0.00 tier=high scale=2.00 range=1.50-2.00 view=1748x804 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.10
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.7 ms) wall=1794505143.233
+[IceHive] metal: slow world encode 4 ms (thread cpu 3.7 ms) wall=1794505143.249
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.8 ms) wall=1794505143.283
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.0 ms) wall=1794505143.301
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.4 ms) wall=1794505143.317
+[IceHive] loading took 2.83 s (from the first frame)
+[IceHive] scene ready mode=playing size=874x402 renderer=metal
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505143.332
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.6 ms) wall=1794505143.350
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.7 ms) wall=1794505143.365
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505143.383
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.5 ms) wall=1794505143.431
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.7 ms) wall=1794505143.450
+[IceHive] hb squad cpu=0.222ms slide=0.0cm grip=0.0mm draws=4 restep=5 flashes=2 turns=0 hits=0 twist=31deg acts=4 states=cast,cast,cast,cast
+[IceHive] hb swarm vis=1351 lod=25/102/1289 tris=304k corpses=65/65 glints=5404 proxies=600 build=0.86ms tier=high
+[IceHive] hb props lit=7/7 lamps=48/48 valves=rrrr bursts=0 kills=0+0 broken=0 spits=0 restores=0 lockers=0
+[IceHive] hb fx parts=0/32768 peak=0 fire=0/1400 peak=0 expl=0/4 peak=4 reduced=3 throttled=0 spawn=0/s rec=0/s decals=69/1600 beams=28 tracers=47 tracer=1.8m lights=2 floor=1+1 acid=0/0 heat=1 hitcut=12 cpu=0.074ms sim=off gpusim=- tier=high
+[IceHive] hb light lights=26 cells=196 tiles=4 beams=4 march occ=1367 tier=high
+[IceHive] hb level draws=1 tris=106534 chunks=24/27 casters=4/71608 tier=high
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=2 pts=4 sway=0.04m cpu=0.081ms casters=2/2486 tier=high
+[IceHive] hb t=3.0 td=0.2 fps=55.0 worst=17ms drawn=12 gap=19ms sim=0.84ms world=1.46ms mode=playing bugs=1358 vis=1347 parts=0 stage=0 hp=120 kills=873 mem=65MB avail=0MB demo=stress1400 rend=metal cpu=54 main=43 dc=56 inst=14852 tris=770990 enc=2.15ms gpu=0.27ms gpumax=1.2ms skip=13 nodraw=0 drw=1ms cbmax=15ms sk=24ms/42 skcpu=16ms skslow=1/0
+[IceHive] hb ms sim=0.9 ev=0.1 cam=0.0 world=1.4 hud=0.1 au=0.1 | cam=0.0 mar=0.2 bug=1.0 fx=0.2 up=0.1 | sfx 75 | max sim=3 ev=11 world=5 hud=2 au=5 / cam=2 bug=4
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.1 ms) wall=1794505143.914
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.6 ms) wall=1794505143.983
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.3 ms) wall=1794505143.999
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505144.014
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.2 ms) wall=1794505144.088
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505144.101
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.1 ms) wall=1794505144.130
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.1 ms) wall=1794505144.182
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.2 ms) wall=1794505144.199
+[IceHive] hb gpu frame=0.21 max=1.22 passes=- (no counter sampling: command-buffer totals only) | ema=0.20 tier=high scale=2.00 range=1.50-2.00 view=1748x804 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.10
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.7 ms) wall=1794505144.280
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.3 ms) wall=1794505144.414
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.2 ms) wall=1794505144.431
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.2 ms) wall=1794505144.449
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.0 ms) wall=1794505144.463
+[IceHive] hb squad cpu=0.156ms slide=0.0cm grip=0.0mm draws=4 restep=6 flashes=2 turns=0 hits=0 twist=35deg acts=0 states=walk,walk,walk,walk
+[IceHive] hb swarm vis=1296 lod=17/100/1579 tris=323k corpses=400/400 glints=5184 proxies=547 build=0.86ms tier=high
+[IceHive] hb props lit=7/7 lamps=48/48 valves=rrrr bursts=0 kills=0+0 broken=0 spits=0 restores=0 lockers=0
+[IceHive] hb fx parts=0/32768 peak=0 fire=0/1400 peak=0 expl=1/4 peak=1 reduced=0 throttled=0 spawn=0/s rec=0/s decals=422/1600 beams=26 tracers=13 tracer=1.8m lights=2 floor=1+1 acid=0/0 heat=1 hitcut=83 cpu=0.055ms sim=off gpusim=- tier=high
+[IceHive] hb light lights=28 cells=198 tiles=4 beams=4 march occ=1331 tier=high
+[IceHive] hb level draws=1 tris=106534 chunks=24/27 casters=4/71608 tier=high
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=2 pts=4 sway=0.04m cpu=0.056ms casters=2/6878 tier=high
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.7 ms) wall=1794505144.499
+[IceHive] hb t=4.0 td=1.2 fps=60.0 worst=17ms drawn=56 gap=35ms sim=0.76ms world=1.43ms mode=playing bugs=1322 vis=1292 parts=0 stage=0 hp=120 kills=1208 mem=65MB avail=0MB demo=stress1400 rend=metal cpu=41 main=30 dc=56 inst=15051 tris=789784 enc=1.79ms gpu=0.22ms gpumax=0.6ms skip=3 nodraw=0 drw=0ms cbmax=40ms sk=4ms/0 skcpu=4ms skslow=0/0
+[IceHive] hb ms sim=0.8 ev=0.1 cam=0.0 world=1.3 hud=0.1 au=0.1 | cam=0.0 mar=0.2 bug=0.9 fx=0.1 up=0.1 | sfx 127 | max world=5 / bug=4
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.1 ms) wall=1794505144.514
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.5 ms) wall=1794505144.682
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.1 ms) wall=1794505144.782
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.2 ms) wall=1794505145.049
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.2 ms) wall=1794505145.112
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.4 ms) wall=1794505145.150
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.6 ms) wall=1794505145.165
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.3 ms) wall=1794505145.182
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.2 ms) wall=1794505145.198
+[IceHive] hb gpu frame=0.19 max=0.62 passes=- (no counter sampling: command-buffer totals only) | ema=0.19 tier=high scale=2.00 range=1.50-2.00 view=1748x804 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.10
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.8 ms) wall=1794505145.267
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.8 ms) wall=1794505145.349
+[IceHive] metal: slow world encode 2 ms (thread cpu 1.9 ms) wall=1794505145.365
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.6 ms) wall=1794505145.381
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.3 ms) wall=1794505145.401
+[IceHive] metal: slow world encode 5 ms (thread cpu 4.5 ms) wall=1794505145.452
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.7 ms) wall=1794505145.466
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.2 ms) wall=1794505145.484
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.1 ms) wall=1794505145.498
+[IceHive] hb squad cpu=0.149ms slide=0.0cm grip=0.0mm draws=4 restep=6 flashes=4 turns=0 hits=0 twist=35deg acts=0 states=walk,walk,walk,walk
+[IceHive] hb swarm vis=1280 lod=11/66/1722 tris=311k corpses=519/520 glints=5120 proxies=486 build=1.31ms tier=high
+[IceHive] hb props lit=7/7 lamps=48/48 valves=rrrr bursts=0 kills=0+0 broken=0 spits=0 restores=0 lockers=0
+[IceHive] hb fx parts=0/32768 peak=0 fire=0/1400 peak=0 expl=1/4 peak=1 reduced=0 throttled=0 spawn=0/s rec=0/s decals=764/1600 beams=29 tracers=32 tracer=1.8m lights=4 floor=1+1 acid=0/0 heat=1 hitcut=49 cpu=0.060ms sim=off gpusim=- tier=high
+[IceHive] hb t=5.0 td=2.2 fps=60.0 worst=17ms drawn=58 gap=38ms sim=0.73ms world=1.74ms mode=playing bugs=1323 vis=1280 parts=0 stage=0 hp=120 kills=1530 mem=65MB avail=0MB demo=stress1400 rend=metal cpu=44 main=33 dc=56 inst=15121 tris=773084 enc=2.20ms gpu=0.21ms gpumax=0.6ms skip=2 nodraw=0 drw=2ms cbmax=50ms sk=3ms/0 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.8 ev=0.2 cam=0.0 world=1.8 hud=0.1 au=0.1 | cam=0.0 mar=0.2 bug=1.3 fx=0.2 up=0.1 | sfx 176 | max world=4 / bug=3
+[IceHive] hb light lights=32 cells=201 tiles=4 beams=4 march occ=1327 tier=high
+[IceHive] hb level draws=1 tris=106534 chunks=24/27 casters=4/71608 tier=high
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=2 pts=4 sway=0.04m cpu=0.079ms casters=2/6878 tier=high
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.1 ms) wall=1794505145.516
+[IceHive] metal: slow world encode 5 ms (thread cpu 4.8 ms) wall=1794505145.551
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.7 ms) wall=1794505145.585
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.0 ms) wall=1794505145.615
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.7 ms) wall=1794505145.634
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.8 ms) wall=1794505145.649
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.0 ms) wall=1794505145.666
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.5 ms) wall=1794505145.750
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.4 ms) wall=1794505145.766
+[IceHive] demo stress1400: alive 1400, topped up 1634 in the last 5 s
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.2 ms) wall=1794505145.999
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.7 ms) wall=1794505146.016
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.3 ms) wall=1794505146.031
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.5 ms) wall=1794505146.048
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.0 ms) wall=1794505146.100
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.0 ms) wall=1794505146.115
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.2 ms) wall=1794505146.132
+[IceHive] metal: slow world encode 4 ms (thread cpu 3.9 ms) wall=1794505146.166
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.7 ms) wall=1794505146.233
+[IceHive] hb gpu frame=0.21 max=0.57 passes=- (no counter sampling: command-buffer totals only) | ema=0.19 tier=high scale=2.00 range=1.50-2.00 view=1748x804 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.10
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505146.263
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.2 ms) wall=1794505146.281
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.7 ms) wall=1794505146.348
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.1 ms) wall=1794505146.396
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.7 ms) wall=1794505146.432
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.1 ms) wall=1794505146.466
+[IceHive] metal: slow world encode 4 ms (thread cpu 3.9 ms) wall=1794505146.485
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505146.498
+[IceHive] hb squad cpu=0.176ms slide=0.0cm grip=0.0mm draws=4 restep=4 flashes=3 turns=0 hits=0 twist=21deg acts=0 states=walk,walk,walk,run
+[IceHive] hb swarm vis=1285 lod=15/56/1723 tris=319k corpses=509/520 glints=5140 proxies=600 build=1.03ms tier=high
+[IceHive] hb props lit=7/7 lamps=48/48 valves=rrrr bursts=0 kills=0+0 broken=0 spits=0 restores=0 lockers=0
+[IceHive] hb fx parts=0/32768 peak=0 fire=0/1400 peak=0 expl=0/4 peak=1 reduced=0 throttled=0 spawn=0/s rec=0/s decals=1090/1600 beams=28 tracers=39 tracer=1.8m lights=0 floor=1+0 acid=0/0 heat=2 hitcut=70 cpu=0.096ms sim=off gpusim=- tier=high
+[IceHive] hb t=6.0 td=3.2 fps=59.0 worst=33ms drawn=54 gap=85ms sim=0.75ms world=1.55ms mode=playing bugs=1344 vis=1285 parts=0 stage=0 hp=120 kills=1853 mem=65MB avail=0MB demo=stress1400 rend=metal cpu=53 main=37 dc=55 inst=16008 tris=792054 enc=2.01ms gpu=0.15ms gpumax=0.6ms skip=5 nodraw=1 drw=7ms cbmax=111ms sk=5ms/0 skcpu=5ms skslow=0/0
+[IceHive] hb ms sim=0.8 ev=0.1 cam=0.0 world=1.5 hud=0.1 au=0.1 | cam=0.0 mar=0.2 bug=1.0 fx=0.2 up=0.1 | sfx 214 | max sim=2 world=3 / bug=3
+[IceHive] hb light lights=32 cells=216 tiles=4 beams=4 march occ=1348 tier=high
+[IceHive] hb level draws=1 tris=106468 chunks=22/27 casters=4/71608 tier=high
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=2 pts=4 sway=0.04m cpu=0.075ms casters=2/6878 tier=high
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505146.531
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.6 ms) wall=1794505146.634
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.9 ms) wall=1794505146.700
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.1 ms) wall=1794505146.716
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.5 ms) wall=1794505146.731
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.4 ms) wall=1794505146.913
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.1 ms) wall=1794505147.064
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.3 ms) wall=1794505147.113
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505147.234
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.0 ms) wall=1794505147.247
+[IceHive] hb gpu frame=0.17 max=0.86 passes=- (no counter sampling: command-buffer totals only) | ema=0.17 tier=high scale=2.00 range=1.50-2.00 view=1748x804 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.10
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.2 ms) wall=1794505147.282
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.2 ms) wall=1794505147.296
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.9 ms) wall=1794505147.432
+[IceHive] hb t=7.0 td=4.2 fps=60.0 worst=17ms drawn=58 gap=35ms sim=0.66ms world=1.34ms mode=playing bugs=1322 vis=1237 parts=0 stage=0 hp=120 kills=2176 mem=65MB avail=0MB demo=stress1400 rend=metal cpu=40 main=30 dc=53 inst=15640 tris=775002 enc=1.41ms gpu=0.20ms gpumax=0.9ms skip=2 nodraw=0 drw=0ms cbmax=35ms sk=3ms/1 skcpu=3ms skslow=0/0
+[IceHive] hb ms sim=0.6 ev=0.1 cam=0.0 world=1.2 hud=0.1 au=0.0 | cam=0.0 mar=0.2 bug=0.8 fx=0.1 up=0.1 | sfx 260 | max world=4 / bug=2
+[IceHive] hb squad cpu=0.170ms slide=0.0cm grip=0.0mm draws=4 restep=2 flashes=3 turns=0 hits=0 twist=27deg acts=0 states=walk,run,run,run
+[IceHive] hb swarm vis=1231 lod=14/64/1653 tris=309k corpses=500/520 glints=4924 proxies=492 build=0.89ms tier=high
+[IceHive] hb props lit=7/7 lamps=48/48 valves=rrrr bursts=0 kills=0+0 broken=0 spits=0 restores=0 lockers=0
+[IceHive] hb fx parts=0/32768 peak=0 fire=0/1400 peak=0 expl=4/4 peak=4 reduced=0 throttled=0 spawn=0/s rec=0/s decals=1427/1600 beams=28 tracers=62 tracer=1.8m lights=2 floor=0+0 acid=0/0 heat=0 hitcut=97 cpu=0.059ms sim=off gpusim=- tier=high
+[IceHive] hb light lights=32 cells=208 tiles=4 beams=4 march occ=1320 tier=high
+[IceHive] hb level draws=1 tris=106468 chunks=21/27 casters=4/71608 tier=high
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=2 pts=4 sway=0.04m cpu=0.073ms casters=2/6878 tier=high
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.1 ms) wall=1794505147.531
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.2 ms) wall=1794505147.599
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.2 ms) wall=1794505147.765
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.8 ms) wall=1794505148.049
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.1 ms) wall=1794505148.064
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505148.116
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.7 ms) wall=1794505148.264
+[IceHive] hb gpu frame=0.16 max=0.74 passes=- (no counter sampling: command-buffer totals only) | ema=0.15 tier=high scale=2.00 range=1.50-2.00 view=1748x804 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.10
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.3 ms) wall=1794505148.479
+[IceHive] hb t=8.0 td=5.2 fps=60.0 worst=17ms drawn=57 gap=42ms sim=0.60ms world=1.16ms mode=playing bugs=1339 vis=1228 parts=0 stage=0 hp=120 kills=2437 mem=65MB avail=0MB demo=stress1400 rend=metal cpu=33 main=24 dc=55 inst=16238 tris=794444 enc=1.22ms gpu=0.14ms gpumax=0.7ms skip=3 nodraw=0 drw=0ms cbmax=55ms sk=3ms/1 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.7 ev=0.1 cam=0.0 world=1.2 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.9 fx=0.1 up=0.1 | sfx 296 | max world=3 / -
+[IceHive] hb squad cpu=0.117ms slide=0.0cm grip=0.0mm draws=4 restep=2 flashes=1 turns=0 hits=0 twist=31deg acts=1 states=reload,walk,run,walk
+[IceHive] hb swarm vis=1226 lod=18/71/1626 tris=320k corpses=489/520 glints=4904 proxies=600 build=0.96ms tier=high
+[IceHive] hb props lit=7/7 lamps=48/48 valves=rrrr bursts=0 kills=0+0 broken=0 spits=0 restores=0 lockers=0
+[IceHive] hb fx parts=0/32768 peak=0 fire=0/1400 peak=0 expl=0/4 peak=4 reduced=2 throttled=0 spawn=0/s rec=0/s decals=1600/1600 beams=24 tracers=31 tracer=1.8m lights=0 floor=0+0 acid=0/0 heat=0 hitcut=55 cpu=0.052ms sim=off gpusim=- tier=high
+[IceHive] hb light lights=32 cells=223 tiles=4 beams=4 march occ=1333 tier=high
+[IceHive] hb level draws=1 tris=106468 chunks=21/27 casters=4/71608 tier=high
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=2 pts=4 sway=0.04m cpu=0.049ms casters=2/6330 tier=high
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.1 ms) wall=1794505148.581
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.0 ms) wall=1794505148.616
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.2 ms) wall=1794505148.631
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.2 ms) wall=1794505148.801
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.2 ms) wall=1794505148.832
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.0 ms) wall=1794505148.866
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.5 ms) wall=1794505148.884
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505148.932
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.5 ms) wall=1794505149.016
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.7 ms) wall=1794505149.150
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.3 ms) wall=1794505149.249
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.9 ms) wall=1794505149.265
+[IceHive] hb gpu frame=0.21 max=3.57 passes=- (no counter sampling: command-buffer totals only) | ema=0.20 tier=high scale=2.00 range=1.50-2.00 view=1748x804 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.10
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.1 ms) wall=1794505149.317
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.1 ms) wall=1794505149.348
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505149.364
+[IceHive] metal: slow world encode 5 ms (thread cpu 4.6 ms) wall=1794505149.482
+[IceHive] hb t=9.0 td=6.2 fps=60.0 worst=17ms drawn=53 gap=46ms sim=0.70ms world=1.59ms mode=playing bugs=1261 vis=1121 parts=0 stage=0 hp=120 kills=2830 mem=65MB avail=0MB demo=stress1400 rend=metal cpu=47 main=35 dc=55 inst=15467 tris=772324 enc=1.92ms gpu=0.17ms gpumax=3.6ms skip=5 nodraw=2 drw=4ms cbmax=76ms sk=14ms/0 skcpu=14ms skslow=0/0
+[IceHive] hb ms sim=0.7 ev=0.2 cam=0.0 world=1.4 hud=0.1 au=0.0 | cam=0.0 mar=0.2 bug=1.1 fx=0.2 up=0.1 | sfx 348 | max world=4 hud=3 / mar=2 bug=3
+[IceHive] hb squad cpu=0.236ms slide=0.0cm grip=0.0mm draws=4 restep=3 flashes=2 turns=0 hits=0 twist=31deg acts=0 states=walk,walk,walk,walk
+[IceHive] hb swarm vis=1093 lod=16/88/1489 tris=301k corpses=500/520 glints=4372 proxies=528 build=0.98ms tier=high
+[IceHive] hb props lit=7/7 lamps=48/48 valves=rrrr bursts=0 kills=0+0 broken=0 spits=0 restores=0 lockers=0
+[IceHive] hb fx parts=0/32768 peak=0 fire=0/1400 peak=0 expl=1/4 peak=1 reduced=0 throttled=0 spawn=0/s rec=0/s decals=1600/1600 beams=28 tracers=11 tracer=1.8m lights=1 floor=1+0 acid=0/0 heat=2 hitcut=111 cpu=0.070ms sim=off gpusim=- tier=high
+[IceHive] hb light lights=31 cells=222 tiles=4 beams=4 march occ=1236 tier=high
+[IceHive] hb level draws=1 tris=106468 chunks=21/27 casters=4/71608 tier=high
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=3 pts=4 sway=0.02m cpu=0.066ms casters=2/6330 tier=high
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.0 ms) wall=1794505149.582
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.5 ms) wall=1794505149.616
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.5 ms) wall=1794505149.648
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.3 ms) wall=1794505149.664
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.6 ms) wall=1794505149.684
+[IceHive] metal: slow world encode 5 ms (thread cpu 4.9 ms) wall=1794505149.719
+[IceHive] metal: slow world encode 8 ms (thread cpu 7.9 ms) wall=1794505149.856
+[IceHive] metal: slow world encode 4 ms (thread cpu 3.7 ms) wall=1794505149.868
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.1 ms) wall=1794505149.916
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.0 ms) wall=1794505149.964
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.6 ms) wall=1794505150.148
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.1 ms) wall=1794505150.185
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.8 ms) wall=1794505150.202
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.5 ms) wall=1794505150.232
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.5 ms) wall=1794505150.249
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.6 ms) wall=1794505150.268
+[IceHive] hb gpu frame=0.18 max=0.64 passes=- (no counter sampling: command-buffer totals only) | ema=0.21 tier=high scale=2.00 range=1.50-2.00 view=1748x804 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.10
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.5 ms) wall=1794505150.315
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505150.331
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.2 ms) wall=1794505150.346
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.0 ms) wall=1794505150.366
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.0 ms) wall=1794505150.379
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.8 ms) wall=1794505150.433
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.2 ms) wall=1794505150.465
+[IceHive] hb t=10.0 td=7.2 fps=60.0 worst=17ms drawn=46 gap=57ms sim=0.82ms world=1.49ms mode=playing bugs=1309 vis=940 parts=0 stage=0 hp=120 kills=3309 mem=65MB avail=0MB demo=stress1400 rend=metal cpu=46 main=34 dc=53 inst=14051 tris=746194 enc=1.95ms gpu=0.16ms gpumax=0.6ms skip=13 nodraw=0 drw=6ms cbmax=91ms sk=9ms/0 skcpu=8ms skslow=0/0
+[IceHive] hb ms sim=0.8 ev=0.1 cam=0.0 world=1.4 hud=0.1 au=0.1 | cam=0.0 mar=0.2 bug=1.0 fx=0.2 up=0.2 | sfx 396 | max sim=3 world=3 / bug=2
+[IceHive] metal: slow world encode 5 ms (thread cpu 5.3 ms) wall=1794505150.520
+[IceHive] hb squad cpu=0.200ms slide=0.0cm grip=0.0mm draws=4 restep=2 flashes=2 turns=0 hits=0 twist=25deg acts=0 states=run,walk,walk,walk
+[IceHive] hb swarm vis=917 lod=20/83/1284 tris=281k corpses=470/520 glints=3668 proxies=416 build=0.92ms tier=high
+[IceHive] hb props lit=7/7 lamps=48/48 valves=rrrr bursts=0 kills=0+0 broken=0 spits=0 restores=0 lockers=0
+[IceHive] hb fx parts=0/32768 peak=0 fire=0/1400 peak=0 expl=3/4 peak=4 reduced=0 throttled=0 spawn=0/s rec=0/s decals=1600/1600 beams=26 tracers=21 tracer=1.8m lights=0 floor=0+0 acid=0/0 heat=0 hitcut=184 cpu=0.090ms sim=off gpusim=- tier=high
+[IceHive] hb light lights=30 cells=213 tiles=4 beams=4 march occ=1292 tier=high
+[IceHive] hb level draws=1 tris=106468 chunks=21/27 casters=4/71608 tier=high
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=4 pts=4 sway=0.04m cpu=0.096ms casters=2/9196 tier=high
+[IceHive] metal: slow world encode 4 ms (thread cpu 3.8 ms) wall=1794505150.584
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.1 ms) wall=1794505150.635
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.3 ms) wall=1794505150.650
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.3 ms) wall=1794505150.699
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.6 ms) wall=1794505150.715
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.3 ms) wall=1794505150.749
+[IceHive] demo stress1400: alive 1400, topped up 1775 in the last 5 s
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.9 ms) wall=1794505150.816
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.9 ms) wall=1794505150.865
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.7 ms) wall=1794505150.881
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.2 ms) wall=1794505150.952
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.9 ms) wall=1794505150.998
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505151.016
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.5 ms) wall=1794505151.031
+[IceHive] metal: slow world encode 4 ms (thread cpu 3.6 ms) wall=1794505151.050
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.7 ms) wall=1794505151.231
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.2 ms) wall=1794505151.250
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505151.281
+[IceHive] hb gpu frame=0.20 max=1.48 passes=- (no counter sampling: command-buffer totals only) | ema=0.27 tier=high scale=2.00 range=1.50-2.00 view=1748x804 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.10
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.7 ms) wall=1794505151.399
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.6 ms) wall=1794505151.416
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.2 ms) wall=1794505151.432
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.3 ms) wall=1794505151.499
+[IceHive] hb t=11.0 td=8.2 fps=60.0 worst=17ms drawn=53 gap=46ms sim=0.81ms world=1.36ms mode=playing bugs=1343 vis=891 parts=0 stage=0 hp=120 kills=3629 mem=65MB avail=0MB demo=stress1400 rend=metal cpu=48 main=36 dc=55 inst=13672 tris=743206 enc=1.81ms gpu=0.20ms gpumax=1.5ms skip=7 nodraw=0 drw=1ms cbmax=46ms sk=5ms/0 skcpu=4ms skslow=0/0
+[IceHive] hb ms sim=0.8 ev=0.1 cam=0.0 world=1.2 hud=0.1 au=0.1 | cam=0.0 mar=0.2 bug=0.8 fx=0.2 up=0.1 | sfx 443 | max sim=3 world=3 / bug=2
+[IceHive] demo done after 8s avgFps=59.9 minFps=59.0 worstFrame=33ms drawnAvg=54.1 drawnMin=46.0 worstGap=85ms mem=65MB avail=0MB
+[IceHive] metal: slow world encode 5 ms (thread cpu 5.0 ms) wall=1794505151.515
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.2 ms) wall=1794505151.532
+[IceHive] hb squad cpu=0.200ms slide=0.0cm grip=0.0mm draws=4 restep=1 flashes=4 turns=0 hits=0 twist=13deg acts=0 states=walk,run,run,run
+[IceHive] hb swarm vis=874 lod=23/133/1075 tris=281k corpses=357/520 glints=3496 proxies=407 build=0.92ms tier=high
+[IceHive] hb props lit=7/7 lamps=48/48 valves=rrrr bursts=0 kills=0+0 broken=0 spits=0 restores=0 lockers=0
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505151.567
+[IceHive] hb fx parts=0/32768 peak=0 fire=0/1400 peak=0 expl=2/4 peak=4 reduced=2 throttled=0 spawn=0/s rec=0/s decals=1600/1600 beams=33 tracers=99 tracer=1.8m lights=2 floor=1+0 acid=0/0 heat=2 hitcut=88 cpu=0.078ms sim=off gpusim=- tier=high
+[IceHive] hb light lights=31 cells=194 tiles=4 beams=4 march occ=1316 tier=high
+[IceHive] hb level draws=1 tris=105722 chunks=20/27 casters=4/71608 tier=high
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=5 pts=4 sway=0.04m cpu=0.068ms casters=2/9196 tier=high
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.5 ms) wall=1794505151.599
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.1 ms) wall=1794505151.632
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.2 ms) wall=1794505151.683
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.1 ms) wall=1794505151.697
+[IceHive] first telegraph.lane td=8.38
+[IceHive] props: valve 2 burst by 0 at t=10.43
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505151.715
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505151.766
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.5 ms) wall=1794505151.783
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.7 ms) wall=1794505151.831
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.2 ms) wall=1794505151.862
+[IceHive] metal: slow world encode 4 ms (thread cpu 3.5 ms) wall=1794505151.917
+[IceHive] metal: slow world encode 4 ms (thread cpu 3.8 ms) wall=1794505151.935
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.1 ms) wall=1794505152.014
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.3 ms) wall=1794505152.033
+[IceHive] props: valve 2 curtain up, 11 bugs under it
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.8 ms) wall=1794505152.051
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.5 ms) wall=1794505152.082
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.2 ms) wall=1794505152.100
+[IceHive] metal: slow world encode 4 ms (thread cpu 4.2 ms) wall=1794505152.181
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.3 ms) wall=1794505152.233
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.1 ms) wall=1794505152.249
+[IceHive] props: valve 1 burst by 0 at t=10.98
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.0 ms) wall=1794505152.265
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.2 ms) wall=1794505152.313
+[IceHive] hb gpu frame=0.22 max=1.98 passes=- (no counter sampling: command-buffer totals only) | ema=0.19 tier=high scale=2.00 range=1.50-2.00 view=1748x804 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.10
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.2 ms) wall=1794505152.331
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.0 ms) wall=1794505152.347
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.1 ms) wall=1794505152.382
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.5 ms) wall=1794505152.465
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.2 ms) wall=1794505152.482
+[IceHive] hb t=12.0 td=9.2 fps=60.0 worst=17ms drawn=56 gap=54ms sim=0.66ms world=1.22ms mode=playing bugs=1227 vis=840 parts=0 stage=0 hp=120 kills=4083 mem=65MB avail=0MB demo=stress1400 rend=metal cpu=46 main=34 dc=56 inst=14170 tris=767884 enc=1.80ms gpu=0.21ms gpumax=2.0ms skip=5 nodraw=0 drw=0ms cbmax=73ms sk=4ms/0 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.6 ev=0.2 cam=0.0 world=1.1 hud=0.1 au=0.0 | cam=0.0 mar=0.2 bug=0.7 fx=0.1 up=0.1 | sfx 499 | max sim=2 world=3 / bug=2
+[IceHive] hb squad cpu=0.175ms slide=0.0cm grip=0.0mm draws=4 restep=2 flashes=3 turns=0 hits=0 twist=27deg acts=0 states=walk,walk,run,walk
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505152.564
+[IceHive] hb swarm vis=826 lod=30/142/997 tris=294k corpses=343/520 glints=3304 proxies=600 build=0.70ms tier=high
+[IceHive] hb props lit=7/7 lamps=48/48 valves=rwvr bursts=2 kills=1+0 broken=0 spits=0 restores=0 lockers=0
+[IceHive] props: valve 1 curtain up, 7 bugs under it
+[IceHive] hb fx parts=0/32768 peak=0 fire=0/1400 peak=0 expl=2/4 peak=2 reduced=0 throttled=0 spawn=0/s rec=0/s decals=1600/1600 beams=28 tracers=154 tracer=1.8m lights=1 floor=1+3 acid=0/0 heat=2 hitcut=138 cpu=0.082ms sim=off gpusim=- tier=high
+[IceHive] hb light lights=30 cells=176 tiles=4 beams=4 march occ=1191 tier=high
+[IceHive] hb level draws=1 tris=105722 chunks=20/27 casters=4/71608 tier=high
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=4 pts=4 sway=0.04m cpu=0.056ms casters=2/9196 tier=high
+[IceHive] first horde td=9.37
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.2 ms) wall=1794505152.705
+[IceHive] hint 2 lines widest=214 max=334 scale=1.00 «CLEAR THE RING —» / «BUGS ARE SLOWING THE CHARGE»
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.3 ms) wall=1794505152.980
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505153.013
+[IceHive] hb gpu frame=0.17 max=0.71 passes=- (no counter sampling: command-buffer totals only) | ema=0.15 tier=high scale=2.00 range=1.50-2.00 view=1748x804 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.28
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.1 ms) wall=1794505153.479
+[IceHive] hb t=13.0 td=10.2 fps=60.0 worst=17ms drawn=58 gap=44ms sim=0.59ms world=0.88ms mode=playing bugs=1096 vis=770 parts=0 stage=0 hp=120 kills=4586 mem=65MB avail=0MB demo=stress1400 rend=metal cpu=36 main=26 dc=56 inst=11814 tris=723136 enc=1.29ms gpu=0.18ms gpumax=0.6ms skip=2 nodraw=0 drw=0ms cbmax=53ms sk=3ms/0 skcpu=3ms skslow=0/0
+[IceHive] hb ms sim=0.5 ev=0.1 cam=0.0 world=0.7 hud=0.1 au=0.0 | cam=0.0 mar=0.1 bug=0.5 fx=0.1 up=0.1 | sfx 564 | max ev=8 world=2 / -
+[IceHive] hb squad cpu=0.129ms slide=0.0cm grip=0.0mm draws=4 restep=3 flashes=3 turns=0 hits=0 twist=33deg acts=1 states=run,cast,run,run
+[IceHive] hb swarm vis=769 lod=28/164/950 tris=291k corpses=373/520 glints=3076 proxies=88 build=0.53ms tier=high
+[IceHive] hb props lit=7/7 lamps=48/48 valves=rvvr bursts=2 kills=34+0 broken=0 spits=0 restores=0 lockers=0
+[IceHive] hb fx parts=0/32768 peak=0 fire=0/1400 peak=0 expl=3/4 peak=4 reduced=1 throttled=0 spawn=0/s rec=0/s decals=1600/1600 beams=30 tracers=37 tracer=1.8m lights=4 floor=2+3 acid=0/0 heat=2 hitcut=160 cpu=0.041ms sim=off gpusim=- tier=high
+[IceHive] hb light lights=31 cells=178 tiles=4 beams=4 march occ=1072 tier=high
+[IceHive] hb level draws=1 tris=105722 chunks=20/27 casters=4/71608 tier=high
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=4 pts=4 sway=0.04m cpu=0.043ms casters=2/9196 tier=high
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.6 ms) wall=1794505154.281
+[IceHive] hb gpu frame=0.16 max=0.34 passes=- (no counter sampling: command-buffer totals only) | ema=0.14 tier=high scale=2.00 range=1.50-2.00 view=1748x804 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.30
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.2 ms) wall=1794505154.383
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.2 ms) wall=1794505154.400
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.5 ms) wall=1794505154.417
+[IceHive] metal: slow world encode 4 ms (thread cpu 4.4 ms) wall=1794505154.434
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.3 ms) wall=1794505154.468
+[IceHive] hb t=14.0 td=11.2 fps=60.0 worst=17ms drawn=55 gap=80ms sim=0.67ms world=1.12ms mode=playing bugs=1035 vis=801 parts=0 stage=0 hp=120 kills=5031 mem=65MB avail=0MB demo=stress1400 rend=metal cpu=34 main=25 dc=56 inst=12718 tris=750288 enc=2.08ms gpu=0.17ms gpumax=0.3ms skip=4 nodraw=0 drw=0ms cbmax=78ms sk=2ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.8 ev=0.2 cam=0.0 world=1.1 hud=0.1 au=0.1 | cam=0.0 mar=0.2 bug=0.8 fx=0.2 up=0.1 | sfx 615 | max world=2 / -
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.2 ms) wall=1794505154.516
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.4 ms) wall=1794505154.531
+[IceHive] metal: slow world encode 4 ms (thread cpu 4.0 ms) wall=1794505154.551
+[IceHive] hb squad cpu=0.154ms slide=0.0cm grip=0.0mm draws=4 restep=3 flashes=1 turns=0 hits=0 twist=23deg acts=2 states=reload,walk,cast,walk
+[IceHive] hb swarm vis=802 lod=29/199/924 tris=305k corpses=350/520 glints=3208 proxies=239 build=0.86ms tier=high
+[IceHive] hb props lit=7/7 lamps=48/48 valves=rvvr bursts=2 kills=41+0 broken=0 spits=0 restores=0 lockers=0
+[IceHive] hb fx parts=0/32768 peak=0 fire=0/1400 peak=0 expl=0/4 peak=3 reduced=0 throttled=0 spawn=0/s rec=0/s decals=1600/1600 beams=19 tracers=97 tracer=1.8m lights=2 floor=41+5 acid=0/0 heat=1 hitcut=38 cpu=0.058ms sim=off gpusim=- tier=high
+[IceHive] hb light lights=29 cells=180 tiles=4 beams=4 march occ=1019 tier=high
+[IceHive] hb level draws=1 tris=105722 chunks=19/27 casters=4/71032 tier=high
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=4 pts=4 sway=0.04m cpu=0.078ms casters=2/9196 tier=high
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.7 ms) wall=1794505154.637
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.6 ms) wall=1794505154.817
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.0 ms) wall=1794505154.849
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.8 ms) wall=1794505154.914
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.6 ms) wall=1794505154.933
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.6 ms) wall=1794505154.982
+[IceHive] metal: slow world encode 4 ms (thread cpu 4.1 ms) wall=1794505155.000
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.4 ms) wall=1794505155.050
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.0 ms) wall=1794505155.081
+[IceHive] metal: slow world encode 4 ms (thread cpu 3.5 ms) wall=1794505155.118
+[IceHive] metal: slow world encode 2 ms (thread cpu 1.9 ms) wall=1794505155.130
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.6 ms) wall=1794505155.151
+[IceHive] hint 2 lines widest=214 max=334 scale=1.00 «CLEAR THE RING —» / «BUGS ARE SLOWING THE CHARGE»
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.5 ms) wall=1794505155.182
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.0 ms) wall=1794505155.198
+[IceHive] metal: slow world encode 4 ms (thread cpu 4.1 ms) wall=1794505155.250
+[IceHive] metal: slow world encode 6 ms (thread cpu 3.5 ms) wall=1794505155.291
+[IceHive] hb gpu frame=0.29 max=2.86 passes=- (no counter sampling: command-buffer totals only) | ema=0.51 tier=high scale=2.00 range=1.50-2.00 view=1748x804 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=-0.03
+[IceHive] metal: slow world encode 5 ms (thread cpu 4.5 ms) wall=1794505155.422
+[IceHive] metal: slow world encode 4 ms (thread cpu 3.9 ms) wall=1794505155.434
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.4 ms) wall=1794505155.468
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.4 ms) wall=1794505155.484
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.4 ms) wall=1794505155.500
+[IceHive] hb t=15.0 td=12.2 fps=60.0 worst=17ms drawn=53 gap=49ms sim=0.65ms world=1.60ms mode=playing bugs=1030 vis=847 parts=0 stage=0 hp=120 kills=5421 mem=65MB avail=0MB demo=stress1400 rend=metal cpu=48 main=36 dc=57 inst=14202 tris=781600 enc=2.75ms gpu=0.35ms gpumax=2.9ms skip=6 nodraw=1 drw=4ms cbmax=70ms sk=4ms/4 skcpu=3ms skslow=0/0
+[IceHive] hb ms sim=0.7 ev=0.1 cam=0.0 world=1.6 hud=0.1 au=0.1 | cam=0.0 mar=0.4 bug=1.0 fx=0.3 up=0.1 | sfx 646 | max world=5 / mar=2 bug=3
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.9 ms) wall=1794505155.532
+[IceHive] metal: slow world encode 2 ms (thread cpu 1.9 ms) wall=1794505155.564
+[IceHive] hb squad cpu=0.267ms slide=0.0cm grip=0.0mm draws=4 restep=6 flashes=2 turns=0 hits=0 twist=29deg acts=1 states=cast,walk,walk,walk
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505155.599
+[IceHive] hb swarm vis=847 lod=26/194/1036 tris=310k corpses=409/520 glints=3388 proxies=600 build=0.81ms tier=high
+[IceHive] hb props lit=7/7 lamps=48/48 valves=rvvr bursts=2 kills=41+0 broken=0 spits=0 restores=0 lockers=0
+[IceHive] hb fx parts=0/32768 peak=0 fire=0/1400 peak=0 expl=1/4 peak=1 reduced=0 throttled=0 spawn=0/s rec=0/s decals=1600/1600 beams=21 tracers=44 tracer=1.8m lights=2 floor=2+3 acid=0/0 heat=3 hitcut=175 cpu=0.082ms sim=off gpusim=- tier=high
+[IceHive] hb light lights=29 cells=166 tiles=4 beams=4 march occ=1012 tier=high
+[IceHive] hb level draws=1 tris=105722 chunks=19/27 casters=4/71032 tier=high
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=5 pts=4 sway=0.03m cpu=0.101ms casters=2/9196 tier=high
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.1 ms) wall=1794505155.649
+[IceHive] metal: slow world encode 4 ms (thread cpu 3.7 ms) wall=1794505155.700
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505155.730
+[IceHive] demo stress1400: alive 1142, topped up 1829 in the last 5 s
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.3 ms) wall=1794505155.799
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.0 ms) wall=1794505155.816
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.1 ms) wall=1794505155.832
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.0 ms) wall=1794505155.899
+[IceHive] metal: slow world encode 4 ms (thread cpu 3.8 ms) wall=1794505155.918
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.7 ms) wall=1794505156.033
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.5 ms) wall=1794505156.148
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.3 ms) wall=1794505156.163
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.8 ms) wall=1794505156.300
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.1 ms) wall=1794505156.347
+[IceHive] hb gpu frame=0.20 max=0.87 passes=- (no counter sampling: command-buffer totals only) | ema=0.19 tier=high scale=2.00 range=1.50-2.00 view=1748x804 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.30
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.1 ms) wall=1794505156.365
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505156.433
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505156.447
+[IceHive] hb t=16.0 td=13.2 fps=60.0 worst=17ms drawn=59 gap=58ms sim=0.55ms world=1.27ms mode=playing bugs=1229 vis=1062 parts=0 stage=0 hp=120 kills=5619 mem=65MB avail=0MB demo=stress1400 rend=metal cpu=43 main=32 dc=54 inst=15324 tris=789778 enc=1.50ms gpu=0.17ms gpumax=0.9ms skip=2 nodraw=0 drw=1ms cbmax=58ms sk=4ms/0 skcpu=4ms skslow=0/0
+[IceHive] hb ms sim=0.5 ev=0.1 cam=0.0 world=1.2 hud=0.0 au=0.0 | cam=0.0 mar=0.2 bug=0.8 fx=0.2 up=0.1 | sfx 695 | max ev=2 world=4 / -
+[IceHive] hb squad cpu=0.162ms slide=0.0cm grip=0.0mm draws=4 restep=7 flashes=1 turns=1 hits=0 twist=100deg acts=0 states=walk,idle,walk,turn
+[IceHive] hb swarm vis=1065 lod=20/164/1314 tris=321k corpses=433/520 glints=4260 proxies=600 build=0.84ms tier=high
+[IceHive] hb props lit=7/7 lamps=48/48 valves=rvvr bursts=2 kills=42+0 broken=0 spits=0 restores=0 lockers=0
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.6 ms) wall=1794505156.616
+[IceHive] metal: slow world encode 4 ms (thread cpu 3.8 ms) wall=1794505156.633
+[IceHive] hb fx parts=0/32768 peak=0 fire=0/1400 peak=0 expl=3/4 peak=4 reduced=2 throttled=0 spawn=0/s rec=0/s decals=1600/1600 beams=19 tracers=141 tracer=1.8m lights=2 floor=1+3 acid=0/0 heat=1 hitcut=20 cpu=0.076ms sim=off gpusim=- tier=high
+[IceHive] hb light lights=29 cells=166 tiles=4 beams=4 march occ=1210 tier=high
+[IceHive] hb level draws=1 tris=105722 chunks=20/27 casters=4/71608 tier=high
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=5 pts=4 sway=0.04m cpu=0.086ms casters=2/9196 tier=high
+[IceHive] metal: slow world encode 4 ms (thread cpu 3.8 ms) wall=1794505156.666
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505156.698
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.9 ms) wall=1794505156.748
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505156.799
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.0 ms) wall=1794505156.819
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505156.914
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.5 ms) wall=1794505157.016
+[IceHive] first telegraph.fill td=13.75
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.5 ms) wall=1794505157.083
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.1 ms) wall=1794505157.099
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.0 ms) wall=1794505157.112
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.0 ms) wall=1794505157.149
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.3 ms) wall=1794505157.198
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505157.216
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.5 ms) wall=1794505157.247
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.5 ms) wall=1794505157.314
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.7 ms) wall=1794505157.350
+[IceHive] hb gpu frame=0.20 max=1.18 passes=- (no counter sampling: command-buffer totals only) | ema=0.17 tier=high scale=2.00 range=1.50-2.00 view=1748x804 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.30
+[IceHive] hb t=17.0 td=14.2 fps=60.0 worst=17ms drawn=56 gap=56ms sim=0.68ms world=1.18ms mode=playing bugs=1269 vis=1146 parts=0 stage=0 hp=120 kills=5883 mem=65MB avail=0MB demo=stress1400 rend=metal cpu=43 main=32 dc=57 inst=15738 tris=790088 enc=1.59ms gpu=0.21ms gpumax=1.2ms skip=3 nodraw=1 drw=9ms cbmax=73ms sk=3ms/1 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.7 ev=0.1 cam=0.0 world=1.0 hud=0.1 au=0.0 | cam=0.0 mar=0.1 bug=0.8 fx=0.1 up=0.1 | sfx 748 | max sim=4 world=3 / -
+[IceHive] first acid td=14.25
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.7 ms) wall=1794505157.583
+[IceHive] hb squad cpu=0.168ms slide=0.0cm grip=0.0mm draws=4 restep=2 flashes=4 turns=0 hits=0 twist=54deg acts=0 states=walk,idle,walk,idle
+[IceHive] hb swarm vis=1128 lod=19/119/1424 tris=313k corpses=434/520 glints=4527 proxies=600 build=0.71ms tier=high
+[IceHive] hb props lit=7/7 lamps=48/48 valves=rvcr bursts=2 kills=46+0 broken=0 spits=1 restores=0 lockers=0
+[IceHive] hb fx parts=0/32768 peak=0 fire=0/1400 peak=0 expl=4/4 peak=4 reduced=1 throttled=0 spawn=0/s rec=0/s decals=1600/1600 beams=30 tracers=110 tracer=1.8m lights=4 floor=1+2 acid=1/2 heat=1 hitcut=65 cpu=0.063ms sim=off gpusim=- tier=high
+[IceHive] hb light lights=32 cells=166 tiles=4 beams=4 march occ=1230 tier=high
+[IceHive] hb level draws=1 tris=105722 chunks=19/27 casters=4/71032 tier=high
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=5 pts=4 sway=0.04m cpu=0.055ms casters=2/9196 tier=high
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.0 ms) wall=1794505157.949
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.5 ms) wall=1794505157.964
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.0 ms) wall=1794505157.984
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.5 ms) wall=1794505158.030
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.5 ms) wall=1794505158.083
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.3 ms) wall=1794505158.098
+[IceHive] hb gpu frame=0.17 max=0.86 passes=- (no counter sampling: command-buffer totals only) | ema=0.14 tier=high scale=2.00 range=1.50-2.00 view=1748x804 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.30
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.1 ms) wall=1794505158.498
+[IceHive] hb t=18.0 td=15.2 fps=60.0 worst=17ms drawn=57 gap=66ms sim=0.51ms world=1.01ms mode=playing bugs=1244 vis=1139 parts=0 stage=0 hp=120 kills=6207 mem=65MB avail=0MB demo=stress1400 rend=metal cpu=34 main=25 dc=56 inst=15759 tris=786854 enc=1.25ms gpu=0.14ms gpumax=0.4ms skip=2 nodraw=0 drw=0ms cbmax=59ms sk=2ms/0 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.5 ev=0.1 cam=0.0 world=0.9 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.7 fx=0.1 up=0.1 | sfx 797 | max world=4 / bug=3
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505158.517
+[IceHive] props: lamp 47 broken (circuit 4) t=17.20
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.3 ms) wall=1794505158.548
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505158.564
+[IceHive] hb squad cpu=0.127ms slide=0.0cm grip=0.0mm draws=4 restep=2 flashes=2 turns=0 hits=0 twist=37deg acts=0 states=walk,run,walk,walk
+[IceHive] hb swarm vis=1076 lod=18/93/1460 tris=304k corpses=495/520 glints=4318 proxies=600 build=0.69ms tier=high
+[IceHive] hb props lit=7/7 lamps=47/48 valves=rccr bursts=2 kills=46+0 broken=1 spits=1 restores=0 lockers=0
+[IceHive] hb fx parts=0/32768 peak=0 fire=0/1400 peak=0 expl=2/4 peak=4 reduced=1 throttled=0 spawn=0/s rec=0/s decals=1600/1600 beams=21 tracers=117 tracer=1.8m lights=4 floor=1+1 acid=1/7 heat=0 hitcut=113 cpu=0.054ms sim=off gpusim=- tier=high
+[IceHive] hb light lights=32 cells=176 tiles=4 beams=4 march occ=1169 tier=high
+[IceHive] hb level draws=1 tris=105722 chunks=19/27 casters=4/71032 tier=high
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=5 pts=4 sway=0.04m cpu=0.056ms casters=2/9196 tier=high
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505158.781
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505158.799
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.3 ms) wall=1794505158.966
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.2 ms) wall=1794505159.132
+[IceHive] metal: slow world encode 4 ms (thread cpu 3.7 ms) wall=1794505159.183
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.1 ms) wall=1794505159.364
+[IceHive] hb gpu frame=0.18 max=0.73 passes=- (no counter sampling: command-buffer totals only) | ema=0.19 tier=high scale=2.00 range=1.50-2.00 view=1748x804 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.30
+[IceHive] hb t=19.0 td=16.2 fps=60.0 worst=17ms drawn=56 gap=87ms sim=0.52ms world=1.01ms mode=playing bugs=1264 vis=1114 parts=0 stage=0 hp=120 kills=6546 mem=65MB avail=0MB demo=stress1400 rend=metal cpu=36 main=27 dc=57 inst=15640 tris=765734 enc=1.21ms gpu=0.16ms gpumax=0.7ms skip=5 nodraw=0 drw=0ms cbmax=96ms sk=3ms/0 skcpu=3ms skslow=0/0
+[IceHive] hb ms sim=0.5 ev=0.1 cam=0.0 world=0.9 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.7 fx=0.1 up=0.1 | sfx 849 | max world=3 / -
+[IceHive] hint 2 lines widest=214 max=334 scale=1.00 «CLEAR THE RING —» / «BUGS ARE SLOWING THE CHARGE»
+[IceHive] hb squad cpu=0.148ms slide=0.0cm grip=0.0mm draws=4 restep=3 flashes=2 turns=0 hits=0 twist=26deg acts=1 states=run,run,run,cast
+[IceHive] hb swarm vis=1076 lod=16/78/1448 tris=290k corpses=466/520 glints=4319 proxies=600 build=0.64ms tier=high
+[IceHive] hint 2 lines widest=214 max=334 scale=1.00 «CLEAR THE RING —» / «BUGS ARE SLOWING THE CHARGE»
+[IceHive] hb props lit=7/7 lamps=47/48 valves=rccr bursts=2 kills=46+0 broken=1 spits=1 restores=0 lockers=0
+[IceHive] hb fx parts=0/32768 peak=0 fire=0/1400 peak=0 expl=2/4 peak=4 reduced=2 throttled=0 spawn=0/s rec=0/s decals=1600/1600 beams=28 tracers=68 tracer=1.8m lights=1 floor=7+1 acid=1/2 heat=2 hitcut=95 cpu=0.050ms sim=off gpusim=- tier=high
+[IceHive] hint 2 lines widest=214 max=334 scale=1.00 «CLEAR THE RING —» / «BUGS ARE SLOWING THE CHARGE»
+[IceHive] hb light lights=24 cells=163 tiles=4 beams=4 march occ=1207 tier=high
+[IceHive] hb level draws=1 tris=105722 chunks=19/27 casters=4/71032 tier=high
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=3 pts=4 sway=0.04m cpu=0.051ms casters=2/9196 tier=high
+[IceHive] hint 2 lines widest=214 max=334 scale=1.00 «CLEAR THE RING —» / «BUGS ARE SLOWING THE CHARGE»
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.5 ms) wall=1794505159.713
+[IceHive] metal: slow world encode 4 ms (thread cpu 4.1 ms) wall=1794505159.884
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.3 ms) wall=1794505159.916
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.4 ms) wall=1794505159.931
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.5 ms) wall=1794505159.947
+[IceHive] metal: slow world encode 3 ms (thread cpu 3.3 ms) wall=1794505160.032
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.8 ms) wall=1794505160.082
+[IceHive] hint 2 lines widest=214 max=334 scale=1.00 «CLEAR THE RING —» / «BUGS ARE SLOWING THE CHARGE»
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.1 ms) wall=1794505160.230
+[IceHive] hb gpu frame=0.15 max=0.37 passes=- (no counter sampling: command-buffer totals only) | ema=0.14 tier=high scale=2.00 range=1.50-2.00 view=1748x804 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.30
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.7 ms) wall=1794505160.447
+[IceHive] hb t=20.0 td=17.2 fps=60.0 worst=17ms drawn=59 gap=29ms sim=0.53ms world=1.19ms mode=playing bugs=1260 vis=1158 parts=0 stage=0 hp=120 kills=6826 mem=65MB avail=0MB demo=stress1400 rend=metal cpu=38 main=28 dc=57 inst=15854 tris=788020 enc=1.39ms gpu=0.16ms gpumax=0.4ms skip=0 nodraw=0 drw=0ms cbmax=24ms sk=3ms/4 skcpu=2ms skslow=0/0
+[IceHive] hb ms sim=0.5 ev=0.1 cam=0.0 world=1.1 hud=0.1 au=0.0 | cam=0.0 mar=0.1 bug=0.7 fx=0.1 up=0.1 | sfx 894 | max world=3 / -
+[IceHive] hint 2 lines widest=214 max=334 scale=1.00 «CLEAR THE RING —» / «BUGS ARE SLOWING THE CHARGE»
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.6 ms) wall=1794505160.631
+[IceHive] hb squad cpu=0.143ms slide=0.0cm grip=0.0mm draws=4 restep=4 flashes=3 turns=0 hits=0 twist=40deg acts=0 states=walk,walk,walk,walk
+[IceHive] hb swarm vis=1137 lod=18/121/1470 tris=317k corpses=472/520 glints=4563 proxies=158 build=0.85ms tier=high
+[IceHive] hb props lit=7/7 lamps=47/48 valves=rccr bursts=2 kills=46+0 broken=1 spits=1 restores=0 lockers=0
+[IceHive] hb fx parts=0/32768 peak=0 fire=0/1400 peak=0 expl=2/4 peak=2 reduced=0 throttled=0 spawn=0/s rec=0/s decals=1600/1600 beams=21 tracers=81 tracer=1.8m lights=3 floor=7+0 acid=0/0 heat=0 hitcut=41 cpu=0.056ms sim=off gpusim=- tier=high
+[IceHive] hb light lights=24 cells=167 tiles=4 beams=4 march occ=1221 tier=high
+[IceHive] hb level draws=1 tris=105722 chunks=19/27 casters=4/71032 tier=high
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=3 pts=4 sway=0.04m cpu=0.053ms casters=2/9196 tier=high
+[IceHive] demo stress1400: alive 1334, topped up 1579 in the last 5 s
+[IceHive] metal: slow world encode 2 ms (thread cpu 2.1 ms) wall=1794505160.881
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.9 ms) wall=1794505160.898
+[IceHive] metal: slow world encode 3 ms (thread cpu 2.7 ms) wall=1794505160.981
