@@ -60,9 +60,9 @@ enum TextWarmup {
         let centre = NSMutableParagraphStyle()
         centre.alignment = .center
         centre.lineSpacing = 2
-        // the toast width of this screen in landscape (HUD.toast: min(320, 0.6 × width) − 22)
+        // the toast width of this screen in landscape (HUD.toastMaxWidth − 22: 320 pt, less where two columns would touch)
         let b = UIScreen.main.bounds
-        let toastW = min(320, 0.6 * max(b.width, b.height)) - 22
+        let toastW = HUD.toastMaxWidth(max(b.width, b.height), .zero) - 22
         var items: [(NSAttributedString, CGFloat)] = []
         for t in toasts {
             let s = NSAttributedString(string: L10n.upper(t), attributes: [

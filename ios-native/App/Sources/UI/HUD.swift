@@ -200,10 +200,18 @@ final class HUD {
         var t: Float = 0
         var life: Float
         var height: CGFloat = 26
-        init(label: SKLabelNode, frame: CGRect, kind: ToastKind) {
+        var width: CGFloat = 80
+        /// H1: its lane (ToastQueue), its column (the left one, mirrored, or the right one), seconds left of a quick
+        /// fade-out (replaced by a newer bark, pushed out of a full column; < 0: none).
+        let lane: ToastQueue.Lane
+        let left: Bool
+        var going: Float = -1
+        init(label: SKLabelNode, frame: CGRect, life: Float, lane: ToastQueue.Lane, left: Bool) {
             self.label = label
             labelFrame = frame
-            life = kind == .warn ? 4.5 : 3.2
+            self.life = life
+            self.lane = lane
+            self.left = left
             panel = SKSpriteNode(texture: nil)
         }
 
@@ -213,13 +221,14 @@ final class HUD {
             label.removeFromParent()
         }
 
-        static func makeLabel(_ text: String, maxWidth: CGFloat) -> SKLabelNode {
+        /// The toast's text, wrapped at `maxWidth`: right-aligned in the right column, left-aligned in the left one.
+        static func makeLabel(_ text: String, maxWidth: CGFloat, left: Bool = false) -> SKLabelNode {
             let label = SKLabelNode()
             let style = NSMutableParagraphStyle()
-            style.alignment = .right
+            style.alignment = left ? .left : .right
             label.numberOfLines = 0
             label.preferredMaxLayoutWidth = maxWidth
-            label.horizontalAlignmentMode = .right
+            label.horizontalAlignmentMode = left ? .left : .right
             label.verticalAlignmentMode = .top
             label.attributedText = NSAttributedString(string: L10n.upper(text), attributes: [
                 .font: Fonts.font(Fonts.medium, 12), .foregroundColor: UIPalette.ink, .kern: CGFloat(1.0), .paragraphStyle: style])
@@ -228,10 +237,20 @@ final class HUD {
         }
     }
     /// Wrapped (two-line) toast labels, made once behind the loading cover and reused: making one mid-mission renders
-    /// its text there and then, and CI saw that wait 1.5–9 s for the GPU during host stalls. Keyed by text and width.
+    /// its text there and then, and CI saw that wait 1.5–9 s for the GPU during host stalls. Keyed by text, width and column.
     private var toastLabels: [String: (SKLabelNode, CGRect)] = [:]
     private var toasts: [Toast] = []
+    /// The right column (under the top band at the right safe edge) and, H1, the left one (under the stats and the squad
+    /// rows at the left safe edge): a toast goes to the side where it covers least of what matters (`toastSide`).
     private let toastRoot = SKNode()
+    private let toastRootL = SKNode()
+    /// H1: when the game's toasts show — one tip at a time, threats first, barks briefly, nothing new under a banner.
+    let toastQueue = ToastQueue()
+    /// The columns' alpha (0: stepped aside under a banner that covers them; their toasts' clocks stop meanwhile).
+    private var toastColA: (r: CGFloat, l: CGFloat) = (1, 1)
+    /// Top (view y) and floor (HUD y) of the left column: under the visible squad rows; above the move ring.
+    private var toastTopL: CGFloat = 0
+    private var toastFloorL: CGFloat = -1e6
     private let hint = Label("", font: Fonts.semibold, size: 14, color: UIPalette.amber, kern: 1.1)
     /// Second line of a hint wider than its gap (web #hHint wraps between the stick rings in landscape): the v1.1
     /// hold hints are ~450 pt, the revive lines ~370 pt. Two single-line labels, no wrapped label (TextWarmup), same
@@ -247,6 +266,11 @@ final class HUD {
     private var hintGap: (CGFloat, CGFloat) = (-180, 180)
     private var hintBase = CGPoint.zero
     private var hintUp = false
+    /// The fitted hint's widest line (unscaled) and its bottom line's centre at the bottom place (H1: `placeHint`).
+    private var hintWidest: CGFloat = 0
+    private var hintBottomBase = CGPoint.zero
+    /// The hint's alpha while a banner over it is up (H1: 0 = stepped aside).
+    private var hintAside: CGFloat = 1
     private let banner = SKNode()
     private let bannerTitle = Label("", font: Fonts.bold, size: 34, color: UIPalette.red, kern: 4)
     private let bannerSub = Label("", font: Fonts.medium, size: 12, color: UIPalette.ink, kern: 3.6)
@@ -325,6 +349,8 @@ final class HUD {
         for r in [abilityRing, dashRing, markerRing] { r.isHidden = true }
         markerRing.zPosition = -1
         root.addChild(toastRoot)
+        root.addChild(toastRootL)
+        if AppLog.diagnostics { toastQueue.log = { AppLog.info("hud tip: " + $0) } }
         root.addChild(hint.node)
         root.addChild(hint2.node)
         banner.addChild(bannerBand)
@@ -378,6 +404,13 @@ final class HUD {
     @inline(__always) func viewPoint(_ p: CGPoint) -> CGPoint { CGPoint(x: p.x + size.width / 2, y: size.height / 2 - p.y) }
 
     func setSquad(_ marines: [Marine]) {
+        // a new mission: no toast, queued tip or banner placement carries over (H1)
+        for t in toasts { t.discard() }
+        toasts.removeAll()
+        toastQueue.reset()
+        bannerSlot = .mid
+        hintAtTop = false
+        hintTopBottom = 0
         for r in squad { r.node.removeFromParent() }
         squad = marines.map { m in
             let r = SquadRow(name: L10n.upper(L10n.name(m.name)))
@@ -488,8 +521,9 @@ final class HUD {
         stickR.idle(at: stickRestR)
         dashButton.node.position = hp(W - sr - Geo.dashIn, H - sb - Geo.dashUp)
         abilityButton.node.position = hp(W - sr - Geo.abilityIn, H - sb - Geo.abilityUp)
-        // toasts never stack down into the dash button
+        // toasts never stack down into the dash button (the right column) / the move ring (the left one, H1)
         toastFloor = hp(0, H - sb - Geo.dashUp - dashButton.radius - 8).y
+        toastFloorL = hp(0, H - sb - Geo.ringLift - Geo.ringR - 8).y
 
         // hint: in the gap between the stick rings, its bottom line just above the armour block (web #hHint in
         // landscape: anchored at its bottom); a longer one takes two lines growing upward
@@ -500,7 +534,8 @@ final class HUD {
         hintMaxW = max(160, gapR - gapL - 24)
         fitHint()
 
-        // banner (title clamp(30, 13 % of the height, 52): a landscape phone is short)
+        // banner (title clamp(30, 13 % of the height, 52): a landscape phone is short); its slot (H1: middle — 30 % of the
+        // height —, or in a hold / a boss fight high or low, `placeBanner`) is applied again below
         let bw = min(560, W * 0.7)
         banner.position = hp(W / 2, H * 0.30 + st)
         bannerTitle.size = max(30, min(52, H * 0.13))
@@ -520,6 +555,9 @@ final class HUD {
         debugLabel.node.position = hp(max(8, insets.left), H - max(3, sb - 24))
         bandBottom = objBottom
         placeBand()
+        measureBanner()
+        bannerCentreY = bannerSlotY(bannerSlot)
+        banner.position = hp(W / 2, bannerCentreY)
     }
 
     /// Armour block rect (view points, y down), the lowest toast's floor (HUD y).
@@ -637,46 +675,72 @@ final class HUD {
         if (was == .converging) != (st == .converging) { rebuildObjPanel() }
     }
 
-    /// Toasts start under the top band (the objective box, or the coach card while it shows) in the right column.
+    /// Toasts start under the top band (the objective box, or the coach card while it shows; H1: the hint while a hold
+    /// puts it up there) in the right column.
     private func placeBand() {
         let sr = max(16, insets.right), top = 10 + insets.top
-        toastRoot.position = hp(size.width - sr, max(top + 52, bandBottom + 6))
+        let band = max(bandBottom, hintTopBottom)
+        toastRoot.position = hp(size.width - sr, max(top + 52, band + 6))
         // the nameplates never rise above the band either (web plateTop = max(objective, coach card) bottom + 4)
-        plates.topLimit = hp(0, bandBottom + 4).y
+        plates.topLimit = hp(0, band + 4).y
     }
 
     // ---------------------------------------------------------------- events
-    func toast(_ text: String, kind: ToastKind) {
-        let maxW = min(320, size.width * 0.6)
-        let key = "\(Int(maxW))|" + text
-        let label: SKLabelNode, lf: CGRect
-        if let c = toastLabels[key], c.0.parent == nil {
-            (label, lf) = c
-        } else {
-            label = Toast.makeLabel(text, maxWidth: maxW - 22)
-            lf = label.frame
-            // only wrapped ones are kept (single-line labels are cheap to make)
-            if toastLabels[key] == nil && lf.height > 20 { toastLabels[key] = (label, lf) }
-        }
-        let t = Toast(label: label, frame: lf, kind: kind)
-        let tf = t.labelFrame
-        let w = min(maxW, max(80, tf.width + 22))
-        t.height = max(26, tf.height + 12)
-        t.panel = SKSpriteNode(color: UIPalette.panel, size: CGSize(width: w, height: t.height))
+    /// A toast's widest (panel; its text 22 pt narrower): 320 pt, less where two columns side by side would touch (SE).
+    private var toastMaxWidth: CGFloat { HUD.toastMaxWidth(size.width, insets) }
+    static func toastMaxWidth(_ w: CGFloat, _ insets: UIEdgeInsets) -> CGFloat {
+        min(320, w * 0.6, ((w - max(16, insets.left) - max(16, insets.right)) / 2 - 4).rounded(.down))
+    }
+
+    /// The toast label of `text` for a column (wrapped ones cached: made behind the loading cover) and its frame.
+    private func toastLabel(_ text: String, left: Bool) -> (SKLabelNode, CGRect) {
+        let maxW = toastMaxWidth
+        let key = "\(Int(maxW))|\(left ? "L" : "R")|" + text
+        if let c = toastLabels[key], c.0.parent == nil { return c }
+        let label = Toast.makeLabel(text, maxWidth: maxW - 22, left: left)
+        let lf = label.frame
+        // only wrapped ones are kept (single-line labels are cheap to make)
+        if toastLabels[key] == nil && lf.height > 20 { toastLabels[key] = (label, lf) }
+        return (label, lf)
+    }
+
+    /// Panel size of a toast whose label frame is `lf`.
+    private func toastSize(_ lf: CGRect) -> CGSize {
+        CGSize(width: min(toastMaxWidth, max(80, lf.width + 22)), height: max(26, lf.height + 12))
+    }
+
+    /// A toast drawn now in a column (the left one mirrored: its edge against the screen edge, the text left-aligned).
+    @discardableResult
+    private func makeToast(_ text: String, kind: ToastKind, lane: ToastQueue.Lane, left: Bool, life: Float) -> Toast {
+        let (label, lf) = toastLabel(text, left: left)
+        let t = Toast(label: label, frame: lf, life: life, lane: lane, left: left)
+        let sz = toastSize(lf)
+        t.width = sz.width
+        t.height = sz.height
+        t.panel = SKSpriteNode(color: UIPalette.panel, size: sz)
         t.panel.anchorPoint = CGPoint(x: 0, y: 1)
-        t.panel.position = CGPoint(x: -w, y: 0)
+        t.panel.position = CGPoint(x: left ? 0 : -sz.width, y: 0)
         t.node.addChild(t.panel)
         let edge = SKSpriteNode(color: kind == .warn ? UIPalette.red : (kind == .gold ? UIPalette.amber : UIPalette.teal), size: CGSize(width: 3, height: t.height))
-        edge.anchorPoint = CGPoint(x: 1, y: 1)
+        edge.anchorPoint = CGPoint(x: left ? 0 : 1, y: 1)
         t.node.addChild(edge)
-        t.label.position = CGPoint(x: -10, y: -6)
+        t.label.position = CGPoint(x: left ? 10 : -10, y: -6)
         t.node.addChild(t.label)
         t.node.alpha = 0
-        toastRoot.addChild(t.node)
+        (left ? toastRootL : toastRoot).addChild(t.node)
         toasts.append(t)
+        return t
+    }
+
+    /// A toast shown at once in the right column (the loading cover's warm-up; the game's toasts go through `post`).
+    func toast(_ text: String, kind: ToastKind, left: Bool = false) {
+        makeToast(text, kind: kind, lane: .bark, left: left, life: kind == .warn ? 4.5 : 3.2)
         // (not while warming up: every wrapped toast has to be drawn once behind the cover)
         if toasts.count > 4 && !warming { toasts[0].discard(); toasts.removeFirst() }
     }
+
+    /// A toast of the game (GameScene's event drain): H1 — into the queue, which hands it out when it may show.
+    func post(_ text: GameText, kind: ToastKind) { toastQueue.post(text, kind: kind) }
 
     /// `-holdBanner` (CI shots): the latest banner of the game, kept on screen (the warm-up's banner never is).
     var holdBanner = false
@@ -697,6 +761,363 @@ final class HUD {
         TextFit.scale(bannerSub, size.width - 32)
         bannerBand.color = teal ? UIPalette.bannerTeal : UIPalette.bannerRed
         bannerT = 0
+        // H1: its slot is chosen on the next update (the game and the projection are there)
+        measureBanner()
+        bannerPlace = true
+    }
+
+    // ---------------------------------------------------------------- H1: where transient text goes
+    /// The banner's slots: middle (30 % of the height, as before), high (its top stripe right under the top band) and low
+    /// (its bottom stripe right above the hint's top line, or above the armour block when no hint shows). Outside a hold
+    /// and a boss fight a banner keeps the middle; in them it takes the slot that covers least of what matters (`cover`).
+    enum BannerSlot: String { case mid, high, low }
+    private(set) var bannerSlot = BannerSlot.mid
+    private var bannerPlace = false
+    /// The placed banner's centre (view y).
+    private var bannerCentreY: CGFloat = 0
+
+    /// The banner's reach above / below its centre (the stripes included) and its width (the stripes', or its text's when
+    /// wider: set with the text and the layout).
+    private var bannerExtent: (up: CGFloat, down: CGFloat, width: CGFloat) {
+        let ts = bannerTitle.size
+        return (ts * 0.5 + 14 + 3, ts * 0.5 + 30 + 3, bannerWidth)
+    }
+    private var bannerWidth: CGFloat = 560
+    private func measureBanner() { bannerWidth = max(min(560, size.width * 0.7), bannerTitle.width, bannerSub.width) }
+
+    /// The centre (view y) of a slot.
+    private func bannerSlotY(_ s: BannerSlot) -> CGFloat {
+        let mid = size.height * 0.30 + insets.top
+        let e = bannerExtent
+        switch s {
+        case .mid: return mid
+        case .high: return min(mid, max(bandBottom, hintTopBottom) + 6 + e.up)
+        case .low:
+            // (above an urgent hint; a calm one steps aside while the banner is up — `hintAside`)
+            let floor = ((hintUrgent ? hintTopY : nil) ?? (armourRect.minY - 2)) - 6
+            return max(mid, floor - e.down)
+        }
+    }
+
+    /// The banner's rect (view points) in a slot.
+    private func bannerRect(_ s: BannerSlot) -> CGRect {
+        let e = bannerExtent, y = bannerSlotY(s)
+        return CGRect(x: (size.width - e.width) / 2, y: y - e.up, width: e.width, height: e.up + e.down)
+    }
+
+    /// The banner's rect (view points) while it is up, else nil.
+    private var bannerUpRect: CGRect? {
+        let up = pinnedBanner != nil ? !warming : bannerT < (reducedMotion ? 3.4 : 2.4)
+        guard up else { return nil }
+        let e = bannerExtent
+        return CGRect(x: (size.width - e.width) / 2, y: bannerCentreY - e.up, width: e.width, height: e.up + e.down)
+    }
+
+    /// The top of the hint's first line (view y) while a hint shows at the bottom, else nil.
+    private var hintTopY: CGFloat? {
+        if hintText.isEmpty || hintAtTop { return nil }
+        let y = (hint2.text.isEmpty ? hint.node.position.y : max(hint.node.position.y, hint2.node.position.y)) + 9 * hint.node.yScale
+        return size.height / 2 - y
+    }
+
+    /// What must stay visible this frame (view points): the marines (feet to head), the boss, the lift deck while the
+    /// squad holds it (the projected rim's ellipse), the objective marker as drawn last frame (before it kept clear of
+    /// the toasts) — built only when something is being placed.
+    private struct Keep {
+        var marines: [CGRect] = []
+        var boss: CGRect? = nil
+        /// The deck's ellipse: centre and radii (view points).
+        var deck: (c: CGPoint, rx: CGFloat, ry: CGFloat)? = nil
+        var marker: CGRect? = nil
+        var markerOver = false
+    }
+
+    private func keep(_ game: Game, _ projection: HUDProjection) -> Keep {
+        var k = Keep()
+        func v(_ x: Float, _ y: Float, _ z: Float) -> CGPoint { viewPoint(projection.hudPoint(x, y, z)) }
+        for i in 0..<min(4, game.marines.count) {
+            let f = projection.feet(i)
+            let a = v(f.0, f.1, f.2), b = v(f.0, f.1 + 1.9, f.2)
+            k.marines.append(CGRect(x: min(a.x, b.x) - 14, y: min(a.y, b.y) - 6, width: abs(a.x - b.x) + 28, height: abs(a.y - b.y) + 10))
+        }
+        if game.boss.alive {
+            let p = game.boss.position, h = game.boss.height, gy = game.level.groundY(p.x, p.y)
+            let y0 = max(gy, h), pts = [v(p.x - 2.5, y0, p.y), v(p.x + 2.5, y0, p.y), v(p.x, y0 + 4, p.y), v(p.x, y0, p.y - 2.5), v(p.x, y0, p.y + 2.5)]
+            let xs = pts.map { $0.x }, ys = pts.map { $0.y }
+            k.boss = CGRect(x: xs.min()! - 10, y: ys.min()! - 10, width: xs.max()! - xs.min()! + 20, height: ys.max()! - ys.min()! + 20)
+        }
+        if game.stage == .hold {
+            let L = game.level.layout.lift
+            let c = v(L.x, L.y, L.z)
+            let e = v(L.x + L.r, L.y, L.z), w = v(L.x - L.r, L.y, L.z), n = v(L.x, L.y, L.z - L.r), s = v(L.x, L.y, L.z + L.r)
+            k.deck = (c, max(abs(e.x - w.x), abs(n.x - s.x)) / 2, max(abs(n.y - s.y), abs(e.y - w.y)) / 2)
+        }
+        k.marker = marker.isHidden ? nil : markerBox
+        k.markerOver = markerOverTarget
+        return k
+    }
+
+    /// Fraction (0…1) of the deck's ellipse a rect covers (a 12 × 6 sample of the rect).
+    private static func deckCover(_ r: CGRect, _ d: (c: CGPoint, rx: CGFloat, ry: CGFloat)) -> CGFloat {
+        guard d.rx > 1, d.ry > 1 else { return 0 }
+        var n = 0
+        for i in 0..<12 {
+            for j in 0..<6 {
+                let x = (r.minX + (CGFloat(i) + 0.5) / 12 * r.width - d.c.x) / d.rx
+                let y = (r.minY + (CGFloat(j) + 0.5) / 6 * r.height - d.c.y) / d.ry
+                if x * x + y * y < 1 { n += 1 }
+            }
+        }
+        return CGFloat(n) / 72 * (r.width * r.height) / (.pi * d.rx * d.ry)
+    }
+
+    /// What a rect would hide: marines (30 each), the boss (60), the toast's own thing (100), the objective marker (40
+    /// over its target, 12 at the edge), the deck (20 × the fraction covered). (counts for the log)
+    private func cover(_ r: CGRect, _ k: Keep, thing: CGRect? = nil, deckK: CGFloat = 20) -> (cost: CGFloat, squad: Int, boss: Bool, deck: CGFloat, thing: Bool, marker: Bool) {
+        var c: CGFloat = 0
+        let squad = k.marines.filter { $0.intersects(r) }.count
+        c += CGFloat(squad) * 30
+        let boss = k.boss?.intersects(r) ?? false
+        if boss { c += 60 }
+        let th = thing?.intersects(r) ?? false
+        if th { c += 100 }
+        let mk = k.marker?.intersects(r) ?? false
+        if mk { c += k.markerOver ? 40 : 12 }
+        let dk = k.deck.map { HUD.deckCover(r, $0) } ?? 0
+        c += deckK * dk
+        return (c, squad, boss, dk, th, mk)
+    }
+
+    private func pct(_ x: CGFloat) -> String { "\(Int((x * 100).rounded()))%" }
+
+    /// A new banner's slot: the middle outside a hold / a boss fight; in them the cheapest of middle, high and low.
+    private func placeBanner(_ game: Game, _ projection: HUDProjection) {
+        var best = BannerSlot.mid
+        var why = ""
+        if game.stage == .hold || game.boss.alive {
+            let k = keep(game, projection)
+            // (a hint up under the top band is never covered: the high slot is under it, the middle one may not be)
+            let hintTop: CGRect? = hintAtTop && !hintText.isEmpty ? hintRects().top : nil
+            var bestC = CGFloat.infinity
+            for (s, pref) in [(BannerSlot.mid, CGFloat(0)), (.high, 1), (.low, 2)] {
+                let r = bannerRect(s)
+                if let h = hintTop, h.intersects(r) { why += " \(s.rawValue): over the hint"; continue }
+                let c = cover(r, k)
+                why += " \(s.rawValue): squad \(c.squad) boss \(c.boss ? 1 : 0) deck \(pct(c.deck))"
+                if c.cost + pref < bestC { bestC = c.cost + pref; best = s }
+            }
+        }
+        bannerSlot = best
+        bannerCentreY = bannerSlotY(best)
+        banner.position = hp(size.width / 2, bannerCentreY)
+        if AppLog.diagnostics {
+            AppLog.info("hud banner «\(bannerTitle.text)» slot=\(best.rawValue)" + (why.isEmpty ? " (no hold)" : " |" + why))
+        }
+    }
+
+    /// H1: the hint's place in a hold — at the bottom (its home) or, when that would hide more of the squad, the boss or
+    /// the deck, right under the top band (the toasts and the plates go under it then).
+    private var hintAtTop = false
+    private var hintPlace = false
+    /// The bottom (view y) of the hint at the top (0: it is at the bottom).
+    private var hintTopBottom: CGFloat = 0
+
+    /// The hint's two candidate rects (view points): bottom and top.
+    private func hintRects() -> (bottom: CGRect, top: CGRect) {
+        let w = hintWidest * hint.node.xScale + 8, lines: CGFloat = hint2.text.isEmpty ? 1 : 2
+        let h = lines * 17 * hint.node.yScale + 4
+        let b = viewPoint(hintBottomBase)
+        let bottom = CGRect(x: b.x - w / 2, y: b.y + 9 * hint.node.yScale - h, width: w, height: h)
+        let top = CGRect(x: (size.width - w) / 2, y: bandBottom + 6, width: w, height: h)
+        return (bottom, top)
+    }
+
+    private func placeHint(_ game: Game, _ projection: HUDProjection) {
+        hintPlace = false
+        var top = false
+        var why = ""
+        if game.stage == .hold && !hintText.isEmpty {
+            let k = keep(game, projection)
+            let r = hintRects()
+            let cb = cover(r.bottom, k), ct = cover(r.top, k)
+            // (never under a banner that is up there)
+            top = ct.cost + 2 < cb.cost && !(bannerUpRect?.intersects(r.top) ?? false)
+            why = " | bottom: squad \(cb.squad) boss \(cb.boss ? 1 : 0) deck \(pct(cb.deck)) · top: squad \(ct.squad) boss \(ct.boss ? 1 : 0) deck \(pct(ct.deck))"
+        }
+        let was = hintAtTop
+        hintAtTop = top
+        // (back at the bottom: the lines are fitted there again)
+        if was && !top { fitHint(); hintPlace = false }
+        applyHintPlace()
+        if AppLog.diagnostics && !why.isEmpty {
+            AppLog.info("hud hint «\(hintText.prefix(32))» at \(top ? "top" : "bottom")" + why)
+        }
+    }
+
+    /// Moves the fitted hint lines to the top slot or back (fitHint placed them at the bottom).
+    private func applyHintPlace() {
+        if hintAtTop && !hintText.isEmpty {
+            let lh = 17 * hint.node.yScale
+            let y0 = hp(0, bandBottom + 6 + 9 * hint.node.yScale).y
+            hint.node.position = CGPoint(x: 0, y: y0)
+            hint2.node.position = CGPoint(x: 0, y: y0 - lh)
+            hintTopBottom = bandBottom + 6 + (hint2.text.isEmpty ? 1 : 2) * lh + 2
+        } else {
+            hintTopBottom = 0
+        }
+        placeBand()
+    }
+
+    // ---------------------------------------------------------------- H1: the toast columns
+    /// The top of a column (view y).
+    private func toastTop(left: Bool) -> CGFloat { left ? toastTopL : size.height / 2 - toastRoot.position.y }
+
+    /// Where a new toast of `sz` would go in a column (view points): under the toasts it shows now.
+    private func nextToastRect(left: Bool, size sz: CGSize) -> CGRect {
+        var y = toastTop(left: left)
+        for t in toasts where t.left == left && t.going < 0 { y += t.height + 4 }
+        let x = left ? max(16, insets.left) : size.width - max(16, insets.right) - sz.width
+        return CGRect(x: x, y: y, width: sz.width, height: sz.height)
+    }
+
+    /// The rect (view points) a column's toasts take now, nil when empty.
+    private func columnRect(left: Bool) -> CGRect? {
+        var r: CGRect? = nil
+        for t in toasts where t.left == left {
+            let p = viewPoint((left ? toastRootL : toastRoot).position)
+            let y = p.y - t.node.position.y
+            let tr = CGRect(x: left ? p.x : p.x - t.width, y: y, width: t.width, height: t.height)
+            r = r.map { $0.union(tr) } ?? tr
+        }
+        return r
+    }
+
+    /// The toasts on screen (HUD coordinates, y up), the ones at least `minAlpha` visible.
+    private func toastRects(minAlpha: CGFloat = 0.05) -> [CGRect] {
+        if covered || !visible { return [] }
+        var out: [CGRect] = []
+        for t in toasts where t.node.alpha >= minAlpha {
+            let o = (t.left ? toastRootL : toastRoot).position
+            let top = o.y + t.node.position.y
+            out.append(CGRect(x: t.left ? o.x : o.x - t.width, y: top - t.height, width: t.width, height: t.height))
+        }
+        return out
+    }
+
+    /// The column a new toast takes: the one where it hides least — its own thing first (the duct mouth, the perched
+    /// spitter, the Dropper, the valve …), then the objective marker, the squad, the boss and the deck (`cover`); on a tie
+    /// the side away from where the marker points (the way the squad is heading: in the first minute the top right, over
+    /// the bridge and its overhead), the right one with no marker; the column already showing toasts when it is close (a
+    /// stack stays together); never one that has no room left above its floor.
+    private func toastSide(_ sz: CGSize, thing: ToastThing, game: Game, projection: HUDProjection) -> (left: Bool, why: String) {
+        let k = keep(game, projection)
+        var box: CGRect? = nil
+        if case .at(let p) = thing {
+            let a = viewPoint(projection.hudPoint(p.x, p.y, p.z))
+            box = CGRect(x: a.x - 24, y: a.y - 30, width: 48, height: 44)
+        }
+        // (the marker's side: 3 for the column on the side it points to, else 1 for the left one)
+        let mx = k.marker.map { $0.midX - size.width / 2 }
+        func ahead(_ left: Bool) -> CGFloat {
+            guard let x = mx, abs(x) > 40 else { return left ? 1 : 0 }
+            return (x < 0) == left ? 3 : 0
+        }
+        var best = (left: false, cost: CGFloat.infinity)
+        var why = ""
+        for left in [false, true] {
+            let r = nextToastRect(left: left, size: sz)
+            let c = cover(r, k, thing: box, deckK: 10)
+            var cost = c.cost + ahead(left)
+            if toasts.contains(where: { $0.left == left && $0.going < 0 }) { cost -= 2 }
+            let floor = size.height / 2 - (left ? toastFloorL : toastFloor)
+            if r.maxY > floor { cost += 200 }
+            why += " | \(left ? "left" : "right"): thing \(c.thing ? 1 : 0) marker \(c.marker ? 1 : 0) squad \(c.squad) boss \(c.boss ? 1 : 0) deck \(pct(c.deck))"
+            if cost < best.cost { best = (left, cost) }
+        }
+        if box == nil { why = " (names nothing on screen)" + why }
+        return (best.left, why)
+    }
+
+    /// One toast the queue handed out: a newer bark replaces the one on screen; the side; drawn.
+    private func showQueued(_ s: ToastQueue.Show, game: Game, projection: HUDProjection) {
+        let text = L10n.string(s.text)
+        if s.lane == .bark { for t in toasts where t.lane == .bark && t.going < 0 { t.going = HUD.toastQuickFade } }
+        let sz = toastSize(toastLabel(text, left: false).1)
+        let side = toastSide(sz, thing: ToastThing.of(s.text, game), game: game, projection: projection)
+        makeToast(text, kind: s.kind, lane: s.lane, left: side.left, life: s.life)
+        if AppLog.diagnostics {
+            AppLog.info(String(format: "hud toast %@ %@ %@ t=%.1f waited %.1f s", ToastQueue.name(s.lane), s.text.id.rawValue,
+                               side.left ? "left" : "right", game.time, s.waited) + side.why)
+        }
+    }
+
+    /// A replaced toast fades out this fast (s).
+    private static let toastQuickFade: Float = 0.2
+
+    /// The queue, then both columns: the left one under the stats and the squad rows shown; a column a banner covers
+    /// steps aside (fades out in 0.15 s, its clocks stop) until the banner has gone; toasts age only while seen.
+    private func updateToasts(game: Game, dt: Float, projection: HUDProjection) {
+        let sl = max(16, insets.left), top = 10 + insets.top
+        var rows = 0
+        for r in squad where !r.node.isHidden { rows += 1 }
+        toastTopL = max(top + 48 + CGFloat(rows) * Geo.rowStep + (rows > 0 ? 2 : 0), max(bandBottom, hintTopBottom) + 6)
+        toastRootL.position = hp(sl, toastTopL)
+        let br = warming ? nil : bannerUpRect
+        let step = CGFloat(dt / 0.15)
+        let asideR = br.map { b in columnRect(left: false).map { $0.intersects(b) } ?? false } ?? false
+        let asideL = br.map { b in columnRect(left: true).map { $0.intersects(b) } ?? false } ?? false
+        toastColA.r = asideR ? max(0, toastColA.r - step) : min(1, toastColA.r + step)
+        toastColA.l = asideL ? max(0, toastColA.l - step) : min(1, toastColA.l + step)
+        // what may start now (nothing under a banner, a menu or the cover's warm-up)
+        if !warming {
+            var st = ToastQueue.State(hold: covered || br != nil)
+            st.tipShown = toasts.contains { $0.lane == .tip && $0.going < 0 }
+            if let b = toasts.last(where: { $0.lane == .bark && $0.going < 0 }) { st.barkShownFor = b.t }
+            if let h = game.contextHint { st.threatHint = h.text.id == .hintPinned || h.text.id == .hintPlayerDown }
+            for s in toastQueue.update(dt: dt, state: st, fresh: { t, _ in ToastThing.of(t, game).fresh }) {
+                showQueued(s, game: game, projection: projection)
+            }
+        }
+        for left in [false, true] {
+            let colA = left ? toastColA.l : toastColA.r
+            let running = warming || (!covered && colA >= 1)
+            // a column that would reach its floor lets one go: its oldest bark, else its oldest threat, else its oldest
+            var stackH: CGFloat = -4
+            for t in toasts where t.left == left && t.going < 0 { stackH += t.height + 4 }
+            let rootY = (left ? toastRootL : toastRoot).position.y
+            let floor = left ? toastFloorL : toastFloor
+            if !warming && rootY - stackH < floor {
+                let live = toasts.filter { $0.left == left && $0.going < 0 }
+                if live.count > 1, let v = live.first(where: { $0.lane == .bark }) ?? live.first(where: { $0.lane == .threat }) ?? live.first {
+                    v.going = HUD.toastQuickFade
+                }
+            }
+            var y: CGFloat = 0
+            for t in toasts where t.left == left {
+                if running {
+                    t.t += dt
+                    // (a quick fade-out runs down to exactly 0: then it goes)
+                    if t.going > 0 { t.going = max(0, t.going - dt) }
+                }
+                let u = min(1, t.t / t.life)
+                var a = CGFloat(u < 0.08 ? u / 0.08 : (u > 0.85 ? (1 - u) / 0.15 : 1))
+                if t.going >= 0 { a *= CGFloat(t.going / HUD.toastQuickFade) }
+                t.node.alpha = a * colA
+                let slide = u < 0.08 ? CGFloat((1 - u / 0.08) * 20) : 0
+                t.node.position = CGPoint(x: left ? -slide : slide, y: y)
+                y -= t.height + 4
+            }
+        }
+        var k = 0
+        while k < toasts.count {
+            let t = toasts[k]
+            if t.t >= t.life || t.going == 0 {
+                t.discard()
+                toasts.remove(at: k)
+                continue
+            }
+            k += 1
+        }
     }
 
     /// Loading-cover warm-up: every overlay, a banner, a toast and both cooldown pies on screen for a few frames
@@ -777,8 +1198,9 @@ final class HUD {
             showBanner(title: L10n.string(.hordeTitle), subtitle: L10n.string(.hordeSubtitle), teal: false)
             toast(L10n.string(GameText(.toastUpgrade, [.name(.upgrade(.dmg))])), kind: .info)
             // every wrapped toast of a mission (the catalog's: bug tips, the squad's down / up lines, the medkit), so its
-            // label exists before the mission needs it (single-line ones are cheap and not kept)
+            // label exists before the mission needs it (single-line ones are cheap and not kept) — in both columns (H1)
             for t in TextWarmup.toastTexts() { toast(L10n.string(t), kind: .warn) }
+            for t in TextWarmup.toastTexts() { toast(L10n.string(t), kind: .warn, left: true) }
             abilityButton.update(ready: false, fraction: 0.5)
             dashButton.update(ready: false, fraction: 0.5)
             abilityButton.warmPies(true)
@@ -789,6 +1211,8 @@ final class HUD {
             damageA = 0; flashA = 0; hordeA = 0
             damage.alpha = 0; flash.alpha = 0; horde.alpha = 0
             bannerT = 99; banner.alpha = 0
+            bannerPlace = false
+            toastColA = (1, 1)
             for t in toasts { t.discard() }
             toasts.removeAll()
             comboVal.set(warmTexts.0)
@@ -820,10 +1244,15 @@ final class HUD {
         check.add("coach", hud(CGRect(x: (W - cw) / 2, y: cardTop, width: cw, height: 44)))
         check.tap("coach.skip", MenuButton.tapRect(CGRect(x: cw / 2 - 4 - 60, y: hp(0, cardTop + 44).y, width: 60, height: 44), pad: 0))
         // toasts: the right column under the card, down to the dash button (room for at least one two-line toast)
-        let toastW = min(320, W * 0.6), toastTop = max(top + 52, cardTop + 44 + 6)
+        let toastW = toastMaxWidth, toastTop = max(top + 52, cardTop + 44 + 6)
         let toastBottom = H / 2 - toastFloor
         check.add("toasts", hud(CGRect(x: W - sr - toastW, y: toastTop, width: toastW, height: max(1, toastBottom - toastTop))))
         if toastBottom - toastTop < 40 { check.add("toasts.room<40", CGRect(x: -W, y: -H, width: 1, height: 1)) }
+        // H1: the left column under all three squad rows (and the card), down to the move ring: room for at least a one-line
+        // toast (a toast takes it only where it fits — HUD.toastSide; the right column is the one sure of a two-line toast)
+        let leftTop = max(top + 48 + 3 * Geo.rowStep + 2, cardTop + 44 + 6), leftBottom = H / 2 - toastFloorL
+        check.add("toasts.left", hud(CGRect(x: sl, y: leftTop, width: toastW, height: max(1, leftBottom - leftTop))))
+        if leftBottom - leftTop < 26 { check.add("toasts.left.room<26", CGRect(x: -W, y: -H, width: 1, height: 1)) }
         // the hint at its widest, two lines
         let hb = viewPoint(hintBase)
         check.add("hint", hud(CGRect(x: hb.x - hintMaxW / 2, y: hb.y - 17 - 9, width: hintMaxW, height: 35)))
@@ -841,6 +1270,32 @@ final class HUD {
             check.tap(name, CGRect(x: c.x - r - 10, y: c.y - r - 10, width: 2 * r + 20, height: 2 * r + 20))
         }
         checkTexts(&check)
+        check.report(size: size, insets: insets)
+        checkSlots()
+    }
+
+    /// H1 `-layoutCheck` («hud-slots»): the places transient text may take in a hold — the banner's three slots (middle;
+    /// high, right under the top band; low, right above a two-line hint) and the hint's top place — each clear of the
+    /// top band, the armour block and the hint at the bottom (the slots are alternatives: they may overlap each other).
+    func checkSlots() {
+        let W = size.width, H = size.height
+        var check = LayoutCheck("hud-slots")
+        func hud(_ r: CGRect) -> CGRect { CGRect(x: r.minX - W / 2, y: H / 2 - r.maxY, width: r.width, height: r.height) }
+        let sr = max(16, insets.right), top = 10 + insets.top
+        check.add("stats", hud(statsRect))
+        check.add("objective", hud(objRect))
+        check.add("pause", hud(CGRect(x: W - sr - 44, y: top, width: 44, height: 44)))
+        check.add("armour", hud(armourRect))
+        let hb = viewPoint(hintBase)
+        let hintR = CGRect(x: hb.x - hintMaxW / 2, y: hb.y - 17 - 9, width: hintMaxW, height: 35)
+        check.add("hint", hud(hintR))
+        let e = bannerExtent, bw = min(560, W * 0.7)
+        let mid = H * 0.30 + insets.top
+        let slots: [(String, CGFloat)] = [("mid", mid), ("high", min(mid, objBottom + 6 + e.up)), ("low", max(mid, hintR.minY - 6 - e.down))]
+        for (n, y) in slots {
+            check.add("slot#banner." + n, hud(CGRect(x: (W - bw) / 2, y: y - e.up, width: bw, height: e.up + e.down)))
+        }
+        check.add("slot#hint.top", hud(CGRect(x: (W - hintMaxW) / 2, y: objBottom + 6, width: hintMaxW, height: 35)))
         check.report(size: size, insets: insets)
     }
 
@@ -963,6 +1418,10 @@ final class HUD {
         let half = widest * s / 2
         let lo = hintGap.0 + 12 + half, hi = hintGap.1 - 12 - half
         let base = CGPoint(x: lo <= hi ? max(lo, min(hi, 0)) : hintBase.x, y: hintBase.y)
+        // H1: its bottom place and width; the next update decides where it goes (in a hold it may go under the top band)
+        hintWidest = widest
+        hintBottomBase = base
+        hintPlace = true
         if l2.isEmpty {
             hint.node.position = base
         } else if hintUp {
@@ -1067,10 +1526,20 @@ final class HUD {
             hint.color = urgent ? UIPalette.red : UIPalette.amber
             hint2.color = hint.color
         }
+        // H1: a new hint line, or a new banner, takes its place (in a hold: where it hides least of the squad and the deck)
+        if hintPlace || (hintAtTop && game.stage != .hold) { placeHint(game, projection) }
+        if bannerPlace && !warming { bannerPlace = false; placeBanner(game, projection) }
         // under a menu (pause, level-up cards, report) the hint and the toasts wait: they would peek out between or
         // above its boxes
-        if toastRoot.isHidden != covered { toastRoot.isHidden = covered }
-        let ha: CGFloat = covered ? 0 : (urgent ? (sinf(game.time * 7.85) > 0 ? 1 : 0.35) : 1)
+        if toastRoot.isHidden != covered { toastRoot.isHidden = covered; toastRootL.isHidden = covered }
+        // H1: a calm hint steps aside (0.15 s) while a banner over it is up — read one after the other, not stacked (the
+        // hold's «DIG IN» and its lift-pulse hint); an urgent one never does (the banner keeps above it)
+        let over = !urgent && !hintText.isEmpty && (bannerUpRect.map { b in
+            let r = hintRects()
+            return b.intersects(hintAtTop ? r.top : r.bottom)
+        } ?? false)
+        hintAside = over ? max(0, hintAside - CGFloat(dt / 0.15)) : min(1, hintAside + CGFloat(dt / 0.15))
+        let ha: CGFloat = covered ? 0 : (urgent ? (sinf(game.time * 7.85) > 0 ? 1 : 0.35) : hintAside)
         hint.node.alpha = ha
         hint2.node.alpha = ha
 
@@ -1123,26 +1592,9 @@ final class HUD {
             stickR.idle(at: stickRestR, learned: sticksLearned)
         }
 
-        // toasts (the oldest goes when the column would reach down into the dash button)
-        var stackH: CGFloat = -4
-        for t in toasts { stackH += t.height + 4 }
-        while !warming && toasts.count > 1 && toastRoot.position.y - stackH < toastFloor {
-            stackH -= toasts[0].height + 4
-            toasts[0].discard()
-            toasts.removeFirst()
-        }
-        var y: CGFloat = 0
-        var k = 0
-        while k < toasts.count {
-            let t = toasts[k]
-            t.t += dt
-            if t.t >= t.life { t.discard(); toasts.remove(at: k); continue }
-            let u = t.t / t.life
-            t.node.alpha = CGFloat(u < 0.08 ? u / 0.08 : (u > 0.85 ? (1 - u) / 0.15 : 1))
-            t.node.position = CGPoint(x: u < 0.08 ? CGFloat((1 - u / 0.08) * 20) : 0, y: y)
-            y -= t.height + 4
-            k += 1
-        }
+        // toasts (H1): the queue hands out what may show now, each new one takes the column where it hides least, a
+        // column under the banner steps aside until it has gone
+        updateToasts(game: game, dt: dt, projection: projection)
         // banner (2.4 s, 3.4 s with Reduce Motion)
         bannerT += dt
         if let p = pinnedBanner, !warming {
@@ -1257,7 +1709,7 @@ final class HUD {
         let dist = hypotf(t.x - P.x, t.y - P.z)
         let dm = Int(dist.rounded())
         if dm != markerDist { markerDist = dm; markerLabel.set(L10n.ui(.hudDistance, .int(dm))) }
-        let mx = size.width / 2 - 40, myTop = size.height / 2 - bandBottom - 30, myBot = -size.height / 2 + 150
+        let mx = size.width / 2 - 40, myTop = size.height / 2 - max(bandBottom, hintTopBottom) - 30, myBot = -size.height / 2 + 150
         // VX-5: the block holding the dash and the ability button (+ 20 pt): an on-screen marker there counts as off screen,
         // an edge arrow that would land in it stops where its ray enters it (web mkBlockX / mkBlockY)
         let ar = abilityButton.radius, dr = dashButton.radius
@@ -1286,7 +1738,41 @@ final class HUD {
             markerArrow.zRotation = CGFloat(atan2(Double(dy), Double(dx))) - .pi / 2
             markerArrow.setScale(1)
         }
+        // H1: where it would be (the toasts' side choice keeps clear of it) — then never on a toast: inside a toast (+ the
+        // marker's own reach: the arrow ± 22 pt, the distance under it) it stops where its ray from the screen centre
+        // enters that toast, as an edge arrow there (also when it was over its target: the target is under the toast)
+        let p0 = marker.position
+        markerBox = CGRect(x: p0.x - 22 + size.width / 2, y: size.height / 2 - p0.y - 12, width: 44, height: 42)
+        markerOverTarget = inside
+        var p = p0
+        for b in toastRects() {
+            let r = CGRect(x: b.minX - 22, y: b.minY - 12, width: b.width + 44, height: b.height + 42)
+            guard r.contains(p) else { continue }
+            let len = (p.x * p.x + p.y * p.y).squareRoot()
+            guard len > 1 else { continue }
+            let dx = p.x / len, dy = p.y / len
+            // the ray t·(dx, dy) enters r at the latest of its two slab entries
+            var tIn: CGFloat = 0
+            if abs(dx) > 1e-4 { tIn = max(tIn, min(r.minX / dx, r.maxX / dx)) }
+            if abs(dy) > 1e-4 { tIn = max(tIn, min(r.minY / dy, r.maxY / dy)) }
+            guard tIn > 1 && tIn < len else { continue }
+            p = CGPoint(x: dx * (tIn - 1), y: dy * (tIn - 1))
+            markerArrow.zRotation = CGFloat(atan2(Double(dy), Double(dx))) - .pi / 2
+            markerArrow.setScale(1)
+        }
+        if p != p0 {
+            marker.position = p
+            if AppLog.diagnostics && !markerYielded {
+                AppLog.info(String(format: "hud marker kept off a toast: (%.0f, %.0f) → (%.0f, %.0f)", p0.x, p0.y, p.x, p.y))
+            }
+        }
+        markerYielded = p != p0
     }
+
+    /// The marker's box where it would be without the toasts (view points), whether it was over its target (H1).
+    private var markerBox = CGRect.zero
+    private var markerOverTarget = false
+    private var markerYielded = false
 
     func setDebug(_ text: String) {
         debugLabel.node.isHidden = !showDebug

@@ -47,7 +47,7 @@ env:
   # shots (calm-nohud, calm-deckmask, calm-bright-nohud are measured against each other). Balanced by measured times (a
   # 33–39 min, b 30–44 on the runs before the split; b's spread is the other phones, 20–32 min). README «CI» →
   # «Как добавить демо и выбрать его часть».
-  SMOKE_B: title title-fresh title-return title-nm title-left layout layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo banner-pseudo levelup pause pause-nm end report-first report-win report-loss report-chip other-phones
+  SMOKE_B: title title-fresh title-return title-nm title-left layout layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo banner-pseudo burst-firstmin-pseudo levelup pause pause-nm end report-first report-win report-loss report-chip other-phones
 
 jobs:
   core-tests:
@@ -755,6 +755,10 @@ jobs:
           run_demo banner-beacon 8 "-demo beacon -seed 7 -holdBanner" 0
           run_demo banner-queen 10 "-demo queen -tier 1 -seed 3 -holdBanner" 0
           run_demo banner-pseudo 8 "-demo beacon -seed 7 -holdBanner -pseudoLoc 1.35" 0
+          # Stage 2 H1: the first minute's toasts pseudo-localised (+35 %: they wrap to two or three lines) — the queue and the two
+          # columns, 12 frames every 90th present from 7 s (the defence banner's end, the first tips and barks)
+          run_demo burst-firstmin-pseudo 25 "-demo firstmin -seed 7 -storeShot -pseudoLoc 1.35 -burst firstminp 7.0 12 90"
+          pull_burst burst-firstmin-pseudo
           # horde ingredients one by one (overlay, banner, shake, sounds, haptic, horde) every 4 s: hitch attribution
           run_demo probe 26 "-demo probe -seed 7"
           # lift: holding out on the platform against the hold's own swarm (native-vx-feel: the director's opening horde,
@@ -899,7 +903,7 @@ jobs:
                    swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud calm-deckmask calm-bright-nohud \
                    burst-fire burst-tight burst-combat burst-anim burst-loco burst-loco-game burst-acta burst-actb burst-actc burst-defeat burst-win burst-bugs burst-pack burst-packold burst-mix burst-mixold validate-stress validate-fxpeak validate-extract lifecycle \
                    overhead burst-overhead burst-parallax overhead-nohud overheadbugs burst-dropper burst-perch burst-duct burst-dash \
-                   interactives burst-valve burst-lights burst-mk2 breakerrun ventpurge burst-firstmin; do
+                   interactives burst-valve burst-lights burst-mk2 breakerrun ventpurge burst-firstmin burst-firstmin-pseudo; do
             mine "$d" || continue
             grep -q 'scene ready' "results/app-$d.log" || { fail "$d: no 'scene ready'"; }
             if grep -q 'ERROR' "results/app-$d.log"; then fail "$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; fi
@@ -943,6 +947,12 @@ jobs:
           need burst-mk2 'demo combat: overhead td=[0-9.]+ sent runners [1-9]'
           need burst-firstmin 'burst firstmin written \(24 frames\)'
           need burst-firstmin 'demo firstmin: the classic mission from its drop'
+          need burst-firstmin-pseudo 'burst firstminp written \(12 frames\)'
+          # Stage 2 H1: the first minute's tips came through the queue (one at a time, each to the side where it hides least),
+          # the Queen's banner took its slot in the hold, the lift-pulse hint its place
+          need burst-firstmin 'hud toast tip toast\.tip\.[a-z]+ (left|right) t=[0-9.]+ waited'
+          need banner-queen 'hud banner «THE QUEEN» slot=(mid|high|low) \| mid: squad'
+          need holdhint 'hud hint «GRID HITS EVERY 6 SEC'
           need combat 'oh vis: on \(pipelines ok'
           need hold 'oh vis: on \(pipelines ok'
           # native-vx-feel: the wave director staged its own beacon defence (no forced crowd) and the hive pushed
@@ -1100,10 +1110,10 @@ jobs:
             need "$d" 'layout (ok|FAIL)'
             if grep -q 'layout FAIL' "results/app-$d.log"; then fail "$d: $(grep -m 2 'layout FAIL' "results/app-$d.log" | tr '\n' ' ')"; fi
           done
-          # the four landscape phones (LayoutSizes): 4 × (3 titles + HUD + pause + 2 level-ups + 4 reports) = 44 checks, in
-          # English and pseudo-localised (+35 %)
-          need layout 'layout sizes: 48 ok, 0 FAIL on 4 phones'
-          need layout-pseudo 'layout sizes: 48 ok, 0 FAIL on 4 phones'
+          # the four landscape phones (LayoutSizes): 4 × (3 titles + HUD + the HUD's transient slots (H1) + pause + 2 level-ups
+          # + 5 reports) = 52 checks, in English and pseudo-localised (+35 %)
+          need layout 'layout sizes: 52 ok, 0 FAIL on 4 phones'
+          need layout-pseudo 'layout sizes: 52 ok, 0 FAIL on 4 phones'
           # L10n: every key resolved (the audit of the layout demos), and no run ever looked up a key the catalog lacks
           need layout 'l10n audit: [0-9]+ keys, 0 missing'
           need layout-pseudo 'l10n audit: [0-9]+ keys, 0 missing'
