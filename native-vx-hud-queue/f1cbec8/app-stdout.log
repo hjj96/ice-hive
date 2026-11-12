@@ -1,0 +1,643 @@
+[IceHive] launch v2.0.0 (1) core=2.0.0 options=demo=combat seconds=18.0 debugHUD=true seed=7 orient=right
+[IceHive] view ready maxFPS=60 scale=3.0 worldScale=2.0
+[IceHive] frame loop resumed
+[IceHive] metal: view 874x402 pt, drawable 2622x1206 px (scale 3.0)
+[IceHive] settings: cls=assault best=0/0s muted=false vol=0.8 haptics=true quality=auto
+[IceHive] v11 meta: runs=0 wins=0 pick=- tut=0 sticks=0 tier=rec first=1 (demo, in memory)
+[IceHive] glyph calibration in 39 ms: JetBrainsMono-Bold 17pt 1/1 dx=+0px dy=+4px width-1px bottom+0px; JetBrainsMono-Bold 17pt 1/1 dx=+0px dy=+4px width-1px bottom+0px; JetBrainsMono-Bold 16pt 1/1 dx=+0px dy=+4px width+0px bottom-1px; JetBrainsMono-Bold 13pt 2/1 dx=-4px dy=+3px width-1px bottom+0px; JetBrainsMono-Bold 12pt 1/1 dx=+4px dy=+3px width-1px bottom+0px; JetBrainsMono-Bold 12pt 0/1 dx=+0px dy=+3px width-1px bottom+0px; JetBrainsMono-Medium 9pt 1/3 2 lines dx=+3px dy=+10px width+0px bottom-1px
+[IceHive] frame loop: display link started, 2 frames in flight, max 60 Hz
+[IceHive] fonts: Oswald + JetBrains Mono registered
+[IceHive] scene presented size=874x402 iface=landscapeRight
+[IceHive] scene active
+[IceHive] text warm-up: 157 wrapped strings in 99 ms
+[IceHive] metal: meshes 24 (5446 triangles, 0.4 MB) textures 9 in 557 ms glints 3/4/3/3 | kit 26 pieces (4687 triangles), trims ASTC, 6.7 MB in 304 ms (pieces 2, textures read 224, GPU upload wait 79)
+[IceHive] metal: pipelines built in 219 ms (34 world + 5 post; first request 66 ms, then 38 in parallel 146 ms, slowest: meshProps 42, creature 34, glowQuads 31, pad 31, meshLambert 20) device=Apple iOS simulator GPU
+[IceHive] metal: post: grade LUTs gameplay/beacon/extraction/title, exposure table 4 moods in 11 ms | counters command-buffer totals | device class a13OrOlder (simulator) bug cap 1400 default tier efficient | world encodes > 2 ms logged
+[IceHive] squad: 4 marines (9964/9880/9900/9984 triangles, 4.55 MB, 38 clips each) maps ASTC in 181 ms
+[IceHive] metal: station: 213282 vertices, 111750 triangles in 27 chunks (9.6 MB; assembled in 30 ms) glows 72 | casters 17902 triangles | triangles decks 2310, edges 70226, supports 14948, props 15730, interactives 3386, lift 5150 | edges: 360 posts, 198 icicle fringes, 45 drifts, 48 lamps (70 ms)
+[IceHive] overhead: 48442 vertices, 23720 triangles in 24 chunks (2.93 MB; 11 ms) | pipes 113 m, cables 104 m, trays 53 m, catwalks 16 m, ducts 9 m | 0 arms, 46 supports, 73 pieces, 2 truss girders, 8 swaying cables, 3 lights
+[IceHive] audio: 38 sounds, 6 loops, 20 voices (732 ms)
+[IceHive] oh vis: on (pipelines ok, 2630 deck cells)
+[IceHive] swarm: creatures 1505 KB in 13.5 ms: runner 2886/436/146 tris 14 clips, spitter 2564/388/146 tris 12 clips, brute 2756/414/146 tris 13 clips, boomer 2512/410/146 tris 8 clips, dropper 2508/376/122 tris 12 clips
+[IceHive] particles: compute ready in 0 ms (built in 237 ms with the pipelines), 32768 slots (3.0 MB), flipbooks fx_fire fx_blast fx_smoke
+[IceHive] metal: environment probe 64x64, 5 mips, 256 KB in 2.5 ms
+[IceHive] metal: lighting: shadow atlas 2048x1024 D32F (8.0 MB), occupancy 2x256² RG8, probe 5 mips, 32 grid lights / 16² cells of 3 m
+[IceHive] metal world ready in 1087 ms (preload 589 ms, started 467 ms before the scene) mem=89MB avail=0MB
+[IceHive] demo combat: spawned 226 bugs around the squad (target 226, bug cap 250)
+[IceHive] demo combat: Kelvin-9 Mk II overhead, 37 edges, 16 entries, 3 duct mouths, 28 perch points, 4 valves, 7 circuits | routeCheck ok (295 m, footprint 2.6 %)
+[IceHive] mode playing class=assault seed=7 demo=combat
+[IceHive] v11 start tier=vet coach=0 station=kelvin-9 seed=7
+[IceHive] mission start cold-light steps=ring,hold,extract modifiers= props=1 lit=7/7 vents=8 ducts=3
+[IceHive] bug cap 250 (graphics auto 250, device 1400)
+[IceHive] interface settled iface=landscapeRight
+[IceHive] metal: world target 1748x804 px (allocation 1, RG11B10F, 4x MSAA, MSAA private (simulator), scene + bloom 7.3 MB) in 1.4 ms
+[IceHive] first banner td=-1.00
+[IceHive] first ability.grenade td=-1.00
+[IceHive] first ability.napalm td=-1.00
+[IceHive] first telegraph.ring td=-1.00
+[IceHive] first levelUp td=-1.00
+[IceHive] first ability.nova td=-1.00
+[IceHive] first ability.turret td=-1.00
+[IceHive] hud tip: queued bark toast.upgrade (line 1)
+[IceHive] first toast td=-1.00
+[IceHive] first explosion.frost td=-1.00
+[IceHive] hud tip: queued bark toast.upgrade (line 2)
+[IceHive] v11 threat 0 t=0.1 pressure=0.1
+[IceHive] hb gpu frame=0.00 max=0.00 passes=- (no counter sampling: command-buffer totals only) | ema=0.00 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.10
+[IceHive] hb squad cpu=0.272ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=3 turns=0 hits=0 twist=0deg acts=0 states=walk,idle,walk,walk
+[IceHive] hb swarm vis=154 lod=0/167/0 tris=72k corpses=13/13 glints=616 proxies=0 build=0.01ms tier=efficient
+[IceHive] sights: glint 1.2 m (no laser line), first on marine 0 (assault)
+[IceHive] hb props lit=7/7 lamps=48/48 valves=rrrr bursts=0 kills=0+0 broken=0 spits=0 restores=0 lockers=0
+[IceHive] hb fx parts=0/12288 peak=0 fire=0/600 peak=0 expl=0/2 peak=0 reduced=0 throttled=0 spawn=1286/s rec=317/s decals=122/1000 beams=26 tracers=1 tracer=1.8m lights=2 floor=42+3 acid=0/0 heat=4 hitcut=4 cpu=0.078ms sim=on gpusim=- tier=efficient
+[IceHive] hint 2 lines widest=218 max=334 scale=1.00 «LEFT THUMB — MOVE» / «RIGHT THUMB — AIM, AUTO-FIRE»
+[IceHive] hud banner «BOOTS ON THE GROUND» slot=mid (no hold)
+[IceHive] hb t=1.3 fps=8.6 drawn=7 mode=playing demo=combat
+[IceHive] hb light lights=23 cells=181 tiles=1 beams=4 occ=159 tier=efficient
+[IceHive] hb level draws=1 tris=106534 chunks=24/27 casters=1/17902 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=2 pts=4 sway=0.02m cpu=0.010ms casters=0/0 tier=efficient
+[IceHive] hud marker kept off a toast: (138, 115) → (34, 29)
+[IceHive] first explosion.frag td=-1.00
+[IceHive] first screenFlash td=-1.00
+[IceHive] hud tip: queued bark toast.upgrade (line 3)
+[IceHive] hb gpu frame=6.40 max=29.29 passes=- (no counter sampling: command-buffer totals only) | ema=0.00 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=-0.02
+[IceHive] hb squad cpu=0.124ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=3 turns=0 hits=0 twist=3deg acts=0 states=run,walk,walk,walk
+[IceHive] hb swarm vis=146 lod=0/224/0 tris=97k corpses=78/78 glints=584 proxies=50 build=0.06ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=48/48 valves=rrrr bursts=0 kills=0+0 broken=0 spits=0 restores=0 lockers=0
+[IceHive] hb fx parts=484/12288 peak=484 fire=54/600 peak=54 expl=2/2 peak=2 reduced=2 throttled=0 spawn=574/s rec=253/s decals=206/1000 beams=18 tracers=9 tracer=1.8m lights=2 floor=11+1 acid=0/0 heat=9 hitcut=26 cpu=0.065ms sim=on gpusim=- tier=efficient
+[IceHive] hb t=2.3 fps=51.9 drawn=5 mode=playing demo=combat
+[IceHive] hb light lights=27 cells=189 tiles=1 beams=4 occ=155 tier=efficient
+[IceHive] hb level draws=1 tris=106534 chunks=24/27 casters=1/17902 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=2 pts=4 sway=0.04m cpu=0.032ms casters=0/0 tier=efficient
+[IceHive] hud toast bark toast.upgrade left t=1.1 waited 0.1 s (names nothing on screen) | right: thing 0 marker 0 squad 0 boss 0 deck 0% | left: thing 0 marker 0 squad 0 boss 0 deck 0%
+[IceHive] loading took 2.74 s (from the first frame)
+[IceHive] scene ready mode=playing size=874x402 renderer=metal
+[IceHive] demo combat: overhead td=0.48 sent runners 6 dropper 1 spitter 1 · up 0 (high 0 riser 0 coil 0 perch 0) drops 0
+[IceHive] hb t=3.3 td=0.5 fps=60.0 worst=17ms drawn=32 gap=19ms sim=0.14ms world=0.37ms mode=playing bugs=215 vis=212 parts=172 stage=0 hp=100 kills=161 mem=63MB avail=0MB demo=combat rend=metal cpu=16 main=10 dc=34 inst=3453 tris=328398 enc=0.17ms gpu=0.15ms gpumax=0.2ms skip=1 nodraw=0 drw=0ms cbmax=9ms sk=15ms/41 skcpu=9ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 71 | max ev=6 world=3 / -
+[IceHive] hb gpu frame=0.14 max=0.29 passes=- (no counter sampling: command-buffer totals only) | ema=0.14 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.10
+[IceHive] hb squad cpu=0.099ms slide=0.0cm grip=0.0mm draws=4 restep=3 flashes=4 turns=0 hits=0 twist=35deg acts=4 states=cast,cast,cast,cast
+[IceHive] hb swarm vis=212 lod=0/232/0 tris=101k corpses=20/20 glints=848 proxies=2 build=0.10ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=48/48 valves=rrrr bursts=0 kills=0+0 broken=0 spits=0 restores=0 lockers=0
+[IceHive] hb fx parts=168/12288 peak=534 fire=54/600 peak=60 expl=0/2 peak=2 reduced=0 throttled=0 spawn=487/s rec=407/s decals=30/1000 beams=32 tracers=89 tracer=1.8m lights=1 floor=2+1 acid=0/0 heat=3 hitcut=0 cpu=0.026ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=29 cells=207 tiles=1 beams=4 occ=218 tier=efficient
+[IceHive] hb level draws=1 tris=106534 chunks=24/27 casters=1/17902 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=3 pts=4 sway=0.04m cpu=0.027ms casters=0/0 tier=efficient
+[IceHive] hud toast bark toast.upgrade left t=2.1 waited 1.1 s (names nothing on screen) | right: thing 0 marker 0 squad 0 boss 0 deck 0% | left: thing 0 marker 0 squad 0 boss 0 deck 0%
+[IceHive] bugs: duct 0 rattles
+[IceHive] hud tip: queued tip toast.tip.duct (line 2)
+[IceHive] hud toast tip toast.tip.duct left t=2.9 waited 0.0 s | right: thing 0 marker 0 squad 0 boss 0 deck 0% | left: thing 0 marker 0 squad 0 boss 0 deck 0%
+[IceHive] hud tip: queued tip toast.tip.dropper (line 2)
+[IceHive] hb t=4.3 td=1.5 fps=60.0 worst=17ms drawn=58 gap=18ms sim=0.15ms world=0.38ms mode=playing bugs=212 vis=212 parts=302 stage=0 hp=100 kills=200 mem=63MB avail=0MB demo=combat rend=metal cpu=13 main=7 dc=36 inst=3656 tris=345112 enc=0.16ms gpu=0.13ms gpumax=0.3ms skip=1 nodraw=0 drw=0ms cbmax=9ms sk=1ms/2 skcpu=0ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.3 hud=0.1 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 108 | max - / -
+[IceHive] oh vis t=1.5 deck=36584 px covered 0.8% solid 0.8% | marines px 124/133/135/136 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=1 deck mean 0.8% worst 0.8% marine hidden worst 0.0% → ok
+[IceHive] hb gpu frame=0.14 max=0.27 passes=- (no counter sampling: command-buffer totals only) | ema=0.15 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.10
+[IceHive] hb squad cpu=0.090ms slide=0.0cm grip=0.0mm draws=4 restep=2 flashes=3 turns=0 hits=0 twist=30deg acts=0 states=walk,run,run,walk
+[IceHive] hb swarm vis=212 lod=0/268/3 tris=117k corpses=59/59 glints=846 proxies=1 build=0.11ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=48/48 valves=rrrr bursts=0 kills=0+0 broken=0 spits=0 restores=0 lockers=0
+[IceHive] hb fx parts=308/12288 peak=325 fire=82/600 peak=109 expl=0/2 peak=0 reduced=0 throttled=0 spawn=708/s rec=597/s decals=81/1000 beams=19 tracers=106 tracer=1.8m lights=1 floor=1+1 acid=0/0 heat=1 hitcut=0 cpu=0.026ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=31 cells=218 tiles=1 beams=4 occ=228 tier=efficient
+[IceHive] hb level draws=1 tris=106534 chunks=24/27 casters=1/17902 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=2 pts=4 sway=0.04m cpu=0.056ms casters=0/0 tier=efficient
+[IceHive] hud toast bark toast.upgrade left t=3.1 waited 2.0 s (names nothing on screen) | right: thing 0 marker 0 squad 0 boss 0 deck 0% | left: thing 0 marker 0 squad 0 boss 0 deck 0%
+[IceHive] oh vis t=2.0 deck=38072 px covered 1.0% solid 1.0% | marines px 120/116/139/137 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=2 deck mean 0.9% worst 1.0% marine hidden worst 0.0% → ok
+[IceHive] hud tip: queued bark toast.upgrade (line 2)
+[IceHive] oh vis t=2.5 deck=39731 px covered 1.2% solid 1.2% | marines px 120/118/135/138 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=3 deck mean 1.0% worst 1.2% marine hidden worst 0.0% → ok
+[IceHive] hb t=5.3 td=2.5 fps=60.0 worst=17ms drawn=61 gap=42ms sim=0.13ms world=0.38ms mode=playing bugs=202 vis=198 parts=391 stage=0 hp=100 kills=249 mem=64MB avail=0MB demo=combat rend=metal cpu=13 main=7 dc=36 inst=3921 tris=355092 enc=0.17ms gpu=0.14ms gpumax=0.3ms skip=0 nodraw=0 drw=0ms cbmax=33ms sk=1ms/2 skcpu=0ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 145 | max - / -
+[IceHive] hb gpu frame=0.14 max=0.27 passes=- (no counter sampling: command-buffer totals only) | ema=0.14 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.10
+[IceHive] hb squad cpu=0.089ms slide=0.0cm grip=0.0mm draws=4 restep=3 flashes=2 turns=0 hits=0 twist=27deg acts=0 states=run,run,run,run
+[IceHive] hb swarm vis=197 lod=0/276/29 tris=124k corpses=108/109 glints=786 proxies=101 build=0.11ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=48/48 valves=rrrr bursts=0 kills=0+0 broken=0 spits=0 restores=0 lockers=0
+[IceHive] hb fx parts=407/12288 peak=407 fire=112/600 peak=114 expl=0/2 peak=0 reduced=0 throttled=0 spawn=833/s rec=688/s decals=142/1000 beams=24 tracers=107 tracer=1.8m lights=2 floor=1+1 acid=0/0 heat=1 hitcut=4 cpu=0.027ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=32 cells=197 tiles=1 beams=4 occ=229 tier=efficient
+[IceHive] hb level draws=1 tris=106468 chunks=22/27 casters=1/17902 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=2 pts=4 sway=0.03m cpu=0.029ms casters=0/0 tier=efficient
+[IceHive] hud toast bark toast.upgrade left t=4.2 waited 0.7 s (names nothing on screen) | right: thing 0 marker 0 squad 0 boss 0 deck 0% | left: thing 0 marker 0 squad 0 boss 0 deck 0%
+[IceHive] oh vis t=3.0 deck=39561 px covered 1.3% solid 1.3% | marines px 123/125/135/136 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=4 deck mean 1.1% worst 1.3% marine hidden worst 0.0% → ok
+[IceHive] demo combat: alive 226, topped up 260 in the last 5 s
+[IceHive] route: knocked down at (29.4, 11.0) from -2.3 m
+[IceHive] hud tip: queued tip toast.tip.spitter (line 2)
+[IceHive] oh vis t=3.5 deck=37436 px covered 1.2% solid 1.2% | marines px 121/136/141/137 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=5 deck mean 1.1% worst 1.3% marine hidden worst 0.0% → ok
+[IceHive] hb t=6.3 td=3.5 fps=60.0 worst=17ms drawn=60 gap=19ms sim=0.14ms world=0.39ms mode=playing bugs=205 vis=202 parts=463 stage=0 hp=100 kills=289 mem=64MB avail=0MB demo=combat rend=metal cpu=13 main=7 dc=37 inst=4069 tris=351732 enc=0.16ms gpu=0.13ms gpumax=0.2ms skip=0 nodraw=0 drw=0ms cbmax=9ms sk=1ms/2 skcpu=0ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 190 | max - / -
+[IceHive] hb gpu frame=0.13 max=0.20 passes=- (no counter sampling: command-buffer totals only) | ema=0.12 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.10
+[IceHive] hb squad cpu=0.090ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=2 turns=0 hits=0 twist=16deg acts=0 states=run,run,run,run
+[IceHive] hb swarm vis=216 lod=0/256/95 tris=125k corpses=135/151 glints=863 proxies=92 build=0.12ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=48/48 valves=rrrr bursts=0 kills=0+0 broken=0 spits=0 restores=0 lockers=0
+[IceHive] hb fx parts=462/12288 peak=463 fire=123/600 peak=131 expl=0/2 peak=0 reduced=0 throttled=0 spawn=943/s rec=813/s decals=192/1000 beams=28 tracers=147 tracer=1.8m lights=2 floor=0+0 acid=0/0 heat=0 hitcut=3 cpu=0.027ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=32 cells=214 tiles=1 beams=4 occ=226 tier=efficient
+[IceHive] hb level draws=1 tris=106468 chunks=21/27 casters=1/17902 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=2 pts=4 sway=0.04m cpu=0.027ms casters=0/0 tier=efficient
+[IceHive] oh vis t=4.0 deck=33657 px covered 0.9% solid 0.9% | marines px 121/127/141/136 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=6 deck mean 1.1% worst 1.3% marine hidden worst 0.0% → ok
+[IceHive] oh vis t=4.5 deck=29724 px covered 1.7% solid 1.7% | marines px 120/135/134/135 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=7 deck mean 1.2% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hb t=7.3 td=4.5 fps=60.0 worst=17ms drawn=60 gap=18ms sim=0.14ms world=0.41ms mode=playing bugs=198 vis=184 parts=426 stage=0 hp=100 kills=346 mem=64MB avail=0MB demo=combat rend=metal cpu=13 main=7 dc=35 inst=3975 tris=341888 enc=0.17ms gpu=0.14ms gpumax=0.3ms skip=0 nodraw=0 drw=0ms cbmax=9ms sk=0ms/0 skcpu=0ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 230 | max - / -
+[IceHive] hud tip: queued bark toast.upgrade (line 3)
+[IceHive] hud toast bark toast.upgrade left t=6.0 waited 0.0 s (names nothing on screen) | right: thing 0 marker 0 squad 0 boss 0 deck 0% | left: thing 0 marker 0 squad 0 boss 0 deck 0%
+[IceHive] hb gpu frame=0.14 max=0.26 passes=- (no counter sampling: command-buffer totals only) | ema=0.13 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.10
+[IceHive] hb squad cpu=0.094ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=3 turns=0 hits=0 twist=26deg acts=0 states=run,run,run,run
+[IceHive] hb swarm vis=195 lod=0/217/143 tris=115k corpses=165/207 glints=781 proxies=44 build=0.13ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=48/48 valves=rrrr bursts=0 kills=0+0 broken=0 spits=0 restores=0 lockers=0
+[IceHive] hb fx parts=423/12288 peak=495 fire=97/600 peak=132 expl=0/2 peak=0 reduced=0 throttled=0 spawn=876/s rec=730/s decals=256/1000 beams=30 tracers=146 tracer=1.8m lights=0 floor=1+0 acid=0/0 heat=2 hitcut=1 cpu=0.026ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=31 cells=221 tiles=1 beams=4 occ=228 tier=efficient
+[IceHive] hb level draws=1 tris=106468 chunks=21/27 casters=1/17902 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=3 pts=4 sway=0.04m cpu=0.026ms casters=0/0 tier=efficient
+[IceHive] oh vis t=5.0 deck=25827 px covered 0.4% solid 0.4% | marines px 123/136/137/138 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=8 deck mean 1.1% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] demo combat: overhead td=5.48 sent runners 6 dropper 1 spitter 1 · up 7 (high 6 riser 1 coil 0 perch 0) drops 0
+[IceHive] oh vis t=5.5 deck=24026 px covered 0.6% solid 0.5% | marines px 119/135/136/139 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=9 deck mean 1.0% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hb t=8.3 td=5.5 fps=60.0 worst=17ms drawn=60 gap=19ms sim=0.15ms world=0.36ms mode=playing bugs=201 vis=130 parts=388 stage=0 hp=100 kills=397 mem=64MB avail=0MB demo=combat rend=metal cpu=13 main=7 dc=35 inst=3718 tris=327848 enc=0.16ms gpu=0.14ms gpumax=0.2ms skip=0 nodraw=0 drw=0ms cbmax=11ms sk=1ms/2 skcpu=0ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 265 | max - / -
+[IceHive] hb gpu frame=0.13 max=0.24 passes=- (no counter sampling: command-buffer totals only) | ema=0.14 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.10
+[IceHive] hb squad cpu=0.088ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=1 turns=0 hits=0 twist=25deg acts=1 states=reload,run,run,run
+[IceHive] hb swarm vis=142 lod=0/204/94 tris=102k corpses=156/259 glints=568 proxies=35 build=0.11ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=48/48 valves=rrrr bursts=0 kills=0+0 broken=0 spits=0 restores=0 lockers=0
+[IceHive] hb fx parts=405/12288 peak=421 fire=110/600 peak=112 expl=0/2 peak=0 reduced=0 throttled=0 spawn=850/s rec=718/s decals=320/1000 beams=24 tracers=71 tracer=1.8m lights=0 floor=0+0 acid=0/0 heat=0 hitcut=1 cpu=0.024ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=29 cells=211 tiles=1 beams=4 occ=228 tier=efficient
+[IceHive] hb level draws=1 tris=105722 chunks=20/27 casters=1/17902 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=4 pts=4 sway=0.04m cpu=0.035ms casters=0/0 tier=efficient
+[IceHive] oh vis t=6.0 deck=23369 px covered 1.0% solid 0.9% | marines px 128/133/139/136 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=10 deck mean 1.0% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] oh vis t=6.5 deck=24471 px covered 0.2% solid 0.2% | marines px 123/127/138/133 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=11 deck mean 0.9% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] first horde td=6.53
+[IceHive] hud banner «DEFEND THE BEACON» slot=mid (no hold)
+[IceHive] hb t=9.3 td=6.5 fps=60.0 worst=17ms drawn=60 gap=19ms sim=0.13ms world=0.37ms mode=playing bugs=200 vis=123 parts=391 stage=0 hp=100 kills=452 mem=64MB avail=0MB demo=combat rend=metal cpu=13 main=7 dc=37 inst=3702 tris=317732 enc=0.16ms gpu=0.12ms gpumax=0.3ms skip=0 nodraw=0 drw=0ms cbmax=9ms sk=1ms/2 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.1 cam=0.0 world=0.3 hud=0.1 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 303 | max - / -
+[IceHive] hint 2 lines widest=214 max=334 scale=1.00 «CLEAR THE RING —» / «BUGS ARE SLOWING THE CHARGE»
+[IceHive] hb gpu frame=0.13 max=0.33 passes=- (no counter sampling: command-buffer totals only) | ema=0.13 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.13
+[IceHive] hb squad cpu=0.092ms slide=0.0cm grip=0.0mm draws=4 restep=1 flashes=3 turns=0 hits=0 twist=26deg acts=0 states=run,run,run,run
+[IceHive] hb swarm vis=131 lod=0/183/75 tris=90k corpses=127/312 glints=523 proxies=15 build=0.10ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=48/48 valves=rrrr bursts=0 kills=0+0 broken=0 spits=0 restores=0 lockers=0
+[IceHive] hb fx parts=389/12288 peak=409 fire=64/600 peak=110 expl=0/2 peak=0 reduced=0 throttled=0 spawn=778/s rec=627/s decals=387/1000 beams=30 tracers=39 tracer=1.8m lights=1 floor=1+0 acid=0/0 heat=2 hitcut=2 cpu=0.025ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=31 cells=181 tiles=1 beams=4 occ=222 tier=efficient
+[IceHive] hb level draws=1 tris=105722 chunks=20/27 casters=1/17902 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=4 pts=4 sway=0.03m cpu=0.026ms casters=0/0 tier=efficient
+[IceHive] oh vis t=7.0 deck=26096 px covered 0.3% solid 0.2% | marines px 123/131/132/132 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=12 deck mean 0.9% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hud tip: queued tip toast.tip.valve (line 3)
+[IceHive] oh vis t=7.5 deck=27640 px covered 0.3% solid 0.3% | marines px 134/136/140/140 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=13 deck mean 0.8% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hb t=10.3 td=7.5 fps=60.0 worst=17ms drawn=59 gap=35ms sim=0.13ms world=0.38ms mode=playing bugs=201 vis=121 parts=311 stage=0 hp=100 kills=501 mem=64MB avail=0MB demo=combat rend=metal cpu=14 main=7 dc=36 inst=3623 tris=308680 enc=0.17ms gpu=0.16ms gpumax=0.7ms skip=1 nodraw=0 drw=0ms cbmax=37ms sk=1ms/1 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 341 | max - / -
+[IceHive] hb gpu frame=0.16 max=0.71 passes=- (no counter sampling: command-buffer totals only) | ema=0.16 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.30
+[IceHive] hb squad cpu=0.094ms slide=0.0cm grip=0.0mm draws=4 restep=1 flashes=4 turns=0 hits=0 twist=35deg acts=0 states=walk,run,run,run
+[IceHive] hb swarm vis=129 lod=0/176/62 tris=85k corpses=109/320 glints=515 proxies=4 build=0.11ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=48/48 valves=rrrr bursts=0 kills=0+0 broken=0 spits=0 restores=0 lockers=0
+[IceHive] hb fx parts=287/12288 peak=388 fire=45/600 peak=67 expl=0/2 peak=0 reduced=0 throttled=0 spawn=633/s rec=503/s decals=450/1000 beams=34 tracers=121 tracer=1.8m lights=4 floor=0+0 acid=0/0 heat=0 hitcut=0 cpu=0.026ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=29 cells=170 tiles=1 beams=4 occ=214 tier=efficient
+[IceHive] hb level draws=1 tris=105722 chunks=19/27 casters=1/17758 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=4 pts=4 sway=0.04m cpu=0.028ms casters=0/0 tier=efficient
+[IceHive] first telegraph.fill td=7.73
+[IceHive] oh vis t=8.0 deck=28524 px covered 0.3% solid 0.3% | marines px 138/139/146/146 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=14 deck mean 0.8% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hud tip: queued bark toast.upgrade (line 4)
+[IceHive] demo combat: alive 219, topped up 214 in the last 5 s
+[IceHive] first acid td=8.23
+[IceHive] oh vis t=8.5 deck=28701 px covered 0.3% solid 0.3% | marines px 144/143/142/149 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=15 deck mean 0.8% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hb t=11.3 td=8.5 fps=60.0 worst=17ms drawn=60 gap=19ms sim=0.13ms world=0.34ms mode=playing bugs=209 vis=130 parts=316 stage=0 hp=100 kills=541 mem=64MB avail=0MB demo=combat rend=metal cpu=12 main=7 dc=37 inst=3773 tris=316124 enc=0.16ms gpu=0.13ms gpumax=0.3ms skip=0 nodraw=0 drw=0ms cbmax=9ms sk=0ms/0 skcpu=0ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 380 | max - / -
+[IceHive] hb gpu frame=0.13 max=0.26 passes=- (no counter sampling: command-buffer totals only) | ema=0.13 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.30
+[IceHive] hb squad cpu=0.088ms slide=0.0cm grip=0.0mm draws=4 restep=5 flashes=4 turns=0 hits=0 twist=37deg acts=0 states=walk,walk,run,run
+[IceHive] hb swarm vis=137 lod=0/180/92 tris=91k corpses=135/320 glints=547 proxies=39 build=0.10ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=48/48 valves=rrrr bursts=0 kills=0+0 broken=0 spits=1 restores=0 lockers=0
+[IceHive] hb fx parts=313/12288 peak=341 fire=70/600 peak=75 expl=0/2 peak=0 reduced=0 throttled=0 spawn=668/s rec=559/s decals=498/1000 beams=29 tracers=214 tracer=1.8m lights=1 floor=1+0 acid=0/0 heat=2 hitcut=0 cpu=0.024ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=30 cells=161 tiles=1 beams=4 occ=221 tier=efficient
+[IceHive] hb level draws=1 tris=105722 chunks=19/27 casters=1/17758 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=5 pts=4 sway=0.04m cpu=0.025ms casters=0/0 tier=efficient
+[IceHive] hud toast bark toast.upgrade right t=10.4 waited 0.9 s (names nothing on screen) | right: thing 0 marker 0 squad 0 boss 0 deck 0% | left: thing 0 marker 0 squad 0 boss 0 deck 0%
+[IceHive] oh vis t=9.0 deck=28692 px covered 0.4% solid 0.4% | marines px 137/139/144/146 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=16 deck mean 0.7% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] first explosion.mini td=9.15
+[IceHive] props: lamp 47 broken (circuit 4) t=10.60
+[IceHive] hud tip: queued bark toast.lights_cut (line 4)
+[IceHive] hud toast tip toast.tip.dropper left t=10.6 waited 7.7 s | right: thing 0 marker 0 squad 1 boss 0 deck 0% | left: thing 0 marker 0 squad 0 boss 0 deck 0%
+[IceHive] oh vis t=9.5 deck=28725 px covered 0.3% solid 0.3% | marines px 145/140/141/147 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=17 deck mean 0.7% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hb t=12.3 td=9.5 fps=60.0 worst=17ms drawn=60 gap=23ms sim=0.13ms world=0.36ms mode=playing bugs=217 vis=140 parts=283 stage=0 hp=100 kills=582 mem=64MB avail=0MB demo=combat rend=metal cpu=12 main=7 dc=37 inst=3869 tris=327220 enc=0.17ms gpu=0.13ms gpumax=0.2ms skip=0 nodraw=0 drw=0ms cbmax=13ms sk=1ms/4 skcpu=0ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 421 | max - / -
+[IceHive] hud tip: queued tip toast.tip.breaker (line 4)
+[IceHive] hb gpu frame=0.13 max=0.24 passes=- (no counter sampling: command-buffer totals only) | ema=0.14 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.30
+[IceHive] hb squad cpu=0.091ms slide=0.0cm grip=0.0mm draws=4 restep=7 flashes=1 turns=0 hits=0 twist=37deg acts=0 states=walk,walk,walk,walk
+[IceHive] hb swarm vis=140 lod=0/192/111 tris=99k corpses=163/320 glints=559 proxies=95 build=0.12ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=47/48 valves=rrrr bursts=0 kills=0+0 broken=1 spits=1 restores=0 lockers=0
+[IceHive] hb fx parts=259/12288 peak=361 fire=34/600 peak=72 expl=1/2 peak=1 reduced=0 throttled=0 spawn=575/s rec=437/s decals=551/1000 beams=26 tracers=167 tracer=1.8m lights=0 floor=1+0 acid=0/0 heat=0 hitcut=0 cpu=0.025ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=24 cells=157 tiles=1 beams=4 occ=221 tier=efficient
+[IceHive] hb level draws=1 tris=105722 chunks=19/27 casters=1/17758 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=5 pts=4 sway=0.03m cpu=0.031ms casters=0/0 tier=efficient
+[IceHive] hud toast bark toast.lights_cut left t=11.4 waited 0.8 s (names nothing on screen) | right: thing 0 marker 0 squad 0 boss 0 deck 0% | left: thing 0 marker 0 squad 0 boss 0 deck 0%
+[IceHive] oh vis t=10.0 deck=29524 px covered 0.3% solid 0.3% | marines px 147/116/142/150 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=18 deck mean 0.7% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hint 2 lines widest=214 max=334 scale=1.00 «CLEAR THE RING —» / «BUGS ARE SLOWING THE CHARGE»
+[IceHive] demo combat: overhead td=10.48 sent runners 0 dropper 0 spitter 0 · up 15 (high 10 riser 5 coil 0 perch 0) drops 0
+[IceHive] oh vis t=10.5 deck=30029 px covered 0.3% solid 0.3% | marines px 148/131/144/149 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=19 deck mean 0.7% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hb t=13.3 td=10.5 fps=60.0 worst=17ms drawn=60 gap=21ms sim=0.13ms world=0.43ms mode=playing bugs=189 vis=104 parts=443 stage=0 hp=100 kills=652 mem=72MB avail=0MB demo=combat rend=metal cpu=15 main=8 dc=36 inst=3966 tris=326280 enc=0.18ms gpu=0.15ms gpumax=0.3ms skip=0 nodraw=0 drw=0ms cbmax=10ms sk=2ms/1 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.0 cam=0.0 world=0.3 hud=0.1 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 460 | max - / -
+[IceHive] hb gpu frame=0.15 max=0.30 passes=- (no counter sampling: command-buffer totals only) | ema=0.14 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.17
+[IceHive] hb squad cpu=0.110ms slide=0.0cm grip=0.0mm draws=4 restep=5 flashes=2 turns=1 hits=0 twist=99deg acts=1 states=cast,idle,walk,walk
+[IceHive] hb swarm vis=127 lod=0/207/117 tris=107k corpses=197/320 glints=507 proxies=88 build=0.12ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=47/48 valves=rrrr bursts=0 kills=0+0 broken=1 spits=1 restores=0 lockers=0
+[IceHive] hb fx parts=406/12288 peak=464 fire=56/600 peak=77 expl=2/2 peak=2 reduced=1 throttled=0 spawn=666/s rec=490/s decals=628/1000 beams=28 tracers=82 tracer=1.8m lights=1 floor=2+0 acid=0/0 heat=2 hitcut=17 cpu=0.031ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=25 cells=157 tiles=1 beams=4 occ=222 tier=efficient
+[IceHive] hb level draws=1 tris=105722 chunks=19/27 casters=1/17758 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=5 pts=4 sway=0.04m cpu=0.031ms casters=0/0 tier=efficient
+[IceHive] oh vis t=11.0 deck=29892 px covered 0.4% solid 0.4% | marines px 146/125/142/149 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=20 deck mean 0.7% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] oh vis t=11.5 deck=29044 px covered 0.4% solid 0.4% | marines px 146/126/140/148 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=21 deck mean 0.6% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hb t=14.3 td=11.5 fps=60.0 worst=17ms drawn=60 gap=22ms sim=0.14ms world=0.43ms mode=playing bugs=237 vis=150 parts=209 stage=0 hp=100 kills=663 mem=75MB avail=0MB demo=combat rend=metal cpu=14 main=8 dc=36 inst=4013 tris=337580 enc=0.20ms gpu=0.14ms gpumax=0.2ms skip=0 nodraw=0 drw=0ms cbmax=14ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.0 cam=0.0 world=0.4 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 496 | max - / -
+[IceHive] hb gpu frame=0.14 max=0.25 passes=- (no counter sampling: command-buffer totals only) | ema=0.14 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.30
+[IceHive] hb squad cpu=0.101ms slide=0.0cm grip=0.0mm draws=4 restep=3 flashes=2 turns=2 hits=0 twist=110deg acts=0 states=walk,turn,turn,idle
+[IceHive] hb swarm vis=150 lod=0/195/167 tris=109k corpses=212/320 glints=599 proxies=30 build=0.12ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=47/48 valves=rrrr bursts=0 kills=0+0 broken=1 spits=1 restores=0 lockers=0
+[IceHive] hb fx parts=204/12288 peak=401 fire=36/600 peak=55 expl=1/2 peak=2 reduced=0 throttled=0 spawn=429/s rec=374/s decals=655/1000 beams=30 tracers=177 tracer=1.8m lights=2 floor=0+0 acid=0/0 heat=0 hitcut=0 cpu=0.031ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=27 cells=170 tiles=1 beams=4 occ=241 tier=efficient
+[IceHive] hb level draws=1 tris=105722 chunks=19/27 casters=1/17758 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=5 pts=4 sway=0.04m cpu=0.029ms casters=0/0 tier=efficient
+[IceHive] oh vis t=12.0 deck=28538 px covered 0.4% solid 0.4% | marines px 147/137/143/148 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=22 deck mean 0.6% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] oh vis t=12.5 deck=28318 px covered 0.4% solid 0.4% | marines px 144/135/141/147 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=23 deck mean 0.6% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] route: knocked down at (29.4, 0.6) from 3.5 m
+[IceHive] route: knocked down at (29.4, 0.6) from 3.5 m
+[IceHive] hb t=15.3 td=12.5 fps=60.0 worst=17ms drawn=60 gap=21ms sim=0.14ms world=0.39ms mode=playing bugs=245 vis=163 parts=184 stage=0 hp=100 kills=679 mem=75MB avail=0MB demo=combat rend=metal cpu=13 main=7 dc=36 inst=4099 tris=327924 enc=0.17ms gpu=0.14ms gpumax=0.2ms skip=0 nodraw=0 drw=0ms cbmax=9ms sk=2ms/0 skcpu=0ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 535 | max - / -
+[IceHive] hb gpu frame=0.14 max=0.24 passes=- (no counter sampling: command-buffer totals only) | ema=0.15 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.30
+[IceHive] hb squad cpu=0.091ms slide=0.0cm grip=0.0mm draws=4 restep=5 flashes=3 turns=1 hits=0 twist=110deg acts=0 states=idle,turn,walk,idle
+[IceHive] hb swarm vis=165 lod=0/155/229 tris=100k corpses=219/320 glints=660 proxies=37 build=0.14ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=47/48 valves=rrrr bursts=0 kills=0+0 broken=1 spits=1 restores=0 lockers=0
+[IceHive] hb fx parts=247/12288 peak=247 fire=31/600 peak=36 expl=0/2 peak=1 reduced=0 throttled=0 spawn=441/s rec=351/s decals=682/1000 beams=32 tracers=218 tracer=1.8m lights=1 floor=2+0 acid=0/0 heat=2 hitcut=0 cpu=0.029ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=30 cells=158 tiles=1 beams=4 occ=250 tier=efficient
+[IceHive] hb level draws=1 tris=105722 chunks=20/27 casters=1/17758 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=5 pts=4 sway=0.03m cpu=0.028ms casters=0/0 tier=efficient
+[IceHive] oh vis t=13.0 deck=27549 px covered 0.4% solid 0.4% | marines px 141/129/132/140 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=24 deck mean 0.6% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] demo combat: alive 217, topped up 41 in the last 5 s
+[IceHive] route: knocked down at (23.8, -8.6) from 4.5 m
+[IceHive] oh vis t=13.5 deck=27141 px covered 0.4% solid 0.4% | marines px 128/133/128/133 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=25 deck mean 0.6% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hb t=16.3 td=13.5 fps=60.0 worst=17ms drawn=60 gap=19ms sim=0.13ms world=0.40ms mode=playing bugs=206 vis=138 parts=417 stage=0 hp=100 kills=742 mem=75MB avail=0MB demo=combat rend=metal cpu=14 main=8 dc=37 inst=4336 tris=331988 enc=0.18ms gpu=0.14ms gpumax=0.2ms skip=0 nodraw=0 drw=0ms cbmax=9ms sk=0ms/0 skcpu=0ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 575 | max world=3 / cam=2
+[IceHive] hud toast tip toast.tip.spitter right t=15.0 waited 10.1 s | right: thing 0 marker 0 squad 0 boss 0 deck 0% | left: thing 0 marker 0 squad 0 boss 0 deck 0%
+[IceHive] bugs: spitter perched at (29.4, 0.5, 0.6)
+[IceHive] hud tip: queued tip toast.tip.perch (line 3)
+[IceHive] hb gpu frame=0.14 max=0.21 passes=- (no counter sampling: command-buffer totals only) | ema=0.13 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.30
+[IceHive] hb squad cpu=0.090ms slide=0.0cm grip=0.0mm draws=4 restep=0 flashes=2 turns=1 hits=0 twist=107deg acts=1 states=idle,cast,idle,idle
+[IceHive] hb swarm vis=140 lod=0/163/234 tris=105k corpses=257/320 glints=562 proxies=75 build=0.12ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=47/48 valves=rrrr bursts=0 kills=0+0 broken=1 spits=1 restores=0 lockers=0
+[IceHive] hb fx parts=394/12288 peak=478 fire=78/600 peak=119 expl=2/2 peak=2 reduced=0 throttled=0 spawn=840/s rec=636/s decals=758/1000 beams=31 tracers=196 tracer=1.8m lights=2 floor=3+1 acid=0/0 heat=3 hitcut=16 cpu=0.028ms sim=on gpusim=- tier=efficient
+[IceHive] hud tip: queued bark toast.upgrade (line 4)
+[IceHive] hud toast bark toast.upgrade right t=15.1 waited 0.0 s (names nothing on screen) | right: thing 0 marker 0 squad 0 boss 0 deck 0% | left: thing 0 marker 0 squad 0 boss 0 deck 0%
+[IceHive] hb light lights=28 cells=165 tiles=1 beams=4 occ=216 tier=efficient
+[IceHive] hb level draws=1 tris=105722 chunks=20/27 casters=1/17902 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=5 pts=4 sway=0.04m cpu=0.026ms casters=0/0 tier=efficient
+[IceHive] oh vis t=14.0 deck=27711 px covered 0.4% solid 0.4% | marines px 133/133/127/133 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=26 deck mean 0.6% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] route: killed up there at (29.4, 0.6) 3.5 m, source 0
+[IceHive] route: killed up there at (29.4, 0.6) 3.5 m, source 0
+[IceHive] oh vis t=14.5 deck=28709 px covered 0.4% solid 0.4% | marines px 137/142/134/141 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=27 deck mean 0.6% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hb t=17.3 td=14.5 fps=60.0 worst=17ms drawn=60 gap=32ms sim=0.13ms world=0.40ms mode=playing bugs=213 vis=137 parts=243 stage=0 hp=100 kills=780 mem=76MB avail=0MB demo=combat rend=metal cpu=15 main=8 dc=35 inst=4220 tris=332944 enc=0.18ms gpu=0.16ms gpumax=0.6ms skip=0 nodraw=0 drw=0ms cbmax=22ms sk=4ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 605 | max - / -
+[IceHive] route: killed up there at (29.4, 0.6) 3.5 m, source 0
+[IceHive] route: killed up there at (29.4, 0.6) 3.5 m, source 0
+[IceHive] route: killed up there at (29.4, 0.6) 3.5 m, source 0
+[IceHive] route: killed up there at (29.4, 0.6) 3.5 m, source 0
+[IceHive] hb gpu frame=0.16 max=0.63 passes=- (no counter sampling: command-buffer totals only) | ema=0.14 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.30
+[IceHive] hb squad cpu=0.099ms slide=0.0cm grip=0.0mm draws=4 restep=4 flashes=2 turns=4 hits=0 twist=110deg acts=0 states=idle,turn,turn,turn
+[IceHive] hb swarm vis=135 lod=0/149/259 tris=102k corpses=273/320 glints=542 proxies=60 build=0.12ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=47/48 valves=rrrr bursts=0 kills=0+0 broken=1 spits=1 restores=0 lockers=0
+[IceHive] hb fx parts=269/12288 peak=409 fire=53/600 peak=79 expl=2/2 peak=2 reduced=2 throttled=0 spawn=529/s rec=415/s decals=810/1000 beams=28 tracers=91 tracer=1.8m lights=4 floor=2+2 acid=1/1 heat=3 hitcut=5 cpu=0.032ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=27 cells=165 tiles=1 beams=4 occ=218 tier=efficient
+[IceHive] hb level draws=1 tris=105722 chunks=19/27 casters=1/17758 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=5 pts=4 sway=0.04m cpu=0.026ms casters=0/0 tier=efficient
+[IceHive] oh vis t=15.0 deck=28581 px covered 0.4% solid 0.4% | marines px 139/135/135/143 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=28 deck mean 0.6% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] demo combat: overhead td=15.48 sent runners 6 dropper 1 spitter 1 · up 3 (high 1 riser 0 coil 0 perch 0) drops 0
+[IceHive] oh vis t=15.5 deck=28201 px covered 0.4% solid 0.4% | marines px 145/145/138/144 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=29 deck mean 0.6% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hb t=18.3 td=15.5 fps=60.0 worst=17ms drawn=60 gap=19ms sim=0.13ms world=0.38ms mode=playing bugs=210 vis=147 parts=185 stage=0 hp=100 kills=804 mem=76MB avail=0MB demo=combat rend=metal cpu=13 main=7 dc=35 inst=4190 tris=325740 enc=0.18ms gpu=0.14ms gpumax=0.2ms skip=0 nodraw=0 drw=0ms cbmax=10ms sk=0ms/0 skcpu=0ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 631 | max - / -
+[IceHive] hb gpu frame=0.13 max=0.20 passes=- (no counter sampling: command-buffer totals only) | ema=0.14 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.30
+[IceHive] hb squad cpu=0.092ms slide=0.0cm grip=0.0mm draws=4 restep=4 flashes=2 turns=1 hits=0 twist=107deg acts=1 states=reload,turn,turn,idle
+[IceHive] hb swarm vis=155 lod=0/123/311 tris=98k corpses=279/320 glints=623 proxies=75 build=0.12ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=47/48 valves=rrrr bursts=0 kills=0+0 broken=1 spits=1 restores=0 lockers=0
+[IceHive] hb fx parts=192/12288 peak=267 fire=59/600 peak=62 expl=0/2 peak=2 reduced=0 throttled=0 spawn=364/s rec=325/s decals=827/1000 beams=26 tracers=72 tracer=1.8m lights=0 floor=2+2 acid=1/1 heat=3 hitcut=0 cpu=0.026ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=27 cells=165 tiles=1 beams=4 occ=221 tier=efficient
+[IceHive] hb level draws=1 tris=105722 chunks=20/27 casters=1/17758 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=5 pts=4 sway=0.03m cpu=0.027ms casters=0/0 tier=efficient
+[IceHive] oh vis t=16.0 deck=28038 px covered 0.4% solid 0.4% | marines px 144/135/138/147 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=30 deck mean 0.6% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hb t=19.3 td=16.5 fps=60.0 worst=17ms drawn=60 gap=19ms sim=0.14ms world=0.40ms mode=playing bugs=200 vis=159 parts=386 stage=0 hp=100 kills=844 mem=75MB avail=0MB demo=combat rend=metal cpu=13 main=7 dc=37 inst=4598 tris=331454 enc=0.18ms gpu=0.14ms gpumax=0.2ms skip=0 nodraw=0 drw=0ms cbmax=10ms sk=0ms/0 skcpu=0ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 658 | max - / -
+[IceHive] oh vis t=16.5 deck=28118 px covered 0.4% solid 0.4% | marines px 142/146/139/144 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=31 deck mean 0.6% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hb gpu frame=0.14 max=0.24 passes=- (no counter sampling: command-buffer totals only) | ema=0.14 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.30
+[IceHive] hb squad cpu=0.091ms slide=0.0cm grip=0.0mm draws=4 restep=1 flashes=2 turns=1 hits=0 twist=99deg acts=0 states=idle,idle,walk,idle
+[IceHive] hb swarm vis=174 lod=0/135/337 tris=107k corpses=298/320 glints=705 proxies=72 build=0.13ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=47/48 valves=rrrr bursts=0 kills=0+0 broken=1 spits=1 restores=0 lockers=0
+[IceHive] hb fx parts=376/12288 peak=387 fire=55/600 peak=67 expl=0/2 peak=0 reduced=0 throttled=0 spawn=672/s rec=497/s decals=882/1000 beams=32 tracers=115 tracer=1.8m lights=0 floor=5+2 acid=1/1 heat=1 hitcut=11 cpu=0.028ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=27 cells=165 tiles=1 beams=4 occ=220 tier=efficient
+[IceHive] hb level draws=1 tris=105722 chunks=20/27 casters=1/17902 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=5 pts=4 sway=0.04m cpu=0.031ms casters=0/0 tier=efficient
+[IceHive] oh vis t=17.0 deck=27660 px covered 0.4% solid 0.4% | marines px 137/136/131/140 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=32 deck mean 0.6% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] oh vis t=17.5 deck=26926 px covered 0.4% solid 0.4% | marines px 131/132/122/135 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=33 deck mean 0.6% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hb t=20.3 td=17.5 fps=60.0 worst=17ms drawn=60 gap=18ms sim=0.12ms world=0.39ms mode=playing bugs=199 vis=173 parts=323 stage=0 hp=100 kills=882 mem=75MB avail=0MB demo=combat rend=metal cpu=14 main=7 dc=39 inst=4655 tris=340256 enc=0.16ms gpu=0.13ms gpumax=0.2ms skip=0 nodraw=0 drw=1ms cbmax=10ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 696 | max - / -
+[IceHive] hb gpu frame=0.13 max=0.16 passes=- (no counter sampling: command-buffer totals only) | ema=0.13 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.30
+[IceHive] hb squad cpu=0.090ms slide=0.0cm grip=0.0mm draws=4 restep=3 flashes=1 turns=1 hits=0 twist=100deg acts=1 states=walk,walk,walk,cast
+[IceHive] hb swarm vis=184 lod=0/147/345 tris=113k corpses=308/320 glints=745 proxies=77 build=0.13ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=47/48 valves=rrrr bursts=0 kills=0+0 broken=1 spits=1 restores=0 lockers=0
+[IceHive] hb fx parts=437/12288 peak=443 fire=75/600 peak=76 expl=1/2 peak=1 reduced=0 throttled=0 spawn=722/s rec=537/s decals=939/1000 beams=27 tracers=183 tracer=1.8m lights=0 floor=6+2 acid=1/1 heat=1 hitcut=6 cpu=0.029ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=26 cells=165 tiles=1 beams=4 occ=214 tier=efficient
+[IceHive] hb level draws=1 tris=105722 chunks=20/27 casters=1/17902 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=5 pts=4 sway=0.04m cpu=0.025ms casters=0/0 tier=efficient
+[IceHive] oh vis t=18.0 deck=26033 px covered 0.4% solid 0.4% | marines px 129/125/119/102 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=34 deck mean 0.6% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hud toast tip toast.tip.valve left t=19.4 waited 10.9 s | right: thing 1 marker 0 squad 0 boss 0 deck 0% | left: thing 0 marker 0 squad 0 boss 0 deck 0%
+[IceHive] demo combat: alive 221, topped up 115 in the last 5 s
+[IceHive] oh vis t=18.5 deck=24728 px covered 0.4% solid 0.4% | marines px 129/117/112/121 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=35 deck mean 0.5% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hb t=21.3 td=18.5 fps=60.0 worst=17ms drawn=60 gap=21ms sim=0.13ms world=0.41ms mode=playing bugs=211 vis=189 parts=246 stage=0 hp=100 kills=908 mem=75MB avail=0MB demo=combat rend=metal cpu=14 main=7 dc=39 inst=4702 tris=343484 enc=0.17ms gpu=0.13ms gpumax=0.3ms skip=0 nodraw=0 drw=0ms cbmax=11ms sk=1ms/1 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 730 | max - / -
+[IceHive] demo done after 18s avgFps=60.0 minFps=60.0 worstFrame=17ms drawnAvg=59.9 drawnMin=58.0 worstGap=42ms mem=75MB avail=0MB
+[IceHive] hb gpu frame=0.15 max=0.54 passes=- (no counter sampling: command-buffer totals only) | ema=0.17 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.30
+[IceHive] hb squad cpu=0.095ms slide=0.0cm grip=0.0mm draws=4 restep=9 flashes=3 turns=0 hits=0 twist=41deg acts=1 states=cast,idle,idle,idle
+[IceHive] hb swarm vis=194 lod=0/146/361 tris=115k corpses=313/320 glints=787 proxies=79 build=0.14ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=47/48 valves=rrrr bursts=0 kills=0+0 broken=1 spits=1 restores=0 lockers=0
+[IceHive] hb fx parts=269/12288 peak=439 fire=57/600 peak=76 expl=1/2 peak=2 reduced=0 throttled=0 spawn=517/s rec=430/s decals=975/1000 beams=34 tracers=130 tracer=1.8m lights=2 floor=3+3 acid=3/3 heat=2 hitcut=0 cpu=0.029ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=26 cells=158 tiles=1 beams=4 occ=218 tier=efficient
+[IceHive] hb level draws=1 tris=105722 chunks=20/27 casters=1/17902 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=5 pts=4 sway=0.04m cpu=0.029ms casters=0/0 tier=efficient
+[IceHive] oh vis t=19.0 deck=25917 px covered 0.3% solid 0.3% | marines px 77/120/123/124 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=36 deck mean 0.5% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] oh vis t=19.5 deck=26567 px covered 0.2% solid 0.2% | marines px 86/120/119/127 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=37 deck mean 0.5% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hb t=22.3 td=19.5 fps=60.0 worst=17ms drawn=60 gap=18ms sim=0.12ms world=0.40ms mode=playing bugs=162 vis=139 parts=504 stage=0 hp=100 kills=990 mem=75MB avail=0MB demo=combat rend=metal cpu=14 main=8 dc=40 inst=4740 tris=333984 enc=0.17ms gpu=0.14ms gpumax=0.9ms skip=0 nodraw=0 drw=0ms cbmax=10ms sk=1ms/1 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 772 | max - / -
+[IceHive] hb gpu frame=0.17 max=0.88 passes=- (no counter sampling: command-buffer totals only) | ema=0.13 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.29
+[IceHive] hb squad cpu=0.097ms slide=0.0cm grip=0.0mm draws=4 restep=4 flashes=3 turns=1 hits=0 twist=94deg acts=0 states=walk,run,run,turn
+[IceHive] hb swarm vis=175 lod=0/148/342 tris=113k corpses=315/320 glints=711 proxies=110 build=0.13ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=47/48 valves=rrrr bursts=0 kills=0+0 broken=1 spits=1 restores=0 lockers=0
+[IceHive] hb fx parts=448/12288 peak=552 fire=55/600 peak=69 expl=2/2 peak=2 reduced=0 throttled=0 spawn=918/s rec=675/s decals=1000/1000 beams=30 tracers=99 tracer=1.8m lights=2 floor=5+3 acid=3/3 heat=4 hitcut=24 cpu=0.031ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=24 cells=159 tiles=1 beams=4 occ=212 tier=efficient
+[IceHive] hb level draws=1 tris=105722 chunks=20/27 casters=1/17902 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=5 pts=4 sway=0.04m cpu=0.027ms casters=0/0 tier=efficient
+[IceHive] bugs: spitter perched at (38.6, 1.0, -16.3)
+[IceHive] oh vis t=20.0 deck=26819 px covered 0.2% solid 0.2% | marines px 76/118/111/123 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=38 deck mean 0.5% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] route: knocked down at (32.4, -16.3) from 4.0 m
+[IceHive] route: killed up there at (32.4, -16.3) 4.0 m, source 2
+[IceHive] hud tip: queued bark toast.upgrade (line 3)
+[IceHive] hud toast bark toast.upgrade left t=21.8 waited 0.0 s (names nothing on screen) | right: thing 0 marker 0 squad 0 boss 0 deck 0% | left: thing 0 marker 0 squad 0 boss 0 deck 0%
+[IceHive] demo combat: overhead td=20.48 sent runners 0 dropper 0 spitter 0 · up 10 (high 7 riser 2 coil 0 perch 1) drops 0
+[IceHive] oh vis t=20.5 deck=27025 px covered 0.3% solid 0.3% | marines px 80/119/111/127 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=39 deck mean 0.5% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hb t=23.3 td=20.5 fps=60.0 worst=17ms drawn=58 gap=73ms sim=0.15ms world=0.47ms mode=playing bugs=174 vis=156 parts=652 stage=0 hp=100 kills=1048 mem=75MB avail=0MB demo=combat rend=metal cpu=15 main=8 dc=40 inst=4967 tris=341628 enc=0.18ms gpu=0.14ms gpumax=0.4ms skip=2 nodraw=0 drw=0ms cbmax=65ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.4 hud=0.1 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 826 | max - / -
+[IceHive] hb gpu frame=0.15 max=0.43 passes=- (no counter sampling: command-buffer totals only) | ema=0.15 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.30
+[IceHive] hb squad cpu=0.101ms slide=0.0cm grip=0.0mm draws=4 restep=5 flashes=2 turns=1 hits=0 twist=94deg acts=1 states=walk,walk,cast,turn
+[IceHive] hb swarm vis=185 lod=0/158/346 tris=118k corpses=319/320 glints=753 proxies=0 build=0.14ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=47/48 valves=rrrr bursts=0 kills=0+0 broken=1 spits=1 restores=0 lockers=0
+[IceHive] hb fx parts=563/12288 peak=668 fire=15/600 peak=60 expl=0/2 peak=2 reduced=0 throttled=0 spawn=1002/s rec=594/s decals=1000/1000 beams=31 tracers=228 tracer=1.8m lights=1 floor=5+2 acid=1/1 heat=0 hitcut=5 cpu=0.034ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=23 cells=145 tiles=1 beams=4 occ=206 tier=efficient
+[IceHive] hb level draws=1 tris=105722 chunks=20/27 casters=1/17758 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=5 pts=4 sway=0.01m cpu=0.031ms casters=0/0 tier=efficient
+[IceHive] oh vis t=21.0 deck=26492 px covered 0.3% solid 0.3% | marines px 91/118/112/129 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=40 deck mean 0.5% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] route: killed up there at (38.6, -16.3) 4.0 m, source 0
+[IceHive] route: drop warned from (32.7, 1.0, -16.3) to (29.3, -10.9) eta 0.90 s
+[IceHive] oh vis t=21.5 deck=25993 px covered 0.3% solid 0.3% | marines px 98/119/112/123 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=41 deck mean 0.5% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hb t=24.3 td=21.5 fps=60.0 worst=17ms drawn=59 gap=19ms sim=0.14ms world=0.44ms mode=playing bugs=180 vis=175 parts=267 stage=0 hp=100 kills=1094 mem=75MB avail=0MB demo=combat rend=metal cpu=15 main=8 dc=38 inst=4795 tris=338972 enc=0.18ms gpu=0.15ms gpumax=0.3ms skip=0 nodraw=0 drw=0ms cbmax=10ms sk=0ms/0 skcpu=0ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.0 cam=0.0 world=0.4 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.2 fx=0.1 up=0.0 | sfx 872 | max - / -
+[IceHive] hb light lights=24 cells=179 tiles=1 beams=4 occ=209 tier=efficient
+[IceHive] hb level draws=1 tris=105722 chunks=20/27 casters=1/17902 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=5 pts=5 sway=0.04m cpu=0.041ms casters=0/0 tier=efficient
+[IceHive] hb gpu frame=0.15 max=0.33 passes=- (no counter sampling: command-buffer totals only) | ema=0.14 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.30
+[IceHive] hb squad cpu=0.099ms slide=0.0cm grip=0.0mm draws=4 restep=9 flashes=4 turns=0 hits=0 twist=71deg acts=0 states=walk,idle,walk,turn
+[IceHive] hb swarm vis=192 lod=0/131/381 tris=111k corpses=320/320 glints=780 proxies=94 build=0.15ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=47/48 valves=rrrr bursts=0 kills=0+0 broken=1 spits=1 restores=0 lockers=0
+[IceHive] hb fx parts=328/12288 peak=618 fire=24/600 peak=30 expl=0/2 peak=0 reduced=0 throttled=0 spawn=640/s rec=447/s decals=1000/1000 beams=28 tracers=164 tracer=1.8m lights=2 floor=6+3 acid=2/3 heat=0 hitcut=14 cpu=0.033ms sim=on gpusim=- tier=efficient
+[IceHive] oh vis t=22.0 deck=25739 px covered 0.3% solid 0.3% | marines px 104/119/111/123 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=42 deck mean 0.5% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] route: drop landed at (29.3, -10.9) hit=0
+[IceHive] hud toast tip toast.tip.breaker right t=23.8 waited 12.8 s | right: thing 0 marker 0 squad 0 boss 0 deck 0% | left: thing 1 marker 0 squad 0 boss 0 deck 0%
+[IceHive] oh vis t=22.5 deck=25810 px covered 0.3% solid 0.2% | marines px 125/115/109/101 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=43 deck mean 0.5% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hb t=25.3 td=22.5 fps=60.0 worst=17ms drawn=61 gap=24ms sim=0.14ms world=0.46ms mode=playing bugs=193 vis=186 parts=289 stage=0 hp=100 kills=1121 mem=75MB avail=0MB demo=combat rend=metal cpu=14 main=8 dc=40 inst=4807 tris=341376 enc=0.17ms gpu=0.13ms gpumax=0.3ms skip=0 nodraw=0 drw=0ms cbmax=17ms sk=1ms/2 skcpu=0ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.0 cam=0.0 world=0.4 hud=0.1 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 917 | max - / -
+[IceHive] hb light lights=26 cells=183 tiles=1 beams=4 occ=219 tier=efficient
+[IceHive] hb level draws=1 tris=105722 chunks=20/27 casters=1/17902 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=4 pts=4 sway=0.04m cpu=0.027ms casters=0/0 tier=efficient
+[IceHive] hb gpu frame=0.13 max=0.30 passes=- (no counter sampling: command-buffer totals only) | ema=0.13 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.30
+[IceHive] hb squad cpu=0.092ms slide=0.0cm grip=0.0mm draws=4 restep=2 flashes=3 turns=0 hits=0 twist=54deg acts=0 states=run,run,run,walk
+[IceHive] hb swarm vis=204 lod=0/137/387 tris=115k corpses=320/320 glints=828 proxies=85 build=0.14ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=47/48 valves=rrrr bursts=0 kills=0+0 broken=1 spits=1 restores=0 lockers=0
+[IceHive] hb fx parts=377/12288 peak=381 fire=96/600 peak=98 expl=1/2 peak=1 reduced=0 throttled=0 spawn=739/s rec=599/s decals=1000/1000 beams=32 tracers=96 tracer=1.8m lights=2 floor=3+2 acid=2/5 heat=0 hitcut=0 cpu=0.031ms sim=on gpusim=- tier=efficient
+[IceHive] oh vis t=23.0 deck=25919 px covered 0.2% solid 0.2% | marines px 124/110/121/87 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=44 deck mean 0.5% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] demo combat: alive 211, topped up 224 in the last 5 s
+[IceHive] route: drop warned from (26.8, 1.0, -16.3) to (28.2, -9.3) eta 0.90 s
+[IceHive] route: knocked down at (23.8, -8.6) from 4.5 m
+[IceHive] oh vis t=23.5 deck=25548 px covered 0.3% solid 0.3% | marines px 125/121/116/124 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=45 deck mean 0.5% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hb t=26.3 td=23.5 fps=60.0 worst=17ms drawn=60 gap=21ms sim=0.18ms world=0.52ms mode=playing bugs=193 vis=191 parts=511 stage=0 hp=100 kills=1164 mem=75MB avail=0MB demo=combat rend=metal cpu=16 main=9 dc=40 inst=5075 tris=345476 enc=0.22ms gpu=0.15ms gpumax=0.3ms skip=0 nodraw=0 drw=0ms cbmax=12ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.1 cam=0.0 world=0.5 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.2 fx=0.1 up=0.0 | sfx 971 | max - / -
+[IceHive] hb gpu frame=0.15 max=0.39 passes=- (no counter sampling: command-buffer totals only) | ema=0.17 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.30
+[IceHive] hb light lights=30 cells=190 tiles=1 beams=4 occ=210 tier=efficient
+[IceHive] hb level draws=1 tris=105722 chunks=20/27 casters=1/17902 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=5 pts=5 sway=0.04m cpu=0.039ms casters=0/0 tier=efficient
+[IceHive] hb squad cpu=0.120ms slide=0.0cm grip=0.0mm draws=4 restep=2 flashes=4 turns=0 hits=0 twist=26deg acts=1 states=reload,run,run,run
+[IceHive] hb swarm vis=191 lod=0/145/366 tris=115k corpses=320/320 glints=777 proxies=16 build=0.20ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=47/48 valves=rrrr bursts=0 kills=0+0 broken=1 spits=1 restores=0 lockers=0
+[IceHive] hb fx parts=468/12288 peak=515 fire=67/600 peak=99 expl=2/2 peak=2 reduced=1 throttled=0 spawn=1090/s rec=854/s decals=1000/1000 beams=27 tracers=155 tracer=1.8m lights=7 floor=6+2 acid=1/3 heat=0 hitcut=8 cpu=0.038ms sim=on gpusim=- tier=efficient
+[IceHive] bugs: spitter perched at (29.4, 0.5, 0.6)
+[IceHive] oh vis t=24.0 deck=23764 px covered 0.3% solid 0.3% | marines px 124/112/112/124 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=46 deck mean 0.5% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] route: drop landed at (28.2, -9.3) hit=0
+[IceHive] route: drop warned from (31.5, 1.0, -16.3) to (31.1, -11.3) eta 0.90 s
+[IceHive] oh vis t=24.5 deck=22807 px covered 0.4% solid 0.4% | marines px 123/112/111/119 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=47 deck mean 0.5% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hint 2 lines widest=214 max=334 scale=1.00 «CLEAR THE RING —» / «BUGS ARE SLOWING THE CHARGE»
+[IceHive] hb t=27.3 td=24.5 fps=60.0 worst=17ms drawn=60 gap=36ms sim=0.14ms world=0.42ms mode=playing bugs=192 vis=182 parts=399 stage=0 hp=100 kills=1204 mem=75MB avail=0MB demo=combat rend=metal cpu=14 main=8 dc=40 inst=4815 tris=340188 enc=0.17ms gpu=0.13ms gpumax=0.4ms skip=0 nodraw=0 drw=0ms cbmax=27ms sk=1ms/4 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.0 cam=0.0 world=0.3 hud=0.1 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 1016 | max - / -
+[IceHive] hud tip: queued tip toast.tip.boomer (line 2)
+[IceHive] route: killed up there at (29.4, 0.6) 3.5 m, source 3
+[IceHive] hb gpu frame=0.12 max=0.23 passes=- (no counter sampling: command-buffer totals only) | ema=0.12 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.30
+[IceHive] hb squad cpu=0.089ms slide=0.0cm grip=0.0mm draws=4 restep=3 flashes=2 turns=0 hits=0 twist=36deg acts=0 states=reload,walk,walk,run
+[IceHive] hb swarm vis=192 lod=0/132/380 tris=112k corpses=320/320 glints=784 proxies=2 build=0.14ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=47/48 valves=rrrr bursts=0 kills=0+0 broken=1 spits=1 restores=0 lockers=0
+[IceHive] hb fx parts=417/12288 peak=528 fire=65/600 peak=68 expl=1/2 peak=2 reduced=0 throttled=0 spawn=839/s rec=662/s decals=1000/1000 beams=25 tracers=32 tracer=1.4m lights=2 floor=10+4 acid=3/3 heat=0 hitcut=0 cpu=0.027ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=27 cells=160 tiles=1 beams=4 occ=214 tier=efficient
+[IceHive] hb level draws=1 tris=105722 chunks=20/27 casters=1/17902 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=5 pts=5 sway=0.04m cpu=0.028ms casters=0/0 tier=efficient
+[IceHive] oh vis t=25.0 deck=24483 px covered 0.4% solid 0.4% | marines px 122/118/116/122 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=48 deck mean 0.5% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] route: drop landed at (31.1, -11.3) hit=0
+[IceHive] demo combat: overhead td=25.48 sent runners 0 dropper 0 spitter 0 · up 9 (high 4 riser 5 coil 0 perch 0) drops 3
+[IceHive] oh vis t=25.5 deck=25693 px covered 0.4% solid 0.4% | marines px 123/120/115/123 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=49 deck mean 0.5% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hb t=28.3 td=25.5 fps=60.0 worst=17ms drawn=60 gap=22ms sim=0.15ms world=0.47ms mode=playing bugs=189 vis=168 parts=515 stage=0 hp=100 kills=1279 mem=75MB avail=0MB demo=combat rend=metal cpu=15 main=8 dc=40 inst=4941 tris=340562 enc=0.21ms gpu=0.15ms gpumax=0.3ms skip=0 nodraw=0 drw=0ms cbmax=12ms sk=1ms/4 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.4 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.2 fx=0.1 up=0.0 | sfx 1055 | max - / -
+[IceHive] hb gpu frame=0.14 max=0.30 passes=- (no counter sampling: command-buffer totals only) | ema=0.13 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.30
+[IceHive] hb squad cpu=0.110ms slide=0.0cm grip=0.0mm draws=4 restep=6 flashes=4 turns=0 hits=0 twist=37deg acts=1 states=walk,cast,run,walk
+[IceHive] hb swarm vis=179 lod=0/142/357 tris=112k corpses=320/320 glints=741 proxies=10 build=0.16ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=47/48 valves=rrrr bursts=0 kills=0+0 broken=1 spits=1 restores=0 lockers=0
+[IceHive] hb fx parts=435/12288 peak=622 fire=106/600 peak=106 expl=0/2 peak=1 reduced=0 throttled=0 spawn=1018/s rec=757/s decals=1000/1000 beams=30 tracers=47 tracer=1.8m lights=1 floor=10+3 acid=2/5 heat=3 hitcut=19 cpu=0.032ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=29 cells=189 tiles=1 beams=4 occ=207 tier=efficient
+[IceHive] hb level draws=1 tris=105722 chunks=20/27 casters=1/17902 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=5 pts=4 sway=0.04m cpu=0.033ms casters=0/0 tier=efficient
+[IceHive] route: killed up there at (27.0, -16.3) 4.0 m, source 2
+[IceHive] oh vis t=26.0 deck=26990 px covered 0.3% solid 0.4% | marines px 124/123/115/121 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=50 deck mean 0.5% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] first telegraph.lane td=26.02
+[IceHive] props: valve 1 burst by 0 at t=27.37
+[IceHive] props: valve 1 curtain up, 6 bugs under it
+[IceHive] route: killed up there at (29.9, -16.3) 4.0 m, source 0
+[IceHive] route: drop warned from (30.8, 1.0, -16.3) to (30.4, -10.1) eta 0.90 s
+[IceHive] route: killed up there at (30.4, -16.3) 4.0 m, source 0
+[IceHive] oh vis t=26.5 deck=27587 px covered 0.2% solid 0.2% | marines px 124/120/120/120 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=51 deck mean 0.5% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hb t=29.3 td=26.5 fps=60.0 worst=17ms drawn=60 gap=25ms sim=0.14ms world=0.41ms mode=playing bugs=194 vis=178 parts=503 stage=0 hp=100 kills=1342 mem=75MB avail=0MB demo=combat rend=metal cpu=16 main=8 dc=42 inst=5011 tris=345940 enc=0.18ms gpu=0.13ms gpumax=0.3ms skip=0 nodraw=0 drw=0ms cbmax=18ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.1 cam=0.0 world=0.4 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 1114 | max - / -
+[IceHive] first explosion.boomer td=26.55
+[IceHive] hb gpu frame=0.13 max=0.34 passes=- (no counter sampling: command-buffer totals only) | ema=0.12 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.17
+[IceHive] hb squad cpu=0.094ms slide=0.0cm grip=0.0mm draws=4 restep=8 flashes=3 turns=0 hits=0 twist=38deg acts=0 states=walk,run,walk,walk
+[IceHive] hb swarm vis=180 lod=0/137/363 tris=111k corpses=320/320 glints=754 proxies=61 build=0.14ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=47/48 valves=rvrr bursts=1 kills=0+2 broken=1 spits=1 restores=0 lockers=0
+[IceHive] hb fx parts=600/12288 peak=604 fire=101/600 peak=107 expl=1/2 peak=1 reduced=0 throttled=0 spawn=1123/s rec=844/s decals=1000/1000 beams=31 tracers=223 tracer=1.8m lights=3 floor=11+5 acid=2/5 heat=5 hitcut=2 cpu=0.032ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=31 cells=174 tiles=1 beams=4 occ=205 tier=efficient
+[IceHive] hb level draws=1 tris=105722 chunks=19/27 casters=1/17758 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=5 pts=5 sway=0.03m cpu=0.028ms casters=0/0 tier=efficient
+[IceHive] hud tip: parked toast.tip.perch: its moment passed (13.2 s in the line)
+[IceHive] hud toast tip toast.tip.boomer right t=28.2 waited 2.3 s | right: thing 0 marker 0 squad 0 boss 0 deck 0% | left: thing 1 marker 0 squad 0 boss 0 deck 0%
+[IceHive] oh vis t=27.0 deck=27838 px covered 0.3% solid 0.3% | marines px 124/122/118/119 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=52 deck mean 0.5% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] route: killed up there at (30.7, -14.9) 3.5 m, source 0
+[IceHive] route: killed up there at (30.5, -16.3) 4.0 m, source 0
+[IceHive] hud tip: queued bark toast.upgrade (line 2)
+[IceHive] hud toast bark toast.upgrade right t=28.9 waited 0.0 s (names nothing on screen) | right: thing 0 marker 0 squad 0 boss 0 deck 0% | left: thing 0 marker 0 squad 0 boss 0 deck 0%
+[IceHive] hb t=30.3 td=27.5 fps=60.0 worst=17ms drawn=60 gap=19ms sim=0.14ms world=0.47ms mode=playing bugs=184 vis=166 parts=559 stage=0 hp=100 kills=1421 mem=75MB avail=0MB demo=combat rend=metal cpu=14 main=8 dc=42 inst=5010 tris=339784 enc=0.19ms gpu=0.16ms gpumax=0.3ms skip=0 nodraw=0 drw=0ms cbmax=12ms sk=1ms/1 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.0 cam=0.0 world=0.4 hud=0.1 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 1167 | max - / -
+[IceHive] oh vis t=27.5 deck=28033 px covered 0.3% solid 0.3% | marines px 129/123/120/121 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=53 deck mean 0.5% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hb gpu frame=0.14 max=0.28 passes=- (no counter sampling: command-buffer totals only) | ema=0.15 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.30
+[IceHive] hb squad cpu=0.097ms slide=0.0cm grip=0.0mm draws=4 restep=6 flashes=3 turns=0 hits=0 twist=40deg acts=1 states=cast,run,run,run
+[IceHive] hb swarm vis=186 lod=0/134/372 tris=111k corpses=320/320 glints=774 proxies=70 build=0.16ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=47/48 valves=rvrr bursts=1 kills=2+4 broken=1 spits=1 restores=0 lockers=0
+[IceHive] hb fx parts=471/12288 peak=726 fire=79/600 peak=122 expl=1/2 peak=2 reduced=1 throttled=0 spawn=1086/s rec=829/s decals=1000/1000 beams=32 tracers=274 tracer=1.8m lights=1 floor=9+4 acid=2/2 heat=2 hitcut=9 cpu=0.032ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=28 cells=182 tiles=1 beams=4 occ=212 tier=efficient
+[IceHive] hb level draws=1 tris=105722 chunks=19/27 casters=1/17758 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=5 pts=4 sway=0.04m cpu=0.031ms casters=0/0 tier=efficient
+[IceHive] oh vis t=28.0 deck=27687 px covered 0.3% solid 0.3% | marines px 124/122/114/117 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=54 deck mean 0.5% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] demo combat: alive 216, topped up 283 in the last 5 s
+[IceHive] hb t=31.3 td=28.5 fps=60.0 worst=17ms drawn=60 gap=19ms sim=0.13ms world=0.40ms mode=playing bugs=205 vis=167 parts=603 stage=0 hp=100 kills=1492 mem=75MB avail=0MB demo=combat rend=metal cpu=14 main=8 dc=39 inst=5092 tris=339294 enc=0.18ms gpu=0.13ms gpumax=0.4ms skip=0 nodraw=0 drw=0ms cbmax=11ms sk=1ms/2 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 1214 | max - / -
+[IceHive] oh vis t=28.5 deck=28079 px covered 0.3% solid 0.3% | marines px 123/118/119/122 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=55 deck mean 0.5% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hb gpu frame=0.14 max=0.38 passes=- (no counter sampling: command-buffer totals only) | ema=0.13 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.30
+[IceHive] hb squad cpu=0.094ms slide=0.0cm grip=0.0mm draws=4 restep=4 flashes=2 turns=0 hits=0 twist=42deg acts=0 states=walk,walk,run,run
+[IceHive] hb swarm vis=172 lod=0/123/369 tris=106k corpses=320/320 glints=716 proxies=117 build=0.13ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=47/48 valves=rvrr bursts=1 kills=3+4 broken=1 spits=1 restores=0 lockers=0
+[IceHive] hb fx parts=467/12288 peak=635 fire=74/600 peak=96 expl=2/2 peak=2 reduced=4 throttled=0 spawn=1040/s rec=752/s decals=1000/1000 beams=29 tracers=198 tracer=1.8m lights=2 floor=8+4 acid=2/3 heat=4 hitcut=29 cpu=0.034ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=31 cells=174 tiles=1 beams=4 occ=214 tier=efficient
+[IceHive] hb level draws=1 tris=105722 chunks=19/27 casters=1/17758 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=5 pts=4 sway=0.03m cpu=0.026ms casters=0/0 tier=efficient
+[IceHive] oh vis t=29.0 deck=28923 px covered 0.4% solid 0.4% | marines px 124/122/111/122 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=56 deck mean 0.5% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] oh vis t=29.5 deck=29568 px covered 0.3% solid 0.3% | marines px 112/120/121/125 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=57 deck mean 0.5% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hb t=32.3 td=29.5 fps=60.0 worst=17ms drawn=60 gap=20ms sim=0.14ms world=0.42ms mode=playing bugs=224 vis=181 parts=390 stage=0 hp=100 kills=1529 mem=75MB avail=0MB demo=combat rend=metal cpu=14 main=8 dc=39 inst=4876 tris=334770 enc=0.19ms gpu=0.16ms gpumax=0.4ms skip=0 nodraw=0 drw=0ms cbmax=11ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 1251 | max - / -
+[IceHive] hb gpu frame=0.17 max=0.41 passes=- (no counter sampling: command-buffer totals only) | ema=0.18 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.30
+[IceHive] hb squad cpu=0.103ms slide=0.0cm grip=0.0mm draws=4 restep=3 flashes=1 turns=1 hits=0 twist=104deg acts=0 states=walk,turn,idle,walk
+[IceHive] hb swarm vis=177 lod=0/82/415 tris=95k corpses=320/320 glints=740 proxies=52 build=0.16ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=47/48 valves=rvrr bursts=1 kills=3+4 broken=1 spits=1 restores=0 lockers=0
+[IceHive] hb fx parts=328/12288 peak=501 fire=40/600 peak=72 expl=2/2 peak=2 reduced=2 throttled=0 spawn=568/s rec=423/s decals=1000/1000 beams=33 tracers=159 tracer=1.8m lights=2 floor=4+4 acid=2/4 heat=2 hitcut=9 cpu=0.032ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=30 cells=174 tiles=1 beams=4 occ=225 tier=efficient
+[IceHive] hb level draws=1 tris=105722 chunks=19/27 casters=1/17758 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=5 pts=4 sway=0.04m cpu=0.034ms casters=0/0 tier=efficient
+[IceHive] oh vis t=30.0 deck=29472 px covered 0.4% solid 0.4% | marines px 127/126/121/129 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=58 deck mean 0.5% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] demo combat: overhead td=30.48 sent runners 6 dropper 1 spitter 1 · up 6 (high 6 riser 0 coil 0 perch 0) drops 4
+[IceHive] route: knocked down at (29.4, 0.6) from 3.5 m
+[IceHive] route: knocked down at (29.4, 0.6) from 3.5 m
+[IceHive] route: knocked down at (29.4, 0.6) from 3.5 m
+[IceHive] oh vis t=30.5 deck=29634 px covered 0.4% solid 0.4% | marines px 127/122/120/125 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=59 deck mean 0.4% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hb t=33.3 td=30.5 fps=60.0 worst=17ms drawn=60 gap=33ms sim=0.16ms world=0.49ms mode=playing bugs=208 vis=167 parts=350 stage=0 hp=100 kills=1563 mem=75MB avail=0MB demo=combat rend=metal cpu=17 main=9 dc=40 inst=4813 tris=326162 enc=0.21ms gpu=0.14ms gpumax=0.4ms skip=0 nodraw=0 drw=0ms cbmax=25ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.4 hud=0.1 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 1295 | max - / -
+[IceHive] route: killed up there at (29.5, 0.1) 2.7 m, source 1
+[IceHive] route: killed up there at (29.5, 0.0) 2.5 m, source 1
+[IceHive] hb gpu frame=0.14 max=0.27 passes=- (no counter sampling: command-buffer totals only) | ema=0.13 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.03
+[IceHive] hb squad cpu=0.105ms slide=0.0cm grip=0.0mm draws=4 restep=2 flashes=1 turns=2 hits=0 twist=94deg acts=0 states=walk,turn,turn,walk
+[IceHive] hb swarm vis=165 lod=0/87/398 tris=95k corpses=320/320 glints=691 proxies=122 build=0.13ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=47/48 valves=rvrr bursts=1 kills=3+4 broken=1 spits=1 restores=0 lockers=0
+[IceHive] hb fx parts=503/12288 peak=510 fire=43/600 peak=45 expl=2/2 peak=2 reduced=5 throttled=0 spawn=754/s rec=503/s decals=1000/1000 beams=24 tracers=182 tracer=1.8m lights=4 floor=7+3 acid=2/2 heat=6 hitcut=11 cpu=0.036ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=28 cells=162 tiles=1 beams=4 occ=214 tier=efficient
+[IceHive] hb level draws=1 tris=105722 chunks=19/27 casters=1/17758 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=5 pts=4 sway=0.04m cpu=0.029ms casters=0/0 tier=efficient
+[IceHive] route: killed up there at (30.5, -16.3) 4.0 m, source 0
+[IceHive] oh vis t=31.0 deck=30388 px covered 0.3% solid 0.4% | marines px 54/123/125/123 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=60 deck mean 0.4% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] oh vis t=31.5 deck=30415 px covered 0.3% solid 0.4% | marines px 56/125/121/127 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=61 deck mean 0.4% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hb t=34.3 td=31.5 fps=60.0 worst=17ms drawn=60 gap=19ms sim=0.15ms world=0.42ms mode=playing bugs=224 vis=181 parts=314 stage=0 hp=100 kills=1598 mem=76MB avail=0MB demo=combat rend=metal cpu=14 main=8 dc=39 inst=4789 tris=326788 enc=0.19ms gpu=0.16ms gpumax=0.3ms skip=0 nodraw=0 drw=0ms cbmax=12ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.4 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 1345 | max - / -
+[IceHive] route: knocked down at (38.6, -16.3) from -4.2 m
+[IceHive] route: knocked down at (38.6, -16.3) from -3.2 m
+[IceHive] hb gpu frame=0.15 max=0.38 passes=- (no counter sampling: command-buffer totals only) | ema=0.14 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.30
+[IceHive] hb squad cpu=0.100ms slide=0.0cm grip=0.0mm draws=4 restep=5 flashes=2 turns=2 hits=0 twist=110deg acts=1 states=reload,idle,turn,walk
+[IceHive] hb swarm vis=184 lod=0/75/428 tris=94k corpses=319/320 glints=769 proxies=2 build=0.14ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=47/48 valves=rcrr bursts=1 kills=3+5 broken=1 spits=1 restores=0 lockers=0
+[IceHive] hb fx parts=282/12288 peak=495 fire=0/600 peak=42 expl=0/2 peak=2 reduced=3 throttled=0 spawn=380/s rec=243/s decals=1000/1000 beams=30 tracers=237 tracer=1.8m lights=1 floor=6+1 acid=1/2 heat=0 hitcut=0 cpu=0.030ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=25 cells=162 tiles=1 beams=4 occ=226 tier=efficient
+[IceHive] hb level draws=1 tris=105722 chunks=19/27 casters=1/17758 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=5 pts=4 sway=0.04m cpu=0.031ms casters=0/0 tier=efficient
+[IceHive] oh vis t=32.0 deck=30015 px covered 0.3% solid 0.3% | marines px 50/128/124/127 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=62 deck mean 0.4% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] oh vis t=32.5 deck=30140 px covered 0.3% solid 0.3% | marines px 54/126/125/127 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=63 deck mean 0.4% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hb t=35.3 td=32.5 fps=60.0 worst=17ms drawn=58 gap=74ms sim=0.17ms world=0.43ms mode=playing bugs=209 vis=181 parts=298 stage=0 hp=100 kills=1619 mem=76MB avail=0MB demo=combat rend=metal cpu=15 main=8 dc=37 inst=4770 tris=322580 enc=0.17ms gpu=0.14ms gpumax=0.4ms skip=2 nodraw=0 drw=0ms cbmax=65ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.2 ev=0.0 cam=0.0 world=0.4 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 1373 | max - / -
+[IceHive] hb gpu frame=0.15 max=0.33 passes=- (no counter sampling: command-buffer totals only) | ema=0.15 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.30
+[IceHive] hb squad cpu=0.111ms slide=0.0cm grip=0.0mm draws=4 restep=2 flashes=2 turns=2 hits=0 twist=89deg acts=0 states=reload,idle,walk,walk
+[IceHive] hb swarm vis=174 lod=0/78/415 tris=93k corpses=319/320 glints=734 proxies=108 build=0.14ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=47/48 valves=rcrr bursts=1 kills=3+5 broken=1 spits=1 restores=0 lockers=0
+[IceHive] hb fx parts=369/12288 peak=369 fire=73/600 peak=75 expl=0/2 peak=0 reduced=0 throttled=0 spawn=606/s rec=485/s decals=1000/1000 beams=16 tracers=84 tracer=1.8m lights=1 floor=1+1 acid=1/4 heat=2 hitcut=7 cpu=0.028ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=26 cells=171 tiles=1 beams=4 occ=201 tier=efficient
+[IceHive] hb level draws=1 tris=105722 chunks=19/27 casters=1/17758 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=5 pts=4 sway=0.04m cpu=0.030ms casters=0/0 tier=efficient
+[IceHive] oh vis t=33.0 deck=30389 px covered 0.2% solid 0.3% | marines px 49/128/124/130 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=64 deck mean 0.4% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] demo combat: alive 207, topped up 161 in the last 5 s
+[IceHive] oh vis t=33.5 deck=31630 px covered 0.3% solid 0.3% | marines px 87/134/121/98 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=65 deck mean 0.4% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] hb t=36.3 td=33.5 fps=60.0 worst=17ms drawn=57 gap=55ms sim=0.13ms world=0.39ms mode=playing bugs=190 vis=161 parts=644 stage=0 hp=100 kills=1740 mem=76MB avail=0MB demo=combat rend=metal cpu=14 main=7 dc=38 inst=4981 tris=325302 enc=0.19ms gpu=0.14ms gpumax=0.3ms skip=1 nodraw=2 drw=29ms cbmax=46ms sk=1ms/0 skcpu=1ms skslow=0/0
+[IceHive] hb ms sim=0.1 ev=0.0 cam=0.0 world=0.3 hud=0.0 au=0.0 | cam=0.0 mar=0.1 bug=0.1 fx=0.1 up=0.0 | sfx 1408 | max - / -
+[IceHive] hb gpu frame=0.14 max=0.27 passes=- (no counter sampling: command-buffer totals only) | ema=0.13 tier=efficient scale=1.60 range=1.20-1.60 view=1398x643 alloc=1748x804 allocs=1 thermal=nominal 120hz=no bugcap=1400 ev=0.16
+[IceHive] hb squad cpu=0.102ms slide=0.0cm grip=0.0mm draws=4 restep=5 flashes=2 turns=1 hits=0 twist=110deg acts=0 states=run,turn,run,run
+[IceHive] hb swarm vis=198 lod=0/121/396 tris=109k corpses=319/320 glints=825 proxies=4 build=0.14ms tier=efficient
+[IceHive] hb props lit=7/7 lamps=47/48 valves=rcrr bursts=1 kills=3+5 broken=1 spits=1 restores=0 lockers=0
+[IceHive] hb fx parts=366/12288 peak=722 fire=10/600 peak=87 expl=2/2 peak=2 reduced=6 throttled=0 spawn=822/s rec=386/s decals=1000/1000 beams=27 tracers=103 tracer=1.8m lights=1 floor=10+1 acid=1/2 heat=9 hitcut=54 cpu=0.030ms sim=on gpusim=- tier=efficient
+[IceHive] hb light lights=28 cells=171 tiles=1 beams=4 occ=220 tier=efficient
+[IceHive] hb level draws=1 tris=105722 chunks=19/27 casters=1/17758 tier=efficient
+[IceHive] hb overhead draws=1+1 tris=16466 chunks=16/24 near=5 pts=4 sway=0.04m cpu=0.029ms casters=0/0 tier=efficient
+[IceHive] oh vis t=34.0 deck=29461 px covered 0.3% solid 0.3% | marines px 129/127/121/83 hidden 0.0/0.0/0.0/0.0% cover 0.00/0.00/0.00/0.00
+[IceHive] oh vis summary samples=66 deck mean 0.4% worst 1.7% marine hidden worst 0.0% → ok
+[IceHive] route: killed up there at (29.4, 0.6) 3.5 m, source 1
