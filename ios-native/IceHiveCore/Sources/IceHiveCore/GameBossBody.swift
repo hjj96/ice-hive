@@ -52,7 +52,7 @@ extension Game {
             R.role[q] = UInt8(ps.role.rawValue)
             R.seg[q] = q == 0 ? 0 : (q <= c.segments ? q : max(1, min(c.segments, ps.segment)))
             R.poolMax[q] = ps.pool > 0 ? ps.pool * hp : 0; R.pool[q] = R.poolMax[q]
-            R.down[q] = 0; R.frozen[q] = 0; R.popped[q] = false; R.bonus[q] = 1
+            R.down[q] = 0; R.frozen[q] = 0; R.frost[q] = 0; R.popped[q] = false; R.bonus[q] = 1
             let i = spawnBossPart(UInt8(ps.type.rawValue), R.spawnX, R.spawnZ, R.spawnY, ps.radius, ps.scale, hp: q == 0 ? hp : BOSS_PART_HP,
                                   part: q)
             R.pslot[q] = i; R.uid[q] = S.uid[i]
@@ -137,6 +137,7 @@ extension Game {
         for q in 0..<R.parts {
             if R.down[q] > 0 { R.down[q] = maxf(0, R.down[q] - dt) }
             if R.frozen[q] > 0 { R.frozen[q] = maxf(0, R.frozen[q] - dt) }
+            if R.frost[q] > 0 { R.frost[q] = maxf(0, R.frost[q] - dt * 0.4) }
             let i = R.pslot[q]
             if i < 0 { continue }
             S.frz[i] = 0
@@ -303,7 +304,7 @@ extension Game {
         let ps: BossPartSpec? = bossSpec.chain.map { c in q == 0 ? c.head : (q <= c.segments ? c.segment : c.nodes[min(c.nodes.count - 1, q - 1 - c.segments)]) }
         return BossPartView(role: BossPartRole(rawValue: Int(R.role[q])) ?? .segment, segment: R.seg[q],
                             position: SIMD3(R.px[q], R.py[q], R.pz[q]), heading: R.phd[q], radius: ps?.radius ?? 0, scale: ps?.scale ?? 1,
-                            slot: q < R.parts ? bossPartSlot(q) : -1, down: R.down[q], popped: R.popped[q],
+                            slot: q < R.parts ? bossPartSlot(q) : -1, down: R.down[q], frozen: R.frozen[q], popped: R.popped[q],
                             pool: R.poolMax[q] > 0 ? R.pool[q] / R.poolMax[q] : 1, up: R.up[q])
     }
 

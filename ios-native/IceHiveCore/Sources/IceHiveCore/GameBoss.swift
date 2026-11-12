@@ -70,6 +70,9 @@ final class BossRuntime {
     /// node); out of the deck's reach.
     var down = [Float](repeating: 0, count: BOSS_PARTS)
     var frozen = [Float](repeating: 0, count: BOSS_PARTS)
+    /// A part's freeze gauge (the cryo beam builds it, it ebbs 0.4 a second): full, the boss's freeze reaction — its slow
+    /// (`Swarm.chill`) stays under the spec's cap.
+    var frost = [Float](repeating: 0, count: BOSS_PARTS)
     var popped = [Bool](repeating: false, count: BOSS_PARTS)
     var bonus = [Float](repeating: 1, count: BOSS_PARTS)
     var up = [Bool](repeating: false, count: BOSS_PARTS)
@@ -96,7 +99,7 @@ final class BossRuntime {
         for m in 0..<BOSS_MOVES { clock[m] = 0; stage[m] = 0; timer[m] = 0; armed[m] = false; tele[m] = -1; struck[m] = 0 }
         busy = -1
         parts = 0
-        for q in 0..<BOSS_PARTS { pslot[q] = -1; down[q] = 0; frozen[q] = 0; popped[q] = false; bonus[q] = 1; up[q] = false }
+        for q in 0..<BOSS_PARTS { pslot[q] = -1; down[q] = 0; frozen[q] = 0; frost[q] = 0; popped[q] = false; bonus[q] = 1; up[q] = false }
         hHead = -1; hCount = 0; headS = 0
         track.removeAll(keepingCapacity: true); trackAt = 0; trackLoop = false; steered = false
     }
@@ -772,14 +775,18 @@ extension Game {
         if nova && I.brittle > 0 && R.down[p] > 0 { boss.brittle = maxf(boss.brittle, I.brittle) }
     }
 
-    /// The cryo beam's chill on a boss slot (beamTick, overheadBeam): a freeze-immune boss ignores it; else the chill
-    /// builds to its cap and a full one is the freeze reaction.
+    /// The cryo beam's chill on a boss slot (beamTick, overheadBeam): a freeze-immune boss ignores it; else its slow builds
+    /// up to the spec's cap, and a chain part's own freeze gauge fills — full, the freeze reaction (it never freezes solid).
     func bossBeamChill(_ i: Int, _ amount: Float) {
-        let S = bugs, I = bossSpec.immune
+        let S = bugs, R = bossRT, I = bossSpec.immune
         if I.freeze { return }
-        S.chill[i] += amount
-        if S.chill[i] >= 1 { bossPartFreeze(i, nova: false) }
-        if S.chill[i] > I.chillCap { S.chill[i] = I.chillCap }
+        S.chill[i] = minf(I.chillCap, S.chill[i] + amount)
+        let b = S.boss[i]
+        if b == 0 || b == BOSS_BUG { return }
+        let p = Int(b) - 1
+        if p >= R.parts { return }
+        R.frost[p] += amount
+        if R.frost[p] >= 1 { R.frost[p] = 0; bossPartFreeze(i, nova: false) }
     }
 
     // ---------------------------------------------------------------- death and the debug skip

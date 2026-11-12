@@ -394,6 +394,8 @@ public struct BossPartView: Equatable {
     public let slot: Int
     /// Seconds left of an open weak-point window.
     public let down: Float
+    /// Seconds left of its freeze (a boss that is not freeze-immune: it froze and locked the body; ice on it).
+    public let frozen: Float
     /// Its pool is spent (a dark node).
     public let popped: Bool
     /// Its own pool 0…1 (1 without one).

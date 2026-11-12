@@ -383,12 +383,22 @@ final class BossFrameworkTests: XCTestCase {
         g.bossSetTrack([SIMD3(L.x + 20, y, L.z), SIMD3(L.x - 20, y, L.z)], loop: true)
         run(g, seconds: 1)
         var frozen: [Int] = []
-        // the beam's chill on a segment: never frozen solid — the body locks 2 s
+        // the beam's chill on a segment, a tick's worth at a time (2.4 a second, as the Cryo's): its slow stays under the cap
+        // (0.6), its freeze gauge fills — never frozen solid: the body locks 2 s, once
         let s = g.bossPart(4).slot
-        g.bossBeamChill(s, 2)
-        g.drainEvents { if case .bossPartFrozen(_, let p, _) = $0 { frozen.append(p) } }
+        var calls = 0
+        while frozen.isEmpty && calls < 120 {
+            g.bossBeamChill(s, 2.4 / 60); calls += 1
+            g.drainEvents { if case .bossPartFrozen(_, let p, _) = $0 { frozen.append(p) } }
+            XCTAssertLessThanOrEqual(g.bugs.chills[s], 0.6 + 1e-5)
+        }
         XCTAssertEqual(frozen, [4])
+        XCTAssertEqual(calls, 25, "a full gauge: 1 / (2.4 / 60)")
         XCTAssertEqual(g.boss.lock, 2)
+        XCTAssertEqual(g.bossPart(4).frozen, 2)
+        for _ in 0..<60 { g.bossBeamChill(s, 2.4 / 60) }
+        g.drainEvents { if case .bossPartFrozen(_, let p, _) = $0 { frozen.append(p) } }
+        XCTAssertEqual(frozen, [4], "not again while it is frozen")
         XCTAssertEqual(g.bugs.freezeTimers[s], 0)
         XCTAssertLessThanOrEqual(g.bugs.chills[s], 0.6 + 1e-5)
         let p0 = g.bossPart(0).position
