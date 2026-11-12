@@ -110,21 +110,23 @@ import IceHiveCore
 //  routes and props — autopilot, squad invulnerable, the director on):
 //    -demo breakerrun  Breaker Run in the dark (M1: four breakers, 55 s contested rings): the squad put into the ring of the
 //                   hub's breaker — the fourth, between the pad, beacon A's catwalk and the stairs down to the plaza, under
-//                   the Spine Rack's cable span — so the hive's surge answers on the first tick; at 1.2 s the demo jumps the
-//                   ring to 0.99 and keeps it there (quietly: the hive's pushes below it count as done; the squad put into
-//                   it again after 2.5 s), the breaker is thrown the next moment anyone stands in the ring — the hub lights
-//                   up lamp by lamp from the breaker while the bridge and the stairs beyond stay dark — and time almost stops
-//                   1.6 s after it (at 15.5 s at the latest) for the screenshot («RESTORE POWER 1/4»). Nothing waits on the
-//                   autopilot's walk or on a draining ring. `demo breakerrun: …` once a second, `mission: …` / `props: …`
-//                   lines, `hb mission …`
+//                   the Spine Rack's cable span — so the hive's surge answers on the first tick and the squad fights it in
+//                   the ring; 6 s after «scene ready» the demo jumps the ring to 0.99 and keeps it there (quietly: the hive's
+//                   pushes below it count as done; the squad put into it again after 2.5 s), the breaker is thrown the next
+//                   moment anyone stands in the ring — the hub lights up lamp by lamp from the breaker while the bridge and
+//                   the stairs beyond stay dark — and time almost stops 1.6 s after it (at 15.5 s at the latest) for the
+//                   screenshot («RESTORE POWER 1/4»). Nothing waits on the autopilot's walk or on a draining ring.
+//                   `demo breakerrun: …` once a second, `mission: …` / `props: …` lines, `hb mission …`
 //    -demo ventpurge   Vent Purge (M1: a duct mouth that must be held shut): the squad put into the seal ring under the hub →
 //                   A walkway's duct mouth; the weld waits for the grille shot shut («SHOOT THE DUCT SHUT»), the player
-//                   shoots it shut (the demo does it 3 s in if the player has not) and the weld fills; 1 s later the demo
+//                   shoots it shut (the demo does it 3 s after «scene ready» if the player has not) and the weld fills while
+//                   the squad fights the hive's surge; 6 s after «scene ready» (1.5 s after the shut at the earliest) the demo
 //                   jumps the weld to 0.6 (quietly, and keeps it there) and lets the hive chew through the grille early (the
 //                   game's own wait is 10 s): the weld waits once more and the player's rounds go up at the mouth — time
 //                   almost stops 0.3 s after it opens again (at 15.5 s at the latest) for the screenshot. Nothing waits on
-//                   the autopilot's walk, a draining ring or the 10 s. `demo ventpurge: …` once a second, `mission: …` /
-//                   `bugs: duct …` lines, `hb mission …`
+//                   the autopilot's walk, a draining ring or the 10 s; nothing is staged before «scene ready» (the sim runs
+//                   under the loading cover). `demo ventpurge: …` once a second, `mission: …` / `bugs: duct …` lines,
+//                   `hb mission …`
 //  R0 (film fixes):
 //    -demo win      like hold; 1 s after «scene ready» the lift leaves and the ride plays out to the win (4.6 s): the
 //                   report comes up at once and the world keeps animating under it (the lift eases to a stop with the
@@ -869,11 +871,12 @@ final class DemoScript {
     private var msGo: Double = -1
     private var msJump: Double = -1
     private var msPut = 0
-    /// breakerrun: the squad starts in the hub breaker's ring; from 1.2 s the ring is held at 0.99 (quietly; the squad put into
-    /// it again after 2.5 s if it is not thrown yet), time almost stopped 1.6 s after the throw (at 15.5 s at the latest).
+    /// breakerrun: the squad starts in the hub breaker's ring and fights the hive's surge there; from 6 s after «scene ready»
+    /// the ring is held at 0.99 (quietly; the squad put into it again after 2.5 s if it is not thrown yet), time almost stopped
+    /// 1.6 s after the throw (at 15.5 s at the latest).
     private func breakerRun(_ game: Game, _ dt: Float) {
         t += dt
-        if msStep == 0 && sinceReady >= 1.2 && game.activeSwitch >= 0 {
+        if msStep == 0 && sinceReady >= 6 && game.activeSwitch >= 0 {
             msStep = 1
             msJump = sinceReady
             AppLog.info(String(format: "demo breakerrun: the breaker's ring jumped to 0.99 td=%.2f (switch %d)", sinceReady, game.activeSwitch))
@@ -901,16 +904,17 @@ final class DemoScript {
         missionLog(game, dt)
     }
 
-    /// ventpurge (M1: the duct held shut): the squad starts in the seal ring under the hub → A duct mouth; the weld waits for
-    /// the grille shot shut — the player shoots it (the demo does at 3 s if not), the weld fills; 1 s later the weld is jumped
-    /// to 0.6 and held there (quietly) and the hive chews through the grille early; time almost stops 0.3 s after the mouth
-    /// opens again, the weld waiting once more (15.5 s at the latest).
+    /// ventpurge (M1: the duct held shut): the squad starts in the seal ring under the hub → A duct mouth; from «scene ready»
+    /// on (the sim runs under the loading cover: nothing is staged before it) — the weld waits for the grille shot shut, the
+    /// player shoots it (the demo does 3 s after «scene ready» if not) and the weld fills; at 6 s (1.5 s after the shut at the
+    /// earliest) the weld is jumped to 0.6 and held there (quietly) and the hive chews through the grille early; time almost
+    /// stops 0.3 s after the mouth opens again, the weld waiting once more (15.5 s at the latest).
     private func ventPurge(_ game: Game, _ dt: Float) {
         t += dt
         let k = game.activeSwitch
         let d = k >= 0 && k < game.switches.count ? game.switches[k].site.duct : -1
         let shut = d >= 0 && d < game.ducts.count && !game.ducts[d].open
-        if msStep == 0 && k >= 0 {
+        if msStep == 0 && k >= 0 && sinceReady >= 0.5 {
             msStep = 1
             msGo = sinceReady
             AppLog.info(String(format: "demo ventpurge: in the seal ring under duct %d td=%.2f, weld waits %d", d, sinceReady, game.weldWaits ? 1 : 0))
@@ -925,14 +929,18 @@ final class DemoScript {
             msAt = sinceReady
             AppLog.info(String(format: "demo ventpurge: duct %d shot shut td=%.2f, the weld fills", d, sinceReady))
         }
-        if msStep == 2 && sinceReady >= msAt + 1 {
+        if msStep == 2 && sinceReady >= max(msAt + 1.5, 6) {
             msStep = 3
             game.debugSwitchProgress(0.6, quiet: true)
-            game.debugReopenDuct(d)
-            AppLog.info(String(format: "demo ventpurge: the weld jumped to 0.60, the hive chews through duct %d early td=%.2f (seal %d)", d, sinceReady, k))
+            if shut {
+                game.debugReopenDuct(d)
+                AppLog.info(String(format: "demo ventpurge: the weld jumped to 0.60, the hive chews through duct %d early td=%.2f (seal %d)", d, sinceReady, k))
+            } else {
+                AppLog.info(String(format: "demo ventpurge: the weld jumped to 0.60, duct %d already chewed through td=%.2f (seal %d)", d, sinceReady, k))
+            }
         }
         if msStep >= 3 && k >= 0 && game.switchesThrown == 0 && game.switches[k].progress < 0.6 { game.debugSwitchProgress(0.6, quiet: true) }
-        if msStep == 3 && d >= 0 && !shut {
+        if msStep == 3 && d >= 0 && d < game.ducts.count && game.ducts[d].open {
             msStep = 4
             msJump = sinceReady
             AppLog.info(String(format: "demo ventpurge: duct %d open again td=%.2f, weld waits %d", d, sinceReady, game.weldWaits ? 1 : 0))
