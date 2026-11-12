@@ -606,7 +606,8 @@ extension Game {
         [GameText(.objSwitches, [.int(6), .int(6)]), GameText(.objHoldRing), GameText(.objReach), GameText(.objHoldArea, [.clock(599)]),
          GameText(.objKillBoss, [.name(.queen)]), GameText(.objWakingMove), GameText(.objConvergeMove),
          GameText(.objRestorePower, [.int(6), .int(6)]), GameText(.objHoldBreaker), GameText(.objToGenerator),
-         GameText(.objHoldGenerator, [.clock(599)]), GameText(.objSealVents, [.int(6), .int(6)]), GameText(.objHoldSeal)]
+         GameText(.objHoldGenerator, [.clock(599)]), GameText(.objSealVents, [.int(6), .int(6)]), GameText(.objHoldSeal),
+         GameText(.objRestartPumps, [.int(6), .int(6)]), GameText(.objHoldPump), GameText(.objKillBoss, [.name(.threader)])]
     }
 
     /// R7: the report strip of a plan that draws its own (`MissionPlan.ownStrip`; nil: the classic strip): one item per

@@ -506,6 +506,8 @@ public final class Game {
     public internal(set) var bossSpec = BossSpec.none
     /// Its runtime: clocks, the chain body, the path history (fixed buffers: bossTick never allocates).
     let bossRT = BossRuntime()
+    /// Stage 2 B4: the Threader's own runtime (GameThreader.swift; its buffers allocated once).
+    let thr = ThreaderRuntime()
 
     // ---------- v1.1: the coach ----------
     public internal(set) var coach = CoachState()
@@ -582,6 +584,8 @@ public final class Game {
 
     // ---------- game flow (resetWorld of 12-main.js) ----------
     func resetWorld() {
+        // (Stage 2 B4: a level shared by sorties gets back its walk grid and routes as laid — the Threader's pull-down)
+        level.resetDynamic()
         bugs.clear(); hash.clear(); globs.count = 0; booms.removeAll(keepingCapacity: true)
         projectiles.count = 0
         for k in grenades.indices { grenades[k].active = false }
@@ -793,7 +797,10 @@ public final class Game {
             let s = nextSwitch()
             if s >= 0 { return switches[s].position }
         case .hold(let h)?: return zoneCenter(h.zone)
-        case .boss(let b)?: return zoneCenter(b.zone)
+        case .boss(let b)?:
+            // (Stage 2 B4: in the Threader's fight, the autopilot's own place — GameThreaderAI)
+            if let g = threaderObjective(b) { return g }
+            return zoneCenter(b.zone)
         case .extract?: return Vec2(level.lift.x, level.lift.z)
         case nil: break
         }

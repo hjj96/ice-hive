@@ -289,6 +289,30 @@
         }
       }
     },
+    "banner.manifold" : {
+      "comment" : "Big centre banner title (uppercased, 30–52 pt; scales down past the screen width). The Manifold's drop banner (teal). Max width: 635 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manifold"
+          }
+        }
+      }
+    },
+    "banner.manifold.sub" : {
+      "comment" : "Banner subtitle under the title (uppercased, 12 pt, wide letter spacing; scales down past the screen width). The Manifold's drop banner. %@ = station name. Max width: 635 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · something lives in the pipes"
+          }
+        }
+      }
+    },
     "banner.queen" : {
       "comment" : "Big centre banner title (uppercased, 30–52 pt; scales down past the screen width). The boss climbs onto the lift (red). Max width: 635 pt.",
       "extractionState" : "manual",
@@ -345,6 +369,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Queen enraged"
+          }
+        }
+      }
+    },
+    "banner.threader" : {
+      "comment" : "Big centre banner title (uppercased, 30–52 pt; scales down past the screen width). The Threader climbs out of the pipe trunks (red). Max width: 635 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Threader"
+          }
+        }
+      }
+    },
+    "banner.threader.sub" : {
+      "comment" : "Banner subtitle under the title (uppercased, 12 pt, wide letter spacing; scales down past the screen width). Max width: 635 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It hunts from the pipes — stay out of its light"
+          }
+        }
+      }
+    },
+    "banner.threader_dead" : {
+      "comment" : "Big centre banner title (uppercased, 30–52 pt; scales down past the screen width). Teal. Max width: 635 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Threader down"
+          }
+        }
+      }
+    },
+    "banner.threader_dead.sub" : {
+      "comment" : "Banner subtitle under the title (uppercased, 12 pt, wide letter spacing; scales down past the screen width). Max width: 635 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get to the lift"
           }
         }
       }
@@ -1597,6 +1669,18 @@
         }
       }
     },
+    "mission.manifold" : {
+      "comment" : "Mission name (the title screen's mission choice: the meta row, uppercased monospace; logs). Restart two pumps, kill the Threader in the pipe junction, extract. Max width: 150 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manifold"
+          }
+        }
+      }
+    },
     "mission.vent_purge" : {
       "comment" : "Mission name (the title screen's mission choice: the meta row, uppercased monospace; logs). Seal four vents the hive pours out of, then hold the lift. Max width: 150 pt.",
       "extractionState" : "manual",
@@ -1713,6 +1797,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Spitter"
+          }
+        }
+      }
+    },
+    "name.bug.threader" : {
+      "comment" : "The boss of the Manifold (the objective line «Kill the %@», the boss bar, report tips). Stage 2: a 30 m segmented bug threaded through the station's pipe trunks. Max width: 120 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Threader"
           }
         }
       }
@@ -1921,6 +2017,18 @@
         }
       }
     },
+    "obj.hold_pump" : {
+      "comment" : "Objective line at the top of the HUD (uppercased, one line; shrinks to 62 % at most). Manifold: a pump console is being restarted — a marine has to stand in its ring until it fills (it drains while nobody does). Max width: 403 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hold the pump"
+          }
+        }
+      }
+    },
     "obj.hold_ring" : {
       "comment" : "Objective line at the top of the HUD (uppercased, one line; shrinks to 62 % at most). A switch is being thrown: a marine has to stand in its ring until it fills. Max width: 403 pt.",
       "extractionState" : "manual",
@@ -2013,6 +2121,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Get to the marker"
+          }
+        }
+      }
+    },
+    "obj.restart_pumps" : {
+      "comment" : "Objective line at the top of the HUD (uppercased, one line; shrinks to 62 % at most). Manifold: pump consoles restarted / pumps to restart (the warm-up on the way to the pipe junction). Max width: 403 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restart the pumps %1$lld/%2$lld"
           }
         }
       }
@@ -2545,6 +2665,18 @@
         }
       }
     },
+    "report.strip.pump" : {
+      "comment" : "Mission report stage strip label under its bar (uppercased, 9–10 pt; shrinks to 6 pt). Manifold: one segment per pump (four segments: Pump, Pump, Threader, Extraction). Max width: 40 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pump"
+          }
+        }
+      }
+    },
     "report.strip.queen" : {
       "comment" : "Mission report stage strip label under its bar (uppercased, 9–10 pt; shrinks to 6 pt). SE segments: Beacon/Lift 33 pt, Queen 40 pt, Extraction 60 pt. Max width: 40 pt.",
       "extractionState" : "manual",
@@ -2553,6 +2685,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Queen"
+          }
+        }
+      }
+    },
+    "report.strip.threader" : {
+      "comment" : "Mission report stage strip label under its bar (uppercased, 9–10 pt; shrinks to 6 pt). Manifold: the Threader's fight (four segments). Max width: 60 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Threader"
           }
         }
       }
@@ -2737,6 +2881,18 @@
         }
       }
     },
+    "score.pumps" : {
+      "comment" : "Mission report score line, left of its «+N» (one line, shrinks). Manifold: pumps restarted / 2. Max width: 213 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pumps %1$lld/%2$lld"
+          }
+        }
+      }
+    },
     "score.queen" : {
       "comment" : "Mission report score line, left of its «+N» (one line, shrinks). Max width: 213 pt.",
       "extractionState" : "manual",
@@ -2757,6 +2913,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Speed · %@"
+          }
+        }
+      }
+    },
+    "score.threader" : {
+      "comment" : "Mission report score line, left of its «+N» (one line, shrinks). Max width: 213 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Threader killed"
           }
         }
       }
@@ -2997,6 +3165,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@: step out of the acid rings"
+          }
+        }
+      }
+    },
+    "tip.loss.threader" : {
+      "comment" : "Mission report tip box (wraps, ~277 pt column). Loss cause: the Threader (its lure beam locks on whoever stays in its light, then the head strikes there). %@ = the boss's name (Threader). Max width: wraps at ~277 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: stay out of its light"
           }
         }
       }
@@ -3333,6 +3513,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "You're back in the fight"
+          }
+        }
+      }
+    },
+    "toast.threader_coil" : {
+      "comment" : "Toast in the right column (uppercased; wraps, two lines at most). Squad radio: the Threader coils its body round the squad (a shrinking ring: dash out through a gap). Amber edge. Max width: 596 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Coil — get out!"
+          }
+        }
+      }
+    },
+    "toast.threader_light" : {
+      "comment" : "Toast in the right column (uppercased; wraps, two lines at most). Squad radio: the Threader's lure beam locked on a marine for the first time this mission (0.8 s in its light, then its head strikes there). Amber edge. Max width: 596 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It's got a light — stay out of it!"
+          }
+        }
+      }
+    },
+    "toast.threader_node" : {
+      "comment" : "Toast in the right column (uppercased; wraps, two lines at most). Squad radio: the torch stripped a Threader node's frost plates (it takes more damage now), or the Threader came down onto the deck (its nodes exposed). Gold edge. Max width: 596 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Node's open!"
+          }
+        }
+      }
+    },
+    "toast.threader_pipes" : {
+      "comment" : "Toast in the right column (uppercased; wraps, two lines at most). Squad radio: the Threader is coming (its warning, before it climbs out of the pipe trunks). Amber edge. Max width: 596 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Something big in the pipes."
           }
         }
       }

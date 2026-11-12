@@ -75,6 +75,11 @@ final class BossRuntime {
     var frost = [Float](repeating: 0, count: BOSS_PARTS)
     var popped = [Bool](repeating: false, count: BOSS_PARTS)
     var bonus = [Float](repeating: 1, count: BOSS_PARTS)
+    /// Stage 2 B4 (`BossSpec.areaOnce`): an area hit is being dealt (a blast's loop), the tick of the area hits counted below,
+    /// and the most each source (marine 0…3, index 4: nobody) put on the bar through one part this tick.
+    var areaHit = false
+    var areaTick = -1
+    var areaMax = [Float](repeating: 0, count: 5)
     var up = [Bool](repeating: false, count: BOSS_PARTS)
     /// The head's path history: a ring buffer of points (x, absolute y, z) and their arc length, the newest at `hHead`.
     var hx = [Float](repeating: 0, count: BOSS_PATH), hy = [Float](repeating: 0, count: BOSS_PATH)
@@ -141,6 +146,8 @@ extension Game {
         }
         boss.kind = kind
         bossSpec = spec ?? difficulty.boss(kind)
+        // (Stage 2 B4: the Threader's own runtime starts afresh with its step)
+        thr.reset()
     }
 
     /// The boss leaves without dying (its slots go, no reward): a new step brought its own while it lived.
@@ -221,6 +228,7 @@ extension Game {
         }
         teleRing(x, z, B.warnRing, 1.0, 0.12, 0.08, B.warn, pulse: true, cause: .bossRim)
         emit(.bossWarning(kind: boss.kind, pos: Vec2(x, z)))
+        bossOwnWarn()
     }
 
     /// It comes: its body (a bug climbing over the rim or standing at its point; a chain at its point with the body behind).
@@ -737,8 +745,23 @@ extension Game {
             let h = R.phd[p]
             if d.x * sinf2(h) + d.y * cosf2(h) >= 0.5 { k *= ps.rearK }
         }
-        let d = dmg * k
+        var d = dmg * k
         if !(d > 0) { return false }
+        // (Stage 2 B4: an area hit counts once per source and tick — only what tops that source's best part this tick)
+        if bossSpec.areaOnce && (dot || R.areaHit) {
+            if R.areaTick != tickCount { R.areaTick = tickCount; for j in 0..<5 { R.areaMax[j] = 0 } }
+            let j = src >= 0 && src < 4 ? src : 4
+            let extra = d - R.areaMax[j]
+            if extra <= 0 {
+                // (its own pool still feels it: a node under the torch pops as it would)
+                if R.poolMax[p] > 0 && !R.popped[p] { R.pool[p] -= d; if R.pool[p] <= 0 { R.pool[p] = 0; bossPartPopped(p, ps) } }
+                return false
+            }
+            R.areaMax[j] = d
+            if R.poolMax[p] > 0 && !R.popped[p] { R.pool[p] -= d - extra }
+            d = extra
+        }
+        bossOwnDamage(p, d)
         if R.poolMax[p] > 0 && !R.popped[p] {
             R.pool[p] -= d
             if R.pool[p] <= 0 { R.pool[p] = 0; bossPartPopped(p, ps) }
@@ -863,6 +886,7 @@ extension Game {
     func bossOwnTick(_ dt: Float) {
         switch boss.kind {
         case .queen: queenOwnTick(dt)
+        case .threader: threaderOwnTick(dt)
         }
     }
 
@@ -871,6 +895,7 @@ extension Game {
     func bossOwnMove(_ m: Int, _ stage: Int) -> Bool {
         switch boss.kind {
         case .queen: return false
+        case .threader: return threaderOwnMove(m, stage)
         }
     }
 
@@ -878,6 +903,31 @@ extension Game {
     func bossOwnPart(_ p: Int, popped: Bool) {
         switch boss.kind {
         case .queen: break
+        case .threader: threaderOwnPart(p, popped: popped)
+        }
+    }
+
+    /// Its warning began (Stage 2 B4: the Threader's radio — «Something big in the pipes.»).
+    func bossOwnWarn() {
+        switch boss.kind {
+        case .queen: break
+        case .threader: threaderOwnWarn()
+        }
+    }
+
+    /// One of the squad's blasts struck chain part `p` (Stage 2 B4: a grenade on the Threader's node lets its coil go).
+    func bossOwnBlast(_ p: Int, _ kind: ExplosionKind, _ src: Int) {
+        switch boss.kind {
+        case .queen: break
+        case .threader: threaderOwnBlast(p, kind, src)
+        }
+    }
+
+    /// The boss bar took `d` through chain part `p` (Stage 2 B4: the Threader's calibration counts it by part).
+    func bossOwnDamage(_ p: Int, _ d: Float) {
+        switch boss.kind {
+        case .queen: break
+        case .threader: threaderOwnDamage(p, d)
         }
     }
 

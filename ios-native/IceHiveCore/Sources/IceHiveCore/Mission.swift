@@ -423,10 +423,17 @@ public struct MissionCalib {
     public var bands: [CalibBand]
     public var afk: [AFKBand]
     public var gated: Bool
+    /// The CI preset a gated template joins (Stage 2 B4): `missions` (R7's missions, calib-missions.jsonl) or `bosses` (the
+    /// boss missions — the Manifold —, calib-bosses.jsonl), so each preset's rows keep their bytes when the other grows.
+    public var preset: String
+    /// Bands reported beside the gate, never failing it (Stage 2 B4: the Manifold's Veteran wins in the classic band).
+    public var info: [CalibBand]
+    /// Its AFK bands join the gate (false: reported beside it — Stage 2 B4: the Manifold's gate is the boss bands).
+    public var afkGated: Bool
     public init(tiers: [Int] = [0, 1], runs: Int = 2, tierRuns: [Int: Int] = [:], seedBase: UInt32, bands: [CalibBand],
-                afk: [AFKBand] = [], gated: Bool = false) {
+                afk: [AFKBand] = [], gated: Bool = false, preset: String = "missions", info: [CalibBand] = [], afkGated: Bool = true) {
         self.tiers = tiers; self.runs = runs; self.tierRuns = tierRuns; self.seedBase = seedBase; self.bands = bands; self.afk = afk
-        self.gated = gated
+        self.gated = gated; self.preset = preset; self.info = info; self.afkGated = afkGated
     }
     /// Runs per class on `tier`.
     public func runs(_ tier: Int) -> Int { tierRuns[tier] ?? runs }
@@ -499,11 +506,12 @@ public struct MissionTemplate {
         ]
     }()
 
-    /// The missions a player can start (the classic first; R7: Breaker Run, Vent Purge — MissionsKelvin.swift).
-    public static var playable: [MissionTemplate] { [coldLight] + missions }
+    /// The missions a player can start (the classic first; R7: Breaker Run, Vent Purge — MissionsKelvin.swift; Stage 2 B4:
+    /// the Manifold — Manifold.swift).
+    public static var playable: [MissionTemplate] { [coldLight] + missions + bosses }
 
     /// Every template (the classic first).
-    public static var all: [MissionTemplate] { [coldLight] + missions + drills }
+    public static var all: [MissionTemplate] { [coldLight] + missions + bosses + drills }
 
     public static func named(_ id: String) -> MissionTemplate? { all.first { $0.id == id } }
 }

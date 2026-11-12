@@ -49,13 +49,17 @@ public struct CalibRun {
     /// Stage 1 R5: «Кельвин-9» Mk II (`KelvinStation.mk2`: the overhead routes and the interactives laid) — the classic
     /// mission's station since R5; the presets' classic rows run on it (station 0 only; the legacy v1.0 row never does).
     public var mk2: Bool
+    /// Stage 2 B4: keep the boss's timeline (its phases, cues and moves, the squad's downs) in the row's `trace` — the headless
+    /// log of a fight (`icehive-calib --trace`); off in every preset.
+    public var trace: Bool
 
     public init(tag: String, cls: MarineClass, tier: Int, mode: CalibMode, maxs: Float? = nil, seed: UInt32, station: UInt32 = 0,
-                th: [String: Double] = [:], quality: QualityTier = .med, mission: String? = nil, props: Bool = false, mk2: Bool = false) {
+                th: [String: Double] = [:], quality: QualityTier = .med, mission: String? = nil, props: Bool = false, mk2: Bool = false,
+                trace: Bool = false) {
         self.tag = tag; self.cls = cls; self.tier = tier; self.mode = mode
         self.maxs = maxs ?? (mode == .afk ? 420 : 600)
         self.seed = seed; self.station = station; self.th = th; self.quality = quality; self.mission = mission; self.props = props
-        self.mk2 = mk2
+        self.mk2 = mk2; self.trace = trace
     }
 
     /// The tier row of this run (overrides applied).
@@ -129,6 +133,38 @@ public struct CalibProps: Equatable {
     }
 }
 
+/// The Threader in one run (Stage 2 B4; only in runs where it came — every other row keeps its bytes): when its phases came
+/// (s after its spawn, −1 not reached), its moves, the squad's answers, the boss bar's damage by part, seconds up out of
+/// reach / untouchable / down.
+public struct CalibThreader: Equatable {
+    public var p2T: Float = -1, p3T: Float = -1
+    public var locks = 0, strikes = 0, strikeHits = 0, recoils = 0, climbs = 0, coils = 0, crushed = 0, letGo = 0, gaps = 0
+    public var rimes = 0, rimeHits = 0, squeezes = 0, steamHurt = 0, pulls = 0, charges = 0, chargeHits = 0
+    public var sheds = 0, ticks = 0, packs = 0, popped = 0, stripped = 0, freezeLocks = 0, brittles = 0, pains = 0
+    public var dmgHead = 0, dmgNode = 0, dmgBody = 0, dmgP1 = 0, dmgP2 = 0, dmgP3 = 0
+    public var upT: Float = 0, untouchT: Float = 0, downT: Float = 0
+    public init() {}
+    init(_ s: ThreaderStats) {
+        p2T = s.p2T; p3T = s.p3T; locks = s.locks; strikes = s.strikes; strikeHits = s.strikeHits; recoils = s.recoils; climbs = s.climbs
+        coils = s.coils; crushed = s.crushed; letGo = s.letGo; gaps = s.gaps; rimes = s.rimes; rimeHits = s.rimeHits; squeezes = s.squeezes
+        steamHurt = Int(s.steamHurt.rounded()); pulls = s.pulls; charges = s.charges; chargeHits = s.chargeHits; sheds = s.sheds
+        ticks = s.ticks; packs = s.packs; popped = s.popped; stripped = s.stripped; freezeLocks = s.freezeLocks; brittles = s.brittles
+        pains = s.pains
+        dmgHead = Int(s.dmgHead.rounded()); dmgNode = Int(s.dmgNode.rounded()); dmgBody = Int(s.dmgBody.rounded())
+        dmgP1 = Int(s.dmgP1.rounded()); dmgP2 = Int(s.dmgP2.rounded()); dmgP3 = Int(s.dmgP3.rounded())
+        upT = s.upT; untouchT = s.untouchT; downT = s.downT
+    }
+    /// Integer fields in JSON order (the times come first, as tenths of a second).
+    var fields: [(String, Int)] {
+        [("locks", locks), ("strikes", strikes), ("strikeHits", strikeHits), ("recoils", recoils), ("climbs", climbs), ("coils", coils),
+         ("crushed", crushed), ("letGo", letGo), ("gaps", gaps), ("rimes", rimes), ("rimeHits", rimeHits), ("squeezes", squeezes),
+         ("steamHurt", steamHurt), ("pulls", pulls), ("charges", charges), ("chargeHits", chargeHits), ("sheds", sheds), ("ticks", ticks),
+         ("packs", packs), ("popped", popped), ("stripped", stripped), ("freezeLocks", freezeLocks), ("brittles", brittles),
+         ("pains", pains), ("dmgHead", dmgHead),
+         ("dmgNode", dmgNode), ("dmgBody", dmgBody), ("dmgP1", dmgP1), ("dmgP2", dmgP2), ("dmgP3", dmgP3)]
+    }
+}
+
 /// One result row (web run.mjs '[R]' line).
 public struct CalibRow {
     public var tag = "", cls = "assault", q = "med", mode = "auto"
@@ -173,6 +209,10 @@ public struct CalibRow {
     public var oh: CalibOverhead? = nil
     /// The props' numbers (Stage 1 R6), only on a station with props (a trailing `"props"` object).
     public var props: CalibProps? = nil
+    /// Stage 2 B4: the Threader's numbers, only when it came (a trailing `"thr"` object).
+    public var thr: CalibThreader? = nil
+    /// Stage 2 B4: the boss's timeline when the run asked for it (`CalibRun.trace`; never in the JSON).
+    public var trace: [String]? = nil
     public var error: String? = nil
 
     public init() {}
@@ -238,6 +278,10 @@ extension CalibRow {
         s += "\"hurtBy\":\(jints(hurtBy)),\"downBy4\":\(jints(downBy4))"
         if let o = oh { s += ",\"oh\":{" + o.fields.map { jstr($0.0) + ":\($0.1)" }.joined(separator: ",") + "}" }
         if let p = props { s += ",\"props\":{" + p.fields.map { jstr($0.0) + ":\($0.1)" }.joined(separator: ",") + "}" }
+        if let t = thr {
+            s += ",\"thr\":{\"p2T\":\(jnum(t.p2T)),\"p3T\":\(jnum(t.p3T)),\"upT\":\(jnum(t.upT)),\"untouchT\":\(jnum(t.untouchT)),"
+            s += "\"downT\":\(jnum(t.downT))," + t.fields.map { jstr($0.0) + ":\($0.1)" }.joined(separator: ",") + "}"
+        }
         return s + "}"
     }
 
@@ -306,6 +350,20 @@ extension CalibRow {
             c.dropperHops = v("drpHops")
             oh = c
         }
+        if let to = o["thr"] as? [String: Any] {
+            func v(_ k: String) -> Int { Int(d(to[k]) ?? 0) }
+            func f(_ k: String, _ dflt: Float) -> Float { Float(d(to[k]) ?? Double(dflt)) }
+            var c = CalibThreader()
+            c.p2T = f("p2T", -1); c.p3T = f("p3T", -1); c.upT = f("upT", 0); c.untouchT = f("untouchT", 0); c.downT = f("downT", 0)
+            c.locks = v("locks"); c.strikes = v("strikes"); c.strikeHits = v("strikeHits"); c.recoils = v("recoils"); c.climbs = v("climbs")
+            c.coils = v("coils"); c.crushed = v("crushed"); c.letGo = v("letGo"); c.gaps = v("gaps"); c.rimes = v("rimes")
+            c.rimeHits = v("rimeHits"); c.squeezes = v("squeezes"); c.steamHurt = v("steamHurt"); c.pulls = v("pulls"); c.charges = v("charges")
+            c.chargeHits = v("chargeHits"); c.sheds = v("sheds"); c.ticks = v("ticks"); c.packs = v("packs"); c.popped = v("popped")
+            c.stripped = v("stripped"); c.freezeLocks = v("freezeLocks"); c.brittles = v("brittles"); c.pains = v("pains")
+            c.dmgHead = v("dmgHead"); c.dmgNode = v("dmgNode")
+            c.dmgBody = v("dmgBody"); c.dmgP1 = v("dmgP1"); c.dmgP2 = v("dmgP2"); c.dmgP3 = v("dmgP3")
+            thr = c
+        }
         if let po = o["props"] as? [String: Any] {
             func v(_ k: String) -> Int { Int(d(po[k]) ?? 0) }
             var c = CalibProps()
@@ -372,12 +430,17 @@ public enum Calibration {
         var qDowns0 = 0
         let P = g.marines[0]
         var tick = 0
+        var trace: [String] = []
         while g.phase == .playing && g.time < c.maxs {
             if c.mode == .passive { P.mods.dmg = 0; P.abCd = 99; P.mods.explosive = 0 }
             if c.mode == .afkbeacon && !afkStop && g.objectiveEngaged { afkStop = true; g.autopilot = false }
             let hp0 = P.hp
             g.tick()
-            g.clearEvents()
+            if c.trace {
+                g.drainEvents { e in if let l = traceLine(e, g) { trace.append(l) } }
+                // (the boss's place and mode every 2 s while it lives)
+                if g.boss.alive && tick % 120 == 0 { trace.append(String(format: "t=%6.1f ", g.time) + g.bossTraceState) }
+            } else { g.clearEvents() }
             if !P.downed && P.hp < hp0 { pTaken += hp0 - P.hp } else if P.downed && hp0 > 0 { pTaken += hp0 }
             // (stage names come from the plan's step: the classic beacons · toLift · hold · extract)
             let st = g.calibStage, t = r1(g.time)
@@ -465,7 +528,35 @@ public enum Calibration {
         if g.overheadOn || g.overheadStats.spawns > 0 { row.oh = CalibOverhead(g.overheadStats) }
         // the props (Stage 1 R6): only on a station that had them
         if g.hasProps { row.props = CalibProps(g.propStats, lights: g.lightsLit, circuits: g.circuits.count) }
+        // Stage 2 B4: the Threader, only when it came
+        if g.boss.kind == .threader && g.boss.spawned { row.thr = CalibThreader(g.threaderStats) }
+        if c.trace { row.trace = trace }
         return row
+    }
+
+    /// One line of a fight's timeline (`CalibRun.trace`): the steps, the boss's warning / arrival / phases / moves / windows /
+    /// pops / freezes / cues / death, the squad's downs and revives; nil for every other event.
+    static func traceLine(_ e: GameEvent, _ g: Game) -> String? {
+        let t = String(format: "t=%6.1f ", g.time)
+        func p(_ v: Vec2) -> String { String(format: "(%.1f, %.1f)", v.x, v.y) }
+        let hp = String(format: " hp=%.0f%%", g.bossHpFraction * 100)
+        switch e {
+        case .missionStep(let k, let m): return t + "step \(k) \(m.rawValue)"
+        case .bossWarning(let k, let pos): return t + "\(k.rawValue) warning at " + p(pos)
+        case .bossSpawned(let k, let pos): return t + "\(k.rawValue) spawned at " + p(pos) + String(format: " hpMax=%.0f", g.threatDebug.bossHpMax)
+        case .bossPhase(let k, let ph, let en, _): return t + "\(k.rawValue) phase \(ph + 1)" + (en ? " enraged" : "") + hp
+        case .bossMove(let k, let m, let pos):
+            let id = m < g.bossSpec.moves.count ? g.bossSpec.moves[m].id : "\(m)"
+            return t + "\(k.rawValue) move \(id) at " + p(pos) + hp
+        case .bossWindow(let k, let part, _, let time): return t + "\(k.rawValue) window part \(part) " + String(format: "%.1f s", time)
+        case .bossPartPopped(let k, let part, _): return t + "\(k.rawValue) popped part \(part)" + hp
+        case .bossPartFrozen(let k, let part, _): return t + "\(k.rawValue) frozen part \(part)"
+        case .bossCue(let k, let cue, let pos, let v): return t + "\(k.rawValue) \(cue) at " + p(pos) + " v=\(v)"
+        case .bossKilled(let k, let pos): return t + "\(k.rawValue) killed at " + p(pos) + String(format: " after %.1f s", g.boss.killT)
+        case .downed(let m): return t + "down marine \(m)"
+        case .revived(let m): return t + "revived marine \(m)"
+        default: return nil
+        }
     }
 
     /// Run every config, `jobs` at a time (independent Games, no shared mutable state). Rows come back in config order.
@@ -535,7 +626,7 @@ public enum Calibration {
     /// The fixed presets; a template id is a preset too (`icehive-calib --preset drill-switch`). `missions`: every gated
     /// template (R7: Breaker Run, Vent Purge) — the CI's mission gate, its own step and rows (calib-missions.jsonl), so the
     /// classic `gate` rows and calib.jsonl stay byte-identical.
-    public static let presetNames = ["gate", "full", "stations", "legacy", "drills", "missions", "overhead", "props"]
+    public static let presetNames = ["gate", "full", "stations", "legacy", "drills", "missions", "bosses", "overhead", "props"]
 
     /// The overhead preset's share of packs sent up (Stage 1 R2; since R5 the tiers carry their own, 0.15 / 0.2 / 0.2).
     public static let overheadRoutes: Double = 0.2
@@ -562,10 +653,11 @@ public enum Calibration {
             out += batch(tier: 1, mode: .auto, n: 8, seed0: seed0, tag: tag, th: th, quality: .low, mk2: true)
             out += batch(tier: 2, mode: .auto, n: 8, seed0: seed0, tag: tag, th: th, quality: .low, mk2: true)
             return out
-        case "missions":
-            // R7: the gated mission templates (their own bands; the CI step «Calibration gate: missions»)
+        case "missions", "bosses":
+            // R7: the gated mission templates (their own bands; the CI step «Calibration gate: missions»); Stage 2 B4: the boss
+            // missions' (the Manifold: «Calibration gate: bosses») — each template in its own preset
             var out: [CalibRun] = []
-            for t in MissionTemplate.all where t.calib?.gated == true { out += templateRuns(t, th: th) ?? [] }
+            for t in MissionTemplate.all where t.calib?.gated == true && t.calib?.preset == name { out += templateRuns(t, th: th) ?? [] }
             return out
         case "drills":
             var out: [CalibRun] = []
@@ -730,6 +822,45 @@ public enum Calibration {
         if !ohRows.isEmpty { out.append(""); out.append(overheadTable(ohRows)) }
         let prRows = rows.filter { $0.error == nil && $0.props != nil }
         if !prRows.isEmpty { out.append(""); out.append(propsTable(prRows)) }
+        let thRows = rows.filter { $0.error == nil && $0.thr != nil }
+        if !thRows.isEmpty { out.append(""); out.append(threaderTable(thRows)) }
+        return out.joined(separator: "\n")
+    }
+
+    /// The Threader per group (Stage 2 B4): the medians of when its phases came and its kill (s after its spawn: P1 = up to
+    /// P2), the median win time; per fight: locks, strikes (and hits), coils (marines crushed, let go early), rime spits,
+    /// squeezes, pulls, charges, ticks shed, duct packs, nodes popped / stripped, frozen locks; the boss bar's damage by part
+    /// (%); seconds up out of reach, untouchable, the head down.
+    static func threaderTable(_ rows: [CalibRow]) -> String {
+        var g: [String: [CalibRow]] = [:]
+        for r in rows { g[r.tag + " " + r.mode, default: []].append(r) }
+        var out = ["threader".padding(toLength: 18, withPad: " ", startingAt: 0) + " "
+                   + ["n", "P1", "P2", "P3", "kill", "win", "locks", "strk", "hit", "coil", "crush", "letGo", "rime", "squez", "pull", "chrg",
+                      "ticks", "packs", "pop", "strip", "frzL", "brtl", "pain", "head%", "node%", "body%", "upS", "untS", "downS"]
+                   .map { pad($0, 5) }.joined(separator: " ")]
+        for k in g.keys.sorted() {
+            let rs = g[k]!
+            let n = Float(rs.count)
+            func m(_ f: (CalibThreader) -> Int) -> String { fmt(Float(rs.reduce(0) { $0 + f($1.thr!) }) / n, 1) }
+            func mf(_ f: (CalibThreader) -> Float) -> String { fmt(rs.reduce(Float(0)) { $0 + f($1.thr!) } / n, 0) }
+            let p2 = rs.compactMap { $0.thr!.p2T >= 0 ? $0.thr!.p2T : nil }
+            let p3 = rs.compactMap { r -> Float? in let t = r.thr!; return t.p3T >= 0 && t.p2T >= 0 ? t.p3T - t.p2T : nil }
+            let kills = rs.compactMap { r -> Float? in guard let q = r.queen, let kt = q.killT, r.thr!.p3T >= 0 else { return nil }; return kt - r.thr!.p3T }
+            let killT = rs.compactMap { $0.queen?.killT }
+            let wins = rs.filter { $0.won }.map { $0.t }
+            let dmg = rs.reduce(Float(0)) { $0 + Float($1.thr!.dmgHead + $1.thr!.dmgNode + $1.thr!.dmgBody) }
+            func share(_ f: (CalibThreader) -> Int) -> String { fmt(dmg > 0 ? 100 * Float(rs.reduce(0) { $0 + f($1.thr!) }) / dmg : 0) }
+            let cols = [pad("\(rs.count)", 5), pad(fmt(median(p2)), 5), pad(fmt(median(p3)), 5), pad(fmt(median(kills)), 5), pad(fmt(median(killT)), 5),
+                        pad(fmt(median(wins)), 5), pad(m { $0.locks }, 5), pad(m { $0.strikes }, 5), pad(m { $0.strikeHits }, 5), pad(m { $0.coils }, 5),
+                        pad(m { $0.crushed }, 5), pad(m { $0.letGo }, 5), pad(m { $0.rimes }, 5), pad(m { $0.squeezes }, 5), pad(m { $0.pulls }, 5),
+                        pad(m { $0.charges }, 5), pad(m { $0.ticks }, 5), pad(m { $0.packs }, 5), pad(m { $0.popped }, 5), pad(m { $0.stripped }, 5),
+                        pad(m { $0.freezeLocks }, 5), pad(m { $0.brittles }, 5), pad(m { $0.pains }, 5), pad(share { $0.dmgHead }, 5),
+                        pad(share { $0.dmgNode }, 5), pad(share { $0.dmgBody }, 5),
+                        pad(mf { $0.upT }, 5), pad(mf { $0.untouchT }, 5), pad(mf { $0.downT }, 5)]
+            out.append(k.padding(toLength: 18, withPad: " ", startingAt: 0) + " " + cols.joined(separator: " "))
+        }
+        out.append("(P1 / P2 / P3: median seconds in each phase of the fights that got there — P1 from the spawn, P3 to the kill; kill: the "
+                   + "median kill time from the spawn; win: the median mission time of the wins)")
         return out.joined(separator: "\n")
     }
 
@@ -877,7 +1008,10 @@ public enum Calibration {
                 let rs = trs.filter { $0.tierIx == b.tier }
                 if rs.isEmpty { continue }
                 let g = group(t.id, rs)
-                band("\(t.id) \(tierTag(b.tier))/auto wins", g.winPct, b.winLo, b.winHi, gated: c.gated, unit: "%")
+                // (a boss band without a win band reports no wins line: the boss's own lines below are its gate)
+                if b.winLo != nil || b.winHi != nil || (b.bossReachedLo == nil && b.bossKilledLo == nil && b.bossMedianLo == nil && b.bossMedianHi == nil) {
+                    band("\(t.id) \(tierTag(b.tier))/auto wins", g.winPct, b.winLo, b.winHi, gated: c.gated, unit: "%")
+                }
                 if let d = b.downsHi { band("\(t.id) \(tierTag(b.tier))/auto downs/run", g.downsPerRun, nil, d, gated: c.gated) }
                 // (Stage 2 B1: a boss mission's boss bands — reached, killed of those reached, the kill median)
                 if let r = b.bossReachedLo { band("\(t.id) \(tierTag(b.tier))/auto boss reached", g.queenReachedPct, r, nil, gated: c.gated, unit: "%") }
@@ -886,12 +1020,20 @@ public enum Calibration {
                     band("\(t.id) \(tierTag(b.tier))/auto boss kill median", g.queenKillMedian, b.bossMedianLo, b.bossMedianHi, gated: c.gated, unit: " s")
                 }
             }
+            // (Stage 2 B4: bands reported beside the gate)
+            for b in c.info {
+                let rs = trs.filter { $0.tierIx == b.tier }
+                if rs.isEmpty { continue }
+                let g = group(t.id, rs)
+                if b.winLo != nil || b.winHi != nil { band("\(t.id) \(tierTag(b.tier))/auto wins", g.winPct, b.winLo, b.winHi, gated: false, unit: "%") }
+                if let d = b.downsHi { band("\(t.id) \(tierTag(b.tier))/auto downs/run", g.downsPerRun, nil, d, gated: false) }
+            }
             for a in c.afk {
                 let rs = mine.filter { $0.tierIx == a.tier && $0.mode == "afk" }
                 if rs.isEmpty { continue }
                 let firsts = rs.map { $0.pFirstDown < 0 ? Float.infinity : $0.pFirstDown }
                 let worst = firsts.max() ?? .infinity, best = firsts.min() ?? .infinity
-                L.append(GateLine(ok: worst <= a.firstDownMax, gated: c.gated,
+                L.append(GateLine(ok: worst <= a.firstDownMax, gated: c.gated && c.afkGated,
                                   text: "\(t.id) \(tierTag(a.tier))/afk first player down \(fmt(best))–\(worst.isFinite ? fmt(worst) : "never") s (every run) band …\(fmt(a.firstDownMax)) s"))
             }
         }

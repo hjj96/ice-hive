@@ -350,9 +350,10 @@ final class MetalEffects {
             // Stage 1 R4: a perched spitter spits from up on the overhead
             spit(from.x, from.z, to.x - from.x, to.y - from.z, y: from.y)
         case .bossKilled(let kind, let pos):
-            switch kind { case .queen: queenDeath(pos.x, pos.y) }
+            // (Stage 2 B4: the Threader's death and arrival are B5's to draw)
+            switch kind { case .queen: queenDeath(pos.x, pos.y); case .threader: break }
         case .bossSpawned(let kind, let pos):
-            switch kind { case .queen: queenRise(pos.x, pos.y) }
+            switch kind { case .queen: queenRise(pos.x, pos.y); case .threader: break }
         default:
             break
         }

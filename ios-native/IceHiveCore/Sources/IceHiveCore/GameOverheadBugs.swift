@@ -377,7 +377,7 @@ extension Game {
         var best = -1
         var bd: Float = .infinity
         let adj = G.nodeEdges[node]
-        for e in adj where e != exclude || adj.count == 1 {
+        for e in adj where (e != exclude || adj.count == 1) && !G.isBlocked(e) {
             let o = G.ea[e] == node ? G.eb[e] : G.ea[e]
             let d = G.length[e] + oh.perchDist[k][o]
             if d < bd { bd = d; best = e }

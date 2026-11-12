@@ -103,6 +103,11 @@ extension Game {
             let ob = overheadAssist(m, dx, dz, &bs)
             if ob >= 0 { best = ob }
         }
+        // (Stage 2 B4: the Threader's head while it is down, its nodes)
+        if threaderActive {
+            let tb = threaderAssist(m, dx, dz, &bs)
+            if tb >= 0 { best = tb }
+        }
         return best
     }
 
@@ -173,12 +178,15 @@ extension Game {
         var best = -1
         var bs: Float = 1e9
         let P = marines[0]
+        // (Stage 2 B4: the Threader's parts are picked by their own rule below — never its ×0.25 body)
+        let thrParts = threaderActive
         do {
             var q = 0
             while q < cnt {
                 defer { q += 1 }
                 let b = hash.qb[q]
                 if S.st[b] == S_CLIMB && S.y[b] < -0.8 { continue }
+                if thrParts && S.boss[b] != 0 && S.boss[b] != BOSS_BUG { continue }
                 let dx = S.x[b] - m.x, dz = S.z[b] - m.z, d = (dx * dx + dz * dz).squareRoot()
                 let off = abs(angDiff(m.aim, atan2f2(dx, dz)))
                 var s = d + off * 2.2
@@ -201,6 +209,11 @@ extension Game {
             let ob = overheadAITarget(m, range, &bs)
             if ob >= 0 { best = ob }
         }
+        // (Stage 2 B4: the Threader — the head while it is down, then its nodes)
+        if thrParts {
+            let tb = threaderAITarget(m, range, &bs)
+            if tb >= 0 { best = tb }
+        }
         return best
     }
 
@@ -218,13 +231,15 @@ extension Game {
             if m.abCd <= 0 {
                 // (wave pacing: a smaller swarm — the crowd an ability waits for is smaller too)
                 let w = difficulty.waves
-                if m.cls == .assault && m.ai.target >= 0 {
+                // (Stage 2 B4: against the Threader first — GameThreaderAI; its parts count for no crowd)
+                if threaderActive && threaderAbility(m) {
+                } else if m.cls == .assault && m.ai.target >= 0 {
                     let t = m.ai.target
                     let tx = S.x[t], tz = S.z[t]
-                    if hypotf2(tx - m.x, tz - m.z) > 4 && (hash.queryCircle(S, tx, tz, 3.5) >= (w ? 4 : 7) || S.type[t] == T_BRUTE) { useAbility(m, tx, tz) }
-                } else if m.cls == .pyro && hash.queryCircle(S, m.x, m.z, 4.5) >= (w ? 5 : 9) { useAbility(m, 0, 0) }
-                else if m.cls == .cryo && hash.queryCircle(S, m.x, m.z, 6.5) >= (w ? 7 : 13) { useAbility(m, 0, 0) }
-                else if m.cls == .gunner && hash.queryCircle(S, m.x, m.z, 12) >= (w ? 10 : 18) { useAbility(m, 0, 0) }
+                    if hypotf2(tx - m.x, tz - m.z) > 4 && (deckCrowd(tx, tz, 3.5) >= (w ? 4 : 7) || S.type[t] == T_BRUTE) { useAbility(m, tx, tz) }
+                } else if m.cls == .pyro && deckCrowd(m.x, m.z, 4.5) >= (w ? 5 : 9) { useAbility(m, 0, 0) }
+                else if m.cls == .cryo && deckCrowd(m.x, m.z, 6.5) >= (w ? 7 : 13) { useAbility(m, 0, 0) }
+                else if m.cls == .gunner && deckCrowd(m.x, m.z, 12) >= (w ? 10 : 18) { useAbility(m, 0, 0) }
             }
         }
         // --- where to stand ---
@@ -256,7 +271,10 @@ extension Game {
             if m.ai.locker >= 0, let g = propDutyGoal(m) { gx = g.x; gz = g.y }
             if let r = reviveT { gx = r.x; gz = r.z; urgent = true }
         } else if let r = reviveT { gx = r.x; gz = r.z; urgent = true }
-        else if let z = squadZone, inZone(z, P.x, P.z) {
+        else if threaderActive, let g = threaderBotGoal(m) {
+            // (Stage 2 B4: the Pyro closes in on the Threader's head while it is down)
+            gx = g.x; gz = g.y; urgent = true
+        } else if let z = squadZone, inZone(z, P.x, P.z) {
             // a hold, a boss fight, the ride: the squad spreads over the zone (the lift: 5.2 m out)
             let a = Float.pi / 4 + Float(m.index) * Float.pi / 2, c = zoneCenter(z), sr = slotRadius(z)
             gx = c.x + cosf2(a) * sr; gz = c.y + sinf2(a) * sr
@@ -344,6 +362,8 @@ extension Game {
         // ... and out of a drop ring about to land (the overhead, Stage 1 R2), out of a steam valve's curtain (R6)
         if level.overhead != nil { dropDodge(m) }
         if !props.valves.isEmpty { curtainDodge(m) }
+        // (Stage 2 B4: the Threader's lure, strike ring, coil, lanes and curtains)
+        if threaderActive { threaderDodge(m) }
         if m.ai.sideT > 0 { m.ai.sideT -= dt; mx = m.ai.sideX; mz = m.ai.sideZ }
         // stuck detection: wants to move but barely moves -> rely on the flow field for a while
         if abs(mx) + abs(mz) > 0.5 && hypotf2(m.x - m.ai.lx, m.z - m.ai.lz) < 1.2 * dt { m.ai.stuck = min(2, m.ai.stuck + dt * 2) }
