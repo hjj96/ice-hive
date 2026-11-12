@@ -121,6 +121,10 @@ import IceHiveCore
 //                   under it, the demo jumps it to 0.9, and 0.12 s after the duct mouth slams shut for good time almost stops
 //                   (at 14 s at the latest) for the screenshot. `demo ventpurge: …` once a second, `mission: …` / `bugs: duct …`
 //                   lines, `hb mission …`
+//  Stage 2 H1 «the first minute's HUD»:
+//    -demo firstmin the classic mission from its drop as it plays — the director on, the autopilot, nothing staged,
+//                   nothing spawned (the squad invulnerable, the level-up cards picked for it): its first half-minute of
+//                   banners, first-sighting tips, barks and the objective marker (the CI burst burst-firstmin, HUD on)
 //  R0 (film fixes):
 //    -demo win      like hold; 1 s after «scene ready» the lift leaves and the ride plays out to the win (4.6 s): the
 //                   report comes up at once and the world keeps animating under it (the lift eases to a stop with the
@@ -173,7 +177,7 @@ final class DemoScript {
         case "beacon": return DemoScript(name: d, options: options, bugs: options.bugs)
         case "title", "calm", "probe", "hold", "holdhint", "extract", "queen", "queenlock", "coach", "pressure", "report", "levelup", "pause", "end",
              "swarmshot", "layout", "bugsheet", "punchin", "extract-cine", "waves", "swarmpack", "swarmmix", "defeat", "overhead", "win",
-             "overheadbugs", "interactives", "breakerrun", "ventpurge":
+             "overheadbugs", "interactives", "breakerrun", "ventpurge", "firstmin":
             return DemoScript(name: d, options: options)
         case "stress1400": return DemoScript(name: d, options: options, bugs: options.bugs ?? 1400)
         default:
@@ -357,6 +361,10 @@ final class DemoScript {
             AppLog.info("demo ventpurge: \(game.mission.id), \(game.switches.count) seals: "
                         + game.switches.map { $0.site.duct >= 0 ? "duct \($0.site.duct)" : "vent \($0.site.vent)" }.joined(separator: ", ")
                         + "; squad on beacon A's deck by its vent")
+        case "firstmin":
+            // H1: the mission as it plays (the scene's defaults: autopilot, invulnerable squad, cards picked); no crowd
+            target = 0
+            AppLog.info("demo firstmin: the classic mission from its drop, the director on, nothing staged (tier=\(game.difficulty.id))")
         case "waves":
             // the wave director's own swarm: the squad in a beacon's ring, its defence starts on the first tick
             let k = max(0, min(game.beacons.count - 1, Int(demoNum("-waveBeacon", 1))))

@@ -662,6 +662,11 @@ jobs:
           # debug overlay: -storeShot): 24 frames from 6 s, every 10th present (≈ 4 s) — the owner's in-mission clip
           run_demo burst-mk2 12 "-demo combat -seed 7 -storeShot -burst mk2 6.0 24 10"
           pull_burst burst-mk2
+          # Stage 2 H1: the classic mission's first half-minute as it plays (the director on, the autopilot, nothing staged), the
+          # HUD as the phone shows it: the drop and defence banners, the first-sighting tips, the barks and the objective marker
+          # (every 90th present ≈ 1.5 s from 1 s)
+          run_demo burst-firstmin 37 "-demo firstmin -seed 7 -storeShot -burst firstmin 1.0 24 90"
+          pull_burst burst-firstmin
           # Stage 1 R6: the steam valve bursting over the pack and its scald curtain (every 8th present ≈ 3 s), and the hub's
           # breaker bringing its lamps back (-ixLights: the lights part only from the hub's centre, its restore ≈ 8.5 s in;
           # every 5th present ≈ 2 s)
@@ -894,7 +899,7 @@ jobs:
                    swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud calm-deckmask calm-bright-nohud \
                    burst-fire burst-tight burst-combat burst-anim burst-loco burst-loco-game burst-acta burst-actb burst-actc burst-defeat burst-win burst-bugs burst-pack burst-packold burst-mix burst-mixold validate-stress validate-fxpeak validate-extract lifecycle \
                    overhead burst-overhead burst-parallax overhead-nohud overheadbugs burst-dropper burst-perch burst-duct burst-dash \
-                   interactives burst-valve burst-lights burst-mk2 breakerrun ventpurge; do
+                   interactives burst-valve burst-lights burst-mk2 breakerrun ventpurge burst-firstmin; do
             mine "$d" || continue
             grep -q 'scene ready' "results/app-$d.log" || { fail "$d: no 'scene ready'"; }
             if grep -q 'ERROR' "results/app-$d.log"; then fail "$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; fi
@@ -936,6 +941,8 @@ jobs:
           need queen 'demo queen: overhead td=[0-9.]+ .* up [1-9]'
           need burst-mk2 'burst mk2 written \(24 frames\)'
           need burst-mk2 'demo combat: overhead td=[0-9.]+ sent runners [1-9]'
+          need burst-firstmin 'burst firstmin written \(24 frames\)'
+          need burst-firstmin 'demo firstmin: the classic mission from its drop'
           need combat 'oh vis: on \(pipelines ok'
           need hold 'oh vis: on \(pipelines ok'
           # native-vx-feel: the wave director staged its own beacon defence (no forced crowd) and the hive pushed
