@@ -4,13 +4,15 @@
 # deformed mesh, planted-foot drift, IK reach error — gates.py checks them).
 #   creatures/build.sh OUT_ROOT WORK_DIR          (tools/blender/build.sh calls it; BLENDER_PY = the venv's python)
 #   creatures/build.sh OUT_ROOT WORK_DIR runner   (one type)
+# (Stage 2 B2: the Threader's three boss files — threader_head / threader_seg / threader_node — are built the same way;
+# gates.py holds them to the boss gate, ihv.BOSSES)
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 PY=${BLENDER_PY:-$HERE/../venv/bin/python}
 OUT="$1/Creatures"
 WORK="$2"
 mkdir -p "$OUT" "$WORK" "$HERE/../reports"
-TYPES=${3:-"runner spitter brute boomer dropper"}
+TYPES=${3:-"runner spitter brute boomer dropper threader_head threader_seg threader_node"}
 for t in $TYPES; do
   if [ ! -f "$HERE/$t.py" ]; then continue; fi
   "$PY" "$HERE/build.py" "$t" "$OUT" "$WORK" > "$WORK/$t.log" 2>&1 || { tail -30 "$WORK/$t.log"; exit 1; }

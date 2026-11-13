@@ -99,6 +99,19 @@ assert VERTEX_DTYPE.itemsize == 20 and SKINNED_DTYPE.itemsize == 32
 LOD_TRIS = (3000, 450, 150)
 RIGID_FILE_BYTES = 384 * 1024    # native-vx-swarm-life: 300 → 384 KiB (per-bug clip variants, deaths by cause)
 SKINNED_TRIS = (8000, 10000)
+# Stage 2 B2 — the BOSS gate, raised deliberately for bosses only (tech.md §5.2 «the creature»: LOD0 3000 → about 8000,
+# the file 384 KiB → about 1 MB; LOD1 / LOD2 raised in the same ratio). A boss is listed in BOSSES with its files and how
+# many times each is drawn: gates.py holds each boss file to these LOD / file limits, the boss's files together to
+# BOSS_FILE_BYTES, and its whole body as drawn at LOD0 to its own triangle total. Every other creature keeps the budgets
+# above (and the bugs' 1.5 MB total, which boss files do not count against).
+BOSS_LOD_TRIS = (8000, 1200, 400)
+BOSS_FILE_BYTES = 1024 * 1024
+BOSSES = {
+    # the Threader (design §1.5): the head once, the segment 18 times along the body path, a lantern node 5 times;
+    # drawn at LOD0 the whole body ≤ 50k triangles (B5's frame estimate)
+    'threader': dict(files={'threader_head': 1, 'threader_seg': 18, 'threader_node': 5}, drawn_lod0=50000),
+}
+BOSS_FILES = {f for b in BOSSES.values() for f in b['files']}
 
 
 def _al(n):

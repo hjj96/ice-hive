@@ -6,7 +6,8 @@ name: native-ios
 #   missions' own gate: Breaker Run, Vent Purge), calib-bosses.txt / .jsonl (the boss missions' gate: the Manifold, the
 #   Threader), threader-trace.txt (one Threader fight's headless timeline), calib-drills.txt (mission module drills),
 #   build.log, release-check.txt, metrics.txt, fps.txt, hitches.txt, <demo>-<s>s.jpg (upright landscape: the app is
-#   landscape-only), burst-<name>.mp4, other-phones.txt, app-<demo>.log, app.log
+#   landscape-only), burst-<name>.mp4, other-phones.txt, app-<demo>.log, app.log, assets.txt (the asset pipeline's
+#   gates — the `assets` job, Stage 2 B2)
 # The simulator demos run in two parts at once (sim-smoke (a) and (b), each on its own runner and simulator; Stage 2 C1):
 # the report job merges both parts into that one result set, as one job wrote it before.
 # Stage 2 C2 «CI results diet» (the repo nears its size quota; a set was ~765 MB): every gate runs on the original PNG
@@ -1238,9 +1239,36 @@ jobs:
           path: results/
           retention-days: 7
 
+  # Stage 2 B2: the asset pipeline's gates on every push (tools/blender/gates.py, numpy only — no Blender): every shipped
+  # asset equals tools/blender/assets.md5 (the committed binaries are what the deterministic build wrote), the kit within
+  # its budgets with an AO bake made for its geometry, the textures, the creatures (the bugs' gate and the bosses' raised
+  # gate), the build reports, the new-assets total. About a minute on Linux: results/assets.txt, status.json "assets".
+  assets:
+    name: assets
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            ios-native/tools/blender
+            ios-native/App/Resources
+      - name: Asset gates
+        run: |
+          mkdir -p results
+          python3 -m venv /tmp/gates && /tmp/gates/bin/pip install -q numpy
+          set -o pipefail
+          /tmp/gates/bin/python ios-native/tools/blender/gates.py | tee results/assets.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: results-assets
+          path: results
+          retention-days: 7
+
   report:
     name: report
-    needs: [core-tests, build, sim-smoke]
+    needs: [core-tests, build, sim-smoke, assets]
     if: always()
     runs-on: ubuntu-latest
     # the ci-results tree grows with every run: fetching its tip and pushing ~150 MB took 7–10+ min
@@ -1344,6 +1372,7 @@ jobs:
           R_CORE: ${{ needs.core-tests.result }}
           R_BUILD: ${{ needs.build.result }}
           R_SMOKE: ${{ needs.sim-smoke.result }}
+          R_ASSETS: ${{ needs.assets.result }}
           XCODE: ${{ needs.build.outputs.xcode }}
           RUNNER_DESC: ${{ needs.build.outputs.runner }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -1360,6 +1389,7 @@ jobs:
                   "build": os.environ.get("R_BUILD") or "skipped",
                   "sim-smoke": os.environ.get("R_SMOKE") or "skipped",
                   "look-gate": os.environ.get("R_LOOK") or "skipped",
+                  "assets": os.environ.get("R_ASSETS") or "skipped",
               },
               "xcode": os.environ.get("XCODE", ""),
               "runner": os.environ.get("RUNNER_DESC", ""),

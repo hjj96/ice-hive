@@ -335,3 +335,9 @@ PIECES = {
     'oh_duct_mouth': (oh_duct_mouth, 0, 'none', 200),
     'oh_junction': (oh_junction, 0, 'none', 100),
 }
+
+# Stage 2 B2: the Manifold's pieces (the Threader's arena: trunks, the ring duct, the pump housing, the bridges) live in
+# kit/manifold.py on the same trim sheets; registered here so the build, the AO atlas and the gates see one kit
+import manifold  # noqa: E402
+
+PIECES.update(manifold.PIECES)

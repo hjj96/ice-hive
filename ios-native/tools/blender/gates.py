@@ -14,8 +14,13 @@ Gates (plan §2):
   textures   every .iht under App/Resources parses (level table, sizes, ASTC block rows); all textures ≤ 30 MB
   creatures  every *.ihv: LOD0 ≤ 3000, LOD1 ≤ 450, LOD2 ≤ 150 triangles; a rigid ship file ≤ 384 KiB, all ≤ 1.5 MB;
              skinned meshes 8–10k triangles, weights summing to 255
+  bosses     (Stage 2 B2, raised deliberately for bosses only — tech.md §5.2) the files of every boss in ihv.BOSSES:
+             LOD0 ≤ 8000, LOD1 ≤ 1200, LOD2 ≤ 400 triangles, each file ≤ 1 MiB and the boss's files together ≤ 1 MiB,
+             its whole body as drawn (each file × its count) ≤ the boss's LOD0 total (the Threader: 50k); every listed
+             file shipped; boss files do not count against the bugs' 1.5 MB
   reports    tools/blender/reports/*.json written by the creature / character builds:
-             rigid_vs_vat_m ≤ 0.001, foot_drift_m (per clip) ≤ 0.02, ik_err_m (per clip) ≤ 1e-4
+             rigid_vs_vat_m ≤ 0.001 (a boss part: 1 mm per metre of its rest radius — the 16-bit rest positions and
+             bone texture round a 2–3 m part by 1–2 mm), foot_drift_m (per clip) ≤ 0.02, ik_err_m (per clip) ≤ 1e-4
   budget     new pipeline assets (Kit, Creatures, Characters, Env, Look, Grade, VFX folders) ≤ 40 MB
 """
 import glob
@@ -153,8 +158,10 @@ def gate_textures():
 
 def gate_creatures():
     rigid_total = 0
+    boss = {}                                   # boss file stem → (bytes, LOD0 triangles)
     for p in sorted(glob.glob(os.path.join(RES, '**', '*.ihv'), recursive=True)):
         rel = os.path.relpath(p, RES)
+        stem = os.path.splitext(os.path.basename(p))[0]
         try:
             D = ihv.read(p)
         except AssertionError as e:
@@ -168,6 +175,15 @@ def gate_creatures():
             if np.any(w != 255):
                 fail(f'characters: {rel} {int(np.sum(w != 255))} vertices with weights not summing to 255')
             continue
+        if stem in ihv.BOSS_FILES:
+            # (Stage 2 B2) a boss part: the boss gate, its own byte budget, not the bugs' total
+            for k, L in enumerate(D['lods']):
+                if L['triangle_count'] > ihv.BOSS_LOD_TRIS[k]:
+                    fail(f'bosses: {rel} LOD{k} {L["triangle_count"]} triangles > {ihv.BOSS_LOD_TRIS[k]}')
+            if D['bytes'] > ihv.BOSS_FILE_BYTES:
+                fail(f'bosses: {rel} {D["bytes"]} bytes > {ihv.BOSS_FILE_BYTES}')
+            boss[stem] = (D['bytes'], D['lods'][0]['triangle_count'])
+            continue
         for k, L in enumerate(D['lods']):
             if L['triangle_count'] > ihv.LOD_TRIS[k]:
                 fail(f'creatures: {rel} LOD{k} {L["triangle_count"]} triangles > {ihv.LOD_TRIS[k]}')
@@ -178,6 +194,19 @@ def gate_creatures():
     if rigid_total > BUGS_MAX:
         fail(f'creatures: all rigid files {rigid_total} bytes > {BUGS_MAX}')
     notes.append(f'creatures: {rigid_total / 1024:.0f} KB of rigid files')
+    for name, B in sorted(ihv.BOSSES.items()):
+        missing = [f for f in B['files'] if f not in boss]
+        if missing:
+            fail(f'bosses: {name}: {", ".join(missing)} not shipped')
+            continue
+        size = sum(boss[f][0] for f in B['files'])
+        drawn = sum(boss[f][1] * n for f, n in B['files'].items())
+        if size > ihv.BOSS_FILE_BYTES:
+            fail(f'bosses: {name} files {size} bytes > {ihv.BOSS_FILE_BYTES}')
+        if drawn > B['drawn_lod0']:
+            fail(f'bosses: {name} drawn at LOD0 {drawn} triangles > {B["drawn_lod0"]}')
+        notes.append(f'bosses: {name} {size / 1024:.0f} KB in {len(B["files"])} files, '
+                     f'{drawn} triangles drawn at LOD0 (' + ' + '.join(f'{n} × {boss[f][1]}' for f, n in B['files'].items()) + ')')
 
 
 def gate_reports():
@@ -185,8 +214,14 @@ def gate_reports():
         rel = os.path.relpath(p, HERE)
         R = json.load(open(p))
         g = R.get('gates', {})
-        if 'rigid_vs_vat_m' in g and g['rigid_vs_vat_m'] > 0.001:
-            fail(f'reports: {rel} rigid vs VAT {g["rigid_vs_vat_m"] * 1000:.2f} mm > 1 mm')
+        lim = 0.001
+        stem = os.path.basename(p)[len('creature_'):-len('.json')] if os.path.basename(p).startswith('creature_') else ''
+        if stem in ihv.BOSS_FILES:
+            # (Stage 2 B2) a boss part: 1 mm per metre of its rest radius (half-float rest positions and bone texture)
+            f = os.path.join(RES, 'Creatures', f'{stem}.ihv')
+            lim = 0.001 * max(1.0, ihv.read(f)['rest_radius']) if os.path.exists(f) else 0.001
+        if 'rigid_vs_vat_m' in g and g['rigid_vs_vat_m'] > lim:
+            fail(f'reports: {rel} rigid vs VAT {g["rigid_vs_vat_m"] * 1000:.2f} mm > {lim * 1000:.2f} mm')
         for clip, v in (g.get('foot_drift_m') or {}).items():
             if v > 0.02:
                 fail(f'reports: {rel} foot drift in {clip} {v * 100:.1f} cm > 2 cm per stride')
