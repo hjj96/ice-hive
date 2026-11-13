@@ -193,7 +193,10 @@ def make_mesh(D, rig, lod, sockets):
     me.calc_loop_triangles()
     nt = len(me.loop_triangles)
     log(f'LOD{lod}: {len(parts)} parts, {len(me.vertices)} verts ({len(S)} socket points), {nt} tris, {int(sharp.sum())} hard edges')
-    assert nt <= ihv.LOD_TRIS[lod], f'LOD{lod} {nt} triangles > budget {ihv.LOD_TRIS[lod]}'
+    # (Stage 2 B2: a boss part builds against the boss gate, ihv.BOSS_LOD_TRIS, and its own target inside it; every bug
+    # against ihv.LOD_TRIS as before)
+    budget = getattr(D, 'TRI_TARGET', getattr(D, 'LOD_TRIS', ihv.LOD_TRIS))
+    assert nt <= budget[lod], f'LOD{lod} {nt} triangles > budget {budget[lod]}'
     return obj, [(s[0], s[1], s[3]) for s in sockets], nface_v
 
 
@@ -458,7 +461,11 @@ def bake_and_export(D, rig, lods, out_dir, work_dir, ik_err):
 def foot_slide(D, DR, vatp0):
     """Lowest rest vertex of each tarsus = contact point. Two consecutive loops are laid out in world space
     (root motion = stride per loop); every contiguous run of frames with the claw within 1.2 cm of the ground is
-    one stance, and a planted foot should not move during it: report the worst horizontal drift (m)."""
+    one stance, and a planted foot should not move during it: report the worst horizontal drift (m).
+    (Stage 2 B2: a creature whose feet stand elsewhere than the deck under its origin says where per clip —
+    D.CONTACT[clip] = ('ground', y): a deck y m under the origin; ('pipe', r): the surface of a pipe of radius r along the
+    body whose top is the origin (the Threader's claws hooked under a trunk) — and its drift is measured in 3-D; every
+    other creature: the deck at 0, byte for byte as before.)"""
     L = DR['lods'][0]
     bones = [b[0] for b in DR['bones']]
     bix = L['vertices']['material'][:, 2].astype(int)
@@ -467,6 +474,7 @@ def foot_slide(D, DR, vatp0):
         if not c['locomotion']:
             continue
         worst, n = 0.0, c['frames']
+        contact = getattr(D, 'CONTACT', {}).get(c['name'], ('ground', 0.0))
         for lg in D.LEGS:
             ids = np.nonzero(bix == bones.index(f'{lg.name}.tarsus'))[0]
             ids = ids[ids < L['draw_vertex_count']]
@@ -477,7 +485,13 @@ def foot_slide(D, DR, vatp0):
                 p[2] += c['stride'] * f / n
                 track.append(p)
             track = np.array(track)
-            planted = track[:, 1] < 0.012
+            if contact[0] == 'pipe':
+                r = contact[1]
+                planted = np.hypot(track[:, 0], track[:, 1] + (r - 0.005)) < r + 0.012
+                cols = [0, 1, 2]
+            else:
+                planted = track[:, 1] < contact[1] + 0.012
+                cols = [0, 2]
             f = 0
             while f < 2 * n:
                 if planted[f]:
@@ -485,7 +499,7 @@ def foot_slide(D, DR, vatp0):
                     while g < 2 * n and planted[g]:
                         g += 1
                     if f > 0 and g < 2 * n and g - f >= 2:
-                        seg = track[f:g][:, [0, 2]]
+                        seg = track[f:g][:, cols]
                         worst = max(worst, float(np.linalg.norm(seg - seg[0], axis=1).max()))
                     f = g
                 else:

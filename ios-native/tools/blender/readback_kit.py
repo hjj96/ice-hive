@@ -254,4 +254,5 @@ def main():
     log(f'rendered {p} ({res}², {samples} samples) in {time.time() - t:.1f}s')
 
 
-main()
+if __name__ == '__main__':
+    main()
