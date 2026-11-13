@@ -132,6 +132,20 @@ import IceHiveCore
 //    -demo firstmin the classic mission from its drop as it plays — the director on, the autopilot, nothing staged,
 //                   nothing spawned (the squad invulnerable, the level-up cards picked for it): its first half-minute of
 //                   banners, first-sighting tips, barks and the objective marker (the CI burst burst-firstmin, HUD on)
+//  Stage 2 B5 «The Threader in the game»:
+//    -demo manifold the Manifold mission (its own station: the island and its pump housing, the catwalk ring, the trunks'
+//                   «#» at 5 m, the ring duct at 8 m) at its BOSS step: 0.3 s after «scene ready» the two pumps are thrown
+//                   and the squad is put on the island — the Threader's warning 3 s later, out of the pipes 2.5 s after
+//                   that; the player stands still (the lure hunts a marine that keeps still), the bots fight, the squad is
+//                   invulnerable. Time almost stops (×0.02) at the moment `-mfShot` names, for the screenshot (at 26 s at the
+//                   latest):
+//                     lock (default)  0.6 s after the lure locks: the hot white beam, the closing ring, frost falling
+//                     down            0.5 s into the head's punish window: the head on the deck, its crest up, the membrane lit
+//                     coil            P2 from its arrival (a staged row: P2 below 101 %): 2.3 s into its coil, the ring closing
+//                     pull            P3 from its arrival (P2 and P3 below 101 %): the ripped trunk 0.22 s before it lands
+//                   `-mfFree`: no freeze (the CI bursts). A burst with `-burst <name> demo <count> <every>` starts at the
+//                   staged moment's beginning — the lock (lock, down), the coil, the rip — BurstCapture.trigger.
+//                   `demo manifold: …` once a second (mode, phase, health, the lure, the fallen trunk).
 //  R0 (film fixes):
 //    -demo win      like hold; 1 s after «scene ready» the lift leaves and the ride plays out to the win (4.6 s): the
 //                   report comes up at once and the world keeps animating under it (the lift eases to a stop with the
@@ -184,7 +198,7 @@ final class DemoScript {
         case "beacon": return DemoScript(name: d, options: options, bugs: options.bugs)
         case "title", "calm", "probe", "hold", "holdhint", "extract", "queen", "queenlock", "coach", "pressure", "report", "levelup", "pause", "end",
              "swarmshot", "layout", "bugsheet", "punchin", "extract-cine", "waves", "swarmpack", "swarmmix", "defeat", "overhead", "win",
-             "overheadbugs", "interactives", "breakerrun", "ventpurge", "firstmin":
+             "overheadbugs", "interactives", "breakerrun", "ventpurge", "firstmin", "manifold":
             return DemoScript(name: d, options: options)
         case "stress1400": return DemoScript(name: d, options: options, bugs: options.bugs ?? 1400)
         default:
@@ -207,7 +221,35 @@ final class DemoScript {
         switch name {
         case "breakerrun": return .breakerRun
         case "ventpurge": return .ventPurge
+        case "manifold": return DemoScript.manifold(shot: mfShot)
         default: return nil
+        }
+    }
+
+    /// Stage 2 B5: the manifold demo's moment (`-mfShot lock|down|coil|pull`) and `-mfFree` (no freeze: the bursts).
+    private var mfShot: String {
+        let u = options.unknown
+        guard let i = u.firstIndex(of: "-mfShot"), i + 1 < u.count else { return "lock" }
+        return u[i + 1]
+    }
+    private var mfFree: Bool { options.unknown.contains("-mfFree") }
+    private var mfStaged = false, mfFrozen = false, mfTriggered = false
+    private var mfLog: Double = 0
+
+    /// The Manifold for the demo: the mission as it is, or (coil / pull) its Threader in P2 — P2 and P3 — from its arrival
+    /// (a staged row on every tier: the Veteran row with those phases' thresholds above 100 %).
+    static func manifold(shot: String) -> MissionTemplate {
+        guard shot == "coil" || shot == "pull" else { return .manifold }
+        var spec = Difficulty.veteran.threader
+        if spec.phases.count > 1 { spec.phases[1].below = 1.01 }
+        if shot == "pull" && spec.phases.count > 2 { spec.phases[2].below = 1.01 }
+        return MissionTemplate(id: "manifold", name: .missionManifold, station: ManifoldStation()) { lv in
+            var p = Manifold.plan(lv)
+            p.steps = p.steps.map { st in
+                if case .boss(var b) = st { b.spec = spec; return .boss(b) }
+                return st
+            }
+            return p
         }
     }
 
@@ -370,6 +412,14 @@ final class DemoScript {
             AppLog.info("demo ventpurge: \(game.mission.id), \(game.switches.count) seals: "
                         + game.switches.map { $0.site.duct >= 0 ? "duct \($0.site.duct)" : "vent \($0.site.vent)" }.joined(separator: ", ")
                         + "; squad in the seal ring under duct 1")
+        case "manifold":
+            // B5: for the lure's lock the player keeps still (the lure hunts a marine that stands still), the bots fight; in P2 /
+            // P3 the player plays (the autopilot: out of the coil, off the lanes); the BOSS step is staged 0.3 s after «scene
+            // ready» (frame), so the Threader's arrival lands in the measured window
+            game.autopilot = mfShot == "coil" || mfShot == "pull"
+            target = 0
+            AppLog.info("demo manifold: shot \(mfShot)\(mfFree ? " free" : ""), \(game.mission.id) at stage \(game.stage.rawValue), "
+                        + "\(game.level.layout.manifold?.trunks.count ?? 0) trunks, tier=\(game.difficulty.id)")
         case "firstmin":
             // H1: the mission as it plays (the scene's defaults: autopilot, invulnerable squad, cards picked); no crowd
             target = 0
@@ -424,6 +474,7 @@ final class DemoScript {
         if name == "overheadbugs" { overheadBugs(game, dt); return }
         if name == "interactives" { interactives(game, dt); return }
         if name == "breakerrun" { breakerRun(game, dt); return }
+        if name == "manifold" { manifold(game); return }
         if name == "ventpurge" { ventPurge(game, dt); return }
         if !startsMission { return }
         t += dt
@@ -977,6 +1028,59 @@ final class DemoScript {
     // ---------------------------------------------------------------- WP7 cinematics
     /// punchin: the beacon comes on 1.5 s after «scene ready» (the punch-in plays out inside the measured window), at
     /// 4.6 s the shot plays again and holds 0.95 s in (past the dilation, at its peak), the world frozen ×0.02 from 5.3 s.
+    /// Stage 2 B5, the manifold demo: the BOSS step staged at 0.3 s, then time almost stopped at `-mfShot`'s moment (the sim
+    /// clock decides — the moment, not the wall); the burst armed at the moment's start.
+    private func manifold(_ game: Game) {
+        if !mfStaged && sinceReady >= 0.3 {
+            mfStaged = true
+            var guardN = 0
+            while game.stage == .switches && guardN < 4 { game.debugSkip(); guardN += 1 }
+            if game.stage == .boss { game.debugSkip() }
+            AppLog.info(String(format: "demo manifold: staged the BOSS step td=%.2f t=%.1f stage %d", sinceReady, game.time, game.stage.rawValue))
+        }
+        let alive = game.boss.alive && game.boss.kind == .threader
+        let v = game.threader
+        let wind = game.boss.phase >= 2 ? THREADER_STRIKE_WIND_LOW : THREADER_STRIKE_WIND
+        // the burst from the moment's start
+        if !mfTriggered && alive {
+            let start: Bool
+            switch mfShot {
+            case "coil": start = v.mode == .coil
+            case "pull": start = v.pullTrunk >= 0
+            default: start = v.locked >= 0 || v.mode == .strike
+            }
+            if start {
+                mfTriggered = true
+                BurstCapture.shared.trigger(sinceReady: sinceReady)
+                AppLog.info(String(format: "demo manifold: %@ starts td=%.2f t=%.1f", mfShot, sinceReady, game.time))
+            }
+        }
+        if !mfFrozen && !mfFree {
+            var now = false
+            if alive {
+                switch mfShot {
+                case "down": now = v.mode == .down && v.downT <= THREADER_DOWN - 0.5
+                case "coil": now = v.mode == .coil && v.coilT >= 0 && v.coilT <= 2.6
+                case "pull": now = v.pullT >= 0 && v.pullT <= 0.22
+                default: now = v.mode == .strike && v.strikeT >= 0 && wind - v.strikeT >= 0.6
+                }
+            }
+            if now || sinceReady >= 26 {
+                mfFrozen = true
+                freeze = 0.02
+                AppLog.info(String(format: "demo manifold: time almost stopped td=%.2f t=%.1f at %@ (mode %@, phase %d, hp %.0f%%)", sinceReady, game.time,
+                                   now ? mfShot : "the latest", "\(v.mode)", game.boss.phase + 1, game.bossHpFraction * 100))
+            }
+        }
+        if AppLog.diagnostics && sinceReady - mfLog >= 1 {
+            mfLog = sinceReady
+            AppLog.info(String(format: "demo manifold: td=%.1f t=%.1f ", sinceReady, game.time)
+                        + (alive ? "mode=\(v.mode) phase=\(game.boss.phase + 1)" + String(format: " hp=%.0f%%", game.bossHpFraction * 100)
+                            + " lure=" + (v.lure ? (v.locked >= 0 ? "locked" : "on") : "off") + " fallen=\(v.fallenTrunk)"
+                           : "boss \(game.boss.spawned ? "dead" : "not yet")") + " stage=\(game.stage.rawValue)")
+        }
+    }
+
     private func punchIn(_ game: Game) {
         let c = Cinematics.shared
         switch cineStep {

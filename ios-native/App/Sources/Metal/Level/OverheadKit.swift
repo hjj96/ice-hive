@@ -44,16 +44,16 @@ final class OverheadBuild {
 
     let level: Level
     let layout: OverheadLayout
-    private let pieces: [String: KitPiece]
-    /// Class → cell key → mesh.
-    private(set) var cells: [[Int: KitMesh]] = [[:], [:]]
+    let pieces: [String: KitPiece]
+    /// Class → cell key → mesh (Stage 2 B5: the Manifold's trunks take classes 2…9 — ManifoldBuild).
+    private(set) var cells = [[Int: KitMesh]](repeating: [:], count: ManifoldBuild.classes)
     /// Swaying cables: edge index → (cable slot 0…63, unit plan perpendicular toward the void).
     private(set) var cables: [Int: (slot: Int, perp: F3)] = [:]
     /// Grid lights the overhead brings (duct-mouth glow): position, linear colour.
-    private(set) var lights: [(F3, F3)] = []
+    var lights: [(F3, F3)] = []
     /// Built: metres per kind, supports, pieces placed, truss girders, cantilever arms.
-    private(set) var metres = [Float](repeating: 0, count: RouteKind.allCases.count)
-    private(set) var supports = 0, piecesPlaced = 0, trussGirders = 0, arms = 0
+    var metres = [Float](repeating: 0, count: RouteKind.allCases.count)
+    var supports = 0, piecesPlaced = 0, trussGirders = 0, arms = 0
 
     // palette (sRGB): dark kit steel — the darker grade of vs_overhead takes it further down
     enum Col {
@@ -76,7 +76,7 @@ final class OverheadBuild {
         return j * n + i
     }
 
-    private func mesh(_ cls: Int, _ x: Float, _ z: Float) -> KitMesh {
+    func mesh(_ cls: Int, _ x: Float, _ z: Float) -> KitMesh {
         let k = OverheadBuild.key(x, z)
         if let m = cells[cls][k] { return m }
         let m = KitMesh(reserve: 2048)
@@ -148,6 +148,8 @@ final class OverheadBuild {
     // ---------------------------------------------------------------- the build
     func build() {
         if layout.isEmpty { return }
+        // (Stage 2 B5: the Manifold's routes are its trunks, ring duct and mouths — B2's kit in B4's layout)
+        if let A = level.layout.manifold { ManifoldBuild(self, A).build(); return }
         var cableSlot = 0
         // supports: always under risers, deck posts, arm bases, gantries / duct mouths over the void; then junctions and
         // spans, each at least `gap` m from the ones already standing

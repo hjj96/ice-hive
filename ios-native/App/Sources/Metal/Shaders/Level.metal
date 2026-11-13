@@ -504,7 +504,8 @@ vertex QuadOut vs_overhead_vis_flat(uint vid [[vertex_id]],
     float4 v = V[vid];
     QuadOut o;
     o.position = F.viewProj * float4(v.xyz, 1.0);
-    o.color = v.w < 1.5 ? float4(1.0, 0.0, 0.0, 1.0) : float4(0.0, (v.w - 1.0) * 0.2, 0.0, 1.0);
+    // (Stage 2 B5: A stays 0 — a chain boss's body writes its cutaway alpha there, WorldBoss.encodeVis)
+    o.color = v.w < 1.5 ? float4(1.0, 0.0, 0.0, 0.0) : float4(0.0, (v.w - 1.0) * 0.2, 0.0, 0.0);
     o.uv = float2(0.0);
     o.params = float4(0.0);
     o.depth = 0.0;

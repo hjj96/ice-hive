@@ -1063,10 +1063,21 @@ final class GameScene: SKScene {
                 if diag { AppLog.info(String(format: "bugs: spitter perched at (%.1f, %.1f, %.1f)", p.x, p.y, p.z)) }
             case .acidFromPerch:
                 noteFirst(3, "acid")
+            // Stage 2 B5: the Threader — its head's slam shakes the camera (the core shakes for its arrival, the crush and
+            // the crash); its moments in the log (CI's manifold demos grep «boss cue …»)
+            case .bossCue(let kind, let cue, let pos, let value):
+                if cue == .strikeLand { cameraCtl.addShake(0.32) }
+                if diag { AppLog.info(String(format: "boss cue %@ %@ at (%.1f, %.1f) value %d t=%.1f", kind.rawValue, "\(cue)", pos.x, pos.y, value, g.time)) }
+            case .bossWindow(let kind, let part, _, let time):
+                if diag { AppLog.info(String(format: "boss window %@ part %d %.1f s t=%.1f", kind.rawValue, part, time, g.time)) }
+            case .bossPartPopped(let kind, let part, _):
+                if diag { AppLog.info(String(format: "boss popped %@ part %d t=%.1f", kind.rawValue, part, g.time)) }
             default:
                 break
             }
         }
+        // (Stage 2 B5: what the boss asked to be heard this frame — its scrape, moan, scream, slam; up there through the attic)
+        for (snd, p, up, gain) in r.boss.takeSounds() { audio?.playBoss(snd, pos: p, listener: lis, attic: up, gain: gain) }
         // Stage 1 R4: what the overhead asked to be heard this frame (duct rattles, loaded cables, a Dropper's ticks) — the attic
         for (id, p, gain) in r.overhead.takeSounds() { audio?.playOverhead(id, pos: p, listener: lis, gain: gain) }
     }

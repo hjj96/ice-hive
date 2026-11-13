@@ -431,6 +431,8 @@ final class WorldSwarm {
         var i = 0
         while i < n {
             defer { i += 1 }
+            // (Stage 2 B5: a chain boss's parts are WorldBoss's — the Threader's head, segments and nodes; B1's handoff)
+            if S.bossPart(i) >= 0 { continue }
             let t = Int(min(UInt8(WorldSwarm.types - 1), types[i]))
             if dead[i] != 0 {
                 if deadList.count < 64 {

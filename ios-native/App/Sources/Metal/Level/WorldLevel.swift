@@ -980,6 +980,8 @@ final class WorldLevel {
         var rng = StationRNG(seed: 57)
         var driftRng = StationRNG(seed: 91)    // own stream: the crates' colours and yaws stay as they were
         for c in level.layout.crates {
+            // (Stage 2 B5: the Manifold's pump housing is B2's pump, not a crate — ManifoldDecor)
+            if let A = level.layout.manifold, ManifoldDecor.isPump(c, A) { continue }
             let cx = c.x0 + Float(c.w) / 2, cz = c.z0 + Float(c.d) / 2
             let y = level.groundY(cx, cz)
             let col = Col.crate[Int(rng.next() * 3) % 3]
@@ -994,6 +996,7 @@ final class WorldLevel {
             if let p = piece(name) { cell(cx, cz).place(p, at: F3(cx, y, cz), yaw: rot + yaw, scaleY: c.h, paint: col, caster: true) }
             crateDrift(c, &driftRng)
         }
+        if let A = level.layout.manifold { ManifoldDecor.build(self, A) }
         if let p = piece("pillar") {
             for q in level.layout.pillars {
                 let y = level.groundY(q.x, q.y)

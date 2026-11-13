@@ -65,7 +65,7 @@ final class MetalWorld: HUDProjection {
     /// Every pipeline of the world frame, compiled together behind the loading cover.
     static var pipelineSpecs: [PipelineSpec] {
         MetalRenderer.pipelines + WorldLevel.pipelines + WorldSwarm.pipelines + MetalEffects.pipelines + Atmosphere.pipelines
-            + WorldSquad.pipelines + WorldOverhead.pipelines
+            + WorldSquad.pipelines + WorldOverhead.pipelines + WorldBoss.pipelines
     }
 
     let level: Level
@@ -75,6 +75,8 @@ final class MetalWorld: HUDProjection {
     let fx: MetalEffects
     let squad: WorldSquad
     let swarm: WorldSwarm
+    /// Stage 2 B5: a chain boss (the Threader) drawn from its state (nothing while none is there).
+    let boss: WorldBoss
     let corpses: Corpses
     let glyphs: GroundGlyphs
     let levelDraw: WorldLevel
@@ -144,6 +146,7 @@ final class MetalWorld: HUDProjection {
         fx = MetalEffects(level: level)
         squad = WorldSquad(level: level, store: store)
         swarm = WorldSwarm(level: level)
+        boss = WorldBoss(level: level)
         corpses = Corpses(level: level, store: store)
         glyphs = GroundGlyphs(level: level)
         levelDraw = WorldLevel(level: level, store: store)
@@ -163,6 +166,12 @@ final class MetalWorld: HUDProjection {
         swarm.overhead = overhead
         squad.attach(renderer)
         swarm.attach(renderer)
+        // (Stage 2 B5: the boss after the swarm — its trunks are the overhead's, its rounds' sparks the effects', its body in
+        // the squad-visibility metric)
+        boss.attach(renderer)
+        boss.overhead = overhead
+        fx.boss = boss
+        overhead.visibility?.boss = boss
         fx.attach(renderer)
         glyphs.attach(renderer)
         atmosphere.attach(renderer)
@@ -222,6 +231,7 @@ final class MetalWorld: HUDProjection {
         // the hit bug recoils along the actual shot (WorldSwarm.noteHit), not away from the nearest marine
         if case .bulletHit(let pos, let dir, _) = e { swarm.noteHit(pos, dir) }
         fx.handle(e, game: game)
+        boss.handle(e, game: game, fx: fx)
         overhead.handle(e, fx: fx)
         // flash adaptation: a big blast dips the exposure for a moment (scripted; no auto-exposure)
         if case .explosion(let kind, _, _) = e, kind.isBig { renderer.post.dip(ev: -0.35, duration: 0.45) }
@@ -296,6 +306,8 @@ final class MetalWorld: HUDProjection {
         timer.mark()
         fx.beginFrame()
         fx.setCameraRight(camera.right)
+        // (Stage 2 B5: the boss's parts, its lure — the fifth volume cone — and its telegraphs' extras, before the effects run)
+        boss.build(game: game, alpha: alpha, time: time, dt: dt, camera: camera, poses: squad.poses, fx: fx, cones: atmosphere.cones)
         fx.update(game: game, dt: dt, time: time, poses: squad.poses, focus: camera.focus, liftRise: rise)
         corpses.liftRise(rise)
         // (R6: the lamps' light, the props' parts and steam, their use rings — before the glyphs take the rings)
@@ -372,6 +384,11 @@ extension MetalWorld {
                     + " 120hz=" + (q.allows120Hz(now: now) ? "ok" : "no") + " bugcap=\(q.deviceBugCap)"
                     + String(format: " ev=%.2f", renderer.post.exposureEV))
     }
+}
+
+extension MetalWorld: BossKeepSource {
+    /// Stage 2 B5: the chain boss's head, nodes and some segments (HUD.keep).
+    var bossSpheres: [SIMD4<Float>] { boss.keepSpheres }
 }
 
 @inline(__always) private func maxAbs(_ v: F3) -> Float { max(abs(v.x), max(abs(v.y), abs(v.z))) }

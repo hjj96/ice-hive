@@ -309,6 +309,68 @@ fragment float4 fs_chitin_near(CreatureOut in [[stage_in]],
     return chitin(in, SP, LIGHTING_ARGS);
 }
 
+// ================================================================ the boss's body near a marine (Stage 2 B5, WorldBoss)
+/// The overhead's cutaway rule for a chain boss over the deck (WorldBoss.Cut — WorldOverhead's points and radii): the
+/// marines' chest points on screen and the view depth in front of which the body fades.
+struct SwarmCut {
+    float4 view;      // x = 2 / viewport width (px), y = 2 / viewport height (px), z = aspect, w = ghost floor (0…1)
+    float4 cut;       // x near-eye fade start (m), y its end (m), z points in use, w depth margin (m)
+    float4 pts[8];    // xy on screen (half screen heights, x × aspect), z view depth (m), w weight
+    float4 rad[8];    // x radius of the full ghost, y radius where the fade ends (half screen heights)
+};
+
+/// The cut alpha (1 solid) at window position `px`, view depth `depth` (Level.metal overheadCutAlpha's rule).
+static float swarmCutAlpha(constant SwarmCut& C, float2 px, float depth) {
+    float2 sp = float2((px.x * C.view.x - 1.0) * C.view.z, 1.0 - px.y * C.view.y);
+    float cut = 0.0;
+    int n = int(C.cut.z);
+    for (int k = 0; k < 8; k++) {
+        if (k >= n) break;
+        float4 q = C.pts[k];
+        float2 r = C.rad[k].xy;
+        float c = 1.0 - smoothstep(r.x, r.y, distance(sp, q.xy));
+        c *= q.w * saturate((q.z - depth - C.cut.w) * 1.5);
+        cut = max(cut, c);
+    }
+    float a = 1.0 - (1.0 - C.view.w) * cut;
+    return a * smoothstep(C.cut.x, C.cut.y, depth);
+}
+
+struct ChitinCutOut {
+    float4 color [[color(0)]];
+    uint mask [[sample_mask]];
+};
+
+/// The boss's body where it stands in front of a marine: the chitin with the cutaway written as MSAA sample coverage (the
+/// overhead's 4×4 Bayer-dithered alpha-to-coverage: a ≈ 25 % ghost after the resolve, not a screen door).
+fragment ChitinCutOut fs_chitin_cut(CreatureOut in [[stage_in]],
+                                    constant Frame& F [[buffer(1)]],
+                                    constant SwarmParams& SP [[buffer(3)]],
+                                    constant SwarmCut& C [[buffer(6)]],
+                                    LIGHTING_PARAMS) {
+    ChitinCutOut o;
+    o.color = float4(0.0);
+    o.mask = 0u;
+    float a = swarmCutAlpha(C, in.position.xy, in.depth);
+    uint2 q = uint2(in.position.xy) & 3u;
+    float b = (kNearDither[q.y * 4u + q.x] + 0.5) / 16.0;
+    int n = int(floor(a * 4.0 + b));
+    if (n <= 0) {
+        discard_fragment();
+        return o;
+    }
+    uint rot = (q.x + q.y * 2u + 1u) & 3u;
+    uint m = (1u << uint(min(n, 4))) - 1u;
+    o.mask = ((m << rot) | (m >> (4u - rot))) & 15u;
+    o.color = chitin(in, SP, LIGHTING_ARGS);
+    return o;
+}
+
+/// The squad-visibility mask (OverheadVisibility, `-ohVis`): the boss's body as its cutaway alpha in A (max-blended).
+fragment float4 fs_creature_vis(CreatureOut in [[stage_in]], constant SwarmCut& C [[buffer(6)]]) {
+    return float4(0.0, 0.0, 0.0, swarmCutAlpha(C, in.position.xy, in.depth));
+}
+
 // ================================================================ glints
 struct GlintOut {
     float4 position [[position]];

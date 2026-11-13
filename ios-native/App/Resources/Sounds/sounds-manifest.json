@@ -484,5 +484,68 @@
       "duration": 2,
       "level": "minigun barrel whine: gain spin² * 0.05 * near (near = clamp(1.1 - d / 30, 0.1, 1) * (player 1 / bot 0.55)); rendered at full spin (330 / 165 Hz): playback rate = (70 + 260 * spin) / 330, smoothed 0.1 s; baseGain is for spin = 1"
     }
-  }
+  },
+  "boss": {
+    "scrape": {
+      "files": [
+        "threader_scrape.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.3,
+      "duration": 1.25,
+      "attenuated": true,
+      "minInterval": 0.35
+    },
+    "moan": {
+      "files": [
+        "threader_moan.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.42,
+      "duration": 2.7,
+      "attenuated": true,
+      "minInterval": 1.2
+    },
+    "scream": {
+      "files": [
+        "threader_scream.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.36,
+      "duration": 1.45,
+      "attenuated": true,
+      "minInterval": 0.6
+    },
+    "slam": {
+      "files": [
+        "threader_slam.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.55,
+      "duration": 1.15,
+      "attenuated": true,
+      "minInterval": 0.25
+    },
+    "creak": {
+      "files": [
+        "threader_creak.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.32,
+      "duration": 1.6,
+      "attenuated": true,
+      "minInterval": 0.8
+    },
+    "hiss": {
+      "files": [
+        "threader_hiss.wav"
+      ],
+      "loop": false,
+      "baseGain": 0.22,
+      "duration": 1.05,
+      "attenuated": true,
+      "minInterval": 0.3
+    }
+  },
+  "bossNote": "Stage 2 B5: the Threader's sounds (tools/audio/make_boss_sounds.py, numpy, fixed seeds): AudioEngine.playBoss — distance attenuation over 48 m (the boss is 30 m long), through the attic voice (low-pass + reverb) when it is up on the trunks"
 }

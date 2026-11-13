@@ -191,7 +191,7 @@ final class WorldOverhead {
         lights = b.lights
         var verts: [KitVertex] = []
         var idx: [UInt32] = []
-        for cls in 0..<2 {
+        for cls in 0..<b.cells.count {
             for key in b.cells[cls].keys.sorted() {
                 let m = b.cells[cls][key]!
                 guard !m.isEmpty else { continue }
@@ -282,6 +282,43 @@ final class WorldOverhead {
         points = n
         block[Block.cut] = F4(WorldOverhead.eyeFade.0, WorldOverhead.eyeFade.1, Float(n), 0.3)
         sway(game: game, dt: dt)
+        trunkSway()
+    }
+
+    // ---------------------------------------------------------------- Stage 2 B5: the Manifold's trunks
+    /// Per trunk: the shake of its pipe while the Threader rips it (m), its fall (−1 up, 0…1 falling — the fallen twin drawn
+    /// lifted by 4.55 × (1 − fall)² —, 1 lying on the deck), the clock for the shake.
+    private var trunkShake = [Float](repeating: 0, count: 4), trunkFall = [Float](repeating: -1, count: 4)
+    private var trunkClock: Float = 0
+
+    /// WorldBoss, every frame on the Manifold: trunk `k`'s state (B4's `pullTrunk` / `pullT` / `fallenTrunk`).
+    func setTrunk(_ k: Int, shake: Float, fall: Float, time: Float) {
+        guard k >= 0 && k < trunkShake.count else { return }
+        trunkShake[k] = shake
+        trunkFall[k] = fall
+        trunkClock = time
+    }
+
+    /// Chunk class `cls` of the Manifold's trunks is drawn this frame: the up trunk until it falls, the fallen one from then.
+    private func trunkClassShown(_ cls: Int) -> Bool {
+        if cls < ManifoldBuild.fallenClass {
+            let k = cls - ManifoldBuild.upClass
+            return k < 0 || k >= trunkFall.count || trunkFall[k] < 0
+        }
+        let k = cls - ManifoldBuild.fallenClass
+        return k >= 0 && k < trunkFall.count && trunkFall[k] >= 0
+    }
+
+    /// The trunks' sway slots (ManifoldBuild.shakeSlot / fallSlot): the ripping trunk's pipe shivers, the fallen twin drops.
+    private func trunkSway() {
+        guard level.layout.manifold != nil else { return }
+        for k in 0..<trunkShake.count {
+            let a = trunkShake[k], t = trunkClock * 47 + Float(k) * 1.7
+            block[Block.sway + ManifoldBuild.shakeSlot + k] = F4(a * sinf(t), a * 0.6 * sinf(t * 1.31 + 0.5), a * cosf(t * 1.13), 0)
+            let f = trunkFall[k]
+            let lift: Float = f >= 0 && f < 1 ? (Manifold.trunkY - ManifoldBuild.fallenAxis) * (1 - f) * (1 - f) : 0
+            block[Block.sway + ManifoldBuild.fallSlot + k] = F4(0, lift, 0, 0)
+        }
     }
 
     /// Each cable's displacement: a slow swing (≈ 0.6–0.9 Hz) whose amplitude grows with the bugs on it, and a bow under
@@ -329,6 +366,8 @@ final class WorldOverhead {
         nearChunks = 0
         for (k, c) in chunks.enumerated() {
             if c.cls == 1 && !truss { continue }
+            // (Stage 2 B5: the Manifold's trunks — the up one hidden once it falls, its fallen twin only then)
+            if c.cls >= ManifoldBuild.upClass && !trunkClassShown(c.cls) { continue }
             if !WorldLevel.visible(planes, c.lo, c.hi) { continue }
             visibleChunks += 1
             if near(c, camera) { kinds[k] = 2; nearChunks += 1 } else { kinds[k] = 1 }
@@ -339,7 +378,10 @@ final class WorldOverhead {
         }
         if high, let p = playerAt {
             var ck = [UInt8](repeating: 0, count: chunks.count)
-            for (k, c) in chunks.enumerated() where c.cls == 0 {
+            for (k, c) in chunks.enumerated() {
+                // (a hidden trunk of the Manifold breaks a run: never bridged into the flashlight's casters)
+                if c.cls >= ManifoldBuild.upClass && !trunkClassShown(c.cls) { ck[k] = 2; continue }
+                guard c.cls == 0 || (c.cls >= ManifoldBuild.upClass && c.cls < ManifoldBuild.fallenClass) else { continue }
                 let dx = max(c.lo.x - p.x, 0, p.x - c.hi.x), dz = max(c.lo.z - p.z, 0, p.z - c.hi.z)
                 if dx * dx + dz * dz < 22 * 22 { ck[k] = 1 }
             }

@@ -71,7 +71,9 @@ final class WorldProps {
         let P = L.level.layout.props
         if P.isEmpty { return }
         var H = Heads()
-        for v in P.valves { valve(L, v, &H) }
+        // (Stage 2 B5: the Manifold's valves ride its 0.45 m trunks — ManifoldBuild draws them in their trunk's chunk class, so
+        // the trunk the Threader rips down takes its valve with it; their lamp is ThreaderLook's)
+        if L.level.layout.manifold == nil { for v in P.valves { valve(L, v, &H) } }
         for c in P.circuits { breaker(L, c, &H) }
         for l in P.lockers { locker(L, l, &H) }
         L.propHeads = H
@@ -355,8 +357,10 @@ final class WorldProps {
         var n = F3(foot.x - s.x, 0, foot.z - s.z)
         let nl = hypotf(n.x, n.z)
         n = nl > 1e-3 ? n / nl : F3(-u.z, 0, u.x)
-        let ys = s.y - 0.32
-        let off = F3(s.x - foot.x, 0, s.z - foot.z) + n * 0.22
+        // (Stage 2 B5: on the Manifold the steam line hangs right under the 0.9 m trunk — ManifoldBuild.valve)
+        let onTrunk = level.layout.manifold != nil
+        let ys = onTrunk ? s.y - 2 * ManifoldBuild.trunkR - 0.1 : s.y - 0.32
+        let off = onTrunk ? F3(0, 0, 0) : F3(s.x - foot.x, 0, s.z - foot.z) + n * 0.22
         let deckY = level.groundY(s.mid.x, s.mid.y)
         let k2 = max(0.4, fx.fxK)
         if s.kind == .coolant { mist(k, s, v, dt, fx, ys: ys, off: off, n: n, nl: nl, deckY: deckY, k2: k2); return }

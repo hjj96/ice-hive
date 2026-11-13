@@ -141,15 +141,48 @@ struct ConeOut {
     uint cone [[flat]];
 };
 
+/// Stage 2 B5: a boss's lure — the fifth cone (the Threader's lantern beam; VolumeCones.Lure, buffer 3 of both stages).
+struct LureCone {
+    float4 pos;    // xyz apex (the lantern), w = 1 lit
+    float4 dir;    // xyz unit axis, w = beam length (m)
+    float4 cone;   // x cos outer, y cos inner, z deck height under its spot, w in-scatter gain
+    float4 color;  // rgb linear tint of its light, w = its saturation cap (radiance)
+};
+
+/// Cone `k`'s parameters: the four flashlights from the frame and the light block, the lure (k = 4) from its own block.
+struct ConeParams {
+    float3 A, D;
+    float4 cone;   // cos outer, cos inner, range, cookie
+    float4 beam;   // gain, length, deck height, shadowed march
+    float power;   // the spot's intensity / π (the lure: 1)
+    float3 color;
+    float cap;
+};
+
+static ConeParams coneParams(uint k, constant Frame& F, constant LightBlock& LB, constant LureCone& L) {
+    ConeParams c;
+    if (k < 4u) {
+        c.A = F.spotPos[k].xyz; c.D = F.spotDir[k].xyz; c.cone = LB.spotCone[k]; c.beam = LB.beam[k];
+        c.power = F.spotPos[k].w; c.color = SPOT_COLOR; c.cap = LB.fogColor.w;
+    } else {
+        c.A = L.pos.xyz; c.D = L.dir.xyz; c.cone = float4(L.cone.x, L.cone.y, L.dir.w * 1.2, 0.0);
+        c.beam = float4(L.pos.w > 0.5 ? L.cone.w : 0.0, L.dir.w, L.cone.z, 0.0);
+        c.power = 1.0; c.color = L.color.rgb; c.cap = L.color.w;
+    }
+    return c;
+}
+
 /// The hull of cone `iid` (16 sides + the far cap, circumscribed): 96 vertices, CCW from outside (back faces culled).
 vertex ConeOut vs_cone(uint vid [[vertex_id]], uint iid [[instance_id]],
                        constant Frame& F [[buffer(1)]],
+                       constant LureCone& Lure [[buffer(3)]],
                        constant LightBlock& LB [[buffer(LIGHT_BUFFER)]]) {
     ConeOut o;
     o.cone = iid;
-    float3 A = F.spotPos[iid].xyz, D = F.spotDir[iid].xyz;
-    float len = LB.beam[iid].y;
-    if (F.spotPos[iid].w <= 0.0 || LB.beam[iid].x <= 0.0 || len <= 0.0) {
+    ConeParams P = coneParams(iid, F, LB, Lure);
+    float3 A = P.A, D = P.D;
+    float len = P.beam.y;
+    if (P.power <= 0.0 || P.beam.x <= 0.0 || len <= 0.0) {
         o.position = float4(0.0, 0.0, 2.0, 1.0);
         o.world = A;
         return o;
@@ -157,7 +190,7 @@ vertex ConeOut vs_cone(uint vid [[vertex_id]], uint iid [[instance_id]],
     float3 up = abs(D.y) < 0.95 ? float3(0.0, 1.0, 0.0) : float3(1.0, 0.0, 0.0);
     float3 u = normalize(cross(D, up));
     float3 v = cross(D, u);
-    float c = LB.spotCone[iid].x;
+    float c = P.cone.x;
     float radius = len * sqrt(max(1.0 - c * c, 1e-4)) / max(c, 1e-3) / cos(PI_F / float(CONE_SEGMENTS));
     uint tri = vid / 3u, corner = vid % 3u;
     uint seg = tri % uint(CONE_SEGMENTS);
@@ -182,15 +215,17 @@ vertex ConeOut vs_cone(uint vid [[vertex_id]], uint iid [[instance_id]],
 /// saturating per-beam cap. Additive.
 fragment float4 fs_cone(ConeOut in [[stage_in]],
                         constant Frame& F [[buffer(1)]],
+                        constant LureCone& Lure [[buffer(3)]],
                         constant LightBlock& LB [[buffer(LIGHT_BUFFER)]],
                         texture2d<float> noise [[texture(2)]],
                         depth2d<float> atlas [[texture(3)]]) {
     uint k = in.cone;
     float3 ro = F.camPos.xyz;
     float3 rd = normalize(in.world - ro);
-    float3 A = F.spotPos[k].xyz, D = F.spotDir[k].xyz;
-    float4 cone = LB.spotCone[k];
-    float4 beam = LB.beam[k];
+    ConeParams P = coneParams(k, F, LB, Lure);
+    float3 A = P.A, D = P.D;
+    float4 cone = P.cone;
+    float4 beam = P.beam;
     float c2 = cone.x * cone.x;
     float3 co = ro - A;
     float dv = dot(rd, D), cv = dot(co, D);
@@ -256,9 +291,9 @@ fragment float4 fs_cone(ConeOut in [[stage_in]],
     }
     float depth = -(F.view * float4(ro + rd * (0.5 * (t0 + t1)), 1.0)).z;
     float fogK = F.fog.w * depth;
-    float cap = LB.fogColor.w;
-    float x = sum * dt * F.spotPos[k].w * beam.x;
-    float3 col = SPOT_COLOR * cap * (1.0 - exp(-x / max(cap, 1e-4))) * exp(-fogK * fogK);
+    float cap = P.cap;
+    float x = sum * dt * P.power * beam.x;
+    float3 col = P.color * cap * (1.0 - exp(-x / max(cap, 1e-4))) * exp(-fogK * fogK);
     return float4(col, 1.0);
 }
 

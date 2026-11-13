@@ -77,7 +77,10 @@ struct HeatInstance {
     var params: F4
 }
 
-enum FloorMode: Float { case glow = 0, shock = 1, fire = 2, acid = 3, frost = 4, ring = 10, fill = 11, lane = 12, wave = 13 }
+/// (Stage 2 B5: `spot` — a boss's lure lit on the deck (additive, FX.metal FM_SPOT); `drop` — something lands here: the
+/// boss framework's closing ring, its impact edge and a fill rising to the hit; `cone` — a cone sweep / charge wedge: both
+/// MAX-blended telegraphs, MetalEffects.telegraphs)
+enum FloorMode: Float { case glow = 0, shock = 1, fire = 2, acid = 3, frost = 4, spot = 5, ring = 10, fill = 11, lane = 12, wave = 13, drop = 14, cone = 15 }
 
 final class MetalEffects {
     let level: Level
@@ -93,6 +96,10 @@ final class MetalEffects {
 
     /// Where bug deaths leave their bodies (Swarm/Corpses.swift; MetalWorld sets it).
     weak var corpses: Corpses?
+    /// Stage 2 B5: the chain boss (WorldBoss): where a round meets its plates.
+    weak var boss: WorldBoss?
+    /// Stage 2 B5: where a chain boss just died (its head's `.bugKilled` follows: no corpse, no gore — WorldBoss draws it).
+    private var chainKill: Vec2?
     /// The swarm, for hits on the chitin (WorldSwarm.impactPoint); nil until MetalWorld sets it (handoff): the core's
     /// bug heights stand in.
     weak var swarm: WorldSwarm?
@@ -270,6 +277,12 @@ final class MetalEffects {
         if heat.count < 32 { heat.append(HeatInstance(pos: F4(p.x, p.y, p.z, radius), params: F4(strength, mode, 0.5, rnd()))) }
     }
 
+    /// Stage 2 B5: a floor effect of this frame from another module (WorldBoss's lure spot): `max` — a MAX-blended telegraph,
+    /// else additive light on the deck.
+    func addFloor(_ f: FloorFx, max: Bool) {
+        if max { if floorMax.count < 96 { floorMax.append(f) } } else if floorAdd.count < 64 { floorAdd.append(f) }
+    }
+
     @inline(__always) private func floorNow(_ x: Float, _ y: Float, _ z: Float, radius: Float, mode: FloorMode, color: F3,
                                             seed: Float = 0) {
         if floorAdd.count < 64 {
@@ -293,6 +306,9 @@ final class MetalEffects {
     func handle(_ e: GameEvent, game: Game) {
         switch e {
         case .bugKilled(let type, let pos, let frozen, _, let heading, let scale, let height):
+            // (Stage 2 B5: a chain boss's head dies as the boss — WorldBoss plays its death; no brute corpse, no brute gore. The
+            // core emits `.bossKilled` first, then the head's `.bugKilled` at the same place)
+            if let k = chainKill, k.x == pos.x && k.y == pos.y { chainKill = nil; break }
             bugDeath(type, pos.x, pos.y, frozen, heading, scale, height)
         case .bulletHit(let pos, let dir, let killed):
             bulletHit(game, pos.x, pos.y, dir.x, dir.y, killed)
@@ -350,8 +366,8 @@ final class MetalEffects {
             // Stage 1 R4: a perched spitter spits from up on the overhead
             spit(from.x, from.z, to.x - from.x, to.y - from.z, y: from.y)
         case .bossKilled(let kind, let pos):
-            // (Stage 2 B4: the Threader's death and arrival are B5's to draw)
-            switch kind { case .queen: queenDeath(pos.x, pos.y); case .threader: break }
+            // (Stage 2 B4 / B5: the Threader's death and arrival are WorldBoss's — ThreaderLook)
+            switch kind { case .queen: queenDeath(pos.x, pos.y); case .threader: chainKill = pos }
         case .bossSpawned(let kind, let pos):
             switch kind { case .queen: queenRise(pos.x, pos.y); case .threader: break }
         default:
@@ -459,6 +475,10 @@ final class MetalEffects {
         if let h = swarm?.impactPoint(x: x, z: z, dx: dx, dz: dz) {
             p = h.pos; n = h.normal; ich = h.ichor
             armoured = h.ichor == WorldSwarm.ichor[2]
+        } else if let h = boss?.impactPoint(x: x, z: z, dx: dx, dz: dz) {
+            // (Stage 2 B5: a round on the Threader's body — up on its trunk or down on the deck: sparks off its frost plates)
+            p = h.pos; n = h.normal; ich = h.ichor
+            armoured = true
         } else {
             // the bug the shot hit (core heights and scales): the hit point on its body, facing the shooter
             let B = game.bugs
@@ -1106,9 +1126,36 @@ final class MetalEffects {
                     }
                 }
                 if !merged { acidPick.append((e.x, e.z, e.r0, u, col, 1, w)) }
-            case .cone, .beam, .drop:
-                // (Stage 2 B1: the boss framework's shapes — the boss's renderer draws them; no boss uses them yet)
-                continue
+            case .beam:
+                // (Stage 2 B5: a boss's beam line — the Threader's rime spit along a trunk's footprint — reads as the lexicon's
+                // lane: red, dashed borders and chevrons running along it; pulsing through the wind-up, lit while it acts)
+                let wind = max(0.001, e.wind)
+                var inten: Float = e.t < e.wind ? blink * min(1, e.t / wind * 4 + 0.3) * (0.8 + 0.4 * e.t / wind)
+                    : 1.4 * (1 - (e.t - e.wind) / max(0.001, e.life - e.wind))
+                inten = max(0, inten)
+                let cx = e.x + e.dx * e.len / 2, cz = e.z + e.dz * e.len / 2
+                let y0 = gy(e.x, e.z), y1 = gy(e.x + e.dx * e.len, e.z + e.dz * e.len)
+                floorMax.append(FloorFx(center: F4(cx, (y0 + y1) * 0.5 + 0.06, cz, e.w / 2), color: F4(col.x, col.y, col.z, inten),
+                                        params: F4(FloorMode.lane.rawValue, u, 0, 1), axis: F4(e.dx, e.dz, e.len / 2, (y1 - y0) / max(0.01, e.len))))
+            case .drop:
+                // (Stage 2 B5: something lands HERE — the drop language: a ring closing from r0 to r1 over the warning, a thin
+                // steady rim where it will hit and a pool rising to the hit; the growing shadow and the falling frost are the
+                // boss's renderer's — Occupancy.extra, ThreaderLook)
+                let y = gy(e.x, e.z) + 0.055
+                let r0 = max(e.r0, e.r1), inner = min(e.r0, e.r1) / max(0.01, r0)
+                floorMax.append(FloorFx(center: F4(e.x, y, e.z, r0), color: F4(col.x, col.y, col.z, 1),
+                                        params: F4(FloorMode.drop.rawValue, u, inner, u > 0.7 ? blink : 1), axis: .zero))
+            case .cone:
+                // (Stage 2 B5: a cone from (x, z) along (dx, dz), `len` long, half-angle `w`: the Threader's charge — a wedge
+                // on the deck with its edges and chevrons running away from the apex; pulsing through the wind-up, lit after)
+                let wind = max(0.001, e.wind)
+                var inten: Float = e.t < e.wind ? blink * min(1, e.t / wind * 3 + 0.35) : 1.2 * (1 - (e.t - e.wind) / max(0.001, e.life - e.wind))
+                inten = max(0, inten)
+                let hw = e.len * tanf(min(1.2, e.w))
+                let cx = e.x + e.dx * e.len / 2, cz = e.z + e.dz * e.len / 2
+                let y0 = gy(e.x, e.z), y1 = gy(e.x + e.dx * e.len, e.z + e.dz * e.len)
+                floorMax.append(FloorFx(center: F4(cx, (y0 + y1) * 0.5 + 0.06, cz, max(0.3, hw)), color: F4(col.x, col.y, col.z, inten),
+                                        params: F4(FloorMode.cone.rawValue, u, 0, 1), axis: F4(e.dx, e.dz, e.len / 2, (y1 - y0) / max(0.01, e.len))))
             case .ring:
                 // an acid glob's target is drawn once, as its merged fill below (rim + countdown); the core's pulsing lime
                 // ring of the same target (24 ticks) added one more ring per glob — 8–9 stacked over the player in CI combat

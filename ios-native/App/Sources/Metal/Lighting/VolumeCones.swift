@@ -48,6 +48,15 @@ final class VolumeCones {
     private var tiered = TieredPipeline(high: nil, efficient: nil)
     private let off = LaunchOptions.current.unknown.contains("-nocones")
 
+    /// Stage 2 B5: a boss's lure — the fifth cone of the same draw (the Threader's lantern beam; Atmosphere.metal `LureCone`):
+    /// its apex (the lantern socket), unit axis, beam length, cos of its outer / inner half-angle, the deck height under its
+    /// spot (the beam ends there), in-scatter gain, colour and saturation cap. WorldBoss sets it every frame (nil: no fifth
+    /// cone).
+    struct Lure {
+        var apex: F3, dir: F3, length: Float, cosOut: Float, cosIn: Float, deck: Float, gain: Float, color: F3, cap: Float
+    }
+    var lure: Lure?
+
     func attach(_ r: MetalRenderer, hub h: LightingHub) {
         renderer = r
         hub = h
@@ -76,14 +85,23 @@ final class VolumeCones {
         hub.header = h
     }
 
-    /// Transparent item 450: the four cone hulls (96 vertices each, back faces culled), additive.
+    /// Transparent item 450: the four cone hulls (96 vertices each, back faces culled) and the boss's lure (a fifth instance of
+    /// the same draw when lit), additive.
     private func encode(_ enc: MTLRenderCommandEncoder) {
         guard !off, let ps = tiered(renderer.frameTier) else { return }
         let r = renderer!
         r.use(enc, ps)
+        var L = (F4.zero, F4.zero, F4.zero, F4.zero)
+        if let l = lure {
+            L = (F4(l.apex.x, l.apex.y, l.apex.z, 1), F4(l.dir.x, l.dir.y, l.dir.z, l.length), F4(l.cosOut, l.cosIn, l.deck, l.gain),
+                 F4(l.color.x, l.color.y, l.color.z, l.cap))
+        }
+        enc.setVertexBytes(&L, length: MemoryLayout<F4>.stride * 4, index: BufferIndex.material)
+        enc.setFragmentBytes(&L, length: MemoryLayout<F4>.stride * 4, index: BufferIndex.material)
+        let n = lure == nil ? 4 : 5
         enc.setCullMode(.back)
-        enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 96, instanceCount: 4)
-        r.count(draws: 1, instances: 4, triangles: 128)
+        enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 96, instanceCount: n)
+        r.count(draws: 1, instances: n, triangles: 32 * n)
         enc.setCullMode(.none)
     }
 }

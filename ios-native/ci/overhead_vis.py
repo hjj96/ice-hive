@@ -17,6 +17,10 @@ import sys
 
 rx_sample = re.compile(r'oh vis t=([0-9.]+) deck=(\d+) px covered ([0-9.]+)% solid ([0-9.]+)% \| marines px ([0-9/]+) hidden ([0-9./]+)%')
 rx_summary = re.compile(r'oh vis summary samples=(\d+) deck mean ([0-9.]+)% worst ([0-9.]+)% marine hidden worst ([0-9.]+)% → (ok|FAIL.*)$')
+# Stage 2 B5: a chain boss's body is in the mask too (its cutaway alpha): a marine behind its solid body counts as hidden in
+# the summary above; its own share of the deck and of the hiding is reported here (not gated: the occlusion budget is the
+# overhead's)
+rx_boss = re.compile(r'oh vis boss samples=(\d+) deck mean ([0-9.]+)% worst ([0-9.]+)% marine hidden by it worst ([0-9.]+)%')
 
 
 def main():
@@ -32,7 +36,7 @@ def main():
             print(f'  {lb}: no log')
             bad.append(f'{lb}: no log')
             continue
-        samples, summary = [], None
+        samples, summary, boss = [], None, None
         for line in open(p, errors='replace'):
             m = rx_sample.search(line)
             if m:
@@ -40,12 +44,18 @@ def main():
             s = rx_summary.search(line.rstrip())
             if s:
                 summary = s
+            b = rx_boss.search(line)
+            if b:
+                boss = b
         if not samples or summary is None:
             print(f'  {lb}: no «oh vis» samples')
             bad.append(f'{lb}: no samples')
             continue
         for t, px, cov, solid, mpx, hid in samples:
             print(f'  {lb:16s} t={t:5.1f}s deck {px:6d} px covered {cov:5.1f} % (solid {solid:5.1f} %)  marines px {mpx}  hidden {hid} %')
+        if boss:
+            print(f'  {lb:16s} BOSS {boss.group(1)} samples with its body: deck mean {boss.group(2)} %, worst {boss.group(3)} %, a marine '
+                  f'hidden by it worst {boss.group(4)} % (reported; the summary\'s «marine hidden» counts it)')
         verdict = summary.group(5)
         print(f'  {lb:16s} SUMMARY {summary.group(1)} samples: deck mean {summary.group(2)} %, worst {summary.group(3)} %, marine hidden '
               f'worst {summary.group(4)} % → {verdict}')

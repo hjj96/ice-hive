@@ -15,6 +15,9 @@ import UIKit
 //  phone shows it — are blitted from the drawable into a shared buffer
 //  and written as Documents/burst/<name>-NN.jpg (quality 0.92, full
 //  resolution, so 100 % crops work); CI copies them into the results.
+//  Stage 2 B5: `<t0>` = `demo` waits for the running demo's moment
+//  (DemoScript calls `trigger` — the manifold demo's lock, coil, rip:
+//  moments of the simulation, not of the wall clock).
 //  One log line per frame: `burst <name> NN t=<s since ready>
 //  dt=<ms since the previous captured frame>` (the simulator can skip
 //  presents: dt says how far apart two images really are).
@@ -27,7 +30,7 @@ final class BurstCapture {
 
     let on: Bool
     let name: String
-    private let t0: Double
+    private var t0: Double
     private let count: Int
     private let every: Int
     private var taken = 0
@@ -39,10 +42,11 @@ final class BurstCapture {
 
     private init() {
         let u = LaunchOptions.current.unknown
-        if let i = u.firstIndex(of: "-burst"), i + 3 < u.count, let t = Double(u[i + 2]), let n = Int(u[i + 3]), n > 0 {
+        if let i = u.firstIndex(of: "-burst"), i + 3 < u.count, let t = Double(u[i + 2]) ?? (u[i + 2] == "demo" ? -1 : nil),
+           let n = Int(u[i + 3]), n > 0 {
             on = true
             name = u[i + 1].filter { $0.isLetter || $0.isNumber || $0 == "-" }
-            t0 = max(0, t)
+            t0 = t < 0 ? .infinity : max(0, t)
             count = min(24, n)
             every = i + 4 < u.count ? max(1, Int(u[i + 4]) ?? 1) : 1
         } else {
@@ -63,6 +67,13 @@ final class BurstCapture {
         } else {
             dir = nil
         }
+    }
+
+    /// Stage 2 B5: a `-burst <name> demo …` starts now (the demo's moment; once).
+    func trigger(sinceReady: Double) {
+        guard on, t0.isInfinite else { return }
+        t0 = max(0, sinceReady)
+        AppLog.info(String(format: "burst %@ armed by the demo at t=%.3f", name, sinceReady))
     }
 
     /// FrameLoop.draw, after the composite + HUD encoder and before the present: copy this frame's drawable when it is

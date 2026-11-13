@@ -65,14 +65,23 @@ final class Occupancy {
         r.registerPrePass(order: 150, "occupancy") { [unowned self] cb in self.encode(cb) }
     }
 
+    /// Stage 2 B5: blobs another module asks for this frame (x, z, radius, contact) — a boss's strike shadow growing on the
+    /// deck as its head comes down, the coil's shade (WorldBoss); taken and cleared by `collect`.
+    static var extra: [F4] = []
+
     /// This frame's blobs: every live bug and standing marine (LightGrid.fill calls this with the simulation).
     func collect(game: Game, poses: [MetalEffects.MarinePose]) {
         blobs.removeAll(keepingCapacity: true)
         let S = game.bugs
-        let X = S.xs, Z = S.zs, SC = S.scales, dead = S.deadFlags
+        let X = S.xs, Z = S.zs, SC = S.scales, dead = S.deadFlags, Y = S.heights
         for i in 0..<S.count where dead[i] == 0 && blobs.count < Occupancy.maxBlobs - 4 {
+            // (Stage 2 B5: a boss's chain part stands on the deck only when it is low — the coil's ring, the deck chase; up on
+            // the trunks it leaves no contact blob or trail under it)
+            if S.bossPart(i) >= 0 && Y[i] - game.level.groundY(X[i], Z[i]) > 1.2 { continue }
             blobs.append(F4(X[i], Z[i], Occupancy.bugRadius * SC[i], Occupancy.bugContact))
         }
+        for b in Occupancy.extra where blobs.count < Occupancy.maxBlobs { blobs.append(b) }
+        Occupancy.extra.removeAll(keepingCapacity: true)
         for (k, m) in game.marines.enumerated() where k < poses.count && !m.downed {
             blobs.append(F4(poses[k].x, poses[k].z, Occupancy.marineRadius, Occupancy.marineContact))
         }

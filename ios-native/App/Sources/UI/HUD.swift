@@ -826,6 +826,8 @@ final class HUD {
     private struct Keep {
         var marines: [CGRect] = []
         var boss: CGRect? = nil
+        /// Stage 2 B5: a chain boss's head, nodes and some segments (the Threader is 30 m long: one box would be the screen).
+        var bossParts: [CGRect] = []
         /// The deck's ellipse: centre and radii (view points).
         var deck: (c: CGPoint, rx: CGFloat, ry: CGFloat)? = nil
         var marker: CGRect? = nil
@@ -846,10 +848,24 @@ final class HUD {
             let xs = pts.map { $0.x }, ys = pts.map { $0.y }
             k.boss = CGRect(x: xs.min()! - 10, y: ys.min()! - 10, width: xs.max()! - xs.min()! + 20, height: ys.max()! - ys.min()! + 20)
         }
+        if game.boss.alive, let src = projection as? BossKeepSource {
+            for b in src.bossSpheres {
+                let p = [v(b.x - b.w, b.y - 0.3, b.z), v(b.x + b.w, b.y + b.w, b.z), v(b.x, b.y, b.z - b.w), v(b.x, b.y - 0.3, b.z + b.w)]
+                let xs = p.map { $0.x }, ys = p.map { $0.y }
+                k.bossParts.append(CGRect(x: xs.min()!, y: ys.min()!, width: xs.max()! - xs.min()!, height: ys.max()! - ys.min()!))
+            }
+        }
         if game.stage == .hold {
             let L = game.level.layout.lift
             let c = v(L.x, L.y, L.z)
             let e = v(L.x + L.r, L.y, L.z), w = v(L.x - L.r, L.y, L.z), n = v(L.x, L.y, L.z - L.r), s = v(L.x, L.y, L.z + L.r)
+            k.deck = (c, max(abs(e.x - w.x), abs(n.x - s.x)) / 2, max(abs(n.y - s.y), abs(e.y - w.y)) / 2)
+        } else if let A = game.level.layout.manifold, game.boss.alive {
+            // (Stage 2 B5: the boss arena's deck — the Manifold's island, where the squad fights the Threader)
+            let cx = (A.island.x + A.island.z) / 2, cz = (A.island.y + A.island.w) / 2, r = (A.island.z - A.island.x) / 2
+            let y = game.level.groundY(cx, cz)
+            let c = v(cx, y, cz)
+            let e = v(cx + r, y, cz), w = v(cx - r, y, cz), n = v(cx, y, cz - r), s = v(cx, y, cz + r)
             k.deck = (c, max(abs(e.x - w.x), abs(n.x - s.x)) / 2, max(abs(n.y - s.y), abs(e.y - w.y)) / 2)
         }
         k.marker = marker.isHidden ? nil : markerBox
@@ -877,7 +893,7 @@ final class HUD {
         var c: CGFloat = 0
         let squad = k.marines.filter { $0.intersects(r) }.count
         c += CGFloat(squad) * 30
-        let boss = k.boss?.intersects(r) ?? false
+        let boss = (k.boss?.intersects(r) ?? false) || k.bossParts.contains { $0.intersects(r) }
         if boss { c += 60 }
         let th = thing?.intersects(r) ?? false
         if th { c += 100 }

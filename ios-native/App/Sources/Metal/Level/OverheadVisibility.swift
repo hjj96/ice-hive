@@ -31,7 +31,10 @@ final class OverheadVisibility {
 
     private unowned let overhead: WorldOverhead
     private unowned let renderer: MetalRenderer
-    private var psFlat: MTLRenderPipelineState?, psOver: MTLRenderPipelineState?
+    /// Stage 2 B5: a chain boss over the deck (MetalWorld sets it): its body goes into the mask too, its cutaway alpha in A —
+    /// a marine behind its solid body is hidden like one behind a solid overhead (ctx.md «Readability»).
+    weak var boss: WorldBoss?
+    private var psFlat: MTLRenderPipelineState?, psOver: MTLRenderPipelineState?, psBoss: MTLRenderPipelineState?
     private var dsWrite: MTLDepthStencilState?, dsTest: MTLDepthStencilState?
     private var color: MTLTexture?, depth: MTLTexture?, readback: MTLBuffer?
     private var deck: MTLBuffer?, deckCount = 0
@@ -48,6 +51,11 @@ final class OverheadVisibility {
     // running summary (the analysis queue only)
     private var samples = 0
     private var deckSum: Float = 0, deckWorst: Float = 0, hiddenWorst: Float = 0
+    /// Stage 2 B5: samples with the boss in the mask, the deck its body covered (reported, not gated: the occlusion budget is
+    /// the overhead's — the boss is gated on the squad it hides), the worst marine it hid.
+    private var bossSampled = false
+    private var bossSamples = 0
+    private var bossDeckSum: Float = 0, bossDeckWorst: Float = 0, bossHiddenWorst: Float = 0
 
     init(overhead o: WorldOverhead, renderer r: MetalRenderer) {
         overhead = o
@@ -76,6 +84,7 @@ final class OverheadVisibility {
             }
             psFlat = make("vs_overhead_vis_flat", "fs_overhead_vis_flat", max: false)
             psOver = make("vs_overhead", "fs_overhead_vis", max: true)
+            psBoss = make("vs_creature", "fs_creature_vis", max: true)
         }
         let w = MTLDepthStencilDescriptor()
         w.depthCompareFunction = .less
@@ -191,6 +200,11 @@ final class OverheadVisibility {
                 enc.drawIndexedPrimitives(type: .triangle, indexCount: count, indexType: .uint32, indexBuffer: ib, indexBufferOffset: start * 4)
             }
         }
+        if let b = boss, let pb = psBoss, b.drawn {
+            enc.setDepthStencilState(dsTest)
+            b.encodeVis(enc, pipeline: pb, w: w, h: h)
+            bossSampled = true
+        }
         enc.endEncoding()
         guard let blit = cb.makeBlitCommandEncoder() else { return }
         blit.copy(from: ct, sourceSlice: 0, sourceLevel: 0, sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0), sourceSize: MTLSize(width: w, height: h, depth: 1),
@@ -198,35 +212,40 @@ final class OverheadVisibility {
         blit.endEncoding()
         busy = true
         let t = lastT
+        let withBoss = bossSampled
+        bossSampled = false
         cb.addCompletedHandler { [weak self] _ in
             guard let s = self else { return }
             s.queue.async {
-                s.measure(rb, w, h, t)
+                s.measure(rb, w, h, t, boss: withBoss)
                 DispatchQueue.main.async { s.busy = false }
             }
         }
     }
 
     /// The analysis queue: measure one mask frame, log it and the running summary.
-    private func measure(_ buf: MTLBuffer, _ w: Int, _ h: Int, _ t: Double) {
+    private func measure(_ buf: MTLBuffer, _ w: Int, _ h: Int, _ t: Double, boss: Bool) {
         let p = buf.contents().bindMemory(to: UInt8.self, capacity: w * h * 4)
         var deckPx = 0, solid = 0
-        var covered: Float = 0
-        var px = [Int](repeating: 0, count: 4), hidden = [Int](repeating: 0, count: 4)
+        var covered: Float = 0, bossCovered: Float = 0
+        var px = [Int](repeating: 0, count: 4), hidden = [Int](repeating: 0, count: 4), bossHidden = [Int](repeating: 0, count: 4)
         var ghost = [Float](repeating: 0, count: 4)
         for i in 0..<(w * h) {
-            let r = p[i * 4], g = p[i * 4 + 1], b = p[i * 4 + 2]
+            let r = p[i * 4], g = p[i * 4 + 1], b = p[i * 4 + 2], a = p[i * 4 + 3]
             let cov = Float(b) / 255
             if r > 127 {
                 deckPx += 1
                 covered += cov
+                bossCovered += Float(a) / 255
                 if b > 127 { solid += 1 }
             } else if g > 25 {
                 let k = Int((Float(g) / 51).rounded()) - 1
                 if k >= 0 && k < 4 {
                     px[k] += 1
-                    ghost[k] += cov
-                    if b > 127 { hidden[k] += 1 }
+                    ghost[k] += max(cov, Float(a) / 255)
+                    // (Stage 2 B5: behind a solid overhead or a solid boss body)
+                    if b > 127 || a > 127 { hidden[k] += 1 }
+                    if a > 127 { bossHidden[k] += 1 }
                 }
             }
         }
@@ -241,8 +260,23 @@ final class OverheadVisibility {
         deckSum += dc
         deckWorst = max(deckWorst, dc)
         hiddenWorst = max(hiddenWorst, hid.max() ?? 0)
+        var bossTail = ""
+        if boss {
+            let bd = deckPx > 0 ? bossCovered / Float(deckPx) * 100 : 0
+            var bh: Float = 0
+            for k in 0..<4 where px[k] > 0 { bh = max(bh, Float(bossHidden[k]) / Float(px[k]) * 100) }
+            bossSamples += 1
+            bossDeckSum += bd
+            bossDeckWorst = max(bossDeckWorst, bd)
+            bossHiddenWorst = max(bossHiddenWorst, bh)
+            bossTail = String(format: " | boss deck %.1f%% hides %.1f%%", bd, bh)
+        }
         AppLog.info(String(format: "oh vis t=%.1f deck=%d px covered %.1f%% solid %.1f%% | marines px %d/%d/%d/%d hidden %.1f/%.1f/%.1f/%.1f%% cover %.2f/%.2f/%.2f/%.2f",
-                           t, deckPx, dc, ds, px[0], px[1], px[2], px[3], hid[0], hid[1], hid[2], hid[3], cov[0], cov[1], cov[2], cov[3]))
+                           t, deckPx, dc, ds, px[0], px[1], px[2], px[3], hid[0], hid[1], hid[2], hid[3], cov[0], cov[1], cov[2], cov[3]) + bossTail)
+        if bossSamples > 0 {
+            AppLog.info(String(format: "oh vis boss samples=%d deck mean %.1f%% worst %.1f%% marine hidden by it worst %.1f%%", bossSamples,
+                               bossDeckSum / Float(bossSamples), bossDeckWorst, bossHiddenWorst))
+        }
         let mean = deckSum / Float(samples)
         var bad: [String] = []
         if mean > OverheadVisibility.deckMean { bad.append(String(format: "deck mean %.1f%% > %.0f%%", mean, OverheadVisibility.deckMean)) }

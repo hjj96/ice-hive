@@ -73,7 +73,13 @@ final class AudioEngine {
     private let pitched = Voice()
     private let pitchUnit = AVAudioUnitVarispeed()
     /// Stage 1 R3: the overhead's voice (low-pass → reverb); nil when the engine would not start with it.
-    private var attic: (voice: Voice, eq: AVAudioUnitEQ, verb: AVAudioUnitReverb)?
+    /// (Stage 2 B5: a mixer in front of the low-pass takes two more voices — the boss's, up on the trunks)
+    private var attic: (voice: Voice, eq: AVAudioUnitEQ, verb: AVAudioUnitReverb, mix: AVAudioMixerNode, boss: [Voice])?
+    /// Stage 2 B5: the boss's sounds (the manifest's `boss` section, BossSound order), their last play.
+    private var bossDefs: [Def?] = []
+    private var bossLast: [Double] = []
+    private var bossVoice = 0
+    private static let bossIDs: [BossSound] = BossSound.allCases
     private var loops: [Loop?] = []
     private var variant = 0
     private(set) var enabled: Bool
@@ -124,6 +130,19 @@ final class AudioEngine {
                 defs[k] = Def(buffers: bufs, gain: gain, attenuated: att, minInterval: gap, duration: dur)
             }
         }
+        // (Stage 2 B5: the boss's sounds — the Threader's scrape, moan, scream, slam, creak, hiss)
+        bossDefs = [Def?](repeating: nil, count: AudioEngine.bossIDs.count)
+        bossLast = [Double](repeating: -1e9, count: AudioEngine.bossIDs.count)
+        if let boss = root["boss"] as? [String: Any] {
+            for (k, id) in AudioEngine.bossIDs.enumerated() {
+                guard let s = boss[id.rawValue] as? [String: Any] else { continue }
+                let bufs = (s["files"] as? [String] ?? []).compactMap { AudioEngine.load($0) }
+                if bufs.isEmpty { continue }
+                bossDefs[k] = Def(buffers: bufs, gain: Float((s["baseGain"] as? NSNumber)?.doubleValue ?? 0.4),
+                                  attenuated: (s["attenuated"] as? Bool) ?? true, minInterval: (s["minInterval"] as? NSNumber)?.doubleValue ?? 0.3,
+                                  duration: (s["duration"] as? NSNumber)?.doubleValue ?? 1)
+            }
+        }
         guard let fmt = format else { self.enabled = false; AppLog.error("audio: no sounds loaded"); return }
         let mixer = engine.mainMixerNode
         for _ in 0..<20 {
@@ -137,17 +156,20 @@ final class AudioEngine {
         engine.connect(pitched.node, to: pitchUnit, format: fmt)
         engine.connect(pitchUnit, to: mixer, format: fmt)
         do {
-            let v = Voice(), eq = AVAudioUnitEQ(numberOfBands: 1), verb = AVAudioUnitReverb()
+            let v = Voice(), eq = AVAudioUnitEQ(numberOfBands: 1), verb = AVAudioUnitReverb(), mix = AVAudioMixerNode()
+            let boss = [Voice(), Voice()]
             eq.bands[0].filterType = .lowPass
             eq.bands[0].frequency = 1600
             eq.bands[0].bypass = false
             verb.loadFactoryPreset(.mediumHall)
             verb.wetDryMix = 42
-            for n in [v.node, eq, verb] as [AVAudioNode] { engine.attach(n) }
-            engine.connect(v.node, to: eq, format: fmt)
+            for n in [v.node, mix, eq, verb] + boss.map({ $0.node }) as [AVAudioNode] { engine.attach(n) }
+            engine.connect(v.node, to: mix, format: fmt)
+            for b in boss { engine.connect(b.node, to: mix, format: fmt) }
+            engine.connect(mix, to: eq, format: fmt)
             engine.connect(eq, to: verb, format: fmt)
             engine.connect(verb, to: mixer, format: nil)
-            attic = (v, eq, verb)
+            attic = (v, eq, verb, mix, boss)
         }
         loops = [Loop?](repeating: nil, count: AudioEngine.beds.count)
         if let ls = root["loops"] as? [String: Any] {
@@ -172,7 +194,7 @@ final class AudioEngine {
         if !startEngine(quiet: attic != nil) {
             // without the overhead's attic chain (its reverb / format), the classic graph
             if let a = attic {
-                for n in [a.voice.node, a.eq, a.verb] as [AVAudioNode] { engine.detach(n) }
+                for n in [a.voice.node, a.mix, a.eq, a.verb] + a.boss.map({ $0.node }) as [AVAudioNode] { engine.detach(n) }
                 attic = nil
                 AppLog.info("audio: overhead voice off (the engine would not start with it)")
             }
@@ -185,7 +207,7 @@ final class AudioEngine {
         }
         observe()
         let nLoops = loops.compactMap { $0 }.count
-        AppLog.info("audio: \(defs.compactMap { $0 }.count) sounds, \(nLoops) loops, \(voices.count) voices"
+        AppLog.info("audio: \(defs.compactMap { $0 }.count) sounds, \(nLoops) loops, \(voices.count) voices, \(bossDefs.compactMap { $0 }.count) boss sounds"
                     + String(format: " (%.0f ms)", (FrameTimer.now() - t0) * 1000))
     }
 
@@ -218,7 +240,10 @@ final class AudioEngine {
         for v in voices { v.node.play(); v.busyUntil = 0 }
         pitched.node.play()
         pitched.busyUntil = 0
-        if let a = attic { a.voice.node.play(); a.voice.busyUntil = 0 }
+        if let a = attic {
+            a.voice.node.play(); a.voice.busyUntil = 0
+            for b in a.boss { b.node.play(); b.busyUntil = 0 }
+        }
         for case let l? in loops {
             l.node.stop()
             l.node.scheduleBuffer(l.buffer, at: nil, options: .loops, completionHandler: nil)
@@ -232,6 +257,7 @@ final class AudioEngine {
         for v in voices { v.volume = -1 }
         pitched.volume = -1
         attic?.voice.volume = -1
+        for b in attic?.boss ?? [] { b.volume = -1 }
         for case let l? in loops { l.volume = -1 }
     }
 
@@ -322,6 +348,39 @@ final class AudioEngine {
         a.voice.node.scheduleBuffer(buf, at: nil, options: .interrupts, completionHandler: nil)
         a.voice.busyUntil = clock + def.duration
         last[k] = clock
+        played += 1
+    }
+
+    /// Stage 2 B5: one of the boss's sounds. `attic`: it comes from up on the trunks — through the attic chain (low-pass +
+    /// reverb: height as a timbre) on one of its two boss voices; on the deck a regular voice. The boss is 30 m long: its
+    /// distance attenuation runs over 48 m (`clamp(1.15 − d / 48, 0.15, 1)`). Honours the sound's minimum gap.
+    func playBoss(_ s: BossSound, pos: Vec2?, listener: Vec2, attic up: Bool, gain: Float = 1) {
+        requested += 1
+        guard enabled, engine.isRunning, let k = AudioEngine.bossIDs.firstIndex(of: s), k < bossDefs.count, let def = bossDefs[k] else { return }
+        if clock - bossLast[k] < def.minInterval { return }
+        var v: Float = gain
+        if def.attenuated, let p = pos {
+            let d = ((p.x - listener.x) * (p.x - listener.x) + (p.y - listener.y) * (p.y - listener.y)).squareRoot()
+            v *= max(0.15, min(1, 1.15 - d / 48))
+        }
+        var best: Voice
+        if up, let a = attic {
+            best = a.boss[bossVoice % a.boss.count]
+            bossVoice += 1
+        } else {
+            best = voices[0]
+            for vo in voices {
+                if vo.busyUntil <= clock { best = vo; break }
+                if vo.busyUntil < best.busyUntil { best = vo }
+            }
+        }
+        variant += 1
+        let buf = def.buffers[variant % def.buffers.count]
+        let vol = def.gain * v * master
+        if abs(vol - best.volume) > 0.005 { best.node.volume = vol; best.volume = vol }
+        best.node.scheduleBuffer(buf, at: nil, options: .interrupts, completionHandler: nil)
+        best.busyUntil = clock + def.duration
+        bossLast[k] = clock
         played += 1
     }
 

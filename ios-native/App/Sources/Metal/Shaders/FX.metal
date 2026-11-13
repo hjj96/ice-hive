@@ -170,10 +170,14 @@ struct FloorOut {
 #define FM_FIRE 2
 #define FM_ACID 3
 #define FM_FROST 4
+#define FM_SPOT 5
 #define FM_RING 10
 #define FM_FILL 11
 #define FM_LANE 12
 #define FM_WAVE 13
+// Stage 2 B5: the boss framework's shapes on the deck (MetalEffects.telegraphs) — something lands here, a cone / charge
+#define FM_DROP 14
+#define FM_CONE 15
 
 vertex FloorOut vs_floorfx(uint vid [[vertex_id]], uint iid [[instance_id]],
                            constant Frame& F [[buffer(1)]],
@@ -183,7 +187,7 @@ vertex FloorOut vs_floorfx(uint vid [[vertex_id]], uint iid [[instance_id]],
     int mode = int(f.params.x + 0.5);
     float3 w;
     float aspect = 1.0;
-    if (mode == FM_LANE) {
+    if (mode == FM_LANE || mode == FM_CONE) {
         float2 d = f.axis.xy;
         float2 n = float2(-d.y, d.x);
         float hl = f.axis.z, hw = f.center.w;
@@ -232,6 +236,14 @@ fragment float4 fs_floorfx(FloorOut in [[stage_in]],
         float n = noise.sample(repeatSampler, in.q * 1.3 + float2(seed * 2.7, time * 0.12)).r;
         float m = saturate(1.0 - r);
         k = m * m * (0.4 + 0.9 * n);
+    } else if (mode == FM_SPOT) {
+        // Stage 2 B5: a boss's lure lit on the deck — a pale disc with a soft but definite edge (the rule «stay out of its
+        // light» needs its edge), a brighter rim, drifting dust in it; `u` = how hard it has gathered on a marine
+        float n = noise.sample(repeatSampler, in.q * 0.8 + float2(seed, -seed * 0.7)).r;
+        float disc = 1.0 - smoothstep(0.82, 1.0, r);
+        float rim = exp(-((r - 0.9) / 0.07) * ((r - 0.9) / 0.07));
+        float core = 1.0 - smoothstep(0.0, 0.7, r);
+        k = disc * (0.55 + 0.25 * n + 0.35 * core) + rim * (0.35 + 0.4 * u);
     } else {
         float m = saturate(1.0 - r);
         k = m * m;
@@ -276,6 +288,27 @@ fragment float4 fs_telegraph(FloorOut in [[stage_in]],
         k = (pool + (rim * (0.09 + 0.3 * u * u) + count * (0.08 + 0.5 * u * u) * blink) * early) * (1.0 - smoothstep(0.97, 1.0, r));
         // (inside the player's HP arc the strokes drop to 30 %: the marine under a target stays readable)
         if (in.hole.z > 0.0) k *= mix(0.3, 1.0, smoothstep(in.hole.z * 0.8, in.hole.z * 1.05, length(q - in.hole.xy)));
+    } else if (mode == FM_DROP) {
+        // Stage 2 B5, the drop language: a ring closing from the rim (1) to the hit's edge (params.z) over the warning, a thin
+        // steady rim at the hit's edge, a pool inside it rising toward the hit (blink in the last 30 %)
+        float inner = clamp(in.params.z, 0.05, 0.99);
+        float cr = 1.0 - (1.0 - inner) * smoothstep(0.0, 1.0, u);
+        float front = 1.0 - smoothstep(0.0, 2.0 * px + 0.012, abs(r - cr));
+        float edge = 1.0 - smoothstep(0.0, 1.4 * px + 0.007, abs(r - inner));
+        float pool = (1.0 - smoothstep(inner * 0.4, inner * 0.98, r)) * (0.04 + 0.16 * u * u);
+        k = (front * (0.55 + 0.45 * u) * blink + edge * (0.3 + 0.3 * u) + pool) * (1.0 - smoothstep(0.98, 1.0, r));
+    } else if (mode == FM_CONE) {
+        // Stage 2 B5: a wedge from the apex (q.y = −1) widening to the far end (q.y = +1, q.x = ±1): its two edges, chevrons
+        // running away from the apex, a faint fill
+        float along = q.y * 0.5 + 0.5;
+        float ax = abs(q.x);
+        float pxx = max(fwidth(q.x), 1e-4);
+        float inside = step(ax, along + 0.02);
+        float edgeL = 1.0 - smoothstep(0.0, 2.0 * pxx + 0.03, abs(ax - along));
+        float run = F.camPos.w * 1.4;
+        float chev = fract((q.y * in.aspect + ax * 0.8) * 0.4 - run);
+        float ch = (1.0 - smoothstep(0.0, 0.08, abs(chev - 0.5))) * step(ax, along * 0.8) * 0.45;
+        k = (edgeL * 0.85 + (ch + 0.08) * inside) * blink * (1.0 - smoothstep(0.94, 1.0, along));
     } else {
         // brute lane: two DASHED border lines whose dashes run with the chevrons toward +y (the charge direction), over a
         // faint continuous edge — a hazard marking on the deck; two solid HDR lines across the platform read as laser

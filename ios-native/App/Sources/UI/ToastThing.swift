@@ -63,6 +63,15 @@ enum ToastThing: Equatable {
             return .at(ground(m.x, m.z))
         case .toastPlayerDown:
             return P.downed ? .at(ground(P.x, P.z)) : .gone
+        // ---- Stage 2 B5, the Threader's traps (H1's handoff): while its coil is closing, while its light is lit
+        case .toastThreaderCoil:
+            guard g.boss.alive && g.boss.kind == .threader else { return .gone }
+            let v = g.threader
+            return v.coil && v.coilT >= 0 ? .at(ground(v.coilCenter.x, v.coilCenter.y)) : .gone
+        case .toastThreaderLight:
+            guard g.boss.alive && g.boss.kind == .threader else { return .gone }
+            let v = g.threader
+            return v.lure ? .at(ground(v.lureSpot.x, v.lureSpot.y)) : .gone
         // ---- first sightings: while their thing is there
         case .toastTipDuct:
             var best = Float.infinity, at: SIMD3<Float>? = nil
