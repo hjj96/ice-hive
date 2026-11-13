@@ -11,10 +11,12 @@ import UIKit
 //
 //  `-burst <name> <t0> <count> [every]`: from <t0> s after «scene
 //  ready», the next <count> presented frames (every <every>-th; 1 =
-//  consecutive, the default) — the final image with the HUD, as the
-//  phone shows it — are blitted from the drawable into a shared buffer
-//  and written as Documents/burst/<name>-NN.jpg (quality 0.92, full
-//  resolution, so 100 % crops work); CI copies them into the results.
+//  consecutive, the default; at most 160 — Stage 2 V1's 10 s parallax
+//  walk; CI's diet publishes a burst as one H.264 clip) — the final
+//  image with the HUD, as the phone shows it — are blitted from the
+//  drawable into a shared buffer and written as
+//  Documents/burst/<name>-NN.jpg (quality 0.92, full resolution, so
+//  100 % crops work); CI copies them into the results.
 //  One log line per frame: `burst <name> NN t=<s since ready>
 //  dt=<ms since the previous captured frame>` (the simulator can skip
 //  presents: dt says how far apart two images really are).
@@ -43,7 +45,7 @@ final class BurstCapture {
             on = true
             name = u[i + 1].filter { $0.isLetter || $0.isNumber || $0 == "-" }
             t0 = max(0, t)
-            count = min(24, n)
+            count = min(160, n)
             every = i + 4 < u.count ? max(1, Int(u[i + 4]) ?? 1) : 1
         } else {
             on = false

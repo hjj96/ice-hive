@@ -603,7 +603,7 @@ jobs:
               [ -f "$f" ] || continue
               cp "$f" "results/burst-$(basename "$f")" && rm -f "$f"
             done
-            grep -h -E 'burst [a-z0-9-]+ (start|written|[0-9]{2} )' "results/app-$1.log" >> results/burst.txt || true
+            grep -h -E 'burst [a-z0-9-]+ (start|written|[0-9]{2,3} )' "results/app-$1.log" >> results/burst.txt || true
           }
           run_demo burst-fire 5 "-demo calm -squadSheet -squadFire -closeup -hideHUD -burst fire 1.5 12"
           pull_burst burst-fire
@@ -657,11 +657,12 @@ jobs:
           run_demo burst-overhead 9 "-demo overhead -seed 7 -hideHUD -burst overhead 4.6 24 4"
           pull_burst burst-overhead
           # Stage 1 R3: the parallax — the player walks the bridge under the overhead (-ohWalk), the camera follows and the
-          # abyss, the deck, the routes and the upper truss slide at their own speeds (every 5th present from 2.0 s); the
-          # app's visibility metric runs alongside (-ohVis: the deck the overhead covers, any marine it hides — gated below
-          # by ci/overhead_vis.py). On «высокая» (-ohHigh): the flashlight shadows, the overhead's casters drawn into the
-          # player's tile (the other overhead runs are on the default tier)
-          run_demo burst-parallax 8 "-demo overhead -ohWalk -ohHigh -seed 7 -hideHUD -ohVis -burst parallax 2.0 24 5"
+          # abyss, the deck, the routes and the upper truss slide at their own speeds; the app's visibility metric runs
+          # alongside (-ohVis: the deck the overhead covers, any marine it hides — gated below by ci/overhead_vis.py). On
+          # «высокая» (-ohHigh): the flashlight shadows, the overhead's casters drawn into the player's tile (the other
+          # overhead runs are on the default tier). Stage 2 V1: the whole bridge at half the run speed (-ohWalkK 0.5,
+          # ≈ 7.8 s), every 4th present from 0.8 s — 140 frames, ≈ 9.3 s at 15 frames/s: the owner's parallax clip
+          run_demo burst-parallax 12 "-demo overhead -ohWalk -ohWalkK 0.5 -ohHigh -seed 7 -hideHUD -ohVis -burst parallax 0.8 140 4"
           pull_burst burst-parallax
           # Stage 1 R4: the overhead's bugs frame by frame at phone size, the HUD on (the pin's hint): the Dropper's telegraph,
           # drop, pin and the squad's fire throwing it off (every 5th present from 3.2 s); the perched spitter's wind-up and
@@ -1022,7 +1023,7 @@ jobs:
           need overhead 'hb overhead draws=[1-9][0-9]*\+[0-9]+ tris=[1-9]'
           need burst-overhead 'burst overhead written \(24 frames\)'
           # Stage 1 R3: the parallax walk and the visibility metric (both runs; the gate is ci/overhead_vis.py below)
-          need burst-parallax 'burst parallax written \(24 frames\)'
+          need burst-parallax 'burst parallax written \(140 frames\)'
           need burst-parallax 'demo overhead: walking td='
           need burst-parallax 'oh vis: on \(pipelines ok'
           need burst-parallax 'hb overhead draws=.* casters=[1-9][0-9]*/[1-9][0-9]* tier=high'
