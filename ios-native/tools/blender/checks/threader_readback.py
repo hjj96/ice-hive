@@ -246,8 +246,8 @@ def job_strips(out, names=FILES):
                     mesh(S, 0, row_of(S, sc, sf), 'bugseg', G.material('chitin2', 'threader', emit=6.0), M=M)
                 mesh(D, 0, c['first'] + f, 'bug0', mat, M=M)
                 tg = np.array([0, 0.3 if fn != 'threader_head' else 0.6, (0.4 if fn == 'threader_head' else 0.1) + dz * 0 + span * 0.5])
-                tg = np.array([0.0, 0.5 if fn == 'threader_head' else 0.2, span * 0.5 + (0.6 if fn == 'threader_head' else 0.0)])
-                dist = {'threader_head': 7.5, 'threader_seg': 5.6, 'threader_node': 4.6}[fn] + span * 0.8
+                tg = np.array([0.0, 0.5 if fn == 'threader_head' else 0.2, span * 0.5 + (1.0 if fn == 'threader_head' else 0.0)])
+                dist = {'threader_head': 9.0, 'threader_seg': 5.6, 'threader_node': 4.6}[fn] + span * 0.8
                 cam = G.camera(G.orbit(G.g2b(tg), 62, 18, dist), G.g2b(tg), lens=50)
                 p = os.path.join(out, f'strip_{fn}_{c["name"]}_{k}.png')
                 G.render(p)
