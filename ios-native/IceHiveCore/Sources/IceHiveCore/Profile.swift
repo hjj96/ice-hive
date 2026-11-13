@@ -50,6 +50,8 @@ public struct RunSummary {
     public var switchScore = 0
     /// R7: the plan's own report strip (nil: the classic BEACON ×3 · LIFT · QUEEN · EXTRACTION from the run's numbers).
     public var strip: [ReportStripItem]? = nil
+    /// Stage 2 B4: the run's boss (the score line of its kill: the Queen +1000, the Threader +1500).
+    public var bossKind: BossKind = .queen
 
     public init(cls: MarineClass, won: Bool, surrendered: Bool, time: Float, playerKills: Int, beaconsDone: Int, queenSpawned: Bool, queenDone: Bool,
                 downs: Int, downBy: DamageSource, tierIndex: Int, tierMul: Float, stage: MissionStage, pressureLoss: Bool,
@@ -231,7 +233,12 @@ public struct RunScore: Equatable {
         if let s = run.switchLine {
             parts.append(ScorePart(label: GameText(s, [.int(run.switchesDone), .int(run.switchesTotal)]), value: run.switchesDone * run.switchScore))
         }
-        if run.queenSpawned && run.queenDone { parts.append(ScorePart(label: GameText(.scoreQueen), value: 1000)) }
+        if run.queenSpawned && run.queenDone {
+            switch run.bossKind {
+            case .queen: parts.append(ScorePart(label: GameText(.scoreQueen), value: 1000))
+            case .threader: parts.append(ScorePart(label: GameText(.scoreThreader), value: 1500))
+            }
+        }
         if run.won {
             parts.append(ScorePart(label: GameText(.scoreExtract), value: 1500))
             parts.append(ScorePart(label: GameText(.scoreSpeed, [.time(run.time)]), value: max(0, Int(jsRound((480 - Double(run.time)) * 5)))))
@@ -274,7 +281,7 @@ public struct RunResult {
 
 // ---------- texts ----------
 public enum MetaText {
-    /// Loss causes by DamageSource (runner, spitter, brute, boomer, the Queen, the Dropper).
+    /// Loss causes by DamageSource (runner, spitter, brute, boomer, the Queen, the Dropper, the Threader).
     public static let lossTips: [GameText] = [
         GameText(.tipLossRunner),
         GameText(.tipLossSpitter, [.name(.bug(.spitter))]),
@@ -282,6 +289,7 @@ public enum MetaText {
         GameText(.tipLossBoomer, [.name(.bug(.boomer))]),
         GameText(.tipLossQueen, [.name(.queen)]),
         GameText(.tipLossDropper, [.name(.bug(.dropper))]),
+        GameText(.tipLossThreader, [.name(.threader)]),
     ]
     public static let pressTip = GameText(.tipPressure)
     /// After the first evacuation on Recruit: the next mission is Veteran, as designed.

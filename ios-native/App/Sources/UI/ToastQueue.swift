@@ -7,8 +7,9 @@ import IceHiveCore
 //  six first-sighting tips with the upgrade names and the squad's radio
 //  in one go, stacked two or three deep over the banner. The queue
 //  sorts every toast into one of three lanes:
-//    threat — a squadmate pinned or down, the player down: shown at
-//             once (or the moment a banner over the column is gone),
+//    threat — a squadmate pinned or down, the player down, the
+//             Threader's coil / light (B4): shown at once (or the
+//             moment a banner over the column is gone),
 //             dropped only when the threat is over by then (the mate
 //             freed / back up) — the squad row shows a downed mate
 //             meanwhile;
@@ -96,7 +97,8 @@ final class ToastQueue {
 
     static func lane(_ id: TextID) -> Lane {
         switch id {
-        case .toastMatePinned, .toastMateDown, .toastPlayerDown: return .threat
+        // (Stage 2 B4: the squad's callouts of the Threader's two traps — 2.5 s to leave its coil, 0.8 s in its light locks)
+        case .toastMatePinned, .toastMateDown, .toastPlayerDown, .toastThreaderCoil, .toastThreaderLight: return .threat
         default: return id.rawValue.hasPrefix("toast.tip.") ? .tip : .bark
         }
     }

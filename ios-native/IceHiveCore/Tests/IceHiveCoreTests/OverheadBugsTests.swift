@@ -27,7 +27,9 @@ final class DropperTypeTests: XCTestCase {
         XCTAssertEqual(DamageSource(bugType: T_BOOM), .boomer)
         XCTAssertEqual(DamageSource(bugType: 9), .environment)
         XCTAssertEqual(DamageSource.dropper.ledger, DamageSource.runner.ledger)
-        for d in DamageSource.allCases where d != .dropper { XCTAssertEqual(d.ledger, d.rawValue + 1, "\(d): the classic slots") }
+        // (Stage 2 B4: the Threader in the boss's slot, the Queen's)
+        XCTAssertEqual(DamageSource.threader.ledger, DamageSource.queen.ledger)
+        for d in DamageSource.allCases where d != .dropper && d != .threader { XCTAssertEqual(d.ledger, d.rawValue + 1, "\(d): the classic slots") }
         // text: its name, first-sighting tip, loss tip
         XCTAssertTrue(NameRef.all.contains(.bug(.dropper)))
         XCTAssertEqual(GameText.bugTip(.dropper)?.id, .toastTipDropper)

@@ -27,11 +27,14 @@ import Foundation
 /// and its own file (the custom moves: `bossOwnTick` / `bossOwnMove` in GameBoss.swift switch over the kinds).
 public enum BossKind: String, CaseIterable {
     case queen
+    /// Stage 2 B4: the Threader (design §1.5), the boss of the Manifold — GameThreader.swift.
+    case threader
 
     /// Its name in the objective line and the boss bar (catalog `name.bug.<kind>`).
     public var name: NameRef {
         switch self {
         case .queen: return .queen
+        case .threader: return .threader
         }
     }
 }
@@ -312,6 +315,10 @@ public struct BossSpec: Equatable {
     public var deathBanner: BannerText? = nil
     public var roar: SoundID? = nil
     public var arrivalShake: Float = 0.4
+    /// Stage 2 B4: a chain body takes an area hit as one creature — a blast's or a continuous weapon's (the torch, the beam,
+    /// the napalm) damage on its parts in one tick counts once per source on the boss bar, the part that took the most (the
+    /// Threader; off for the Queen and B1's toy: every part hit counts).
+    public var areaOnce = false
 
     public init(at: Float, hp: Float, speed: Float, body: BossBodySpec, spawn: BossSpawn, phases: [BossPhase], moves: [BossMove],
                 source: DamageSource) {

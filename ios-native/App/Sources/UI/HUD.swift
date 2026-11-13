@@ -1381,7 +1381,11 @@ final class HUD {
          (GameText(.bannerBreakerRun), GameText(.bannerBreakerRunSub, [.name(.sector(letter: 11, number: 88))])),
          (GameText(.bannerBreakersLive), GameText(.bannerBreakersLiveSub)),
          (GameText(.bannerGenerator), GameText(.bannerGeneratorSub, [.int(60)])),
-         (GameText(.bannerVentPurge), GameText(.bannerVentPurgeSub, [.name(.sector(letter: 11, number: 88))]))]
+         (GameText(.bannerVentPurge), GameText(.bannerVentPurgeSub, [.name(.sector(letter: 11, number: 88))])),
+         // Stage 2 B4: the Manifold's drop banner, the Threader's arrival and its death (H1: in the text-fit checks)
+         (GameText(.bannerManifold), GameText(.bannerManifoldSub, [.name(.sector(letter: 11, number: 88))])),
+         (GameText(.bannerThreader), GameText(.bannerThreaderSub)),
+         (GameText(.bannerThreaderDead), GameText(.bannerThreaderDeadSub))]
     }
 
     // (native-vx-feel: a calmer screen — the red vignette of a bite, the white flash of a blast and the red edge of a horde

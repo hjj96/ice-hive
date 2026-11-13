@@ -122,6 +122,9 @@ public enum GameEvent {
     case bossPartPopped(kind: BossKind, part: Int, pos: Vec2)
     /// Part `part` froze (a boss that is not freeze-immune: its body locks instead).
     case bossPartFrozen(kind: BossKind, part: Int, pos: Vec2)
+    /// Stage 2 B4: a moment of a boss's own moves for the renderer, the audio and the logs (`BossCue`; `value`: the marine,
+    /// the trunk, the burst, the part or a count — see each cue).
+    case bossCue(kind: BossKind, cue: BossCue, pos: Vec2, value: Int)
 
     // --- v1.1 «Ставки»: the first-run coach ---
 
@@ -203,6 +206,38 @@ public enum GameEvent {
 /// the Dropper, killing or freezing it), the pin running out, the marine going down, anything else (the extraction).
 public enum PinBreak: Int {
     case dash, fire, timeout, down, release
+}
+
+/// Stage 2 B4: a moment of a boss's own moves (`GameEvent.bossCue`) — the Threader's (GameThreader.swift). `value` in
+/// brackets.
+public enum BossCue: Int {
+    /// The lure locked on a marine [marine]: the beam turns hot white, the strike's closing ring is at `pos`.
+    case lureLock
+    /// The head lets go of its trunk and drops onto the ring; it lands [marines in the slam]; it lands in the Pyro's fire and
+    /// recoils (+1 s down).
+    case strikeDrop, strikeLand, recoil
+    /// It climbs a riser pipe to the ring duct; it is up there (untouchable); it comes back down onto a trunk.
+    case climb, duct, descend
+    /// The coil starts round a marine [marine]; it crushes; it lets go (a grenade on a node, a pop); two frozen segments open
+    /// a gap [the segment].
+    case coil, coilCrush, coilLetGo, coilGap
+    /// Rime spit along a trunk [trunk].
+    case rimeSpit
+    /// It crushes a trunk [trunk]; a valve of it starts its warning (the gauge needle, the hiss) [burst]; it vents [burst].
+    case squeeze, squeezeBurst, squeezeVent
+    /// It rips a trunk [trunk] (its red lane and dust); the trunk crashes across the deck [trunk]; the body comes down.
+    case pullRip, pullCrash, deckDrop
+    /// A charge on the deck after a marine [marine] (the beam along its path).
+    case charge
+    /// Frost dust falls along the body (the shed's warning); the ticks drop [count].
+    case shed, ticks
+    /// The torch stripped a node's frost plates [part]; a node popped: it screams [part].
+    case plateStrip, scream
+    /// A duct mouth pours a pack [duct].
+    case packs
+    /// It took THREADER_WINDOW_CAP of its health in one exposure — a punish window and the way back up [0: the head pulls
+    /// back up at once] or a coil [1: it lets go] — a scream; the ice on it breaks.
+    case pain
 }
 
 public enum TelegraphShape: Int {
