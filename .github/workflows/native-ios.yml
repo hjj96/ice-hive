@@ -667,8 +667,10 @@ jobs:
           # alongside (-ohVis: the deck the overhead covers, any marine it hides — gated below by ci/overhead_vis.py). On
           # «высокая» (-ohHigh): the flashlight shadows, the overhead's casters drawn into the player's tile (the other
           # overhead runs are on the default tier). Stage 2 V1: the whole bridge at half the run speed (-ohWalkK 0.5,
-          # ≈ 7.8 s), every 4th present from 0.8 s — 140 frames, ≈ 9.3 s at 15 frames/s: the owner's parallax clip
-          run_demo burst-parallax 12 "-demo overhead -ohWalk -ohWalkK 0.5 -ohHigh -seed 7 -hideHUD -ohVis -burst parallax 0.8 140 4"
+          # ≈ 7.7 s), every 5th present from 0.8 s — 112 frames, ≈ 9.3 s at 12 frames/s: the owner's parallax clip (the
+          # full-size JPEGs are written at ≈ 11 a second here: 15 a second fell behind and the demo ended before the last
+          # were written; 14 s leaves the writer its margin)
+          run_demo burst-parallax 14 "-demo overhead -ohWalk -ohWalkK 0.5 -ohHigh -seed 7 -hideHUD -ohVis -burst parallax 0.8 112 5"
           pull_burst burst-parallax
           # Stage 1 R4: the overhead's bugs frame by frame at phone size, the HUD on (the pin's hint): the Dropper's telegraph,
           # drop, pin and the squad's fire throwing it off (every 5th present from 3.2 s); the perched spitter's wind-up and
@@ -1029,7 +1031,7 @@ jobs:
           need overhead 'hb overhead draws=[1-9][0-9]*\+[0-9]+ tris=[1-9]'
           need burst-overhead 'burst overhead written \(24 frames\)'
           # Stage 1 R3: the parallax walk and the visibility metric (both runs; the gate is ci/overhead_vis.py below)
-          need burst-parallax 'burst parallax written \(140 frames\)'
+          need burst-parallax 'burst parallax written \(112 frames\)'
           need burst-parallax 'demo overhead: walking td='
           need burst-parallax 'oh vis: on \(pipelines ok'
           need burst-parallax 'hb overhead draws=.* casters=[1-9][0-9]*/[1-9][0-9]* tier=high'

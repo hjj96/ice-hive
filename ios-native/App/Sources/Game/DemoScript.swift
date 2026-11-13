@@ -77,7 +77,7 @@ import IceHiveCore
 //                   the pad end and the player walks the bridge toward the hub from 1.0 s (no freeze) — the camera follows,
 //                   the deck, the routes and the upper truss slide past at their three speeds. `-ohHigh`: on «высокая»
 //                   (the flashlight shadows: the overhead's casters in the player's tile — the CI parallax burst).
-//                   `-ohWalkK k` (Stage 2 V1): the walk at k × the run speed (0.5: the whole bridge in ≈ 9.5 s — the owner's
+//                   `-ohWalkK k` (Stage 2 V1): the walk at k × the run speed (0.5: the whole bridge in ≈ 7.7 s — the owner's
 //                   10 s parallax clip, the CI burst `burst-parallax`).
 //  Stage 1 R4 «Overhead bugs»:
 //    -demo overheadbugs  the overhead showcase (as -demo overhead), the squad mid-bridge, the director off, the bots holding

@@ -77,7 +77,7 @@ final class WorldOverhead {
     /// catch of the crust's topmost line and the cool rim (linear radiance at full weight: the line shows ≈ luma 100 over
     /// the void's ≈ 33 at the game camera, the deck's median ≈ 40), the read weight right outside a marine's cut (the near
     /// share; 1 from 2.4 cut radii out), the running lights' emission (×). `-ohRead 0` zeroes all of it: R3's look.
-    static let read = (crust: Float(1), skyCatch: Float(0.14), rim: Float(0.36), near: Float(0.55), lights: Float(1))
+    static let read = (crust: Float(1), skyCatch: Float(0.14), rim: Float(0.45), near: Float(0.7), lights: Float(1))
     static let readOff: Bool = {
         let a = LaunchOptions.current.unknown
         return a.firstIndex(of: "-ohRead").map { $0 + 1 < a.count && a[$0 + 1] == "0" } ?? false

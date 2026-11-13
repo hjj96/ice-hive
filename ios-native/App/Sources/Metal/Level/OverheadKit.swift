@@ -34,11 +34,12 @@ import IceHiveCore
 //  another block). The upper truss (decoration, deck + 11 m: a lattice
 //  girder along every big deck) is built into its own chunk class.
 //  Stage 2 V1 «The overhead reads»: small cold running lights on the
-//  void-side pipe of every long rack over the void and of its run-on
-//  into the dark, one every 3.5 m (`runningLight`: 10 triangles each,
-//  in the same chunks — no draw of their own); Level.metal runs a soft
-//  pulse along them. Racks over walkable deck (the crossings) carry
-//  none: the crossings stay thin and dark, the cutaway owns them.
+//  void-side pipe of every rack ≥ 6 m and of a run-on into the dark,
+//  one every 3.5 m wherever the lamp itself hangs over the void
+//  (`runningLights`: 10 triangles each, in the same chunks — no draw of
+//  their own); Level.metal runs a soft pulse along them. Over walkable
+//  deck (the crossings) none: the crossings stay thin and dark, the
+//  cutaway owns them.
 //  Nothing here exists on a station without routes.
 // ================================================================
 
@@ -64,8 +65,9 @@ final class OverheadBuild {
     // ---- Stage 2 V1 «The overhead reads»: the running lights along the long racks
     /// Colour (sRGB: a pale ice cyan — the station's cold light language, never a class colour), emission (× 32 in the
     /// vertex; Level.metal's pulse takes it between 0.5× and 1.5×), spacing along the rack (m), the shortest rack that
-    /// gets them (m).
-    static let lightColor: UInt32 = 0x8fe6ff, lightEmis: Float = 2.0, lightGap: Float = 3.5, lightMinRun: Float = 6
+    /// gets them (m), the lamp (along × across × high, m).
+    static let lightColor: UInt32 = 0x8fe6ff, lightEmis: Float = 2.4, lightGap: Float = 3.5, lightMinRun: Float = 6
+    static let lightSize = F3(0.11, 0.08, 0.06)
 
     // palette (sRGB): dark kit steel — the darker grade of vs_overhead takes it further down
     enum Col {
@@ -317,30 +319,33 @@ final class OverheadBuild {
             m.place(v, at: A + (B - A) * 0.37, yaw: yawOf(f.dir), paint: Col.valve)
             piecesPlaced += 1
         }
-        // (Stage 2 V1) the running lights on the void-side pipe of a long rack over the void
-        if full && f.len >= OverheadBuild.lightMinRun {
-            runningLights(m, from: A, dir: f.dir, side: f.side, len: f.len, pipe: set[2], arc0: 0, arcSign: 1)
+        // (Stage 2 V1) the running lights on the void-side pipe of a long rack (the full rack's third pipe, a rail-side
+        // rack's conduit) — only where the lamp hangs over the void
+        if f.len >= OverheadBuild.lightMinRun, let pipe = set.last {
+            runningLights(m, from: A, dir: f.dir, side: f.side, len: f.len, pipe: pipe, arc0: 0, arcSign: 1)
         }
     }
 
     /// Stage 2 V1: small cold lights sitting on the void-side pipe (`pipe`: offset toward the void, radius, centre below the
-    /// route) every `lightGap` m from half a gap in; uv0.x carries the arc `arc0` + `arcSign` × the distance from `P`
-    /// (Level.metal runs its pulse along it, toward a growing arc) and uv0.y 1 (the shader's mark of a running light: light
-    /// faces have no trim uv otherwise).
+    /// route) every `lightGap` m from half a gap in, skipping any spot over walkable deck; uv0.x carries the arc `arc0` +
+    /// `arcSign` × the distance from `P` (Level.metal runs its pulse along it, toward a growing arc) and uv0.y 1 (the
+    /// shader's mark of a running light: light faces have no trim uv otherwise).
     private func runningLights(_ m: KitMesh, from P: F3, dir: F3, side: F3, len: Float, pipe: (Float, Float, Float, UInt32, Int),
                                arc0: Float, arcSign: Float) {
         let gap = OverheadBuild.lightGap
         let n = Int(((len - gap / 2) / gap).rounded(.down)) + 1
         guard n > 0 else { return }
-        // centre 2.5 cm above the pipe's top: a 9 × 7 × 5 cm lamp (no bottom face: 10 triangles)
-        let lift = F3(0, pipe.1 - pipe.2 + 0.025, 0)
+        // a lamp of `lightSize` sitting on the pipe's top (no bottom face: 10 triangles)
+        let sz = OverheadBuild.lightSize
+        let lift = F3(0, pipe.1 - pipe.2 + sz.z / 2, 0)
         let mat = light(OverheadBuild.lightColor, OverheadBuild.lightEmis)
         for k in 0..<n {
             let t = gap / 2 + gap * Float(k)
             if t > len - 0.2 { break }
             let c = P + dir * t + side * pipe.0 + lift
+            if overDeck(c.x, c.z) { continue }
             let v0 = m.vertices.count
-            m.beam(c - dir * 0.045, c + dir * 0.045, w: 0.07, h: 0.05, c: 0, mat, bottom: false)
+            m.beam(c - dir * (sz.x / 2), c + dir * (sz.x / 2), w: sz.y, h: sz.z, c: 0, mat, bottom: false)
             for i in v0..<m.vertices.count {
                 m.vertices[i].u = arc0 + arcSign * t
                 m.vertices[i].v = 1
