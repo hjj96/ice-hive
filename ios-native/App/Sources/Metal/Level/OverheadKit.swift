@@ -34,12 +34,13 @@ import IceHiveCore
 //  another block). The upper truss (decoration, deck + 11 m: a lattice
 //  girder along every big deck) is built into its own chunk class.
 //  Stage 2 V1 «The overhead reads»: small cold running lights on the
-//  void-side pipe of every rack ≥ 6 m and of a run-on into the dark,
-//  one every 3.5 m wherever the lamp itself hangs over the void
-//  (`runningLights`: 10 triangles each, in the same chunks — no draw of
-//  their own); Level.metal runs a soft pulse along them. Over walkable
-//  deck (the crossings) none: the crossings stay thin and dark, the
-//  cutaway owns them.
+//  void-side pipe of every rack and of a run-on into the dark, every
+//  3.5 m of the station's x or z (so the lamps of a rack's collinear
+//  edges line up across their joints) wherever the lamp itself hangs
+//  over the void (`runningLights`: 10 triangles each, in the same
+//  chunks — no draw of their own); Level.metal runs a soft pulse along
+//  them. Over walkable deck (the crossings) none: the crossings stay
+//  thin and dark, the cutaway owns them.
 //  Nothing here exists on a station without routes.
 // ================================================================
 
@@ -64,10 +65,10 @@ final class OverheadBuild {
 
     // ---- Stage 2 V1 «The overhead reads»: the running lights along the long racks
     /// Colour (sRGB: a pale ice cyan — the station's cold light language, never a class colour), emission (× 32 in the
-    /// vertex; Level.metal's pulse takes it between 0.5× and 1.5×), spacing along the rack (m), the shortest rack that
-    /// gets them (m), the lamp (along × across × high, m).
-    static let lightColor: UInt32 = 0x8fe6ff, lightEmis: Float = 2.4, lightGap: Float = 3.5, lightMinRun: Float = 6
-    static let lightSize = F3(0.11, 0.08, 0.06)
+    /// vertex; Level.metal's pulse takes it between 0.5× and 1.5×), spacing along the station's x / z (m), the lamp
+    /// (along × across × high, m: ≈ 3 × 2 pt at phone size — a 9 cm lamp was a speck under a point).
+    static let lightColor: UInt32 = 0x8fe6ff, lightEmis: Float = 3.0, lightGap: Float = 3.5
+    static let lightSize = F3(0.16, 0.10, 0.07)
 
     // palette (sRGB): dark kit steel — the darker grade of vs_overhead takes it further down
     enum Col {
@@ -223,14 +224,11 @@ final class OverheadBuild {
             }
             // a rack's dead end over open void runs on into the dark (render only: a pipe bridge to another block)
             if e.kind == .pipe {
-                for (n, P, other, atB) in [(Int(e.b), B, A, true), (Int(e.a), A, B, false)] where degree[n] == 1 && N[n].kind == .joint {
+                for (n, P, other) in [(Int(e.b), B, A), (Int(e.a), A, B)] where degree[n] == 1 && N[n].kind == .joint {
                     var out = P - other
                     out.y = 0
                     let ol = (out * out).sum().squareRoot()
-                    // (V1: the run-on's lights carry on the rack's arc, so the pulse flows from the rack into the dark or back)
-                    if ol > 0.1 && clearVoid(P, out / ol, 24) {
-                        runOn(P, dir: out / ol, side: f.side, len: 24, arc0: atB ? f.len : 0, arcSign: atB ? 1 : -1)
-                    }
+                    if ol > 0.1 && clearVoid(P, out / ol, 24) { runOn(P, dir: out / ol, side: f.side, len: 24) }
                 }
             }
         }
@@ -319,35 +317,40 @@ final class OverheadBuild {
             m.place(v, at: A + (B - A) * 0.37, yaw: yawOf(f.dir), paint: Col.valve)
             piecesPlaced += 1
         }
-        // (Stage 2 V1) the running lights on the void-side pipe of a long rack (the full rack's third pipe, a rail-side
-        // rack's conduit) — only where the lamp hangs over the void
-        if f.len >= OverheadBuild.lightMinRun, let pipe = set.last {
-            runningLights(m, from: A, dir: f.dir, side: f.side, len: f.len, pipe: pipe, arc0: 0, arcSign: 1)
-        }
+        // (Stage 2 V1) the running lights on the void-side pipe (the full rack's third pipe, a rail-side rack's conduit) —
+        // only where the lamp hangs over the void
+        if let pipe = set.last { runningLights(m, A, B, side: f.side, pipe: pipe) }
     }
 
     /// Stage 2 V1: small cold lights sitting on the void-side pipe (`pipe`: offset toward the void, radius, centre below the
-    /// route) every `lightGap` m from half a gap in, skipping any spot over walkable deck; uv0.x carries the arc `arc0` +
-    /// `arcSign` × the distance from `P` (Level.metal runs its pulse along it, toward a growing arc) and uv0.y 1 (the
-    /// shader's mark of a running light: light faces have no trim uv otherwise).
-    private func runningLights(_ m: KitMesh, from P: F3, dir: F3, side: F3, len: Float, pipe: (Float, Float, Float, UInt32, Int),
-                               arc0: Float, arcSign: Float) {
-        let gap = OverheadBuild.lightGap
-        let n = Int(((len - gap / 2) / gap).rounded(.down)) + 1
-        guard n > 0 else { return }
-        // a lamp of `lightSize` sitting on the pipe's top (no bottom face: 10 triangles)
-        let sz = OverheadBuild.lightSize
+    /// route) of the run A → B (its route line, slope included), one at every (k + ½) × `lightGap` of the run's main plan
+    /// axis — x or z, the station's corridors: Mk II's racks are chains of 2–9 m edges between joints, risers and duct
+    /// mouths, and world-aligned spots keep one rhythm along the whole chain —, 0.3 m clear of its ends, skipping any spot
+    /// over walkable deck. uv0.x carries that axis coordinate (Level.metal runs its pulse along it: toward +x / +z on every
+    /// rack, on through a run-on), uv0.y 1 (the shader's mark of a running light: light faces have no trim uv otherwise).
+    private func runningLights(_ m: KitMesh, _ A: F3, _ B: F3, side: F3, pipe: (Float, Float, Float, UInt32, Int)) {
+        let gap = OverheadBuild.lightGap, sz = OverheadBuild.lightSize
+        let d = B - A
+        let alongX = abs(d.x) >= abs(d.z)
+        let s0 = alongX ? A.x : A.z, span = alongX ? d.x : d.z
+        let plan = (d.x * d.x + d.z * d.z).squareRoot(), len = (d * d).sum().squareRoot()
+        // a run along x or z only (a diagonal run has no shared rhythm to keep)
+        guard abs(span) > 0.6, abs(span) > 0.7 * plan, len > 1e-3 else { return }
+        let lo = min(s0, s0 + span) + 0.3, hi = max(s0, s0 + span) - 0.3
+        // a lamp of `lightSize` sitting on the pipe's top, along the run (no bottom face: 10 triangles)
         let lift = F3(0, pipe.1 - pipe.2 + sz.z / 2, 0)
+        let along = d / len
         let mat = light(OverheadBuild.lightColor, OverheadBuild.lightEmis)
-        for k in 0..<n {
-            let t = gap / 2 + gap * Float(k)
-            if t > len - 0.2 { break }
-            let c = P + dir * t + side * pipe.0 + lift
+        var k = Int((lo / gap - 0.5).rounded(.up))
+        while (Float(k) + 0.5) * gap <= hi {
+            let s = (Float(k) + 0.5) * gap
+            k += 1
+            let c = A + d * ((s - s0) / span) + side * pipe.0 + lift
             if overDeck(c.x, c.z) { continue }
             let v0 = m.vertices.count
-            m.beam(c - dir * (sz.x / 2), c + dir * (sz.x / 2), w: sz.y, h: sz.z, c: 0, mat, bottom: false)
+            m.beam(c - along * (sz.x / 2), c + along * (sz.x / 2), w: sz.y, h: sz.z, c: 0, mat, bottom: false)
             for i in v0..<m.vertices.count {
-                m.vertices[i].u = arc0 + arcSign * t
+                m.vertices[i].u = s
                 m.vertices[i].v = 1
             }
             lightsPlaced += 1
@@ -355,8 +358,8 @@ final class OverheadBuild {
     }
 
     /// The pipes of a rack running on from a dead end into the void (render only), on posts every 7 m; its running lights
-    /// (Stage 2 V1) continue the rack's arc from `arc0`, growing along `dir` with `arcSign`.
-    private func runOn(_ P: F3, dir: F3, side s0: F3, len: Float, arc0: Float, arcSign: Float) {
+    /// (Stage 2 V1) keep the rack's rhythm (the same world-aligned spots).
+    private func runOn(_ P: F3, dir: F3, side s0: F3, len: Float) {
         let E = P + dir * len
         var side = F3(-dir.z, 0, dir.x)
         if (side * s0).sum() < 0 { side = -side }
@@ -368,7 +371,7 @@ final class OverheadBuild {
             m.tube(P + o, E + o, r: r, seg: r >= 0.12 ? 10 : 7, pipeMat(tint, strip))
         }
         // (Stage 2 V1) its running lights go on into the dark with it
-        runningLights(m, from: P, dir: dir, side: side, len: len, pipe: set[2], arc0: arc0, arcSign: arcSign)
+        runningLights(m, P, E, side: side, pipe: set[2])
         var t: Float = 7
         while t < len {
             post(P + dir * t, side: side, along: dir, centred: false, from: nil)
