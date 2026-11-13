@@ -693,8 +693,8 @@ jobs:
           pull_burst burst-firstmin
           # Stage 2 B3: the boss intro as the phone shows it (-storeShot) — the Queen's warning ring at the far rim, the push-in on
           # it as the world slows to ×0.3, her climb in slow motion with her name (the arrival banner, low), the camera back to the
-          # game and the boss bar's name: the queen demo's own arrival, 60 frames every 4th present (≈ 15 frames/s) from 1.6 s
-          run_demo burst-bossintro 9 "-demo queen -tier 1 -seed 3 -storeShot -burst bossintro 1.6 60 4"
+          # game and the boss bar's name: the queen demo's own arrival, 60 frames every 4th present (≈ 13–15 frames/s) from 4.6 s
+          run_demo burst-bossintro 11 "-demo queen -tier 1 -seed 3 -storeShot -burst bossintro 4.6 60 4"
           pull_burst burst-bossintro
           # Stage 1 R6: the steam valve bursting over the pack and its scald curtain (every 8th present ≈ 3 s), and the hub's
           # breaker bringing its lamps back (-ixLights: the lights part only from the hub's centre, its restore ≈ 8.5 s in;
@@ -800,8 +800,8 @@ jobs:
           # lines between the stick rings, «hint 2 lines» in the log; the HUD layout check
           run_demo holdhint 8 "-demo holdhint -seed 3 -layoutCheck" 0
           # v1.1: the Матка (boss of the hold) on the deck — a brute instance at scale 4.2, violet tint, volley rings; Stage 2 B3: she
-          # comes through her own warning (1.0 s in: the countdown at her moment), so the boss intro plays inside the measured window
-          # (≈ 2.6–5.2 s: the frame gate and the look gate's «boss intro entry»), and the shots show the boss bar's name
+          # comes through her own warning (4.0 s in: the countdown at her moment), so the boss intro plays inside the measured window
+          # (≈ 5.6–8.2 s: the frame gate and the look gate's «boss intro entry»), and the shots show the boss bar's name
           run_demo queen 10 "-demo queen -tier 1 -seed 3 -ohVis" 0 3
           # the countdown ran out with her alive: «ЛИФТ ЗАБЛОКИРОВАН — МАТКА ЖИВА» (B3: she climbs with no warning, the intro from her
           # arrival)
@@ -809,8 +809,8 @@ jobs:
           # Stage 2 B3: the boss intro's two other paths, log checks only (part b) — `-cine off` (logged, no camera, no slowdown: her
           # warning → arrival takes its 2.0 s of wall as today) and Reduce Motion (`-reduceMotion`: half the length, the push and the
           # slowdown)
-          run_demo queen-cineoff 7 "-demo queen -tier 1 -seed 3 -cine off"
-          run_demo queen-rm 7 "-demo queen -tier 1 -seed 3 -reduceMotion"
+          run_demo queen-cineoff 9 "-demo queen -tier 1 -seed 3 -cine off"
+          run_demo queen-rm 9 "-demo queen -tier 1 -seed 3 -reduceMotion"
           # v1.1 coach «Учебная высадка» on the fresh demo profile: step 1 (ghost thumb on the move ring), step 3
           # (the «Граната» tap with its amber ring, 18 runners); the HUD layout check
           run_demo coach 6 "-demo coach -profile fresh -seed 7 -layoutCheck" 0
