@@ -1,7 +1,9 @@
 """The Threader's HEAD (Stage 2 B2; design.md §1.5) — armoured and insect-like, from the Runner's family: a broad wedge
 cranium under a serrated frost-rimmed shield that flares into spiked cheek plates, three pale ocelli a side, a pair of
 big sickle MANDIBLES each SPLIT into two tines (they open sideways, never a round toothed maw), a swept CREST of stacked
-frost plates over a soft pale membrane (the punish window's weak point: the crest lifts off it while the head is down),
+frost plates over a soft pale membrane (the punish window's weak point: the crest lifts off it while the head is down;
+it alone uses the glow table's eye channel, dark outside `down` / `recover`; the ocelli glow with the lantern's gland
+channel),
 and the LANTERN ORGAN — the two antennae fused into one ringed whip that rises from the brow, arches forward over the
 jaws and hangs a pale pearl bulb in a cage of dark ribs (the spitter's acid lantern, in pearl): the lure that carries
 the beam. A neck collar behind it meets segment 1.
@@ -80,7 +82,7 @@ EXTRA_SOCKETS = [('lantern', 'lantern', tuple(hs(BULB_C)), socket_flags(True, Tr
                  ('back', 'root', (0.0, -NECK_BACK, 0.0), 0),
                  ('mouth', 'head', tuple(hs((0.0, 1.75, 0.3))), 0),
                  ('crest', 'crest', tuple(hs((0.0, -0.78, 1.72))), 0),
-                 ('weak', 'head', tuple(hs((0.0, -0.15, 0.95))), 0),
+                 ('weak', 'head', tuple(hs((0.0, -0.3, 0.95))), 0),
                  ('core', 'head', tuple(hs((0.0, 0.3, 0.55))), 0)]
 
 
@@ -230,7 +232,7 @@ def crest(lod):
                      depth=0.38))
     # the membrane (on the head bone: the crest lifts off it)
     nu, nv = ((10, 4), (6, 2), (4, 1))[lod]
-    V, F = ellipsoid((0.0, -0.18, 0.86), (0.13, 0.52, 0.07), nu, nv)
+    V, F = ellipsoid((0.0, -0.25, 0.86), (0.13, 0.45, 0.07), nu, nv)      # (wholly under the sheath until the crest lifts)
     P.append(Part('membrane', V, F, 'head', PAL['membrane'], glow=0.7, rough=0.3, smooth=True, sharp_deg=180,
                   vcolor=np.tile(col(PAL['membrane']), (len(V), 1)), flags=F_EYE))
     return P
@@ -278,7 +280,7 @@ def build_parts(lod):
                     continue
                 c = np.array([s * 0.55, 0.78 + dy, 0.6 + dz])
                 V, F = octa(c, r, 0.8)
-                P.append(Part(f'eye.{SN[s]}{k}', V, F, 'head', C['eye'], glow=0.75, rough=0.2, flags=F_EYE,
+                P.append(Part(f'eye.{SN[s]}{k}', V, F, 'head', C['eye'], glow=0.75, rough=0.2, flags=F_GLAND,
                               vcolor=np.tile(col(C['eye']), (len(V), 1))))
     # ---- the front face (clypeus) between the mandible bases
     if lod == 0:
@@ -356,7 +358,7 @@ def clip_state(name, f, n):
         _lure(st, 3 * math.sin(w), 4 * math.sin(w - 0.6), 5 * math.sin(w - 1.2), yaw=4 * math.sin(w + 0.3), swing=8 * math.sin(w - 1.6),
               roll=5 * math.sin(w - 0.9))
         _palps(st, 8 * math.sin(2 * w + 0.4))
-        st.glow.update(gland=1.0, pulse=0.15, wave=tau, eye=1.0)
+        st.glow.update(gland=1.0, pulse=0.15, wave=tau, eye=0.0)
     elif name == 'sweep':
         sway = math.sin(w)
         st.set('head', rx(-3 * D2R) @ rz(9 * D2R * sway) @ tr(0, 0.05, 0.0))
@@ -365,7 +367,7 @@ def clip_state(name, f, n):
         _lure(st, -10 + 3 * math.sin(2 * w), -6, 4 + 3 * math.sin(2 * w - 0.5), yaw=-6 * math.sin(w - 0.7), swing=-9 * sway,
               roll=-8 * math.sin(w - 1.1))
         _palps(st, 10 * math.sin(2 * w))
-        st.glow.update(gland=1.25, pulse=0.25, wave=tau * 2, eye=1.1)
+        st.glow.update(gland=1.25, pulse=0.25, wave=tau * 2, eye=0.0)
     elif name == 'strike':
         up = smoothstep(0.0, 0.6, tau) * (1 - smoothstep(0.68, 0.86, tau))
         drop = smoothstep(0.68, 1.0, tau)
@@ -378,7 +380,7 @@ def clip_state(name, f, n):
         _crest(st, 18 * up - 4 * drop)
         _lure(st, 24 * up - 10 * drop, 10 * up, 8 * up, swing=-20 * up + 25 * drop, roll=3 * shiver)
         _palps(st, 20 * up)
-        st.glow.update(gland=1.0 + 2.6 * up + 1.2 * drop, pulse=0.2 * up, wave=tau * 3, eye=1.0 + 0.8 * up)
+        st.glow.update(gland=1.0 + 2.6 * up + 1.2 * drop, pulse=0.2 * up, wave=tau * 3, eye=0.0)
     elif name == 'down':
         tw = math.sin(w * 2) * 0.5 + 0.5
         st.set('root', tr(0, 0.3, DOWN_Z))
@@ -396,7 +398,7 @@ def clip_state(name, f, n):
         _mand(st, 20 * k + 26 * heave * (1 - smoothstep(0.6, 0.85, tau)) - 3 * smoothstep(0.8, 1.0, tau))
         _crest(st, 34 * (1 - smoothstep(0.1, 0.45, tau)))
         _lure(st, -9 * k + 10 * heave, -7 * k, 16 * k, swing=14 * k - 10 * heave)
-        st.glow.update(gland=0.35 + 0.8 * smoothstep(0.3, 0.9, tau), pulse=0.1, eye=2.2 * k + 1.0 * (1 - k))
+        st.glow.update(gland=0.35 + 0.8 * smoothstep(0.3, 0.9, tau), pulse=0.1, eye=2.2 * (1 - smoothstep(0.1, 0.45, tau)))
     elif name == 'scream':
         k = smoothstep(0.0, 0.12, tau) * (1 - smoothstep(0.7, 1.0, tau))
         thr = math.sin(f * 0.85) * k
@@ -407,14 +409,14 @@ def clip_state(name, f, n):
         _lure(st, 18 * k, 8 * k * math.sin(f * 1.1), 10 * k, yaw=-14 * thr, swing=-24 * thr, roll=18 * thr)
         _palps(st, 26 * k)
         fl = abs(math.sin(f * 2.7)) * (0.5 + 0.5 * abs(math.sin(f * 0.61)))
-        st.glow.update(gland=max(0.15, 1.0 + 1.6 * fl * k - 0.6 * k * (1 - fl)), pulse=0.0, eye=1.0 + 0.9 * k)
+        st.glow.update(gland=max(0.15, 1.0 + 1.6 * fl * k - 0.6 * k * (1 - fl)), pulse=0.0, eye=0.0)
     elif name == 'coil':
         st.set('head', rx(-18 * D2R) @ rz(5 * D2R * math.sin(w)) @ tr(0, 0.04, 0))
         _mand(st, 24 + 9 * math.sin(2 * w))
         _crest(st, 6)
         _lure(st, 16, 8, -4, swing=6 * math.sin(w - 1.2), roll=4 * math.sin(w))
         _palps(st, 12 * math.sin(2 * w + 1))
-        st.glow.update(gland=0.45, pulse=0.15, wave=tau, eye=1.4)
+        st.glow.update(gland=0.45, pulse=0.15, wave=tau, eye=0.0)
     elif name == 'pull':
         yank = math.sin(w)
         st.set('root', tr(0, -0.08 * abs(yank), -0.06 * abs(yank)))
@@ -423,14 +425,14 @@ def clip_state(name, f, n):
         _crest(st, 20 + 6 * abs(yank))
         _lure(st, 10, 6, 6, yaw=-12 * yank, swing=-26 * yank, roll=22 * yank)
         _palps(st, -14)
-        st.glow.update(gland=1.3, pulse=0.4, wave=tau * 2, eye=1.4)
+        st.glow.update(gland=1.3, pulse=0.4, wave=tau * 2, eye=0.0)
     elif name == 'charge':
         st.set('head', rx(-7 * D2R) @ rz(4 * D2R * math.sin(w)) @ tr(0, 0.08, 0.0))
         _mand(st, 32 + 10 * math.sin(2 * w))
         _crest(st, -8)
         _lure(st, 28, 14, 10, swing=-18 + 6 * math.sin(2 * w), roll=4 * math.sin(w))
         _palps(st, 18)
-        st.glow.update(gland=1.5, pulse=0.2, wave=tau * 2, eye=1.3)
+        st.glow.update(gland=1.5, pulse=0.2, wave=tau * 2, eye=0.0)
     elif name == 'strike_low':
         up = smoothstep(0.0, 0.5, tau) * (1 - smoothstep(0.55, 0.8, tau))
         lunge = smoothstep(0.55, 1.0, tau)
@@ -440,7 +442,7 @@ def clip_state(name, f, n):
         _mand(st, 38 * (up + lunge) * (1 - snap) - 4 * snap)
         _crest(st, 10 * up)
         _lure(st, 20 * up + 18 * lunge, 8, 6, swing=-14 * up + 10 * lunge)
-        st.glow.update(gland=1.4 + 1.6 * up, pulse=0.0, eye=1.0 + 0.6 * up)
+        st.glow.update(gland=1.4 + 1.6 * up, pulse=0.0, eye=0.0)
     elif name == 'death':
         sc = smoothstep(0, 6, f) * (1 - smoothstep(18, 30, f))
         col_ = smoothstep(20, 56, f)
@@ -454,12 +456,12 @@ def clip_state(name, f, n):
         flick = abs(math.sin(f * 2.9)) * (1 - smoothstep(30, 66, f))
         g = 1.0 + 1.8 * sc
         g = g * (1 - smoothstep(26, 40, f)) + (0.15 + 1.0 * flick) * smoothstep(26, 40, f) * (1 - smoothstep(60, 72, f))
-        st.glow.update(gland=max(0.0, g), pulse=0.0, eye=max(0.05, 1.0 + 0.8 * sc - smoothstep(24, 50, f) * 1.6))
+        st.glow.update(gland=max(0.0, g), pulse=0.0, eye=0.0)
     elif name == 'hit':
         k = [0, 1.0, 0.85, 0.6, 0.32, 0.1, -0.06, -0.05, -0.02, 0.0][f]
         st.set('head', rx(6 * k * D2R) @ rz(-5 * k * D2R))
         _mand(st, 7 + 12 * max(k, 0))
         _crest(st, 5 * k)
         _lure(st, 6 * k, 4 * k, 3 * k, swing=-8 * k)
-        st.glow.update(gland=1.0 + 0.6 * max(k, 0), eye=1.0 + 0.4 * max(k, 0))
+        st.glow.update(gland=1.0 + 0.6 * max(k, 0), eye=0.0)
     return st
