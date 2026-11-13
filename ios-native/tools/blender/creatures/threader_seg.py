@@ -181,7 +181,7 @@ def build_parts(lod):
         P.append(_rime(1))
         P.append(_rim_band(1))
     else:
-        P.append(tergite('tergite', 'thorax', nv=1, serr=0.0, frost=0.5, thick=0.06, lod=1, **TERG))
+        P.append(tergite('tergite', 'thorax', nv=1, serr=0.0, frost=0.22, thick=0.06, lod=1, **TERG))
         P.append(Part('core', *ellipsoid((0, 0.0, 0.3), (0.5, 0.95, 0.25), 4, 1), 'thorax', C['core'], rough=0.5))
     for lg in LEGS:
         P.extend(hook_leg_parts(lg, lod, thick=1.4))

@@ -176,6 +176,8 @@ def job_parts(out):
         ('threader_seg', 'hold', 0, 2, 'segment LOD2', 35, 20, 4.6, (0, 0, 0.1), True),
         ('threader_node', 'open', 0, 1, 'node LOD1', 35, 30, 3.4, (0, 0.85, -0.15), True),
         ('threader_node', 'open', 0, 2, 'node LOD2', 35, 30, 3.4, (0, 0.85, -0.15), True),
+        ('threader_node', 'plated', 0, 0, 'node lit, plated, game angle', 225, 57, 4.0, (0, 0.75, -0.15), True),
+        ('threader_node', 'dark', 0, 0, 'node dark, game angle', 225, 57, 4.0, (0, 0.75, -0.15), True),
     ]
     for k, (fn, cn, fr, li, lab, az, el, dist, tgt, pipe) in enumerate(views):
         if fn not in Ds:
@@ -398,11 +400,17 @@ def lantern_pos(Ds, P, head_clip, t):
 def job_body(out):
     Ds = {n: load(n) for n in FILES}
     W, H = 2532, 1170                  # iPhone 12 landscape drawable (3×)
+    trunks = {3: 'plated', 6: 'plated', 9: 'open', 12: 'dark', 15: 'plated'}
     shots = [  # (name, path kind, look target, seg clip, head clip, node states, lod, t)
-        ('body_trunks', 'trunks', (-3.0, 0.0, 1.0), 'hold', 'sweep', {3: 'plated', 6: 'plated', 9: 'open', 12: 'dark', 15: 'plated'}, 0, 0.3),
+        ('body_trunks', 'trunks', (-3.0, 0.0, 1.0), 'hold', 'sweep', trunks, 0, 0.3),
+        ('body_trunks_lod1', 'trunks', (-3.0, 0.0, 1.0), 'hold', 'sweep', trunks, 1, 0.3),
+        ('body_trunks_lod2', 'trunks', (-3.0, 0.0, 1.0), 'hold', 'sweep', trunks, 2, 0.3),
         ('body_coil', 'coil', (0.0, 0.0, 2.5), 'coil', 'coil', {3: 'open', 6: 'open', 9: 'dark', 12: 'open', 15: 'open'}, 0, 0.5),
         ('body_deck', 'deck', (0.0, 0.0, 4.0), 'crawl', 'charge', {3: 'open', 6: 'dark', 9: 'dark', 12: 'open', 15: 'dark'}, 0, 0.2),
     ]
+    only = os.environ.get('BODY_SHOTS')
+    if only:
+        shots = [x for x in shots if x[0] in only.split(',')]
     res = []
     for name, kind, tgt, sc, hc, nodes, lod, t in shots:
         G.reset((W, H), 24)
@@ -422,8 +430,22 @@ def job_body(out):
         G.render(p)
         res.append((p, name))
         log('body', name)
-    # LOD strip: the trunks shot at LOD0 / LOD1 / LOD2, cropped
-    G.grid(res, os.path.join(out, 'body_sheet.png'), 1, 'The Threader at the game camera (57° / 45° / fov 40°), iPhone 3× pixels')
+    # the LOD pop at the game camera: the trunks shot at LOD0 / LOD1 / LOD2, mean luma over the body's pixels (where any
+    # LOD differs from another by more than 6 levels or from the darkest frame) and the mean |Δ| between neighbours
+    from PIL import Image
+    L = {}
+    for k in (0, 1, 2):
+        f = os.path.join(out, 'body_trunks' + ('' if k == 0 else f'_lod{k}') + '.png')
+        if os.path.exists(f):
+            L[k] = np.asarray(Image.open(f).convert('L')).astype(np.float64)
+    if len(L) == 3:
+        mask = (np.abs(L[0] - L[1]) > 6) | (np.abs(L[1] - L[2]) > 6) | (np.maximum(np.maximum(L[0], L[1]), L[2]) > 40)
+        rep = dict(px=int(mask.sum()), mean=[float(L[k][mask].mean()) for k in (0, 1, 2)],
+                   d01=float(np.abs(L[0] - L[1])[mask].mean()), d12=float(np.abs(L[1] - L[2])[mask].mean()))
+        import json
+        json.dump(rep, open(os.path.join(out, 'body_lods.json'), 'w'), indent=1)
+        log(f"LODs at the game camera over {rep['px']} px: mean luma {rep['mean'][0]:.1f} / {rep['mean'][1]:.1f} / {rep['mean'][2]:.1f}, "
+            f"|Δ| LOD0→1 {rep['d01']:.1f}, LOD1→2 {rep['d12']:.1f}")
     return res
 
 
