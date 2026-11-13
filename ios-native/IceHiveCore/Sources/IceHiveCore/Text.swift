@@ -191,6 +191,8 @@ public enum TextID: String, CaseIterable {
     case objHoldGenerator = "obj.hold_generator"
     case objSealVents = "obj.seal_vents"
     case objHoldSeal = "obj.hold_seal"
+    // M1: Vent Purge's duct seal waits for its mouth shot shut
+    case objShutDuct = "obj.shut_duct"
     // ---- objective lines of the Manifold (Stage 2 B4 — Manifold.swift)
     case objRestartPumps = "obj.restart_pumps"
     case objHoldPump = "obj.hold_pump"

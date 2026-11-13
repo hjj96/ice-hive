@@ -50,13 +50,13 @@
       }
     },
     "banner.breaker_run.sub" : {
-      "comment" : "Banner subtitle under the title (uppercased, 12 pt, wide letter spacing; scales down past the screen width). Breaker Run's drop banner. %@ = station name. Max width: 635 pt.",
+      "comment" : "Banner subtitle under the title (uppercased, 12 pt, wide letter spacing; scales down past the screen width). Breaker Run's drop banner: four main breakers to restore (the beacon decks Alpha, Beta, Gamma and the hub). %@ = station name. Max width: 635 pt.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ · restore three breakers"
+            "value" : "%@ · restore four breakers"
           }
         }
       }
@@ -170,7 +170,7 @@
       }
     },
     "banner.generator.sub" : {
-      "comment" : "Banner subtitle under the title (uppercased, 12 pt, wide letter spacing; scales down past the screen width). Breaker Run: the generator hold starts. %lld = seconds (60). Max width: 635 pt.",
+      "comment" : "Banner subtitle under the title (uppercased, 12 pt, wide letter spacing; scales down past the screen width). Breaker Run: the generator hold starts. %lld = seconds (90). Max width: 635 pt.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -1214,7 +1214,7 @@
       }
     },
     "hint.ring_contested" : {
-      "comment" : "Hint line between the thumb rings (uppercased; two lines split at « — » or « · », then scaled down to 60 %). Red. Max width: 438 pt.",
+      "comment" : "Hint line between the thumb rings (uppercased; two lines split at « — » or « · », then scaled down to 60 %). Red. A beacon ring — or a Breaker Run breaker ring — with bugs inside it: they slow the charge. Max width: 438 pt.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -1646,7 +1646,7 @@
       }
     },
     "mission.breaker_run" : {
-      "comment" : "Mission name (the title screen's mission choice: the meta row, uppercased monospace; logs). The station is dark: three breakers, then the main generator. Max width: 150 pt.",
+      "comment" : "Mission name (the title screen's mission choice: the meta row, uppercased monospace; logs). The station is dark: four breakers, then the main generator. Max width: 150 pt.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -1982,7 +1982,7 @@
       }
     },
     "obj.hold_breaker" : {
-      "comment" : "Objective line at the top of the HUD (uppercased, one line; shrinks to 62 % at most). Breaker Run: a main breaker is being thrown — a marine has to stand in its ring until it fills (it drains while nobody does). Max width: 403 pt.",
+      "comment" : "Objective line at the top of the HUD (uppercased, one line; shrinks to 62 % at most). Breaker Run: a main breaker is being thrown — a marine has to stand in its ring until it fills (it drains while nobody does; bugs inside it slow it). Max width: 403 pt.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -2042,7 +2042,7 @@
       }
     },
     "obj.hold_seal" : {
-      "comment" : "Objective line at the top of the HUD (uppercased, one line; shrinks to 62 % at most). Vent Purge: a vent is being sealed — a marine has to stand in its ring until it fills (it drains while nobody does). Max width: 403 pt.",
+      "comment" : "Objective line at the top of the HUD (uppercased, one line; shrinks to 62 % at most). Vent Purge: a vent is being sealed — a marine has to stand in its ring until it fills (it drains while nobody does; a duct mouth's weld fills only while the mouth is shot shut). Max width: 403 pt.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -2138,7 +2138,7 @@
       }
     },
     "obj.restore_power" : {
-      "comment" : "Objective line at the top of the HUD (uppercased, one line; shrinks to 62 % at most). Breaker Run (Kelvin-9 in the dark): main breakers thrown / breakers to throw. Max width: 403 pt.",
+      "comment" : "Objective line at the top of the HUD (uppercased, one line; shrinks to 62 % at most). Breaker Run (Kelvin-9 in the dark): main breakers thrown / breakers to throw (four). Max width: 403 pt.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -2161,6 +2161,18 @@
         }
       }
     },
+    "obj.shut_duct" : {
+      "comment" : "Objective line at the top of the HUD (uppercased, one line; shrinks to 62 % at most). Vent Purge: the squad stands in a duct mouth's seal ring but the mouth up on the overhead is open — the weld only fills while its grille is shot shut (the hive chews through it again within seconds). Max width: 403 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shoot the duct shut"
+          }
+        }
+      }
+    },
     "obj.switches" : {
       "comment" : "Objective line at the top of the HUD (uppercased, one line; shrinks to 62 % at most). A SWITCH step of a mission plan: switches thrown / switches needed. Max width: 403 pt.",
       "extractionState" : "manual",
@@ -2174,7 +2186,7 @@
       }
     },
     "obj.to_generator" : {
-      "comment" : "Objective line at the top of the HUD (uppercased, one line; shrinks to 62 % at most). Breaker Run: the three breakers are live — on the way to the main generator on the plaza. Max width: 403 pt.",
+      "comment" : "Objective line at the top of the HUD (uppercased, one line; shrinks to 62 % at most). Breaker Run: the four breakers are live — on the way to the main generator on the plaza. Max width: 403 pt.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -2618,7 +2630,7 @@
       }
     },
     "report.strip.breaker" : {
-      "comment" : "Mission report stage strip label under its bar (uppercased, 9–10 pt; shrinks to 6 pt). Breaker Run: one segment per main breaker (five segments: ~41 pt each on iPhone SE). Max width: 41 pt.",
+      "comment" : "Mission report stage strip label under its bar (uppercased, 9–10 pt; shrinks to 6 pt). Breaker Run: one segment per main breaker (six segments: ~38 pt each on iPhone SE). Max width: 38 pt.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -2642,7 +2654,7 @@
       }
     },
     "report.strip.generator" : {
-      "comment" : "Mission report stage strip label under its bar (uppercased, 9–10 pt; shrinks to 6 pt). Breaker Run: the generator hold (five segments: ~41 pt on iPhone SE). Max width: 41 pt.",
+      "comment" : "Mission report stage strip label under its bar (uppercased, 9–10 pt; shrinks to 6 pt). Breaker Run: the generator hold (six segments: ~46 pt for this one on iPhone SE). Max width: 46 pt.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -2822,7 +2834,7 @@
       }
     },
     "score.breakers" : {
-      "comment" : "Mission report score line, left of its «+N» (one line, shrinks). Breaker Run: main breakers thrown / 3. Max width: 213 pt.",
+      "comment" : "Mission report score line, left of its «+N» (one line, shrinks). Breaker Run: main breakers thrown / 4. Max width: 213 pt.",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {

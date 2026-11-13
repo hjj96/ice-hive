@@ -441,6 +441,8 @@ public final class Game {
     public internal(set) var streamK: Float = 1
     /// R7: seconds to the next pour out of an open seal's vent (a SWITCH step with `pour`).
     var pourT: Float = 0
+    /// M1: seconds to the next pour out of the seal being worked (a SWITCH step with `workPourGap`).
+    var workPourT: Float = 0
     /// R7: the circuits a relighting hold brings back (nearest to its zone first) and how many it has done.
     var relightQueue: [Int] = []
     var relightNext = 0

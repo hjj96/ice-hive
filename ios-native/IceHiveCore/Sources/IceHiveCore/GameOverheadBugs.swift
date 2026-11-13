@@ -550,7 +550,8 @@ extension Game {
             if fresh && !simOnly { emit(.ductHit(index: d)) }
             return
         }
-        oh.ducts[d].hp = 0; oh.ducts[d].shutT = DUCT_SHUT; oh.ducts[d].rattleT = 0
+        // (M1: a Vent Purge seal's duct mouth opens again sooner — `ductShutTime`; R4's DUCT_SHUT everywhere else)
+        oh.ducts[d].hp = 0; oh.ducts[d].shutT = ductShutTime(d); oh.ducts[d].rattleT = 0
         oh.stats.seals += 1
         if !simOnly {
             emit(.ductSealed(index: d))
@@ -628,8 +629,14 @@ extension Game {
     /// The calibration autopilot (the player on autopilot; never a squad bot — design §1.4) shoots a rattling or pouring duct
     /// mouth in its weapon's reach when no bug is in its face: the mouth's position, else nil.
     func autopilotDuct(_ m: Marine, deck: Float) -> SIMD3<Float>? {
-        if deck < 4.5 { return nil }
         let reach: Float = (m.cls == .pyro || m.cls == .cryo) ? m.spec.range * m.mods.range : 18
+        // M1 (Vent Purge's `weldShut`): the seal being welded waits for its duct mouth shut — shoot it shut first, unless a bug
+        // is right in the player's face
+        if let d = weldDuct(), deck >= 2.5 {
+            let p = oh.ducts[d].pos, dx = p.x - m.x, dz = p.z - m.z
+            if dx * dx + dz * dz < reach * reach { return p }
+        }
+        if deck < 4.5 { return nil }
         var best: SIMD3<Float>? = nil
         var bd = reach * reach
         for d in oh.ducts where d.open && (d.rattleT > 0 || d.pourAge < 1.5) {
@@ -661,6 +668,13 @@ extension Game {
     public func debugHurtDuct(_ k: Int, _ dmg: Float, src: Int = 0) -> Bool {
         hurtDuct(k, dmg, src)
         return k >= 0 && k < oh.ducts.count && !oh.ducts[k].open
+    }
+
+    /// M1 (demo staging): the hive chews through duct mouth `k` now — a grille shot shut opens on the next tick, with R4's
+    /// `.ductOpened` (the natural wait is DUCT_SHUT, or a Vent Purge seal's `ductShut`); a mouth sealed for good stays shut.
+    public func debugReopenDuct(_ k: Int) {
+        guard k >= 0 && k < oh.ducts.count, oh.ducts[k].shutT > 0, oh.ducts[k].shutT.isFinite else { return }
+        oh.ducts[k].shutT = 1e-4
     }
 
     /// A Dropper on the deck beside marine `k` that pins it at once (demos and tests of the pin's breaks). Returns its slot.
