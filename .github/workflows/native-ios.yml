@@ -43,8 +43,9 @@ env:
   # pseudo-localised runs (layout, *-pseudo) and the layout check on the other phones; part a: the world (firstlaunch — the
   # cold launch —, gameplay and the HUD in a mission: banners, hints, coach, pressure; swarm, squad, effects, every burst,
   # the HUD-off look shots with their re-shoots, the Metal validation runs, failmetal, the Release block). Keep together in
-  # one part: calm with swarm3x and release-combat (calm is their GPU-drawn baseline in frame_metrics.py), the HUD-off look
-  # shots (calm-nohud, calm-deckmask, calm-bright-nohud are measured against each other). Balanced by measured times (a
+  # one part: the HUD-off look shots (calm-nohud, calm-deckmask, calm-bright-nohud are measured against each other);
+  # firstlaunch with the warm demos its renderer share is measured against (C2: since then calm is only the GPU line's
+  # reference, not swarm3x's / release-combat's baseline any more). Balanced by measured times (a
   # 33–39 min, b 30–44 on the runs before the split; b's spread is the other phones, 20–32 min). README «CI» →
   # «Как добавить демо и выбрать его часть».
   SMOKE_B: title title-fresh title-return title-nm title-left layout layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo banner-pseudo levelup pause pause-nm end report-first report-win report-loss report-chip other-phones
