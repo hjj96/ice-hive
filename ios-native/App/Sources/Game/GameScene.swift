@@ -963,7 +963,8 @@ final class GameScene: SKScene {
             case .hordeFlash:
                 if inMission { hud.hordeFlash() }
             case .toast(let text, let kind):
-                if inMission { hud.toast(L10n.string(text), kind: kind) }
+                // (H1: the HUD's queue decides when it shows — one tip at a time, threats first, nothing under a banner)
+                if inMission { hud.post(text, kind: kind) }
                 noteFirst(1, "toast")
             case .banner(let title, let sub, let teal):
                 if inMission { hud.gameBanner(title: L10n.string(title), subtitle: L10n.string(sub), teal: teal) }

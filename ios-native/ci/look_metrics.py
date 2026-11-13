@@ -35,6 +35,16 @@ from PIL import Image
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
+def shot_file(res, name):
+    """`name` in the results dir, or — in a set published since C2's «CI results diet», where every shot PNG became a JPEG of
+    the same basename — the .jpg for a .png name; None when neither exists. (In CI the PNGs are measured: the look gates run
+    before the diet.)"""
+    for n in (name, name[:-4] + '.jpg' if name.endswith('.png') else None):
+        if n and os.path.exists(os.path.join(res, n)):
+            return n
+    return None
+
+
 def load(path):
     return np.asarray(Image.open(path).convert('RGB')).astype(np.float32)
 
@@ -192,7 +202,7 @@ def main():
     for name, sc in cfg['scenes'].items():
         if only is not None and name not in only:
             continue
-        shot = next((s for s in sc['shots'] if os.path.exists(os.path.join(res, s))), None)
+        shot = next((f for s in sc['shots'] for f in [shot_file(res, s)] if f), None)
         if not shot:
             print(f'{name:10s} no shot ({", ".join(sc["shots"])})')
             continue
@@ -203,8 +213,9 @@ def main():
         row = dict(shot=shot, hud_off=hud_off, **s)
         if hud_off:
             for mk in sc.get('deck_mask', []):
-                p = os.path.join(res, mk)
-                if os.path.exists(p):
+                mkf = shot_file(res, mk)
+                p = os.path.join(res, mkf or mk)
+                if mkf:
                     d = deck_stats(os.path.join(res, shot), p)
                     if d:
                         row.update(d)
@@ -239,7 +250,7 @@ def main():
     b = cfg.get('brightness')
     if b and (only is None or b['base'] in only):
         base = out['scenes'].get(b['base'])
-        shot = next((s for s in b['shots'] if os.path.exists(os.path.join(res, s))), None)
+        shot = next((f for s in b['shots'] for f in [shot_file(res, s)] if f), None)
         if base and shot:
             hud_off = '-nohud' in shot
             a = load(os.path.join(res, shot))
