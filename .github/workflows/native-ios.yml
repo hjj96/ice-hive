@@ -5,13 +5,18 @@ name: native-ios
 #   status.json, core-tests.log, core-perf.log, calib.txt / calib.jsonl (v1.1 balance gate), calib-missions.txt / .jsonl (the
 #   missions' own gate: Breaker Run, Vent Purge), calib-bosses.txt / .jsonl (the boss missions' gate: the Manifold, the
 #   Threader), threader-trace.txt (one Threader fight's headless timeline), calib-drills.txt (mission module drills),
-#   build.log, release-check.txt, metrics.txt, fps.txt, hitches.txt, <demo>-<s>s.png (upright landscape: the app is
-#   landscape-only), other-phones.txt, app-<demo>.log, app.log
+#   build.log, release-check.txt, metrics.txt, fps.txt, hitches.txt, <demo>-<s>s.jpg (upright landscape: the app is
+#   landscape-only), burst-<name>.mp4, other-phones.txt, app-<demo>.log, app.log
 # The simulator demos run in two parts at once (sim-smoke (a) and (b), each on its own runner and simulator; Stage 2 C1):
 # the report job merges both parts into that one result set, as one job wrote it before.
+# Stage 2 C2 «CI results diet» (the repo nears its size quota; a set was ~765 MB): every gate runs on the original PNG
+# shots and JPEG burst frames inside the jobs; the published set then holds each shot as a JPEG of the same basename (q90,
+# 4:4:4 chroma) and each burst as one H.264 MP4 (burst frame NN = video frame NN, 0-based) — ≈ 115 MB (README «CI»).
+# native-metal and native only ever move by fast-forward to a sha that already passed on its package branch, so their
+# pushes start no run: the results of a native-metal sha are in that package branch's folder <branch>/<sha7>/.
 on:
   push:
-    branches: ['native*']
+    branches: ['native*', '!native-metal', '!native']
     paths:
       - 'ios-native/**'
       - '.github/workflows/native-ios.yml'
@@ -44,8 +49,9 @@ env:
   # pseudo-localised runs (layout, *-pseudo) and the layout check on the other phones; part a: the world (firstlaunch — the
   # cold launch —, gameplay and the HUD in a mission: banners, hints, coach, pressure; swarm, squad, effects, every burst,
   # the HUD-off look shots with their re-shoots, the Metal validation runs, failmetal, the Release block). Keep together in
-  # one part: calm with swarm3x and release-combat (calm is their GPU-drawn baseline in frame_metrics.py), the HUD-off look
-  # shots (calm-nohud, calm-deckmask, calm-bright-nohud are measured against each other). Balanced by measured times (a
+  # one part: the HUD-off look shots (calm-nohud, calm-deckmask, calm-bright-nohud are measured against each other);
+  # firstlaunch with the warm demos its renderer share is measured against (C2: since then calm is only the GPU line's
+  # reference, not swarm3x's / release-combat's baseline any more). Balanced by measured times (a
   # 33–39 min, b 30–44 on the runs before the split; b's spread is the other phones, 20–32 min). README «CI» →
   # «Как добавить демо и выбрать его часть».
   SMOKE_B: title title-fresh title-return title-nm title-left layout layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo banner-pseudo burst-firstmin-pseudo queen-cineoff queen-rm levelup pause pause-nm end report-first report-win report-loss report-chip other-phones
@@ -1398,6 +1404,25 @@ jobs:
           print(json.dumps(status, indent=2, ensure_ascii=False))
           PY
           ls -la results
+      # C2 «CI results diet»: the published set gets every shot PNG as a JPEG of the same basename (quality 90, 4:4:4 chroma:
+      # HUD text, thin lines and single-pixel pores as in the PNG at 100 % crops) and every burst-<name>-NN.jpg sequence as
+      # one burst-<name>.mp4 (H.264 CRF 23, yuv420p, 6 frames/s; burst frame NN = video frame NN) — every gate above ran on
+      # the originals. ci/diet.py removes an original only after its replacement was read back, keeps the originals with a
+      # ::warning:: on any error and always exits 0; this step never fails the job. ffmpeg: the runner's with libx264, else
+      # imageio-ffmpeg's bundled binary
+      - name: Shrink the result set (shots as JPEG, bursts as H.264)
+        if: always()
+        continue-on-error: true
+        run: |
+          py=/tmp/look/bin/python
+          if ! "$py" -c 'import PIL' 2>/dev/null; then
+            if python3 -m venv /tmp/diet && /tmp/diet/bin/pip install -q pillow; then py=/tmp/diet/bin/python; else py=python3; fi
+          fi
+          if ! { command -v ffmpeg > /dev/null && ffmpeg -hide_banner -encoders 2>/dev/null | grep -q ' libx264 '; }; then
+            "$py" -m pip install -q imageio-ffmpeg || echo "::warning::diet: no ffmpeg with libx264 and imageio-ffmpeg did not install — the bursts stay JPEG"
+          fi
+          "$py" ios-native/ci/diet.py results || echo "::warning::diet: exit $?"
+          du -sh results
       - name: Commit to ci-results
         if: always()
         env:

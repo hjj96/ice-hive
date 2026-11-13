@@ -30,20 +30,29 @@ Gate (exit 1 with --gate), the plan's common gate for every package:
                       up to < 10 ms
   cold first launch   worst loop tick <= --cold-max-ms; the renderer's share of the loading — the time the scene waited
                       for the Metal preload (`metal world ready in N ms`) less the simulator's shader-compiler start-up
-                      (`first request N ms` beyond 0.3 s) — <= 0.5 s; the loading itself is reported against 1.6 s and
+                      (`first request N ms` beyond 0.3 s) and less the median world build of the same part's warm launches
+                      — <= 0.5 s. The wait ends after the world is built on the main thread (MetalWorld: the marine maps,
+                      the station, the creatures …), and every launch pays that build (`metal world ready in W ms (preload
+                      P ms, started H ms before the scene)`: W − max(0, P − H), the part after the preload's tail): the
+                      warm launches of the part measure it on the same runner (0.16–0.46 s on CI hosts, Nov 8–12 — C2 «CI
+                      noise»), and their median is a tripwire of its own at 0.75 s. The loading is reported against 1.6 s and
                       fails only beyond the warm median + 2.5 s (a tripwire: on a cold launch the simulator's host GPU
                       can return ~5 frames/s for seconds while the cover waits for 20 — the same commit 535ce21 loaded
                       in 1.43 s and in 2.73 s on two runs; the cover GPU frames/s are printed). A cold launch that failed
                       is launched cold once more (app-<label>-run1.log keeps the first): each of the two criteria then
                       takes the better of the two launches — the host's share varies far more than a change of ours
                       would, and a regression of ours slows both
-  gpu-drawn           avg >= 55 in --drawn-gated demos (swarm3x, release-combat); when the host GPU stalls on its own
-                      (the same run's unloaded `calm` demo draws < 57/s) at least calm − 2
-  host-stall seconds  when a demo misses avg / min fps or the drawn floor, the same numbers are taken again without the
-                      heartbeat seconds the host stalled — a host-stall tick inside (loop side; ± 0.05 s, the heartbeat's
-                      td= is printed to 0.1 s), or a command buffer that
-                      took > 100 ms, over 10x the slowest frame's own GPU span (GPU side) — and pass if those
-                      hold over >= 4 clean seconds and the demo has no app hitch (noted in the row)
+  gpu-drawn           avg >= 55 in --drawn-gated demos (swarm3x, release-combat). Below that it is judged on the heartbeat
+                      seconds the host left alone (C2 «CI noise»): a second whose slowest command buffer came back >= 34 ms
+                      after its commit (two frame periods: both of the app's frame slots held through a tick — on one
+                      in-order queue every frame behind it waits too) while the demo's frames take a median under 1/10 of
+                      that on the GPU (the gpu ema) was held by the host, and a second whose loop tick exceeded 43 ms lost
+                      ticks of the loop (the loop side judges it); the others must draw >= 55 on average — pooled with the
+                      first run's when the demo was re-run. With none left (the host held every second) the row says so:
+                      per second the host takes the same frames from the unloaded calm demo at the same latency
+  host-stall seconds  when a demo misses avg / min fps, the same numbers are taken again without the heartbeat seconds the
+                      host stalled — a host-stall tick inside (± 0.05 s, the heartbeat's td= is printed to 0.1 s) — and
+                      pass if those hold over >= 4 clean seconds and the demo has no app hitch (noted in the row)
   frame graph         simulator GPU ema <= --gpu-ema-max (1.0 ms); one world-target allocation per launch; a DRS
                       sweep (when present) has 10 steps and no second with a scale step has a loop tick > 34 ms that
                       the step can own: with that second's frames fast on the GPU (< 8 ms), a host-stall tick, or one
@@ -63,7 +72,12 @@ cold_max = None
 cold_load = 1.6
 cold_renderer = 0.5
 cold_tripwire = 2.5
+# the warm launches' median world build after the preload (CI: 0.16–0.46 s per part over Nov 8–12, 72 runs)
+warm_build_max = 0.75
 drawn_gated = {'swarm3x', 'release-combat'}
+drawn_floor = 55.0
+# a command buffer back this long after its commit held both frame slots through a tick (2 × 16.7 ms at 60 Hz)
+held_ms = 34.0
 gpu_ema_max = 1.0
 while args and args[0].startswith('--'):
     a = args.pop(0)
@@ -93,6 +107,7 @@ rx_hitch_wall = re.compile(r'wall=([0-9.]+)')
 rx_slow_enc = re.compile(r'metal: slow world encode (\d+) ms \(thread cpu ([0-9.]+) ms\) wall=([0-9.]+)')
 rx_first_req = re.compile(r'pipelines built in \d+ ms \(.*first request (\d+) ms')
 rx_ready_wait = re.compile(r'metal world ready in (\d+) ms')
+rx_ready_parts = re.compile(r'metal world ready in (\d+) ms \(preload (\d+) ms, started (\d+) ms before the scene\)')
 rx_enc_log = re.compile(r'world encodes > (\d+) ms logged')
 rx_hb_drawn = re.compile(r'hb t=[0-9.]+ .*?drawn=(\d+)')
 rx_hb_skcpu = re.compile(r' skcpu=(\d+)ms')
@@ -109,13 +124,32 @@ rx_alloc = re.compile(r'metal: world target \d+x\d+ px')
 rx_sweep = re.compile(r'quality: drs sweep step (\d+)/10')
 rx_hb_worst = re.compile(r'hb t=[0-9.]+ td=[0-9.-]+ fps=[0-9.]+ worst=(\d+)ms')
 
-def cold_parts(text, cl):
+def ready_parts(text):
+    """The scene's wait for the renderer at launch in its two parts (s): the preload's tail — how long the scene, once it
+    asked (loadMetal), still waited for the background preload of meshes, textures and pipelines, max(0, preload − its head
+    start) — and the world build after it on the main thread (MetalWorld: the marine maps, the station, the creatures …;
+    the rest of `metal world ready in N ms`). (None, None) without the line; an older line without the preload's numbers
+    counts the whole wait as the tail."""
+    m = rx_ready_parts.search(text)
+    if m:
+        w, p, h = (float(m.group(i)) / 1000 for i in (1, 2, 3))
+        tail = min(w, max(0.0, p - h))
+        return tail, w - tail
+    rw = rx_ready_wait.search(text)
+    return (float(rw.group(1)) / 1000, 0.0) if rw else (None, None)
+
+
+def cold_parts(text, cl, warm_build):
     """A cold launch's parts: its loading time `cl`; what the renderer adds to it — the time the scene waited for the Metal
-    preload (meshes + pipelines) less what the simulator's shader compiler service spent starting up (first request beyond
-    0.3 s); that start-up; the GPU frames completed per second while the cover was up (it waits for 20 of them)."""
+    preload (meshes + pipelines) and the world build after it, less what the simulator's shader compiler service spent
+    starting up (first request beyond 0.3 s) and less the median world build of the same part's warm launches
+    (`warm_build`: the main-thread build after the preload every launch pays, on the same runner); that start-up; the whole
+    wait; this launch's world build; the GPU frames completed per second while the cover was up (it waits for 20)."""
     fr, rw = rx_first_req.search(text), rx_ready_wait.search(text)
     wait = float(rw.group(1)) / 1000 if rw else 0.0
     svc = min(wait, max(0.0, float(fr.group(1)) / 1000 - 0.3)) if fr else 0.0
+    own = max(0.0, wait - svc - (warm_build or 0.0))
+    _, build = ready_parts(text)
     drawn_cover = []
     for line in text.splitlines():
         if 'loading took' in line:
@@ -123,32 +157,56 @@ def cold_parts(text, cl):
         hd = rx_hb_drawn.search(line)
         if hd:
             drawn_cover.append(hd.group(1))
-    return cl, wait - svc, svc, drawn_cover
+    return cl, own, svc, drawn_cover, wait, build or 0.0
+
+
+def window_seconds(text, secs):
+    """The heartbeat seconds of a demo's measured window (1.2 s <= td <= its length + 0.5): frames the GPU completed, the
+    loop's worst tick (ms), the slowest command buffer's commit → done (ms)."""
+    out = []
+    for line in text.splitlines():
+        b = rx_hb_sec.search(line)
+        if not b or not (1.2 <= float(b.group(1)) <= secs + 0.5):
+            continue
+        hw, cm = rx_hb_worst.search(line), rx_hb_cbmax.search(line)
+        out.append((int(b.group(3)), int(hw.group(1)) if hw else 0, float(cm.group(1)) if cm else 0.0))
+    return out
+
+
+def window_ema(text, secs):
+    """The window's median smoothed GPU time per frame (ms), as the frame-graph column takes it (seconds the world drew)."""
+    td, emas = -1.0, []
+    for line in text.splitlines():
+        t = rx_hb_td.search(line)
+        if t:
+            td = float(t.group(2))
+        g = rx_gpu.search(line)
+        if g and 1.2 <= td <= secs + 1 and float(g.group(1)) > 0:
+            emas.append(float(g.group(3)))
+    return sorted(emas)[(len(emas) - 1) // 2] if emas else None
 
 
 rows, failed = [], []
 gpu_avg = []
-# median warm loading time of the run (a slow runner slows every launch; the cold launch adds the shader compile)
-warm_loads = []
+# median warm loading time of the run (a slow runner slows every launch; the cold launch adds the shader compile), and the
+# warm launches' median world build after the Metal preload (every launch builds the world on the main thread after the
+# preload: the cold launch's renderer share leaves that out, as these launches measured it on the same runner)
+warm_loads, warm_builds = [], []
 for d in demos:
     if d in cold:
         continue
     try:
-        lm0 = rx_load.search(open(f'{results}/app-{d}.log', encoding='utf-8', errors='replace').read())
+        t0 = open(f'{results}/app-{d}.log', encoding='utf-8', errors='replace').read()
     except OSError:
-        lm0 = None
+        continue
+    lm0 = rx_load.search(t0)
     if lm0:
         warm_loads.append(float(lm0.group(1)))
+    _, b0 = ready_parts(t0)
+    if b0 is not None:
+        warm_builds.append(b0)
 warm_median = sorted(warm_loads)[len(warm_loads) // 2] if warm_loads else None
-# frames the host GPU completed per second in the unloaded `calm` demo of the same run: when the host itself stalls
-# (calm < 57/s) a gated demo has to draw no fewer than calm − 2, else 55
-drawn_floor = 55.0
-try:
-    mc = rx_done.search(open(f'{results}/app-calm.log', encoding='utf-8', errors='replace').read())
-    if mc and mc.group(5):
-        drawn_floor = min(55.0, float(mc.group(5)) - 2)
-except OSError:
-    pass
+warm_build = sorted(warm_builds)[len(warm_builds) // 2] if warm_builds else None
 for d in demos:
     try:
         text = open(f'{results}/app-{d}.log', encoding='utf-8', errors='replace').read()
@@ -253,9 +311,8 @@ for d in demos:
         if work < 10:
             host_stalls.append(int(hw.group(1)))
             stall_tds.append(float(tdm.group(2)) - 0.5)
-    # per heartbeat second in the window: loop fps, GPU frames drawn, and whether the host stalled it — the loop (a host
-    # stall tick inside the second) or the GPU (a command buffer waited > 50 ms while the slowest frame's own GPU time
-    # stayed < 5 ms: the simulator host did not schedule it)
+    # per heartbeat second in the window: loop fps and whether the host stalled the loop (a host stall tick inside the
+    # second); the GPU side's seconds are classified by the drawn check below (window_seconds)
     per_sec = []
     for line in lines:
         b = rx_hb_sec.search(line)
@@ -267,9 +324,7 @@ for d in demos:
         # (the heartbeat prints td= to 0.1 s, so the second it closes can end up to 0.05 s past the printed value: a
         # host-stall tick logged at td=15.32 belongs to the heartbeat printed «td=15.3» that counted it)
         loop_stall = any(tsec - 1.05 <= t0 <= tsec + 0.05 for t0 in stall_tds)
-        gm, cm = rx_hb_gpumax.search(line), rx_hb_cbmax.search(line)
-        gpu_stall = bool(gm and cm and float(cm.group(1)) > 100 and float(gm.group(1)) * 10 < float(cm.group(1)))
-        per_sec.append((float(b.group(2)), int(b.group(3)), loop_stall, gpu_stall))
+        per_sec.append((float(b.group(2)), loop_stall))
     # GPU-side stalls in the window: heartbeats whose longest gap between completed frames exceeded 50 ms
     stalls, cbmax = 0, 0.0
     for line in lines:
@@ -363,8 +418,9 @@ for d in demos:
         if cold_max is not None and worst > cold_max:
             bad.append(f'cold worstFrame {worst:.0f} ms > {cold_max:.0f}')
         if lm:
-            cl, own, svc, drawn_cover = cold_parts(text, float(lm.group(1)))
-            note = f'renderer wait {own:.2f} s' + (f' + compiler start-up {svc:.2f} s' if svc > 0 else '') \
+            cl, own, svc, drawn_cover, wait, build = cold_parts(text, float(lm.group(1)), warm_build)
+            note = f'renderer wait {own:.2f} s: {wait:.2f} s' + (f' − compiler start-up {svc:.2f} s' if svc > 0 else '') \
+                + (f' − warm world build {warm_build:.2f} s (this launch\'s {build:.2f})' if warm_build is not None else '') \
                 + (f', cover GPU frames/s {"/".join(drawn_cover)}' if drawn_cover else '')
             # A cold launch that failed the gate is launched cold once more (the workflow keeps the first one as
             # app-<label>-run1.log). Both are the same commit on the same runner, and the host's share of a cold launch
@@ -377,11 +433,17 @@ for d in demos:
             except OSError:
                 l1 = None
             if l1:
-                cl1, own1, svc1, _ = cold_parts(t1, float(l1.group(1)))
-                note += f'; first cold launch {cl1:.2f} s, renderer wait {own1:.2f} s — gated on the better of the two'
+                cl1, own1, _, _, wait1, _ = cold_parts(t1, float(l1.group(1)), warm_build)
+                note += f'; first cold launch {cl1:.2f} s, renderer wait {own1:.2f} s (of {wait1:.2f}) — gated on the ' \
+                    f'better of the two'
                 cl, own = min(cl, cl1), min(own, own1)
             if own > cold_renderer:
-                bad.append(f'cold launch: the scene waited {own:.2f} s for the Metal preload (> {cold_renderer:.1f})')
+                bad.append(f'cold launch: the scene waited {own:.2f} s for the Metal preload beyond the compiler start-up '
+                           f'and a warm launch\'s world build (> {cold_renderer:.1f})')
+            # every launch's world build after the preload (the warm launches of this part, same runner)
+            if warm_build is not None and warm_build > warm_build_max:
+                bad.append(f'warm launches: the world build after the Metal preload took a median {warm_build:.2f} s '
+                           f'(> {warm_build_max:.2f})')
             if cl > cold_load:
                 if warm_median is not None and cl - warm_median > cold_tripwire:
                     bad.append(f'cold load {cl:.2f} s, {cl - warm_median:.2f} s over the warm median (> {cold_tripwire:.1f}; {note})')
@@ -392,7 +454,7 @@ for d in demos:
     else:
         if d not in menus:
             # the loop's fps without the seconds a host stall fell into (only when the app's own numbers miss)
-            clean = [f for (f, _, ls, _) in per_sec if not ls]
+            clean = [f for (f, ls) in per_sec if not ls]
             excl = len(per_sec) - len(clean)
             c_avg = sum(clean) / len(clean) if clean else avg
             c_min = min(clean) if clean else mn
@@ -408,14 +470,43 @@ for d in demos:
         if hitches:
             bad.append(f'{len(hitches)} loop hitch(es) > 50 ms after 1 s, worst {worst_h} ms')
         if d in drawn_gated and drawn_avg != '-' and float(drawn_avg) < drawn_floor:
-            # the frames drawn per second without the seconds the host GPU stalled
-            gclean = [dr for (_, dr, _, gs) in per_sec if not gs]
-            gex = len(per_sec) - len(gclean)
-            g_avg = sum(gclean) / len(gclean) if gclean else 0
-            if gex and len(gclean) >= 4 and g_avg >= drawn_floor:
-                notes.append(f'gpu drawn {g_avg:.1f}/s without {gex} host-GPU-stall second(s)')
+            # C2: judged on the seconds the host left the frames alone. A second whose slowest command buffer came back
+            # >= 34 ms after its commit held both frame slots through a tick, and on the one in-order queue every frame
+            # behind it waited too: with the demo's frames taking a median < 1/10 of that on the GPU, the host held it
+            # (CI Nov 8–12, every second of swarm3x / swarm / release-combat / calm: the frames drawn follow that
+            # latency alone — 59.8–59.9/s under 25 ms, 55.5–56.0 at 50–75 ms, 46–47 at 100–150 ms for the unloaded calm
+            # as for the 1400-bug swarm3x — while the frames' own GPU spans stayed 0.3–0.8 ms median). A second whose
+            # loop tick exceeded 43 ms lost ticks of the loop (the loop side judges it). The rest must average >= 55,
+            # pooled with the first run's seconds after a re-run (app-<label>-run1.log).
+            wins = [(window_seconds(text, secs), ema)]
+            try:
+                t1 = open(f'{results}/app-{d}-run1.log', encoding='utf-8', errors='replace').read()
+                m1 = rx_done.search(t1)
+            except OSError:
+                m1 = None
+            if m1:
+                wins.append((window_seconds(t1, float(m1.group(1))), window_ema(t1, float(m1.group(1)))))
+            free, held, nsec = [], 0, 0
+            for sec_list, em in wins:
+                lim = max(held_ms, 10 * (em or 0.0))
+                for dr, wst, cb in sec_list:
+                    nsec += 1
+                    if wst > 43:
+                        continue
+                    if cb >= lim:
+                        held += 1
+                    else:
+                        free.append(dr)
+            runs_note = ' over both runs' if m1 else ''
+            if free and sum(free) / len(free) < drawn_floor:
+                bad.append(f'gpu drawn avg {float(drawn_avg):.1f} < {drawn_floor:.1f}: {sum(free) / len(free):.1f}/s in the '
+                           f'{len(free)} s the host left alone{runs_note} ({held} of {nsec} s held >= {held_ms:.0f} ms)')
+            elif free:
+                notes.append(f'gpu drawn {sum(free) / len(free):.1f}/s in the {len(free)} s the host left alone{runs_note} '
+                             f'({held} of {nsec} s held a command buffer >= {held_ms:.0f} ms)')
             else:
-                bad.append(f'gpu drawn avg {float(drawn_avg):.1f} < {drawn_floor:.1f}')
+                notes.append(f'gpu drawn not measurable: the host held a command buffer >= {held_ms:.0f} ms in {held} of '
+                             f'{nsec} s{runs_note}')
     if ema is not None and ema > gpu_ema_max:
         bad.append(f'simulator gpu ema {ema:.2f} ms > {gpu_ema_max:.1f} (tripwire)')
     if allocs > 1:

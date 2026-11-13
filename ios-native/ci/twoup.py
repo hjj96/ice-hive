@@ -21,6 +21,16 @@ W1, H1, GAP, HEAD, PAD = 1311, 603, 8, 54, 16
 BG = (10, 12, 16)
 
 
+def shot_file(res, name):
+    """`name` in the results dir, or — in a set published since C2's «CI results diet», where every shot PNG became a JPEG of
+    the same basename — the .jpg for a .png name; None when neither exists. (In CI the PNGs are measured: the look gates run
+    before the diet.)"""
+    for n in (name, name[:-4] + '.jpg' if name.endswith('.png') else None):
+        if n and os.path.exists(os.path.join(res, n)):
+            return n
+    return None
+
+
 def font(size, weight='Medium'):
     for f in (os.path.join(FONTS, f'Oswald-{weight}.ttf'), os.path.join(FONTS, 'Oswald-Regular.ttf')):
         if os.path.exists(f):
@@ -51,7 +61,7 @@ def numbers(row):
 
 
 def sheet(name, sc, res, golden, look, sha, today_label='эталон'):
-    shot = next((s for s in sc['shots'] if os.path.exists(os.path.join(res, s))), None)
+    shot = next((f for s in sc['shots'] for f in [shot_file(res, s)] if f), None)
     if not shot:
         return None
     today = Image.open(os.path.join(golden, sc['today'])).convert('RGB').resize((W1, H1), Image.LANCZOS)
