@@ -59,6 +59,9 @@ struct LaunchOptions {
     var holdBanner: Bool = false
     /// `-pseudoLoc <factor>` (e.g. 1.35): pseudo-localised text — accents, padding to factor × length, brackets (L10n).
     var pseudoLoc: Double?
+    /// `-reduceMotion` (CI, Stage 2 B3): behave as with iOS Reduce Motion on (the shake and the kick at 35 %, the longer
+    /// banner, half of the boss intro), whatever the simulator's setting.
+    var reduceMotion: Bool = false
     /// Arguments that were not recognised (kept for logging).
     var unknown: [String] = []
 
@@ -109,6 +112,7 @@ struct LaunchOptions {
             case "-layoutCheck", "--layoutCheck": result.layoutCheck = flag()
             case "-holdBanner", "--holdBanner": result.holdBanner = flag()
             case "-pseudoLoc", "--pseudoLoc": if let v = value(), let n = Double(v), n >= 1, n <= 3 { result.pseudoLoc = n }
+            case "-reduceMotion", "--reduceMotion": result.reduceMotion = flag()
             default: result.unknown.append(arg)
             }
         }
@@ -142,6 +146,7 @@ struct LaunchOptions {
         if layoutCheck { parts.append("layoutCheck") }
         if let p = pseudoLoc { parts.append("pseudoLoc=\(p)") }
         if holdBanner { parts.append("holdBanner") }
+        if reduceMotion { parts.append("reduceMotion") }
         return parts.joined(separator: " ")
     }
 }

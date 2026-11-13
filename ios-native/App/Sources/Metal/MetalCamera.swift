@@ -36,6 +36,9 @@ final class MetalCamera {
     private(set) var view = Mat4.identity
     private(set) var proj = Mat4.identity
     private(set) var viewProj = Mat4.identity
+    /// Stage 2 B3: the game camera's view-projection of this frame (`update`), kept when a scripted shot or a look-dev
+    /// close-up takes the camera (`lookAt`) — `gameHudPoint`.
+    private(set) var gameViewProj = Mat4.identity
     private(set) var eye = F3(0, 20, 20)
     private(set) var focus = F3(0, 0, 0)
     private(set) var right = F3(1, 0, 0)
@@ -72,6 +75,7 @@ final class MetalCamera {
             let g = ground(ndcX: n.x, ndcY: n.y, height: f.y)
             place(F3(f.x - (g.x - f.x), f.y, f.z - (g.y - f.z)), yaw: yaw, pitch: pitch, dist: dist, shake: shake)
         }
+        gameViewProj = viewProj
     }
 
     /// Look-dev close-up (WP4 `-squadSheet -closeup`): look at `target` from `eye` with a `fovDeg` vertical field of view.
@@ -101,6 +105,13 @@ final class MetalCamera {
     /// World point → HUD point (camera-local SpriteKit space: origin at the view centre, y up, points).
     @inline(__always) func hudPoint(_ x: Float, _ y: Float, _ z: Float) -> CGPoint {
         let c = viewProj.point(x, y, z)
+        let w = c.w > 1e-4 ? c.w : 1e-4
+        return CGPoint(x: CGFloat(c.x / w * viewW * 0.5), y: CGFloat(c.y / w * viewH * 0.5))
+    }
+
+    /// World point → HUD point through the game camera of this frame (B3: what the play shows under a scripted shot).
+    @inline(__always) func gameHudPoint(_ x: Float, _ y: Float, _ z: Float) -> CGPoint {
+        let c = gameViewProj.point(x, y, z)
         let w = c.w > 1e-4 ? c.w : 1e-4
         return CGPoint(x: CGFloat(c.x / w * viewW * 0.5), y: CGFloat(c.y / w * viewH * 0.5))
     }

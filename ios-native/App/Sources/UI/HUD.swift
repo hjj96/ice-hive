@@ -164,6 +164,9 @@ final class HUD {
     // the converging fill
     private let objEdge = SKSpriteNode(color: UIPalette.amber, size: CGSize(width: 3, height: 39))
     private var objStyle: ObjectiveStyle = .normal
+    /// Stage 2 B3: the boss bar's name — in the boss style the box's caption is the boss's name (the catalog's
+    /// `name.bug.<kind>`, uppercased like the caption) over its bar; «OBJECTIVE» in every other style (nil).
+    private var objCapName: NameRef? = nil
     private var objRect = CGRect.zero   // x, y = top-left in view points (y down), size
     private var statsRect = CGRect.zero
     private var objBarShown = true
@@ -832,9 +835,13 @@ final class HUD {
         var markerOver = false
     }
 
-    private func keep(_ game: Game, _ projection: HUDProjection) -> Keep {
+    /// `gameView` (B3): the game camera's view instead of this frame's — a banner placed while a scripted shot is on (the
+    /// boss's, at its arrival in the intro) outlives the shot, so it keeps what the play underneath must show.
+    private func keep(_ game: Game, _ projection: HUDProjection, gameView: Bool = false) -> Keep {
         var k = Keep()
-        func v(_ x: Float, _ y: Float, _ z: Float) -> CGPoint { viewPoint(projection.hudPoint(x, y, z)) }
+        func v(_ x: Float, _ y: Float, _ z: Float) -> CGPoint {
+            viewPoint(gameView ? projection.gameHudPoint(x, y, z) : projection.hudPoint(x, y, z))
+        }
         for i in 0..<min(4, game.marines.count) {
             let f = projection.feet(i)
             let a = v(f.0, f.1, f.2), b = v(f.0, f.1 + 1.9, f.2)
@@ -895,7 +902,7 @@ final class HUD {
         var best = BannerSlot.mid
         var why = ""
         if game.stage == .hold || game.boss.alive {
-            let k = keep(game, projection)
+            let k = keep(game, projection, gameView: shotOn)
             // (a hint up under the top band is never covered: the high slot is under it, the middle one may not be)
             let hintTop: CGRect? = hintAtTop && !hintText.isEmpty ? hintRects().top : nil
             var bestC = CGFloat.infinity
@@ -911,9 +918,14 @@ final class HUD {
         bannerCentreY = bannerSlotY(best)
         banner.position = hp(size.width / 2, bannerCentreY)
         if AppLog.diagnostics {
-            AppLog.info("hud banner «\(bannerTitle.text)» slot=\(best.rawValue)" + (why.isEmpty ? " (no hold)" : " |" + why))
+            AppLog.info("hud banner «\(bannerTitle.text)» slot=\(best.rawValue)" + (why.isEmpty ? " (no hold)" : " |" + why)
+                        + (shotOn && !why.isEmpty ? " (for the game camera's view: a scripted shot is on)" : ""))
         }
     }
+
+    /// B3: a scripted shot is on this frame (GameScene: Cinematics' close-shot weight) — `placeBanner` judges by the game
+    /// camera's view then.
+    var shotOn = false
 
     /// H1: the hint's place in a hold — at the bottom (its home) or, when that would hide more of the squad, the boss or
     /// the deck, right under the top band (the toasts and the plates go under it then).
@@ -1155,8 +1167,9 @@ final class HUD {
             n.addChild(l.node)
             y -= 18
         }
-        for cap in [UIPalette.red, UIPalette.queen] {
-            let l = Label(L10n.upper(L10n.ui(.hudObjective)), font: Fonts.medium, size: 12, color: cap, kern: 2.4)
+        // (B3: the boss style's caption is the boss's name)
+        for (text, cap) in [(L10n.ui(.hudObjective), UIPalette.red), (L10n.name(BossKind.queen.name), UIPalette.queen)] {
+            let l = Label(L10n.upper(text), font: Fonts.medium, size: 12, color: cap, kern: 2.4)
             l.node.position = CGPoint(x: -W / 4, y: y); n.addChild(l.node); y -= 16
         }
         for (fill, edge) in [(UIPalette.panel, UIPalette.amber), (UIPalette.redPanel, UIPalette.red), (UIPalette.panel, UIPalette.queen)] {
@@ -1306,6 +1319,13 @@ final class HUD {
         func w(_ s: String, _ font: String, _ size: CGFloat, _ kern: CGFloat) -> CGFloat { TextFit.width(s, font: font, size: size, kern: kern) }
         for t in HUD.objectiveSamples {
             check.text("text.objective." + t.id.rawValue, width: w(L10n.upper(L10n.string(t)), Fonts.semibold, objText.size, 0.6),
+                       room: objTextRoom, minScale: HUD.objMinScale)
+        }
+        // B3: the box's caption — «OBJECTIVE», and in the boss style every boss's name (the boss bar)
+        check.text("text.objective.caption", width: w(L10n.upper(L10n.ui(.hudObjective)), Fonts.medium, 12, 2.4), room: objTextRoom,
+                   minScale: HUD.objMinScale)
+        for k in BossKind.allCases {
+            check.text("text.objective.boss." + k.rawValue, width: w(L10n.upper(L10n.name(k.name)), Fonts.medium, 12, 2.4),
                        room: objTextRoom, minScale: HUD.objMinScale)
         }
         let cw = coachMaxWidth
@@ -1500,6 +1520,14 @@ final class HUD {
             objKey = ok
             let st = game.objectiveStyle
             if st != objStyle { applyObjStyle(st) }
+            // (B3: the boss style's caption is the boss's name — a generic boss bar, the Queen's today)
+            let capName: NameRef? = st == .boss ? game.boss.kind.name : nil
+            if capName != objCapName {
+                objCapName = capName
+                objCap.set(L10n.upper(capName.map { L10n.name($0) } ?? L10n.ui(.hudObjective)))
+                TextFit.scale(objCap, objTextRoom, minScale: HUD.objMinScale)
+                if AppLog.diagnostics { AppLog.info("hud objective caption «\(objCap.text)»" + (capName != nil ? " (boss bar)" : "")) }
+            }
             objText.set(L10n.upper(game.objective.map { L10n.string($0) } ?? ""))
             TextFit.scale(objText, objTextRoom, minScale: HUD.objMinScale)
         }

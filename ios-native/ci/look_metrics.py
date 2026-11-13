@@ -14,8 +14,9 @@ Per scene of ci/golden/thresholds.json, the first shot that exists in the result
                         green deck tops; and every snow-blue mask pixel must have deck within 30 px (no drift past a rail)
 A HUD-off shot (`*-nohud-*`, FrameLoop -hideHUD) is gated; a HUD-on shot is measured inside the HUD mask (top bar,
 thumb areas, armour bar and debug text cut out) and only reported — its numbers include HUD glow and are not the gate's.
-Also: the brightness option at its maximum (calm vs calm-bright, ≥ +15 luma at the deck or the frame median) and the
-punch-in's entry (the worst loop tick of the heartbeat seconds the shot runs in, app-punchin.log, ≤ 34 ms).
+Also: the brightness option at its maximum (calm vs calm-bright, ≥ +15 luma at the deck or the frame median), the
+punch-in's entry (the worst loop tick of the heartbeat seconds the shot runs in, app-punchin.log, ≤ 34 ms) and, the same
+way, the boss intro's (Stage 2 B3: the Queen's arrival in app-queen.log).
 
 Usage: look_metrics.py [--gate] [--golden DIR] [--json OUT] [--only s1,s2] [--failed OUT] <results dir>
 Writes the table to stdout; --json writes the numbers for ci/twoup.py. Exit 1 with --gate when a gated check fails.
@@ -125,18 +126,21 @@ def deck_stats(shot, mask_shot):
 rx_hb = re.compile(r'hb t=[0-9.]+ td=([0-9.-]+) fps=([0-9.]+) worst=(\d+)ms')
 rx_shot = re.compile(r'demo punchin: shot started td=([0-9.]+)')
 rx_dil = re.compile(r'cine punchin end dilation x([0-9.]+) for ([0-9.]+) s')
+# Stage 2 B3: the boss intro's start (the scene's clock in the line) and end
+rx_boss_shot = re.compile(r'cine bossintro start kind=\S+ from=\S+ td=([0-9.]+)')
+rx_boss_dil = re.compile(r'cine bossintro end dilation x([0-9.]+) for ([0-9.]+) s')
 
 
-def punchin_entry(path, window):
+def punchin_entry(path, window, rx_start=rx_shot, rx_end=rx_dil):
     if not os.path.exists(path):
         return None
     start, worst, secs, dil = None, 0, 0, None
     lines = open(path, errors='replace').read().splitlines()
     for line in lines:
-        m = rx_shot.search(line)
+        m = rx_start.search(line)
         if m and start is None:
             start = float(m.group(1))
-        d = rx_dil.search(line)
+        d = rx_end.search(line)
         if d and dil is None:
             dil = (float(d.group(1)), float(d.group(2)))
     if start is None:
@@ -274,6 +278,24 @@ def main():
             out['punchin_entry'] = e
             if not ok:
                 failures.append(f'punch-in entry: worst tick {e["worst"]} ms > {p["max_tick_ms"]}')
+    # Stage 2 B3: the boss intro's entry (the queen demo: her own warning, the shot inside the measured window)
+    p = cfg.get('bossintro_entry')
+    if p and only is None:
+        e = punchin_entry(os.path.join(res, p['log']), p['window_s'], rx_boss_shot, rx_boss_dil)
+        if e is None:
+            print('boss intro entry: no log')
+        elif e['start'] is None:
+            print('boss intro entry: FAIL — no «cine bossintro start … td=» line')
+            failures.append('boss intro: never started')
+        else:
+            dil = e['dilation']
+            ok = e['worst'] <= p['max_tick_ms'] and dil is not None and dil[0] <= p['max_scale']
+            dtxt = f', dilation ×{dil[0]:.2f} for {dil[1]:.2f} s' if dil else ', no end line'
+            print(f'boss intro entry: started td={e["start"]:.2f}, worst loop tick {e["worst"]} ms over {e["seconds"]} heartbeat s '
+                  f'(need ≤ {p["max_tick_ms"]}){dtxt} (need ≤ ×{p["max_scale"]:.2f}) {"ok" if ok else "FAIL"}')
+            out['bossintro_entry'] = e
+            if not ok:
+                failures.append(f'boss intro entry: worst tick {e["worst"]} ms' + (f', dilation ×{dil[0]:.2f}' if dil else ', no end'))
     if fout:
         with open(fout, 'w') as f:
             f.write(''.join(x + '\n' for x in failed_shots))

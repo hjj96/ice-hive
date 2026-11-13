@@ -10,7 +10,7 @@ import UIKit
 //  a hit; this copies the presented image itself.
 //
 //  `-burst <name> <t0> <count> [every]`: from <t0> s after «scene
-//  ready», the next <count> presented frames (every <every>-th; 1 =
+//  ready», the next <count> (≤ 96) presented frames (every <every>-th; 1 =
 //  consecutive, the default) — the final image with the HUD, as the
 //  phone shows it — are blitted from the drawable into a shared buffer
 //  and written as Documents/burst/<name>-NN.jpg (quality 0.92, full
@@ -43,7 +43,8 @@ final class BurstCapture {
             on = true
             name = u[i + 1].filter { $0.isLetter || $0.isNumber || $0 == "-" }
             t0 = max(0, t)
-            count = min(24, n)
+            // (at most 96: B3's boss intro is 60 frames, every 4th present, for its clip; the others ask 10–24)
+            count = min(96, n)
             every = i + 4 < u.count ? max(1, Int(u[i + 4]) ?? 1) : 1
         } else {
             on = false

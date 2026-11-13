@@ -51,6 +51,11 @@
       "concept": "concept-extract.jpg",
       "concept_label": "Кристалл · эвакуация · Иней · камера со стены шахты"
     },
+    "bossintro": {
+      "shots": ["bossintro-nohud-0s.png"],
+      "gates": {"median": [18, null], "p95_p50": [2.4, null], "clip": [null, 1.5], "dark": [null, 50]},
+      "_b3_note": "Stage 2 B3: the boss intro held 1.2 s in (-demo queen -introHold: the Queen up over the far rim of the lift, the camera pushed in at the game's yaw — pitch 38°, 17 m, fov 38° — the world frozen). Provisional gates until CI runs give the scene's spread: a black or crushed frame (median ≥ 18, near-black ≤ 50 %), a grey veil (p95/p50 ≥ 2.4) and blown highlights at the lens (clip ≤ 1.5 %, the extraction's ceiling); its median is a close shot's and follows the framing (the lit deck against the abyss). No reference / concept frame: the shot is new (twoup prints «no reference»)."
+    },
     "title": {
       "shots": ["title-nohud-0s.png", "title-0s.png"],
       "gates": {"median": [25, 50], "clip": [null, 1.0], "dark": [null, 40]},
@@ -89,5 +94,9 @@
   "punchin_entry": {
     "_note": "the punch-in enters without a loop tick > 34 ms: the worst tick of the heartbeat seconds from the shot's start to its end (2.4 s), app-punchin.log",
     "log": "app-punchin.log", "max_tick_ms": 34, "window_s": 2.6
+  },
+  "bossintro_entry": {
+    "_note": "Stage 2 B3: the boss intro enters without a loop tick > 34 ms (the worst tick of the heartbeat seconds from the shot's start to its end, 2.6 s; the queen demo's own arrival, app-queen.log) and its world really slows (×0.30 at its deepest; ≤ ×0.35 passes)",
+    "log": "app-queen.log", "max_tick_ms": 34, "window_s": 2.8, "max_scale": 0.35
   }
 }

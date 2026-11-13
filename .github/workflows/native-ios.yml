@@ -35,7 +35,7 @@ env:
   BUNDLE_ID: com.hjj96.icehive
   # every frame-gated demo, all landscape (the app is landscape-only); `layout` (the four-phone layout check)
   # runs as well but builds ~40 screens in one go, so it is not gated
-  DEMOS: firstlaunch combat beacon waves overhead overheadbugs interactives breakerrun ventpurge swarmshot swarmshot-dots swarm swarm3x calm squad squadclose squadtight squadfire fxsheet fxsheet-high fxpeak stress1400 punchin extract-cine title title-fresh title-return title-nm title-left probe hold extract holdhint queen queenlock coach coach3 pressure pressure-amber levelup pause pause-nm end report-first report-win report-loss report-chip release-combat swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud
+  DEMOS: firstlaunch combat beacon waves overhead overheadbugs interactives breakerrun ventpurge swarmshot swarmshot-dots swarm swarm3x calm squad squadclose squadtight squadfire fxsheet fxsheet-high fxpeak stress1400 punchin extract-cine title title-fresh title-return title-nm title-left probe hold extract holdhint queen queenlock coach coach3 pressure pressure-amber levelup pause pause-nm end report-first report-win report-loss report-chip release-combat swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud bossintro-nohud title-nohud calm-nohud
   MENUS: levelup,pause,pause-nm,end,report-first,report-win,report-loss,report-chip
   # the runs whose -ohVis samples ci/overhead_vis.py gates (Stage 1 R3 / R5)
   OH_VIS: overhead-nohud burst-parallax combat beacon hold queen breakerrun ventpurge
@@ -48,7 +48,7 @@ env:
   # shots (calm-nohud, calm-deckmask, calm-bright-nohud are measured against each other). Balanced by measured times (a
   # 33–39 min, b 30–44 on the runs before the split; b's spread is the other phones, 20–32 min). README «CI» →
   # «Как добавить демо и выбрать его часть».
-  SMOKE_B: title title-fresh title-return title-nm title-left layout layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo banner-pseudo burst-firstmin-pseudo levelup pause pause-nm end report-first report-win report-loss report-chip other-phones
+  SMOKE_B: title title-fresh title-return title-nm title-left layout layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo banner-pseudo burst-firstmin-pseudo queen-cineoff queen-rm levelup pause pause-nm end report-first report-win report-loss report-chip other-phones
 
 jobs:
   core-tests:
@@ -685,6 +685,11 @@ jobs:
           # (every 90th present ≈ 1.5 s from 1 s)
           run_demo burst-firstmin 37 "-demo firstmin -seed 7 -storeShot -burst firstmin 1.0 24 90"
           pull_burst burst-firstmin
+          # Stage 2 B3: the boss intro as the phone shows it (-storeShot) — the Queen's warning ring at the far rim, the push-in on
+          # it as the world slows to ×0.3, her climb in slow motion with her name (the arrival banner, low), the camera back to the
+          # game and the boss bar's name: the queen demo's own arrival, 60 frames every 4th present (≈ 15 frames/s) from 1.6 s
+          run_demo burst-bossintro 9 "-demo queen -tier 1 -seed 3 -storeShot -burst bossintro 1.6 60 4"
+          pull_burst burst-bossintro
           # Stage 1 R6: the steam valve bursting over the pack and its scald curtain (every 8th present ≈ 3 s), and the hub's
           # breaker bringing its lamps back (-ixLights: the lights part only from the hub's centre, its restore ≈ 8.5 s in;
           # every 5th present ≈ 2 s)
@@ -716,6 +721,8 @@ jobs:
           run_demo beacon-nohud 15 "-demo beacon -seed 7 -hideHUD" 0
           run_demo punchin-nohud 7 "-demo punchin -seed 7 -hideHUD" 0
           run_demo extract-cine-nohud 8 "-demo extract-cine -seed 3 -hideHUD" 0
+          # Stage 2 B3: the boss intro held 1.2 s in (the Queen up over the rim, the world frozen) — gated as `bossintro`
+          run_demo bossintro-nohud 8 "-demo queen -tier 1 -seed 3 -hideHUD -introHold" 0
           run_demo title-nohud 6 "-demo title -hideHUD" 0
           run_demo calm-nohud 8 "-demo calm -hideHUD" 0
           run_demo calm-deckmask 8 "-demo calm -hideHUD -deckMask -nocones -noweather" 0
@@ -734,7 +741,7 @@ jobs:
           if ! ls results/*-nohud-0s.png > /dev/null 2>&1; then
             echo "look: the HUD-off shots and their re-shoots are in the other part"
           elif python3 -m venv /tmp/lookpy && /tmp/lookpy/bin/pip install -q numpy pillow; then
-            /tmp/lookpy/bin/python ios-native/ci/look_metrics.py --gate --only swarmshot,beacon,punchin,extract,title,calm,overhead \
+            /tmp/lookpy/bin/python ios-native/ci/look_metrics.py --gate --only swarmshot,beacon,punchin,extract,bossintro,title,calm,overhead \
               --failed results/look-run1-failed.txt results > results/look-run1.txt 2>&1 || true
             for shot in $(cat results/look-run1-failed.txt 2>/dev/null); do
               d=${shot%-0s.png}
@@ -786,10 +793,18 @@ jobs:
           # the Ветеран lift-pulse hint (~450 pt in one line) in the first seconds of the hold, countdown pinned: two
           # lines between the stick rings, «hint 2 lines» in the log; the HUD layout check
           run_demo holdhint 8 "-demo holdhint -seed 3 -layoutCheck" 0
-          # v1.1: the Матка (boss of the hold) on the deck — a brute instance at scale 4.2, violet tint, volley rings
+          # v1.1: the Матка (boss of the hold) on the deck — a brute instance at scale 4.2, violet tint, volley rings; Stage 2 B3: she
+          # comes through her own warning (1.0 s in: the countdown at her moment), so the boss intro plays inside the measured window
+          # (≈ 2.6–5.2 s: the frame gate and the look gate's «boss intro entry»), and the shots show the boss bar's name
           run_demo queen 10 "-demo queen -tier 1 -seed 3 -ohVis" 0 3
-          # the countdown ran out with her alive: «ЛИФТ ЗАБЛОКИРОВАН — МАТКА ЖИВА»
+          # the countdown ran out with her alive: «ЛИФТ ЗАБЛОКИРОВАН — МАТКА ЖИВА» (B3: she climbs with no warning, the intro from her
+          # arrival)
           run_demo queenlock 8 "-demo queenlock -queenHp 1000000 -seed 3" 0
+          # Stage 2 B3: the boss intro's two other paths, log checks only (part b) — `-cine off` (logged, no camera, no slowdown: her
+          # warning → arrival takes its 2.0 s of wall as today) and Reduce Motion (`-reduceMotion`: half the length, the push and the
+          # slowdown)
+          run_demo queen-cineoff 7 "-demo queen -tier 1 -seed 3 -cine off"
+          run_demo queen-rm 7 "-demo queen -tier 1 -seed 3 -reduceMotion"
           # v1.1 coach «Учебная высадка» on the fresh demo profile: step 1 (ghost thumb on the move ring), step 3
           # (the «Граната» tap with its amber ring, 18 runners); the HUD layout check
           run_demo coach 6 "-demo coach -profile fresh -seed 7 -layoutCheck" 0
@@ -921,7 +936,8 @@ jobs:
                    swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud calm-deckmask calm-bright-nohud \
                    burst-fire burst-tight burst-combat burst-anim burst-loco burst-loco-game burst-acta burst-actb burst-actc burst-defeat burst-win burst-bugs burst-pack burst-packold burst-mix burst-mixold validate-stress validate-fxpeak validate-extract lifecycle \
                    overhead burst-overhead burst-parallax overhead-nohud overheadbugs burst-dropper burst-perch burst-duct burst-dash \
-                   interactives burst-valve burst-lights burst-mk2 breakerrun ventpurge burst-firstmin burst-firstmin-pseudo; do
+                   interactives burst-valve burst-lights burst-mk2 breakerrun ventpurge burst-firstmin burst-firstmin-pseudo \
+                   burst-bossintro bossintro-nohud queen-cineoff queen-rm; do
             mine "$d" || continue
             grep -q 'scene ready' "results/app-$d.log" || { fail "$d: no 'scene ready'"; }
             if grep -q 'ERROR' "results/app-$d.log"; then fail "$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; fi
@@ -971,6 +987,28 @@ jobs:
           need burst-firstmin 'hud toast tip toast\.tip\.[a-z]+ (left|right) t=[0-9.]+ waited'
           need banner-queen 'hud banner «THE QUEEN» slot=(mid|high|low) \| mid: '
           need holdhint 'hud hint «GRID HITS EVERY 6 SEC'
+          # Stage 2 B3: the boss intro — armed by the Queen's warning, its shot started so she lands on its beat (2.0 s of sim after
+          # her warning), slowed ×0.3 and over in 2.6 s; with no warning (queenlock) from her arrival; off (the world's own time:
+          # 2.0 s of wall) and Reduce Motion (half) logged; the boss bar's name; her banner placed for the game camera's view; the
+          # burst and the held look shot
+          need queen 'demo queen: her warning due td='
+          need queen 'cine bossintro armed kind=queen at '
+          need queen 'cine bossintro start kind=queen from=warning'
+          need queen 'cine bossintro: queen there 0\.[3-9][0-9] s into the shot \(beat 0\.60\), 2\.0[0-9] s of sim'
+          need queen 'cine bossintro end dilation x0\.3[0-9] for [0-9.]+ s, 2\.60 s in all, the boss there at'
+          need queen 'hud objective caption «QUEEN» \(boss bar\)'
+          need queenlock 'cine bossintro start kind=queen from=arrival'
+          need queenlock 'cine bossintro: queen there 0\.00 s into the shot \(beat 0\.60\), no warning'
+          need queen-cineoff 'cine bossintro start kind=queen from=warning.* \(cameras off\)'
+          need queen-cineoff 'cine bossintro: queen there .*, 2\.0[0-9] s of sim and (1\.9[5-9]|2\.0[0-9]) s of wall after its warning \(cameras off\)'
+          need queen-cineoff 'cine bossintro end dilation x1\.00 for 0\.00 s'
+          need queen-rm 'reduce motion on \(launch option\)'
+          need queen-rm 'cine bossintro shot kind=queen from=warning .*×0\.65, reach 0\.50 \(reduced motion'
+          need queen-rm 'cine bossintro end dilation x0\.6[0-9] for [0-9.]+ s, 1\.30 s in all'
+          need banner-queen 'hud banner «THE QUEEN» slot=(mid|high|low) \| mid: .*for the game camera.s view'
+          need burst-bossintro 'burst bossintro written \(60 frames\)'
+          need burst-bossintro 'cine bossintro start kind=queen from=warning'
+          need bossintro-nohud 'demo queen: intro held at 1\.20 s'
           need combat 'oh vis: on \(pipelines ok'
           need hold 'oh vis: on \(pipelines ok'
           # native-vx-feel: the wave director staged its own beacon defence (no forced crowd) and the hive pushed
