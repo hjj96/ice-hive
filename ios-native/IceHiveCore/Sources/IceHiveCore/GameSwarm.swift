@@ -148,6 +148,9 @@ extension Game {
                 defer { k += 1 }
                 let e = booms[k]
                 let cnt = hash.queryCircle(S, e.x, e.z, e.r)
+                // (Stage 2 B4: a chain boss takes the blast as one creature — BossSpec.areaOnce)
+                bossRT.areaHit = true
+                defer { bossRT.areaHit = false }
                 let pulse = e.kind == .pulse
                 let knock: Float = e.kind == .frost ? 2 : (pulse ? 5 : 11)
                 let falloff = difficulty.pulseFalloff
@@ -164,6 +167,8 @@ extension Game {
                         let f: Float = pulse ? 1 - falloff * minf(1, d / e.r) : 1 - 0.55 * minf(1, d / e.r)
                         if e.kind == .frost && !qb { S.chill[b] = minf(1, S.chill[b] + 0.45) }
                         if S.type[b] != T_BRUTE && !qb { S.vx[b] += dx / d * knock * f; S.vz[b] += dz / d * knock * f }
+                        // (Stage 2 B4: a chain boss's part hears the blast — the Threader's coil lets go of a grenade on a node)
+                        if qb && S.boss[b] != BOSS_BUG { bossOwnBlast(Int(S.boss[b]) - 1, e.kind, e.src) }
                         hitBug(b, e.dmg * f, e.src, dir: Vec2(dx / d, dz / d))
                     }
                 }

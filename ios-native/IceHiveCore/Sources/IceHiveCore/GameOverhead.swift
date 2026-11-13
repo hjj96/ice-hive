@@ -78,6 +78,8 @@ extension Game {
         let node = G.layout.nodes[n]
         let c = squadCenter()
         let e = G.bestEdge(at: n, c.x, c.y)
+        // (Stage 2 B4: an entry whose routes were all pulled down takes nobody)
+        if e < 0 { return -1 }
         let i = spawnBug(type, node.p.x, node.p.z, mode: 0)
         if i < 0 { return -1 }
         let S = bugs
@@ -151,8 +153,9 @@ extension Game {
         for (d0, d1, pass) in bands {
             var pick = -1, seen = 0
             for n in G.entries {
-                // (Stage 1 R4: a duct mouth shot shut is no way in)
+                // (Stage 1 R4: a duct mouth shot shut is no way in; Stage 2 B4: nor an entry whose routes were all pulled down)
                 if !ductOpen(node: n) { continue }
+                if G.anyBlocked && !G.nodeEdges[n].contains(where: { !G.isBlocked($0) }) { continue }
                 let p = G.nodePos(n)
                 let d = hypotf2(p.x - c.x, p.z - c.y)
                 if d < d0 || d > d1 { continue }
@@ -724,6 +727,9 @@ extension Game {
     func overheadBlast(_ e: Boom) {
         let S = bugs, H = hash
         let R = e.r * BLAST_UP
+        // (Stage 2 B4: a chain boss takes the blast as one creature — BossSpec.areaOnce)
+        bossRT.areaHit = true
+        defer { bossRT.areaHit = false }
         var q = H.overheadStart
         let qe = H.overheadEnd
         while q < qe {
@@ -732,6 +738,8 @@ extension Game {
             if S.dead[b] != 0 || S.up[b] == 0 { continue }
             let dx = S.x[b] - e.x, dz = S.z[b] - e.z, d = (dx * dx + dz * dz).squareRoot()
             if d >= R + S.r[b] { continue }
+            // (Stage 2 B4: a chain boss's part up there hears the blast — the Threader's coil lets go of a grenade on a node)
+            if S.boss[b] != 0 && S.boss[b] != BOSS_BUG { bossOwnBlast(Int(S.boss[b]) - 1, e.kind, e.src) }
             if !hitBug(b, e.dmg * (1 - 0.55 * minf(1, d / R)), e.src, dir: d > 1e-3 ? Vec2(dx / d, dz / d) : nil) { knockDown(b, src: e.src) }
         }
     }

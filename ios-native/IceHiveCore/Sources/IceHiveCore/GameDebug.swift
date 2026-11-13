@@ -266,11 +266,17 @@ extension Game {
     /// The squad 2 m around the zone's centre (the lift: on its deck; a deck zone: where a marine fits, else the centre).
     func debugPutSquad(in zone: MissionZone) {
         let c = zoneCenter(zone)
+        var placed: [Vec2] = []
         for (k, m) in marines.enumerated() {
             let a = Float.pi / 4 + Float(k) * Float.pi / 2
             m.x = c.x + cosf2(a) * 2; m.px = m.x
             m.z = c.y + sinf2(a) * 2; m.pz = m.z
-            if zone != .lift && !level.canStand(m.x, m.z) { m.x = c.x; m.px = c.x; m.z = c.y; m.pz = c.y }
+            if zone != .lift && !level.canStand(m.x, m.z) {
+                // (Stage 2 B4: a zone with cover at its centre — the Manifold's pump housing — gets the nearest open deck round it)
+                let p = level.canStand(c.x, c.y) ? c : (level.openSpot(near: c, from: 2, to: 7, clearance: 0.5, avoid: placed, avoidR: 1.2) ?? c)
+                m.x = p.x; m.px = p.x; m.z = p.y; m.pz = p.y
+            }
+            placed.append(Vec2(m.x, m.z))
         }
     }
 

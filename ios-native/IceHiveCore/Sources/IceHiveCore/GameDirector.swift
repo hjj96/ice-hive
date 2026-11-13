@@ -14,7 +14,7 @@ extension Game {
         calm = false; beaconHordeMul = 1; pressure = 0; idleMul = 1; huntPressure = false; huntAfk = false; heartAt = -9
         liftAllowance = -1
         beat = 0; beatT = 10; beaconPushes = 0; lullT = 0
-        boss = BossState(); bossRT.reset()
+        boss = BossState(); bossRT.reset(); thr.reset()
         // the mission plan starts over at its first step (GameMission.swift)
         resetMission()
     }

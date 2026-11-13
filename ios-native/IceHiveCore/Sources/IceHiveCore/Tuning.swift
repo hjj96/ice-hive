@@ -258,8 +258,9 @@ public let SRC_QUEEN = 4
 public enum DamageSource: Int, CaseIterable {
     /// Stage 1 R4: `dropper` (its landing and its gnaw). The calibration ledger keeps its six slots (`ledger`): a Dropper's
     /// damage counts in the runner's slot there (the classic rows keep their bytes), and the overhead's own numbers
-    /// (`CalibOverhead`) count it apart.
-    case environment = -1, runner = 0, spitter = 1, brute = 2, boomer = 3, queen = 4, dropper = 5
+    /// (`CalibOverhead`) count it apart. Stage 2 B4: `threader` (its slam, crush, rime, steam, crash and charge) — in the
+    /// boss's slot of the ledger (the Queen's: the classic rows keep their bytes), its own loss tip.
+    case environment = -1, runner = 0, spitter = 1, brute = 2, boomer = 3, queen = 4, dropper = 5, threader = 6
 
     init(bugType ty: UInt8) {
         switch ty {
@@ -272,8 +273,15 @@ public enum DamageSource: Int, CaseIterable {
         }
     }
 
-    /// Slot in the six-slot calibration ledgers (`hurtBy`, `squadDownBy`: environment, runner, spitter, brute, boomer, Матка).
-    var ledger: Int { self == .dropper ? DamageSource.runner.rawValue + 1 : rawValue + 1 }
+    /// Slot in the six-slot calibration ledgers (`hurtBy`, `squadDownBy`: environment, runner, spitter, brute, boomer, the boss —
+    /// the Матка, the Threader).
+    var ledger: Int {
+        switch self {
+        case .dropper: return DamageSource.runner.rawValue + 1
+        case .threader: return DamageSource.queen.rawValue + 1
+        default: return rawValue + 1
+        }
+    }
 }
 
 public struct Difficulty: Equatable {
@@ -326,6 +334,9 @@ public struct Difficulty: Equatable {
     /// `at` s into the counted hold (∞: none), health × the HP multiplier, speed, ram / volley / brood clocks, brood size, the
     /// horde of her rage, × the trickle while she lives).
     public var queen: BossSpec = .queenNone
+    /// Stage 2 B4: the Threader, the boss of the Manifold (`BossSpec.threader(…)`, GameThreader.swift: health × the HP
+    /// multiplier at its spawn, its moves' clocks, the ticks it sheds, × the arena's stream while it lives).
+    public var threader: BossSpec = .threaderNone
     /// native-vx-feel: the wave pacing — real lulls and peaks instead of a constant stream, packs climbing over the
     /// rails and out of vents from several sides, a smaller swarm of smarter bugs (favourite targets, flanking arcs,
     /// hesitation, feints and surges, runner leaps, flight from blasts, panic on fire). false = the v1.0 / v1.1 stream.
@@ -384,6 +395,7 @@ public struct Difficulty: Equatable {
         d.waves = true; d.popK = 2.3; d.mix = 1.8; d.bite = 1.8; d.xpK = 1.6; d.runnerHp = 22
         d.routes = 0.15; d.routeCap = 12; d.dropCap = 2; d.dropWarn = 1.2; d.dropK = 1.2; d.dropGap = 1.0
         d.dropperCap = 4; d.pinT = 0.8; d.pinGnaw = 5; d.dropperGap = 30; d.perchGap = 36
+        d.threader = .threader(hp: 3200, shedMax: 5, coilT: 15, rimeT: 12, squeezeT: 20, chargeT: 7, trickle: 0.45)
         return d
     }()
     /// Ветеран — as designed; the default after the first evacuation.
@@ -398,6 +410,7 @@ public struct Difficulty: Equatable {
         d.waves = true; d.popK = 2.5; d.mix = 1.8; d.bite = 2.25; d.xpK = 1.6; d.runnerHp = 22
         d.routes = 0.2; d.routeCap = 15; d.dropCap = 3; d.dropWarn = 0.9; d.dropK = 1.4; d.dropGap = 0.8
         d.dropperCap = 5; d.pinT = 1.2; d.pinGnaw = 5; d.dropperGap = 22; d.perchGap = 28
+        d.threader = .threader(hp: 4500, shedMax: 6, coilT: 13, rimeT: 11, squeezeT: 18, chargeT: 6, trickle: 0.8)
         return d
     }()
     /// Кошмар — the swarm is merciless, the squad weaker.
@@ -412,6 +425,7 @@ public struct Difficulty: Equatable {
         d.waves = true; d.popK = 2.6; d.mix = 1.8; d.bite = 2.5; d.xpK = 1.6; d.runnerHp = 22
         d.routes = 0.2; d.routeCap = 18; d.dropCap = 3; d.dropWarn = 0.9; d.dropK = 1.5; d.dropGap = 0.6
         d.dropperCap = 6; d.pinT = 1.2; d.pinGnaw = 5; d.dropperGap = 22; d.perchGap = 28
+        d.threader = .threader(hp: 7500, shedMax: 6, coilT: 11, rimeT: 9, squeezeT: 16, chargeT: 5, trickle: 1.6)
         return d
     }()
     /// v1.0 exactly (hidden; calibration port check and the v1.0 regression test).
@@ -500,6 +514,7 @@ public struct Difficulty: Equatable {
     public func boss(_ kind: BossKind) -> BossSpec {
         switch kind {
         case .queen: return queen
+        case .threader: return threader
         }
     }
 }

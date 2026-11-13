@@ -135,8 +135,8 @@ final class MissionsKelvinTests: XCTestCase {
         XCTAssertEqual(h.time, VentPurge.holdTime)
         XCTAssertEqual(h.hordeK, VentPurge.hordeK)
         XCTAssertEqual(h.hordeSub, .bannerHordeLiftSub)
-        // every template id is unique; the playable missions are the classic and R7's two
-        XCTAssertEqual(MissionTemplate.playable.map { $0.id }, ["cold-light", "breaker-run", "vent-purge"])
+        // every template id is unique; the playable missions are the classic, R7's two and the Manifold (Stage 2 B4)
+        XCTAssertEqual(MissionTemplate.playable.map { $0.id }, ["cold-light", "breaker-run", "vent-purge", "manifold"])
         XCTAssertEqual(Set(MissionTemplate.all.map { $0.id }).count, MissionTemplate.all.count)
         XCTAssertNil(MissionTemplate.coldLight.station, "the classic plays the station it is given")
     }

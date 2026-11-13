@@ -3,9 +3,11 @@ name: native-ios
 # Native build of Ice Hive 2.0 (ios-native/): Swift, the world drawn with Metal, HUD / menus as a SpriteKit
 # scene in the same Metal pass. Results of every run are committed to branch `ci-results` under <branch>/<short-sha>/:
 #   status.json, core-tests.log, core-perf.log, calib.txt / calib.jsonl (v1.1 balance gate), calib-missions.txt / .jsonl (the
-#   missions' own gate: Breaker Run, Vent Purge), calib-drills.txt (mission module drills), build.log, release-check.txt,
-#   metrics.txt, fps.txt, hitches.txt, <demo>-<s>s.png (upright landscape: the app is landscape-only), other-phones.txt,
-#   app-<demo>.log, app.log, assets.txt (the asset pipeline's gates — the `assets` job, Stage 2 B2)
+#   missions' own gate: Breaker Run, Vent Purge), calib-bosses.txt / .jsonl (the boss missions' gate: the Manifold, the
+#   Threader), threader-trace.txt (one Threader fight's headless timeline), calib-drills.txt (mission module drills),
+#   build.log, release-check.txt, metrics.txt, fps.txt, hitches.txt, <demo>-<s>s.png (upright landscape: the app is
+#   landscape-only), other-phones.txt, app-<demo>.log, app.log, assets.txt (the asset pipeline's gates — the
+#   `assets` job, Stage 2 B2)
 # The simulator demos run in two parts at once (sim-smoke (a) and (b), each on its own runner and simulator; Stage 2 C1):
 # the report job merges both parts into that one result set, as one job wrote it before.
 on:
@@ -108,6 +110,21 @@ jobs:
           set -o pipefail
           .build/release/icehive-calib --preset missions --jobs 3 --out "$GITHUB_WORKSPACE/results/calib-missions.jsonl" \
             --summary "$GITHUB_WORKSPACE/results/calib-missions.txt" --gate 2>&1 | tee "$GITHUB_WORKSPACE/results/calib-missions.log"
+      # Stage 2 B4: the boss missions' own gate — the Manifold (the Threader): autopilot on Recruit / Veteran / Nightmare on
+      # its boss bands (Recruit wins ≥ 90 %; Veteran: the boss reached ≥ 75 %, killed in ≥ 80 % of those, kill median
+      # 60–100 s; Nightmare wins ≤ 30 %), AFK rows reported; rows calib-bosses.jsonl, table + verdict calib-bosses.txt (its own
+      # step and rows: calib.jsonl and calib-missions.jsonl stay byte-identical); then one Veteran fight's headless timeline
+      # (threader-trace.txt: phases, moves, cues, pops, windows, the kill — B5's renderer draws the same cues)
+      - name: Calibration gate — bosses (release)
+        if: success() || failure()
+        working-directory: ios-native/IceHiveCore
+        run: |
+          set -o pipefail
+          .build/release/icehive-calib --preset bosses --jobs 3 --out "$GITHUB_WORKSPACE/results/calib-bosses.jsonl" \
+            --summary "$GITHUB_WORKSPACE/results/calib-bosses.txt" --gate 2>&1 | tee "$GITHUB_WORKSPACE/results/calib-bosses.log"
+          .build/release/icehive-calib --mission manifold --tiers 1 --n 1 --classes gunner --trace \
+            > "$GITHUB_WORKSPACE/results/threader-trace.txt" 2>&1 || true
+          grep -E 'phase|killed|lureLock|strikeLand|coil |pullCrash' "$GITHUB_WORKSPACE/results/threader-trace.txt" | head -n 24 || true
       # generated stations (seeds 0–4, Ветеран): informational while the stations flag is off
       - name: Calibration on generated stations (informational)
         if: success() || failure()

@@ -582,8 +582,10 @@ final class BossFrameworkTests: XCTestCase {
         bad += (0..<5).map { _ in row(true, nil) }
         let lines = Calibration.gate(bad, templates: [t]).lines.filter { $0.text.hasPrefix("t-bossband") }
         XCTAssertTrue(lines.contains { !$0.ok && $0.text.contains("boss killed of reached") })
-        // the shipped templates set no boss band: the classic and the missions' gates are as before
-        XCTAssertTrue(MissionTemplate.all.allSatisfy { ($0.calib?.bands ?? []).allSatisfy { $0.bossReachedLo == nil && $0.bossKilledLo == nil } })
+        // the shipped templates set no boss band but the Manifold (Stage 2 B4): the classic and the missions' gates are as before
+        XCTAssertTrue(MissionTemplate.all.filter { $0.id != "manifold" }.allSatisfy {
+            ($0.calib?.bands ?? []).allSatisfy { $0.bossReachedLo == nil && $0.bossKilledLo == nil } })
+        XCTAssertEqual(MissionTemplate.manifold.calib?.bands.compactMap { $0.bossKilledLo }, [80])
     }
 }
 
