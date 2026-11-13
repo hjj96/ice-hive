@@ -77,6 +77,8 @@ import IceHiveCore
 //                   the pad end and the player walks the bridge toward the hub from 1.0 s (no freeze) — the camera follows,
 //                   the deck, the routes and the upper truss slide past at their three speeds. `-ohHigh`: on «высокая»
 //                   (the flashlight shadows: the overhead's casters in the player's tile — the CI parallax burst).
+//                   `-ohWalkK k` (Stage 2 V1): the walk at k × the run speed (0.5: the whole bridge in ≈ 9.5 s — the owner's
+//                   10 s parallax clip, the CI burst `burst-parallax`).
 //  Stage 1 R4 «Overhead bugs»:
 //    -demo overheadbugs  the overhead showcase (as -demo overhead), the squad mid-bridge, the director off, the bots holding
 //                   fire, the player an idle assault (god mode: pinned, never hurt) and every route bug's target (on the sim
@@ -218,8 +220,9 @@ final class DemoScript {
         if name == "interactives" { return KelvinStation(overhead: .kelvinSlice, props: .kelvinDemo) }
         return name == "overhead" || name == "overheadbugs" ? KelvinStation(overhead: OverheadShowcase.layout) : nil
     }
-    /// `-ohWalk`: the overhead demo's parallax walk (the CI burst `burst-parallax`).
+    /// `-ohWalk`: the overhead demo's parallax walk (the CI burst `burst-parallax`); `-ohWalkK k`: at k × the run speed.
     private var walk: Bool { options.unknown.contains("-ohWalk") }
+    private var walkK: Float { Float(min(1, max(0.2, demoNum("-ohWalkK", 1)))) }
 
     /// Class the demo plays unless `-class` says otherwise (the store shot is the gunner's).
     var preferredClass: String? { name == "swarmshot" ? "gunner" : (name == "overheadbugs" ? "assault" : nil) }
@@ -674,8 +677,11 @@ final class DemoScript {
         if walk {
             // the parallax walk: along the bridge's near half toward the hub, then idle (no freeze: the camera keeps moving)
             if sinceReady >= 1.0 && game.player.x > 1.5 {
-                game.setPlayerInput(move: Vec2(-1, 0), aim: nil, fire: false, ability: false, dash: false)
-                if !walkLogged { walkLogged = true; AppLog.info(String(format: "demo overhead: walking td=%.2f from x=%.1f", sinceReady, game.player.x)) }
+                game.setPlayerInput(move: Vec2(-walkK, 0), aim: nil, fire: false, ability: false, dash: false)
+                if !walkLogged {
+                    walkLogged = true
+                    AppLog.info(String(format: "demo overhead: walking td=%.2f from x=%.1f at %.2f × the run speed", sinceReady, game.player.x, walkK))
+                }
             } else if walkLogged && !walkDone {
                 walkDone = true
                 AppLog.info(String(format: "demo overhead: walk done td=%.2f at (%.1f, %.1f)", sinceReady, game.player.x, game.player.z))

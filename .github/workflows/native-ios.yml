@@ -956,6 +956,8 @@ jobs:
           # the three duct mouths, the perches) and props laid, WorldOverhead built the layer; the classic demos send packs up
           need combat 'demo combat: Kelvin-9 Mk II overhead, 37 edges, 16 entries, 3 duct mouths, [1-9][0-9]* perch points, 4 valves, 7 circuits .*routeCheck ok'
           need combat 'overhead: [0-9]+ vertices, [0-9]+ triangles in [0-9]+ chunks'
+          # (Stage 2 V1: the running lights along the long racks are built into the same chunks — no draw of their own)
+          need combat 'overhead: [0-9]+ vertices, .* [1-9][0-9]* running lights'
           need combat 'hb overhead draws=[1-9][0-9]*\+[0-9]+ tris=[1-9]'
           need combat 'demo combat: overhead td=[0-9.]+ sent runners [1-9]'
           need beacon 'demo beacon: overhead td=[0-9.]+ sent runners [1-9]'
@@ -1016,6 +1018,7 @@ jobs:
           need overhead 'route: drop landed at'
           need overhead 'demo overhead: frozen td='
           need overhead 'overhead: [0-9]+ vertices, [0-9]+ triangles in [0-9]+ chunks'
+          need overhead 'overhead: [0-9]+ vertices, .* [1-9][0-9]* running lights'
           need overhead 'hb overhead draws=[1-9][0-9]*\+[0-9]+ tris=[1-9]'
           need burst-overhead 'burst overhead written \(24 frames\)'
           # Stage 1 R3: the parallax walk and the visibility metric (both runs; the gate is ci/overhead_vis.py below)

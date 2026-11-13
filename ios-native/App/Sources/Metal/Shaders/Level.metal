@@ -317,14 +317,21 @@ fragment float4 fs_level(KitOut in [[stage_in]],
 // ghost floor read as a 25 % ghost after the resolve, not a screen door). Drawn last among the opaque items. The look:
 // the darker grade (a dark foreground plane: desaturated, cooled toward the void, darker), rime and a snow crust on every
 // up-facing top (the layer reads as pale lines from above), the station's light model and fog.
+// Stage 2 V1 «The overhead reads»: at phone size the crust under the faint moon came out the void's own colour, so only the
+// black undersides read. Where the layer has to read (the read weight: 0 inside the cutaway's ghost, the near share next
+// to the squad, 1 far from it — «the far chunks most») the crust is lighter, its topmost line catches the cold sky light
+// (a pale line that does not wait for a lamp), the far-upper edge of every frosted top takes a cool rim against the void,
+// and the running lights along the long racks (OverheadKit) pulse softly. Inside the cutaway nothing changes.
 
-// Swift: WorldOverhead.swift OverheadBlock (85 float4)
+// Swift: WorldOverhead.swift OverheadBlock (86 float4)
 struct OverheadParams {
     float4 look;       // x rime strength, y snow-crust strength, z albedo grade (×), w desaturation
-    float4 misc;       // x = 1 on the High tier, y unused, z time (s), w unused
+    float4 misc;       // x = 1 on the High tier, y the squad's cut points (the first ones), z time (s), w running lights (×)
     float4 mask;       // world mask: xy world origin, z = 1 / size
     float4 view;       // x = 2 / viewport width (px), y = 2 / viewport height (px), z = aspect, w = ghost floor (0…1)
     float4 cut;        // x near-eye fade start (m: nothing nearer), y its end (m), z cut points in use, w depth margin (m)
+    float4 read;       // Stage 2 V1: x lighter crust (0…1), y the crust line's sky catch (radiance), z the cool rim
+                       // (radiance), w the read weight next to the squad (the near share; 1 far from it)
     float4 pts[8];     // cut points: xy on screen (half screen heights, x × aspect), z view depth (m), w weight 0…1
     float4 rad[8];     // x radius of the full ghost, y radius where the fade ends (half screen heights)
     float4 sway[64];   // cable k's displacement this frame (m), × the vertex's mid-span weight
@@ -370,11 +377,13 @@ static inline float overheadNoise(float2 p) {
 }
 
 /// The overhead's material: trims and the kit pieces' AO as on the station, worn chamfers, rime and the snow crust on
-/// the up-facing tops, the full light model (flashlights, grid lights from the lamps below, moon, probe), fog.
+/// the up-facing tops, the full light model (flashlights, grid lights from the lamps below, moon, probe), fog. `rw`
+/// (Stage 2 V1, overheadReadWeight): x the read weight — the lighter crust, its sky catch and the cool rim scale with it —,
+/// y the solid share outside the cutaway's ghost (the running lights go out with it).
 static float3 overheadShade(KitOut in, constant Frame& F, constant OverheadParams& P, texture2d<float> worldMask,
                             texture2d_array<float> trimN, texture2d_array<float> trimORM, texture2d<float> aoAtlas,
                             constant LightBlock& LB, depth2d<float> shadowAtlas, texturecube<half> envProbe,
-                            texture2d<half> occupancy) {
+                            texture2d<half> occupancy, float2 rw) {
     float3 Nv = normalize(in.normal);
     float3 V = normalize(F.camPos.xyz - in.world);
     float3 N = Nv;
@@ -398,6 +407,7 @@ static float3 overheadShade(KitOut in, constant Frame& F, constant OverheadParam
     }
     if (in.aoK > 0.0) ao *= mix(1.0, aoAtlas.sample(clampSampler, in.uv1).r, in.aoK);
     float frost = worldMask.sample(dataSampler, (in.world.xz - P.mask.xy) * P.mask.z).r;
+    float skyCatch = 0.0, rim = 0.0;
     if ((fl & KF_CHAMFER) != 0u) {
         // worn edges catch the beams: a thin bright line along each bevel (subtler than the deck's)
         albedo = mix(albedo, max(albedo * 1.6, float3(0.08, 0.09, 0.1)), 0.45);
@@ -413,10 +423,15 @@ static float3 overheadShade(KitOut in, constant Frame& F, constant OverheadParam
         rough = mix(rough, 0.72, rime);
         metal = mix(metal, 0.0, rime);
         float crust = smoothstep(0.66, 0.96, Nv.y) * (0.55 + 0.45 * overheadNoise(in.world.xz * 0.62 + in.world.y)) * P.look.y;
-        albedo = mix(albedo, float3(0.46, 0.5, 0.56), crust);
+        // (V1) a lighter crust where the layer has to read; R3's inside the cutaway
+        albedo = mix(albedo, mix(float3(0.46, 0.5, 0.56), float3(0.70, 0.76, 0.84), P.read.x * rw.x), crust);
         rough = mix(rough, 0.88, crust);
         metal = mix(metal, 0.0, crust);
         N = normalize(mix(N, Nv, crust));
+        // (V1) the crust's topmost line catches the cold sky (a pale line from above, lamp or no lamp), and the far-upper
+        // edge of a frosted top — the one against the void up-screen, black under the moon alone — a cool rim
+        skyCatch = crust * smoothstep(0.80, 0.97, Nv.y);
+        rim = pow(1.0 - saturate(dot(Nv, V)), 2.5) * smoothstep(0.2, 0.6, Nv.y);
     }
     LitSurface s;
     s.P = in.world;
@@ -430,8 +445,32 @@ static float3 overheadShade(KitOut in, constant Frame& F, constant OverheadParam
     s.ao = ao;
     s.shadow = 1.0;
     float3 c = shadeLit(F, LB, shadowAtlas, envProbe, occupancy, s, high);
-    c += in.albedo * in.emis;
+    c += rw.x * (P.read.y * skyCatch * float3(0.55, 0.72, 1.0) + P.read.z * rim * float3(0.35, 0.62, 0.9));
+    float emis = in.emis;
+    if (in.layer == 255u && in.uv0.y > 0.5) {
+        // (V1) a running light (OverheadKit.runningLights: uv0.x its arc along the rack, m): a steady half glow, and a soft
+        // pulse runs along the rack every 3.2 s at ≈ 4.5 m/s (to 1.5×: through the tone curve the pulse shows in the bloom)
+        float ph = fract(P.misc.z * 0.3125 - in.uv0.x * 0.07) - 0.5;
+        emis *= P.misc.w * rw.y * (0.5 + exp(-36.0 * ph * ph));
+    }
+    c += in.albedo * emis;
     return heightFog(F, LB, c, in.world, in.depth);
+}
+
+/// Stage 2 V1: where an overhead fragment has to read — x: 0 inside the cutaway's ghost (`cutAlpha` at the ghost floor:
+/// a marine, a drop ring, the near-eye fade keep R3's look), the near share P.read.w just outside a marine's cut, 1 from
+/// 2.4 cut radii away (the far chunks: what lies over the void away from the action); y: the solid share alone. Screen
+/// distances in each point's own cut radius (rad.y, which keeps its world size in close shots).
+static float2 overheadReadWeight(constant OverheadParams& P, float2 px, float cutAlpha) {
+    float2 sp = float2((px.x * P.view.x - 1.0) * P.view.z, 1.0 - px.y * P.view.y);
+    float d = 1e4;
+    int n = int(P.misc.y);
+    for (int k = 0; k < 4; k++) {
+        if (k >= n) break;
+        d = min(d, distance(sp, P.pts[k].xy) / max(P.rad[k].y, 1e-3));
+    }
+    float solid = smoothstep(P.view.w + 0.2, 1.0, cutAlpha);
+    return float2(solid * mix(P.read.w, 1.0, smoothstep(1.0, 2.4, d)), solid);
 }
 
 /// The cutaway's alpha (1 = solid) of an overhead fragment at window position `px` (pixels), view depth `depth` (m): it
@@ -461,9 +500,9 @@ static float overheadCutAlpha(constant OverheadParams& P, float2 px, float depth
     texture2d<float> aoAtlas [[texture(10)]], LIGHTING_PARAMS
 #define OVERHEAD_FS_ARGS in, F, P, worldMask, trimN, trimORM, aoAtlas, LB, shadowAtlas, envProbe, occupancy
 
-/// Overhead chunks away from the squad: opaque (the far, dark-graded draw).
+/// Overhead chunks away from the squad: opaque (the far, dark-graded draw; no cut point reaches them, so solid).
 fragment float4 fs_overhead(OVERHEAD_FS_PARAMS) {
-    return float4(overheadShade(OVERHEAD_FS_ARGS), 1.0);
+    return float4(overheadShade(OVERHEAD_FS_ARGS, overheadReadWeight(P, in.position.xy, 1.0)), 1.0);
 }
 
 struct OverheadCutOut {
@@ -488,7 +527,7 @@ fragment OverheadCutOut fs_overhead_cut(OVERHEAD_FS_PARAMS) {
     uint rot = (q.x + q.y * 2u + 1u) & 3u;
     uint m = (1u << uint(min(n, 4))) - 1u;
     o.mask = ((m << rot) | (m >> (4u - rot))) & 15u;
-    o.color = float4(overheadShade(OVERHEAD_FS_ARGS), 1.0);
+    o.color = float4(overheadShade(OVERHEAD_FS_ARGS, overheadReadWeight(P, in.position.xy, a)), 1.0);
     return o;
 }
 

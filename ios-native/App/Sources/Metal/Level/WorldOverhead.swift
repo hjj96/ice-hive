@@ -36,6 +36,15 @@ import IceHiveCore
 //      (the beam marches pipe shadows through its cone).
 //  Static grounding: the soft moon shadow of every route on the deck,
 //  baked into the world mask's B (WorldLevel.writeWorldMask).
+//  Stage 2 V1 «The overhead reads» (the owner's Stage 1 film: at phone
+//  size the layer read as dark silhouettes over the void): the block's
+//  `read` row — a lighter crust, its topmost line catching the cold
+//  sky, a cool rim on the frosted tops' far-upper edge — weighted per
+//  fragment by where the layer has to read (Level.metal
+//  overheadReadWeight: none inside the cutaway's ghost, the near share
+//  by the squad, all of it far from it), and the running lights along
+//  the long racks (OverheadKit) with their pulse. Same draws, same
+//  pipelines, both tiers. `-ohRead 0`: R3's look (device / look A/B).
 //  Look-dev / CI: `-noOverhead` (device A/B: no overhead draws),
 //  `-ohVis` (OverheadVisibility: the occlusion / squad-visibility
 //  metric). Once a second (diagnostics) `hb overhead draws=… tris=…
@@ -64,9 +73,19 @@ final class WorldOverhead {
     /// The darker grade: albedo ×, desaturation; the rime and the snow crust on the tops.
     static let grade: Float = 0.6, desaturate: Float = 0.3, rime: Float = 1.0, crust: Float = 0.9
 
-    /// Layout of the per-frame block (Level.metal `struct OverheadParams`): 5 float4 + 8 points + 8 radii + 64 cables.
+    /// Stage 2 V1 «The overhead reads» (Level.metal `read`): how far the crust goes toward the light crust (0…1), the sky
+    /// catch of the crust's topmost line and the cool rim (linear radiance at full weight: the line shows ≈ luma 100 over
+    /// the void's ≈ 33 at the game camera, the deck's median ≈ 40), the read weight right outside a marine's cut (the near
+    /// share; 1 from 2.4 cut radii out), the running lights' emission (×). `-ohRead 0` zeroes all of it: R3's look.
+    static let read = (crust: Float(1), skyCatch: Float(0.14), rim: Float(0.36), near: Float(0.55), lights: Float(1))
+    static let readOff: Bool = {
+        let a = LaunchOptions.current.unknown
+        return a.firstIndex(of: "-ohRead").map { $0 + 1 < a.count && a[$0 + 1] == "0" } ?? false
+    }()
+
+    /// Layout of the per-frame block (Level.metal `struct OverheadParams`): 6 float4 + 8 points + 8 radii + 64 cables.
     enum Block {
-        static let look = 0, misc = 1, mask = 2, view = 3, cut = 4, pts = 5, rad = 13, sway = 21, count = 85
+        static let look = 0, misc = 1, mask = 2, view = 3, cut = 4, read = 5, pts = 6, rad = 14, sway = 22, count = 86
         static let maxPoints = 8, maxCables = 64
     }
 
@@ -222,7 +241,7 @@ final class WorldOverhead {
                          (FrameTimer.now() - t0) * 1000)
             + RouteKind.allCases.map { String(format: "%@ %.0f m", names[Int($0.rawValue)], b.metres[Int($0.rawValue)]) }.joined(separator: ", ")
             + " | \(b.arms) arms, \(b.supports) supports, \(b.piecesPlaced) pieces, \(b.trussGirders) truss girders, \(cables.count) swaying cables,"
-            + " \(lights.count) lights"
+            + " \(lights.count) lights, \(b.lightsPlaced) running lights" + (WorldOverhead.readOff ? " (-ohRead 0: R3's look)" : "")
         AppLog.info(summary)
     }
 
@@ -250,7 +269,8 @@ final class WorldOverhead {
     private func fillBlock(game: Game, camera: MetalCamera, poses: [MetalEffects.MarinePose], time: Float, dt: Float, high: Bool) {
         let r = renderer!
         block[Block.look] = F4(WorldOverhead.rime, WorldOverhead.crust, WorldOverhead.grade, WorldOverhead.desaturate)
-        block[Block.misc] = F4(high ? 1 : 0, 0, time, 0)
+        let rd = WorldOverhead.read, off = WorldOverhead.readOff
+        block[Block.read] = off ? .zero : F4(rd.crust, rd.skyCatch, rd.rim, rd.near)
         block[Block.mask] = F4(-GRID_HALF, -GRID_HALF, 1 / (2 * GRID_HALF), 0)
         block[Block.view] = F4(2 / Float(max(1, r.targetWidth)), 2 / Float(max(1, r.targetHeight)), camera.aspect, WorldOverhead.ghost)
         var n = 0
@@ -275,6 +295,8 @@ final class WorldOverhead {
             point(F3(poses[k].x, poses[k].y + 1.1, poses[k].z), depthAt: F3(poses[k].x, poses[k].y, poses[k].z), pad: 1.0, weight: 1,
                   rad: WorldOverhead.marineRadius)
         }
+        // (V1) the squad's cut points come first: the read weight measures from them
+        block[Block.misc] = F4(high ? 1 : 0, Float(n), time, off ? 0 : rd.lights)
         for z in game.dropZones where z.active {
             // eased in over 0.25 s (design §1.1.2: the overhead dithers down round every active drop warning)
             point(F3(z.x, level.groundY(z.x, z.z) + 0.2, z.z), weight: (z.warn - z.t) / 0.25, rad: WorldOverhead.warnRadius)
