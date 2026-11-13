@@ -140,7 +140,7 @@ switch game.phase { case .won, .lost: /* экран итогов: game.stats */ 
 - `LevelSource` → `LevelLayout` — генератор станций по сиду вместо фиксированной `KelvinStation`.
 - Боссы — строка `BossSpec` на уровень в `Difficulty`, свой файл с `bossOwnTick` / `bossOwnMove` / `bossOwnPart`
   (`GameBoss.swift` переключает по `BossKind`), шаг плана `BossStep` или наездник удержания `BossRider` (правило
-  прибытия `BossArrival`).
+  прибытия `BossArrival`). Пример цепи — Threader (`GameThreader.swift`, его арена — `Manifold.swift`).
 - Давление улья, часы застоя и «Матка» встраиваются в `tickDirector` (`GameDirector.swift`): темп
   подкрепления, орды, выбор типа жука (`pickType`) и спавн (`spawnBug`, `queueBurst`) — отдельные функции,
   новые события добавляются в `GameEvent`.
@@ -172,4 +172,7 @@ switch game.phase { case .won, .lost: /* экран итогов: game.stats */ 
 | `GameBoss.swift` | рантайм боссов: предупреждение, появление, `bossTick`, фазы, ходы с телеграфами, урон частей, смерть, прибытия |
 | `GameBossBody.swift` | тело-цепь: история пути головы, сегменты по длине дуги, слоты частей, вид для рендера |
 | `GameQueen.swift` | Матка на каркасе: её строки `BossSpec.queen(…)` |
+| `Manifold.swift` | арена «Манифолд» (Stage 2 B4): остров, кольцо, мосты, магистрали и кольцевой короб как маршруты яруса, клапаны, станция `ManifoldStation`, план миссии и её калибровка (`bosses`) |
+| `GameThreader.swift` | Threader (B4): строки `BossSpec.threader(…)`, приманка и удар, сброс, подъём, кольцо, плевок, сжатие, обрушение, погоня, фазы, броня и пулы, боль, вид `ThreaderView` |
+| `GameThreaderAI.swift` | отряд против Threader: цели, турель, толпа, способности, уклонения, места; строка трассы `bossTraceState` |
 | `KelvinMk2.swift` | «Кельвин-9» Mk II (R5): маршруты верхнего яруса ручной карты, `KelvinStation.mk2` — станция классической миссии |

@@ -115,6 +115,10 @@ public struct LevelLayout {
     /// (Stage 1 R6, Props.swift). None on the bare «Кельвин-9»; `KelvinStation.mk2` (the classic mission since R5) and the
     /// missions on Kelvin-9 lay `PropLayout.kelvin`.
     public var props = PropLayout()
+    /// Stage 2 B4: the Manifold's pieces when the station is the Threader's arena (`ManifoldStation`, Manifold.swift): the
+    /// island and its pump housing, the ring and its bridges, the trunks, the ring duct, the duct mouths, the valves — for the
+    /// Threader's moves and for the renderer. nil on every other station.
+    public var manifold: ManifoldArena? = nil
 
     public init(name: NameRef, seed: UInt32, rects: [FloorRect], crates: [CrateSpec], pillars: [Vec2], start: Vec2, lift: LiftSpec,
                 beacons: [BeaconSite], vents: [Vec2], pipes: [PipeRun]) {
@@ -370,6 +374,29 @@ public final class Level {
         return hgt[c] + hgz[c] * (z - (Float(c / GRID) - GRID_HALF + 0.5))
     }
     public func isLiftCell(_ c: Int) -> Bool { c >= 0 && c < GRID * GRID && liftCell[c] != 0 }
+
+    // ---------- Stage 2 B4: the walk grid changed at run time (the Threader's pull-down) ----------
+    /// Cells changed since the level was laid and their raster values (walk, height, slope), in the order first changed.
+    private var dynCell: [Int] = [], dynWalk: [UInt8] = [], dynHgt: [Float] = [], dynHgz: [Float] = []
+    /// Cells changed at run time (0: the grid as laid).
+    public var dynamicCellCount: Int { dynCell.count }
+    /// Cell `c` becomes `walk` (0 abyss, 1 floor, 2 blocked) — at `height` (flat) when given. The flow fields follow at their
+    /// next refresh; `resetDynamic` puts it back.
+    public func setDynamicCell(_ c: Int, walk w: UInt8, height h: Float? = nil) {
+        guard c >= 0 && c < GRID * GRID else { return }
+        if !dynCell.contains(c) { dynCell.append(c); dynWalk.append(walk[c]); dynHgt.append(hgt[c]); dynHgz.append(hgz[c]) }
+        walk[c] = w
+        if let h = h { hgt[c] = h; hgz[c] = 0 }
+    }
+    /// The walk grid and the overhead's routes back as laid (Game.resetWorld: a level shared by several sorties).
+    public func resetDynamic() {
+        if !dynCell.isEmpty {
+            for k in dynCell.indices { let c = dynCell[k]; walk[c] = dynWalk[k]; hgt[c] = dynHgt[k]; hgz[c] = dynHgz[k] }
+            dynCell.removeAll(keepingCapacity: true); dynWalk.removeAll(keepingCapacity: true)
+            dynHgt.removeAll(keepingCapacity: true); dynHgz.removeAll(keepingCapacity: true)
+        }
+        overhead?.clearBlocked()
+    }
     public func isHazardCell(_ c: Int) -> Bool { c >= 0 && c < GRID * GRID && hazCell[c] != 0 }
     public func isStairCell(_ c: Int) -> Bool { c >= 0 && c < GRID * GRID && stairCell[c] != 0 }
     /// Inside the lift deck (the lift leaves with whoever stands here).

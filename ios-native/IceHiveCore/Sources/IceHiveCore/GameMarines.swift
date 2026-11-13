@@ -510,6 +510,11 @@ extension Game {
                         let ob = overheadTurretTarget(&bd)
                         if ob >= 0 { turret.target = ob }
                     }
+                    // (Stage 2 B4: the Threader's nodes, its head while it is down)
+                    if threaderActive {
+                        let tb = threaderTurretTarget(&bd)
+                        if tb >= 0 { turret.target = tb }
+                    }
                     if turret.target >= 0 { turret.tuid = S.uid[turret.target] }
                 }
                 let b = turret.target

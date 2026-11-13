@@ -3,9 +3,10 @@ name: native-ios
 # Native build of Ice Hive 2.0 (ios-native/): Swift, the world drawn with Metal, HUD / menus as a SpriteKit
 # scene in the same Metal pass. Results of every run are committed to branch `ci-results` under <branch>/<short-sha>/:
 #   status.json, core-tests.log, core-perf.log, calib.txt / calib.jsonl (v1.1 balance gate), calib-missions.txt / .jsonl (the
-#   missions' own gate: Breaker Run, Vent Purge), calib-drills.txt (mission module drills), build.log, release-check.txt,
-#   metrics.txt, fps.txt, hitches.txt, <demo>-<s>s.png (upright landscape: the app is landscape-only), other-phones.txt,
-#   app-<demo>.log, app.log
+#   missions' own gate: Breaker Run, Vent Purge), calib-bosses.txt / .jsonl (the boss missions' gate: the Manifold, the
+#   Threader), threader-trace.txt (one Threader fight's headless timeline), calib-drills.txt (mission module drills),
+#   build.log, release-check.txt, metrics.txt, fps.txt, hitches.txt, <demo>-<s>s.png (upright landscape: the app is
+#   landscape-only), other-phones.txt, app-<demo>.log, app.log
 # The simulator demos run in two parts at once (sim-smoke (a) and (b), each on its own runner and simulator; Stage 2 C1):
 # the report job merges both parts into that one result set, as one job wrote it before.
 on:
@@ -48,7 +49,7 @@ env:
   # reference, not swarm3x's / release-combat's baseline any more). Balanced by measured times (a
   # 33–39 min, b 30–44 on the runs before the split; b's spread is the other phones, 20–32 min). README «CI» →
   # «Как добавить демо и выбрать его часть».
-  SMOKE_B: title title-fresh title-return title-nm title-left layout layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo banner-pseudo levelup pause pause-nm end report-first report-win report-loss report-chip other-phones
+  SMOKE_B: title title-fresh title-return title-nm title-left layout layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo banner-pseudo burst-firstmin-pseudo levelup pause pause-nm end report-first report-win report-loss report-chip other-phones
 
 jobs:
   core-tests:
@@ -109,6 +110,21 @@ jobs:
           set -o pipefail
           .build/release/icehive-calib --preset missions --jobs 3 --out "$GITHUB_WORKSPACE/results/calib-missions.jsonl" \
             --summary "$GITHUB_WORKSPACE/results/calib-missions.txt" --gate 2>&1 | tee "$GITHUB_WORKSPACE/results/calib-missions.log"
+      # Stage 2 B4: the boss missions' own gate — the Manifold (the Threader): autopilot on Recruit / Veteran / Nightmare on
+      # its boss bands (Recruit wins ≥ 90 %; Veteran: the boss reached ≥ 75 %, killed in ≥ 80 % of those, kill median
+      # 60–100 s; Nightmare wins ≤ 30 %), AFK rows reported; rows calib-bosses.jsonl, table + verdict calib-bosses.txt (its own
+      # step and rows: calib.jsonl and calib-missions.jsonl stay byte-identical); then one Veteran fight's headless timeline
+      # (threader-trace.txt: phases, moves, cues, pops, windows, the kill — B5's renderer draws the same cues)
+      - name: Calibration gate — bosses (release)
+        if: success() || failure()
+        working-directory: ios-native/IceHiveCore
+        run: |
+          set -o pipefail
+          .build/release/icehive-calib --preset bosses --jobs 3 --out "$GITHUB_WORKSPACE/results/calib-bosses.jsonl" \
+            --summary "$GITHUB_WORKSPACE/results/calib-bosses.txt" --gate 2>&1 | tee "$GITHUB_WORKSPACE/results/calib-bosses.log"
+          .build/release/icehive-calib --mission manifold --tiers 1 --n 1 --classes gunner --trace \
+            > "$GITHUB_WORKSPACE/results/threader-trace.txt" 2>&1 || true
+          grep -E 'phase|killed|lureLock|strikeLand|coil |pullCrash' "$GITHUB_WORKSPACE/results/threader-trace.txt" | head -n 24 || true
       # generated stations (seeds 0–4, Ветеран): informational while the stations flag is off
       - name: Calibration on generated stations (informational)
         if: success() || failure()
@@ -665,6 +681,11 @@ jobs:
           # debug overlay: -storeShot): 24 frames from 6 s, every 10th present (≈ 4 s) — the owner's in-mission clip
           run_demo burst-mk2 12 "-demo combat -seed 7 -storeShot -burst mk2 6.0 24 10"
           pull_burst burst-mk2
+          # Stage 2 H1: the classic mission's first half-minute as it plays (the director on, the autopilot, nothing staged), the
+          # HUD as the phone shows it: the drop and defence banners, the first-sighting tips, the barks and the objective marker
+          # (every 90th present ≈ 1.5 s from 1 s)
+          run_demo burst-firstmin 37 "-demo firstmin -seed 7 -storeShot -burst firstmin 1.0 24 90"
+          pull_burst burst-firstmin
           # Stage 1 R6: the steam valve bursting over the pack and its scald curtain (every 8th present ≈ 3 s), and the hub's
           # breaker bringing its lamps back (-ixLights: the lights part only from the hub's centre, its restore ≈ 8.5 s in;
           # every 5th present ≈ 2 s)
@@ -753,6 +774,10 @@ jobs:
           run_demo banner-beacon 8 "-demo beacon -seed 7 -holdBanner" 0
           run_demo banner-queen 10 "-demo queen -tier 1 -seed 3 -holdBanner" 0
           run_demo banner-pseudo 8 "-demo beacon -seed 7 -holdBanner -pseudoLoc 1.35" 0
+          # Stage 2 H1: the first minute's toasts pseudo-localised (+35 %: they wrap to two or three lines) — the queue and the two
+          # columns, 12 frames every 90th present from 7 s (the defence banner's end, the first tips and barks)
+          run_demo burst-firstmin-pseudo 25 "-demo firstmin -seed 7 -storeShot -pseudoLoc 1.35 -burst firstminp 7.0 12 90"
+          pull_burst burst-firstmin-pseudo
           # horde ingredients one by one (overlay, banner, shake, sounds, haptic, horde) every 4 s: hitch attribution
           run_demo probe 26 "-demo probe -seed 7"
           # lift: holding out on the platform against the hold's own swarm (native-vx-feel: the director's opening horde,
@@ -897,7 +922,7 @@ jobs:
                    swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud calm-deckmask calm-bright-nohud \
                    burst-fire burst-tight burst-combat burst-anim burst-loco burst-loco-game burst-acta burst-actb burst-actc burst-defeat burst-win burst-bugs burst-pack burst-packold burst-mix burst-mixold validate-stress validate-fxpeak validate-extract lifecycle \
                    overhead burst-overhead burst-parallax overhead-nohud overheadbugs burst-dropper burst-perch burst-duct burst-dash \
-                   interactives burst-valve burst-lights burst-mk2 breakerrun ventpurge; do
+                   interactives burst-valve burst-lights burst-mk2 breakerrun ventpurge burst-firstmin burst-firstmin-pseudo; do
             mine "$d" || continue
             grep -q 'scene ready' "results/app-$d.log" || { fail "$d: no 'scene ready'"; }
             if grep -q 'ERROR' "results/app-$d.log"; then fail "$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; fi
@@ -939,6 +964,14 @@ jobs:
           need queen 'demo queen: overhead td=[0-9.]+ .* up [1-9]'
           need burst-mk2 'burst mk2 written \(24 frames\)'
           need burst-mk2 'demo combat: overhead td=[0-9.]+ sent runners [1-9]'
+          need burst-firstmin 'burst firstmin written \(24 frames\)'
+          need burst-firstmin 'demo firstmin: the classic mission from its drop'
+          need burst-firstmin-pseudo 'burst firstminp written \(12 frames\)'
+          # Stage 2 H1: the first minute's tips came through the queue (one at a time, each to the side where it hides least),
+          # the Queen's banner took its slot in the hold, the lift-pulse hint its place
+          need burst-firstmin 'hud toast tip toast\.tip\.[a-z]+ (left|right) t=[0-9.]+ waited'
+          need banner-queen 'hud banner «THE QUEEN» slot=(mid|high|low) \| mid: '
+          need holdhint 'hud hint «GRID HITS EVERY 6 SEC'
           need combat 'oh vis: on \(pipelines ok'
           need hold 'oh vis: on \(pipelines ok'
           # native-vx-feel: the wave director staged its own beacon defence (no forced crowd) and the hive pushed
@@ -1096,10 +1129,10 @@ jobs:
             need "$d" 'layout (ok|FAIL)'
             if grep -q 'layout FAIL' "results/app-$d.log"; then fail "$d: $(grep -m 2 'layout FAIL' "results/app-$d.log" | tr '\n' ' ')"; fi
           done
-          # the four landscape phones (LayoutSizes): 4 × (3 titles + HUD + pause + 2 level-ups + 4 reports) = 44 checks, in
-          # English and pseudo-localised (+35 %)
-          need layout 'layout sizes: 48 ok, 0 FAIL on 4 phones'
-          need layout-pseudo 'layout sizes: 48 ok, 0 FAIL on 4 phones'
+          # the four landscape phones (LayoutSizes): 4 × (3 titles + HUD + the HUD's transient slots (H1) + pause + 2 level-ups
+          # + 5 reports) = 52 checks, in English and pseudo-localised (+35 %)
+          need layout 'layout sizes: 52 ok, 0 FAIL on 4 phones'
+          need layout-pseudo 'layout sizes: 52 ok, 0 FAIL on 4 phones'
           # L10n: every key resolved (the audit of the layout demos), and no run ever looked up a key the catalog lacks
           need layout 'l10n audit: [0-9]+ keys, 0 missing'
           need layout-pseudo 'l10n audit: [0-9]+ keys, 0 missing'

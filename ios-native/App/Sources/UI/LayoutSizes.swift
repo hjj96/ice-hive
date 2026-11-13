@@ -13,8 +13,9 @@ import IceHiveCore
 //    667 × 375  iPhone SE 2 / 3                          no insets
 //  (iOS reports the Dynamic Island / notch inset on both sides in
 //  landscape.) Screens: the title (fresh, returning, Nightmare), the HUD
-//  (its fixed elements and the room the coach card, toasts and hint
-//  take), the pause, the level-up cards (the longest descriptions), the
+//  (its fixed elements and the room the coach card, both toast columns
+//  and hint take; H1: «hud-slots» — the banner's middle / high / low
+//  slots and the hint's top place), the pause, the level-up cards (the longest descriptions), the
 //  five report fixtures (R7: a Breaker Run report with its own strip) —
 //  each with its text-fits-container checks
 //  (L10n). CI runs it in the main simulator, once in English and once

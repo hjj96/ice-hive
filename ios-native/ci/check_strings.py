@@ -170,7 +170,7 @@ def name_keys():
     quality = [q.strip() for q in re.search(r'enum QualityTier: String, CaseIterable \{\s*case ([^\n]+)', tuning).group(1).split(',')]
     beacons = re.findall(r'"(\w+)"', re.search(r'beaconKeys = \[([^\]]+)\]', text).group(1))
     ranks = len(re.search(r'thresholds: \[Int\] = \[([^\]]+)\]', profile).group(1).split(','))
-    keys = {'name.you': '', 'name.station.kelvin': '', 'name.sector': '@d', 'name.sector.letters': '', 'name.bug.queen': ''}
+    keys = {'name.you': '', 'name.station.kelvin': '', 'name.sector': '@d', 'name.sector.letters': '', 'name.bug.queen': '', 'name.bug.threader': ''}
     for c in classes:
         keys['name.callsign.' + c] = ''
         for part in ('name', 'weapon', 'ability', 'ability_short', 'desc'):

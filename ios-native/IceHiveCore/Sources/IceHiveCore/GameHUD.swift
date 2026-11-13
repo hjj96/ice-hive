@@ -225,6 +225,7 @@ extension Game {
             break
         }
         r.strip = planStrip(won: won)
+        r.bossKind = boss.kind
         return r
     }
 

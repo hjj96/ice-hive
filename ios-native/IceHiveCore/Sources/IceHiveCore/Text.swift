@@ -35,6 +35,8 @@ public enum NameRef: Hashable {
     case bug(BugType)
     /// The boss of the lift hold.
     case queen
+    /// Stage 2 B4: the boss of the Manifold.
+    case threader
     case cls(MarineClass)
     case weapon(MarineClass)
     case ability(MarineClass)
@@ -68,6 +70,7 @@ public enum NameRef: Hashable {
         case .sector: return "name.sector"
         case .bug(let t): return "name.bug." + t.id
         case .queen: return "name.bug.queen"
+        case .threader: return "name.bug.threader"
         case .cls(let c): return "class." + c.id + ".name"
         case .weapon(let c): return "class." + c.id + ".weapon"
         case .ability(let c): return "class." + c.id + ".ability"
@@ -93,7 +96,7 @@ public enum NameRef: Hashable {
 
     /// Every name the game can show (the app's catalog audit and warm-ups).
     public static var all: [NameRef] {
-        var out: [NameRef] = [.player, .kelvin, .sector(letter: 0, number: 1), .queen]
+        var out: [NameRef] = [.player, .kelvin, .sector(letter: 0, number: 1), .queen, .threader]
         for c in MarineClass.allCases {
             out += [.callsign(c), .cls(c), .weapon(c), .ability(c), .abilityShort(c), .classDesc(c)]
         }
@@ -190,10 +193,14 @@ public enum TextID: String, CaseIterable {
     case objHoldSeal = "obj.hold_seal"
     // M1: Vent Purge's duct seal waits for its mouth shot shut
     case objShutDuct = "obj.shut_duct"
+    // ---- objective lines of the Manifold (Stage 2 B4 — Manifold.swift)
+    case objRestartPumps = "obj.restart_pumps"
+    case objHoldPump = "obj.hold_pump"
     // ---- mission names (the title's mission choice)
     case missionColdLight = "mission.cold_light"
     case missionBreakerRun = "mission.breaker_run"
     case missionVentPurge = "mission.vent_purge"
+    case missionManifold = "mission.manifold"
     // ---- context hints (between the stick rings)
     case hintPlayerDown = "hint.player_down"
     case hintReviveNear = "hint.revive_near"
@@ -245,6 +252,11 @@ public enum TextID: String, CaseIterable {
     case toastTipLocker = "toast.tip.locker"
     // ---- R7 missions: squad radio
     case toastVentSealed = "toast.vent_sealed"
+    // ---- Stage 2 B4: squad radio against the Threader
+    case toastThreaderPipes = "toast.threader_pipes"
+    case toastThreaderLight = "toast.threader_light"
+    case toastThreaderCoil = "toast.threader_coil"
+    case toastThreaderNode = "toast.threader_node"
     // ---- banners (title + subtitle) and horde titles
     case bannerDrop = "banner.drop"
     case bannerDropSub = "banner.drop.sub"
@@ -275,6 +287,13 @@ public enum TextID: String, CaseIterable {
     case bannerGeneratorSub = "banner.generator.sub"
     case bannerVentPurge = "banner.vent_purge"
     case bannerVentPurgeSub = "banner.vent_purge.sub"
+    // ---- Stage 2 B4: the Manifold's drop banner, the Threader's arrival and death
+    case bannerManifold = "banner.manifold"
+    case bannerManifoldSub = "banner.manifold.sub"
+    case bannerThreader = "banner.threader"
+    case bannerThreaderSub = "banner.threader.sub"
+    case bannerThreaderDead = "banner.threader_dead"
+    case bannerThreaderDeadSub = "banner.threader_dead.sub"
     // ---- run score lines
     case scoreKills = "score.kills"
     case scoreBeacons = "score.beacons"
@@ -285,6 +304,8 @@ public enum TextID: String, CaseIterable {
     case scoreLights = "score.lights"
     case scoreBreakers = "score.breakers"
     case scoreVents = "score.vents"
+    case scorePumps = "score.pumps"
+    case scoreThreader = "score.threader"
     // ---- mission report
     case reportTag = "report.tag"
     case reportTitleWon = "report.title.won"
@@ -299,6 +320,8 @@ public enum TextID: String, CaseIterable {
     case reportStripBreaker = "report.strip.breaker"
     case reportStripVent = "report.strip.vent"
     case reportStripGenerator = "report.strip.generator"
+    case reportStripPump = "report.strip.pump"
+    case reportStripThreader = "report.strip.threader"
     case reportScore = "report.score"
     case reportRecord = "report.record"
     case reportBest = "report.best"
@@ -322,6 +345,7 @@ public enum TextID: String, CaseIterable {
     case tipLossBoomer = "tip.loss.boomer"
     case tipLossQueen = "tip.loss.queen"
     case tipLossDropper = "tip.loss.dropper"
+    case tipLossThreader = "tip.loss.threader"
     case tipPressure = "tip.pressure"
     case tipPromo = "tip.promo"
     case tipLonger = "tip.longer"
@@ -376,6 +400,7 @@ public enum TextID: String, CaseIterable {
         switch self {
         case .objHoldBeacon, .objHoldLift, .objHoldArea, .objKillBoss, .coachAbility, .coachAbilityKeys, .coachRevive: return "@"
         case .objHoldGenerator, .bannerBreakerRunSub, .bannerVentPurgeSub: return "@"
+        case .bannerManifoldSub, .tipLossThreader: return "@"
         case .toastMateDown, .toastMateUp, .toastTipSpitter, .toastTipBrute, .toastTipBoomer, .toastUpgrade: return "@"
         case .toastMatePinned, .toastPinFreed, .toastTipDropper, .toastTipPerch, .tipLossDropper: return "@"
         case .bannerDropSub, .bannerDefendSub, .scoreSpeed, .reportTag, .reportSubWon, .reportBest, .reportXP, .reportRankUp: return "@"
@@ -392,6 +417,7 @@ public enum TextID: String, CaseIterable {
         case .upgBurn, .upgCone, .upgShatter, .upgChill, .upgCool: return "d"
         case .objLightBeacons, .objSwitches, .coachCounter, .bannerBeaconOnlineSub, .scoreBeacons, .scoreLights, .upgTurret: return "dd"
         case .objRestorePower, .objSealVents, .scoreBreakers, .scoreVents: return "dd"
+        case .objRestartPumps, .scorePumps: return "dd"
         default: return ""
         }
     }

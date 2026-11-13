@@ -194,6 +194,11 @@ public final class OverheadGraph {
     /// standable deck within DROP_MAX m in plan — ascending node ids. Derived from the layout (its golden hash is untouched).
     public let ducts: [Int]
     public let perches: [Int]
+    /// Stage 2 B4: edges taken out at run time (the Threader pulls a trunk down): the bugs' route choices skip them;
+    /// `Level.resetDynamic` puts them back. All false on a station as laid.
+    public private(set) var blocked: [Bool]
+    /// Some edge is taken out.
+    public private(set) var anyBlocked = false
 
     /// `windows`: measure the drop windows (the validation does not need them).
     public init(layout: OverheadLayout, level: Level, windows: Bool = true) {
@@ -252,6 +257,7 @@ public final class OverheadGraph {
             if first >= 0 { lo.append(first); hi.append(min(L, last)) } else { lo.append(1); hi.append(0) }
         }
         w0 = lo; w1 = hi
+        blocked = [Bool](repeating: false, count: E.count)
         ducts = N.indices.filter { N[$0].kind == .ductMouth && !adj[$0].isEmpty }
         if windows {
             perches = N.indices.filter { n in
@@ -289,6 +295,16 @@ public final class OverheadGraph {
         return false
     }
 
+    /// Edge `e` is taken out (Stage 2 B4).
+    @inline(__always) public func isBlocked(_ e: Int) -> Bool { anyBlocked && e >= 0 && e < blocked.count && blocked[e] }
+    /// Take edge `e` out / put every edge back.
+    func setBlocked(_ e: Int) { if e >= 0 && e < blocked.count { blocked[e] = true; anyBlocked = true } }
+    func clearBlocked() {
+        if !anyBlocked { return }
+        for k in blocked.indices { blocked[k] = false }
+        anyBlocked = false
+    }
+
     // ---------- geometry ----------
     @inline(__always) public func nodePos(_ n: Int) -> SIMD3<Float> { layout.nodes[n].p }
     @inline(__always) public func edgeEnds(_ e: Int) -> (a: Int, b: Int) { (ea[e], eb[e]) }
@@ -319,7 +335,7 @@ public final class OverheadGraph {
         var best = -1
         var bd: Float = .infinity
         let adj = nodeEdges[n]
-        for k in adj where k != exclude || adj.count == 1 {
+        for k in adj where (k != exclude || adj.count == 1) && !isBlocked(k) {
             let d = project(k, x, z).d2
             if d < bd { bd = d; best = k }
         }
