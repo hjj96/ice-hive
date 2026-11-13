@@ -10,8 +10,10 @@ import IceHiveCore
 //    switch rings  every switch of the current SWITCH step not thrown yet
 //                  gets the telegraph lexicon's gold «stand here» ring
 //                  with its progress (blinking while it waits, steady
-//                  while it is thrown); a breaker switch standing on a
-//                  light circuit's breaker is WorldProps' ring (R6)
+//                  while it is thrown — blinking again while a duct
+//                  seal's weld waits for its grille shot shut, M1); a
+//                  breaker switch standing on a light circuit's breaker
+//                  is WorldProps' ring (R6)
 //    a deck zone   a HOLD or BOSS step on a deck: its circle in teal like
 //                  the lift's, the hold's countdown filling round it
 //    vents         a vent a seal shut goes dark — its grille glow and grid
@@ -42,12 +44,14 @@ final class WorldMission {
         if game.attract { return }
         // switch rings (a breaker switch on a light circuit's breaker: WorldProps draws that one, with this progress)
         let blink: Float = 0.55 + 0.35 * sinf(time * 9)
+        // (M1: the weld of the seal being thrown waits for its duct mouth shot shut — its ring blinks as a waiting one does)
+        let waits = game.weldWaits
         for sw in game.switches where sw.state != 2 {
             let s = sw.site
             if s.kind == .breaker && game.circuits.contains(where: { abs($0.site.x - s.x) < 1.5 && abs($0.site.z - s.z) < 1.5 }) { continue }
             let gy = level.groundY(s.x, s.z)
             glyphs.extra.append(GlyphInstance(center: F4(s.x, gy + 0.045, s.z, s.radius), color: F4(1.0, 0.62, 0.12, 2),
-                                              a: F4(sw.progress, 12, time * 0.2, sw.state == 1 ? 1 : blink), b: F4(time, 0, 0, 0)))
+                                              a: F4(sw.progress, 12, time * 0.2, sw.state == 1 && !waits ? 1 : blink), b: F4(time, 0, 0, 0)))
         }
         // a hold or a boss fight on a deck: its zone, the countdown round it
         if case .circle(let x, let z, let r)? = game.missionZone {
@@ -111,9 +115,10 @@ final class WorldMission {
         if now - lastLog < 1 { return }
         lastLog = now
         let sw = game.switches.map { s -> String in s.state == 2 ? "x" : (s.state == 1 ? String(format: "%.2f", s.progress) : "o") }
-        AppLog.info(String(format: "hb mission %@ step=%d/%d %@ %@ switches=%@ vents shut=%d stream=%.2f hold=%.1f lit=%d/%d", game.mission.id,
+        AppLog.info(String(format: "hb mission %@ step=%d/%d %@ %@ switches=%@ vents shut=%d stream=%.2f hold=%.1f lit=%d/%d weld=%@", game.mission.id,
                            game.missionStep + 1, game.mission.steps.count, game.currentModule?.rawValue ?? "-",
                            game.stepPhase == .active ? "active" : "approach", sw.joined(separator: ","), game.ventShut.filter { $0 }.count,
-                           game.streamK, game.holdActive ? game.liftT : Float(-1), game.lightsLit, game.circuits.count))
+                           game.streamK, game.holdActive ? game.liftT : Float(-1), game.lightsLit, game.circuits.count,
+                           game.weldWaits ? "waits" : "-"))
     }
 }

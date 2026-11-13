@@ -56,7 +56,8 @@ extension Game {
             let p = ringProgress(r)
             return stepLine(r.lineText, [.int(p.done), .int(p.total)])
         case .switches(let s):
-            if activeSwitch >= 0 { return GameText(s.throwText) }
+            // (M1: a duct seal's weld waiting for its mouth shot shut — Vent Purge's «Shoot the duct shut»)
+            if activeSwitch >= 0 { return GameText(s.shutText.flatMap { weldWaits ? $0 : nil } ?? s.throwText) }
             if ts == .converging { return GameText(s.convergeText) }
             if ts == .waking { return GameText(s.wakingText) }
             return stepLine(s.lineText, [.int(switchesDone), .int(s.needed)])
@@ -86,6 +87,7 @@ extension Game {
         k = k * 16 + min(15, switches.isEmpty ? 0 : switchesDone)
         k = k * 4 + threatState.rawValue
         k = k * 2 + (liftLocked ? 1 : 0)
+        k = k * 2 + (weldWaits ? 1 : 0)
         return k * 100_000 + hold
     }
 
@@ -164,10 +166,12 @@ extension Game {
             // R7: a hold on a deck with its own hint (Breaker Run's generator) — the player out of its zone
             if !inZone(h.zone, P.x, P.z), let t = h.outHint { return HintLine(text: GameText(t), urgent: true) }
             return nil
-        case .switches(let s)? where activeSwitch >= 0 && s.drains > 0:
+        case .switches(let s)? where activeSwitch >= 0 && (s.drains > 0 || s.contestedAt > 0):
             // R7: a switch being thrown drains while nobody stands in its ring (Breaker Run's breakers, Vent Purge's seals)
             let w = switches[activeSwitch].site
-            if standingIn(w.x, w.z, w.radius) == 0 { return HintLine(text: GameText(.hintBackToSwitch), urgent: true) }
+            if s.drains > 0 && standingIn(w.x, w.z, w.radius) == 0 { return HintLine(text: GameText(.hintBackToSwitch), urgent: true) }
+            // M1: bugs crowd it (Breaker Run's breakers are cleared like a beacon's ring)
+            if switches[activeSwitch].contested { return HintLine(text: GameText(.hintRingContested), urgent: true) }
             return nil
         default:
             return nil

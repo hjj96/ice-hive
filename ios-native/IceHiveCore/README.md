@@ -87,6 +87,13 @@ switch game.phase { case .won, .lost: /* экран итогов: game.stats */ 
   навсегда; сначала устья, у Mk II — три), состояние — `game.switchesThrown`, `game.ventShut` (вентиляции, заваренные пломбами),
   `game.streamK` (поток улья: × каждой пломбы), `game.beaconInPlan` (маяки, которые заряжает план), отчёт —
   `RunSummary.switchLine` / `strip` (своя полоса этапов плана); события `.ventSealed(index:)`, `.ventPour(index:count:)`.
+- Миссии I в полную длину (Stage 2 M1): ручки SWITCH (у классики, тренировок и прочих планов выключены) —
+  `contestedAt` / `contestedRate` (жуки в кольце замедляют заряд, `SwitchState.contested`; у «Breaker Run» — 2 жука в кольце
+  рубильника 2 м, 30 %), `workPourGap` (изливается и пломба, которую заваривают: раз в N ± 1 с из своей вентиляции или устья),
+  `ductShut` (устье пломбы, забитое выстрелами, открывается через N с вместо 45 с R4 — `ductShutTime(d)`), `weldShut` (шов
+  пломбы на устье идёт, только пока устье забито; `game.weldWaits`, строка цели `shutText` — `obj.shut_duct`; автопилот
+  стреляет в такое устье первым, если жук не в упор). «Breaker Run» — четыре рубильника (A, B, C и хаб, `BreakerRun.breakers`),
+  «Vent Purge» — пломбы под давлением; длины и потоки — `BreakerRun` / `VentPurge` в `MissionsKelvin.swift`.
 - Боссы (Stage 2 B1, `Boss.swift` / `GameBoss.swift` / `GameBossBody.swift`; Матка — `GameQueen.swift`): `game.boss`
   (`BossState`: вид, uid, пришёл / жив / убит, ярость, фаза, здоровье 0…1, предупреждение, позиция, высота и курс головы,
   неуязвимость, оглушение, блок, хрупкость, прибытия), `game.bossSpec` (строка босса шага), `game.bossHpFraction`;
@@ -117,7 +124,9 @@ switch game.phase { case .won, .lost: /* экран итогов: game.stats */ 
 `debugSetNoDropZones(_:)`, `debugHoldFire`; R4 — `debugRoutePack(n, entry:, rate:, type:)` (тип стаи),
 `debugRouteFocus` (все маршрутные жуки целят в этого бойца; −1 — обычное правило), `debugPinMarine`, `debugHurtDuct`;
 интерактивы — `debugBurstValve(k, by:)`, `debugCutCircuit(k)`, `debugRestoreCircuit(k)`, `debugBreakLamp(k)`,
-`debugSpawnLine(n, type:, from:, to:)`; миссии (R7) — `debugSwitchProgress(p)`, `debugVentPour(k, count:)` (излив устья —
+`debugSpawnLine(n, type:, from:, to:)`; миссии (R7) — `debugSwitchProgress(p, quiet:)` (M1: `quiet` — натиски улья ниже `p`
+считаются прошедшими), `debugReopenDuct(k)` (M1: улей прогрызает забитое устье на следующем тике, `.ductOpened`; навсегда
+заваренное не трогает), `debugVentPour(k, count:)` (излив устья —
 `debugRoutePack(n, entry: ducts[d].node)`). Замедление/ускорение времени — на стороне приложения (сколько тиков вызвать за
 кадр).
 

@@ -129,6 +129,8 @@ public struct SwitchState: Equatable {
     public internal(set) var progress: Float = 0
     /// The hive's pushes at this switch so far (`SwitchStep.pushes`).
     public internal(set) var pushes = 0
+    /// M1: bugs crowd its ring — it fills at the step's `contestedRate` (`SwitchStep.contestedAt`).
+    public internal(set) var contested = false
     public var position: Vec2 { Vec2(site.x, site.z) }
     public init(site: SwitchSite) { self.site = site }
 }
@@ -159,6 +161,8 @@ public struct SwitchStep: Equatable {
     public var wakingText: TextID = .objWakingMove
     public var convergeText: TextID = .objConvergeMove
     public var throwText: TextID = .objHoldRing
+    /// M1: the line while the switch being thrown waits for its duct mouth to be shut (`weldShut`; nil: `throwText`).
+    public var shutText: TextID? = nil
     public var names = StepNames(approach: "switch", active: "switch")
     /// Each switch thrown thins the hive's stream for the rest of the mission: the trickle, the packs, the surges and the
     /// hordes × (1 − thins) (R7's Vent Purge: «each seal thins the spawns»). 0 = none.
@@ -167,6 +171,20 @@ public struct SwitchStep: Equatable {
     /// random, pours `pour` bugs (× the tier's horde, × its population scale on the wave pacing, × the stream). nil = none.
     public var pour: PacingValue? = nil
     public var pourGap: Float = 10
+    /// M1 «Missions I at full length»: bugs inside a switch's ring (its radius) that contest it, and its fill rate while
+    /// they do — Breaker Run's breakers are cleared like a beacon's ring («Clear the ring»). 0 = never contested.
+    public var contestedAt: Int = 0
+    public var contestedRate: Float = 0.3
+    /// M1 (Vent Purge: «seals under real pressure»): the seal being worked pours too — every `workPourGap` s (± 1 s) a pack
+    /// of `pour` out of its own vent onto the deck, or out of its duct mouth onto the routes (R4's rattle first), while it is
+    /// open. 0 = only the waiting seals pour (R7).
+    public var workPourGap: Float = 0
+    /// M1 (Vent Purge: «a duct mouth that must be held shut»): while the step runs, a seal's duct mouth the squad shoots shut
+    /// opens again after `ductShut` s — the hive chews through fast where it pushes (R4's DUCT_SHUT 45 s otherwise; 0 = R4's).
+    public var ductShut: Float = 0
+    /// M1: a duct seal's weld fills only while its duct mouth is shut (shot shut): the squad holds the grille shut and the
+    /// ring at once (the objective line says «Shoot the duct shut» while it is open).
+    public var weldShut = false
     /// Banner when the step begins (not as the first step: the plan's briefing is the drop banner) — nil none.
     public var banner: BannerText? = nil
     /// Toast when a switch is thrown (nil none).

@@ -43,7 +43,7 @@ extension Game {
         ventShut = [Bool](repeating: false, count: level.layout.vents.count)
         let ts = mission.tierStream, ti = difficulty.index
         streamK = ts.map { ti >= 0 && ti < $0.count ? $0[ti] : 1 } ?? 1
-        pourT = 0
+        pourT = 0; workPourT = 0
         relightQueue.removeAll(); relightNext = 0
         beginStep()
     }
@@ -291,6 +291,8 @@ extension Game {
                     // the hive answers: a surge from two sides at the switch (× the stream: R7's thinning)
                     let n = Int((s.alarm.value(D) * D.horde * (D.waves ? D.popK : 1) * streamK).rounded())
                     if n > 0 { surge(n, sides: 2, near: Vec2(w.x, w.z), dmin: 10, dmax: 26, rate: 9) }
+                    // (M1: the seal being worked pours a first pack half a gap in)
+                    if s.workPourGap > 0 { workPourT = s.workPourGap * 0.5 }
                     if !simOnly { emit(.switchStarted(index: k)); events.append(.sound(.beacon, pos: nil, loud: nil)) }
                     break
                 }
@@ -300,7 +302,16 @@ extension Game {
         let k = activeSwitch
         let w = switches[k].site
         let mul = s.stageMul.value(D)
-        if !chargeRing(w.x, w.z, w.radius, &switches[k].progress, dt, w.time) && s.drains > 0 {
+        // M1: bugs crowding the ring slow it (Breaker Run: «Clear the ring»); a duct seal's weld waits for its grille shut
+        var rate: Float = 1
+        if s.contestedAt > 0 {
+            let crowded = hash.queryCircle(bugs, w.x, w.z, w.radius) >= s.contestedAt
+            switches[k].contested = crowded
+            if crowded { rate = s.contestedRate }
+        }
+        if s.weldShut && w.duct >= 0 && w.duct < oh.ducts.count && oh.ducts[w.duct].open { rate = 0 }
+        if s.workPourGap > 0, let p = s.pour { workPourTick(s, p, k, dt) }
+        if !chargeRing(w.x, w.z, w.radius, &switches[k].progress, dt, w.time, rate: rate) && s.drains > 0 {
             switches[k].progress = maxf(0, switches[k].progress - dt / w.time * s.drains)
         }
         // R7: the hive pushes again at the step's marks of the progress (the last push from three sides)
@@ -398,6 +409,48 @@ extension Game {
         } else if site.duct >= 0 && site.duct < oh.ducts.count {
             queueRoutePack(n, entry: oh.ducts[site.duct].node, rate: 3, delay: DUCT_RATTLE)
         }
+    }
+
+    /// M1 (Vent Purge: «seals under real pressure»): every `workPourGap` s (± 1 s) the seal being worked pours a pack of
+    /// `pour` out of its own vent onto the deck, or out of its duct mouth onto the routes (R4's rattle first; nothing while
+    /// the squad holds the grille shut).
+    func workPourTick(_ s: SwitchStep, _ pour: PacingValue, _ k: Int, _ dt: Float) {
+        workPourT -= dt
+        if workPourT > 0 { return }
+        workPourT = s.workPourGap + (rng.next() - 0.5) * 2
+        let D = difficulty
+        let n = Int((pour.value(D) * D.horde * (D.waves ? D.popK : 1) * streamK).rounded())
+        if n <= 0 { return }
+        let site = switches[k].site
+        if site.vent >= 0 && site.vent < ventShut.count && !ventShut[site.vent] {
+            queueBurst(-1, n, 5, level.layout.vents[site.vent])
+            emit(.ventPour(index: site.vent, count: n))
+        } else if site.duct >= 0 && site.duct < oh.ducts.count && oh.ducts[site.duct].open {
+            queueRoutePack(n, entry: oh.ducts[site.duct].node, rate: 3, delay: DUCT_RATTLE)
+        }
+    }
+
+    /// M1 (Vent Purge: «a duct mouth that must be held shut»): seconds duct mouth `d` stays shut when the squad shoots it
+    /// shut — the SWITCH step's `ductShut` while one of its seals still waits on that mouth (the hive chews through fast
+    /// where it pushes), else R4's DUCT_SHUT.
+    func ductShutTime(_ d: Int) -> Float {
+        guard case .switches(let s)? = currentStep, s.ductShut > 0 else { return DUCT_SHUT }
+        for w in switches where w.state != 2 && w.site.duct == d { return s.ductShut }
+        return DUCT_SHUT
+    }
+
+    /// M1: the switch being thrown is a duct seal whose weld waits for its mouth to be shut (`SwitchStep.weldShut` and the
+    /// mouth open): its ring holds its charge, the objective line says «Shoot the duct shut».
+    public var weldWaits: Bool {
+        guard activeSwitch >= 0 && activeSwitch < switches.count, case .switches(let s)? = currentStep, s.weldShut else { return false }
+        let d = switches[activeSwitch].site.duct
+        return d >= 0 && d < oh.ducts.count && oh.ducts[d].open
+    }
+
+    /// M1: the duct mouth the autopilot must hold shut now — the seal being welded waits for it (`weldWaits`) — else nil.
+    func weldDuct() -> Int? {
+        guard weldWaits else { return nil }
+        return switches[activeSwitch].site.duct
     }
 
     // ---------------------------------------------------------------- HOLD (the classic walk to the lift and its hold)
@@ -546,9 +599,13 @@ extension Game {
     // ---------------------------------------------------------------- debug / demo staging (R7)
 
     /// The switch being thrown jumps to `p` of its ring (demo staging: the CI shot of a ring nearly full); none: no-op.
-    public func debugSwitchProgress(_ p: Float) {
+    /// `quiet` (M1): the hive's pushes at marks below `p` count as done — the jump does not fire them all at once.
+    public func debugSwitchProgress(_ p: Float, quiet: Bool = false) {
         guard activeSwitch >= 0 && activeSwitch < switches.count else { return }
         switches[activeSwitch].progress = clampf(p, 0, 0.999)
+        if quiet, case .switches(let s)? = currentStep {
+            switches[activeSwitch].pushes = max(switches[activeSwitch].pushes, s.pushes.filter { $0 <= switches[activeSwitch].progress }.count)
+        }
     }
 
     /// A pack of `count` pours out of the station's vent `k` now (demo staging), unless a seal shut it.
@@ -606,7 +663,8 @@ extension Game {
         [GameText(.objSwitches, [.int(6), .int(6)]), GameText(.objHoldRing), GameText(.objReach), GameText(.objHoldArea, [.clock(599)]),
          GameText(.objKillBoss, [.name(.queen)]), GameText(.objWakingMove), GameText(.objConvergeMove),
          GameText(.objRestorePower, [.int(6), .int(6)]), GameText(.objHoldBreaker), GameText(.objToGenerator),
-         GameText(.objHoldGenerator, [.clock(599)]), GameText(.objSealVents, [.int(6), .int(6)]), GameText(.objHoldSeal)]
+         GameText(.objHoldGenerator, [.clock(599)]), GameText(.objSealVents, [.int(6), .int(6)]), GameText(.objHoldSeal),
+         GameText(.objShutDuct)]
     }
 
     /// R7: the report strip of a plan that draws its own (`MissionPlan.ownStrip`; nil: the classic strip): one item per
