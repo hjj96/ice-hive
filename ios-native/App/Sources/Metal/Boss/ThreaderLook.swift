@@ -15,9 +15,10 @@ import IceHiveCore
 //              phase, its pain) `scream` over 1.47 s; death `death`.
 //              Segments `grip` (planted claws: phase = distance walked /
 //              2.2 + 0.13 × j, a ripple from the head back) or `hold`
-//              still — `hold` too on a steep stretch away from any pipe
-//              (B2 open issue 2: the strike's neck, a climb's first
-//              segments); `coil` on the coil's ring (legs to the deck
+//              still — `hold` too on a steep stretch in the air (B2 open
+//              issue 2: the strike's neck, the way down to the coil; a
+//              steep stretch while it hunts, climbs or rides the duct is
+//              on a riser pipe and grips it, pitched); `coil` on the coil's ring (legs to the deck
 //              2 m down); `crawl` on the deck; `stagger` / `stagger_low`;
 //              `death`. Nodes `plated` up on the trunks in P1 / P2,
 //              `open` exposed, `pop` once then `dark`; `stagger(_dk)`,
@@ -434,6 +435,7 @@ final class ThreaderLook {
         // ---------------------------------------------------------- the segments and the nodes
         let gripC = seg[C.grip], holdC = seg[C.hold], crawlC = seg[C.crawl]
         let moving = smoothf(0.3, 1.6, speed)
+        let onPipe = v.mode == .none || v.mode == .roam || v.mode == .climb || v.mode == .duct
         for q in 1..<n {
             let pv = game.bossPart(q)
             let t = boss.xf[q]
@@ -445,7 +447,10 @@ final class ThreaderLook {
                 let ph = odo / 2.2 + 0.13 * j
                 let onDeck = h < 1.2
                 let inCoil = v.mode == .coil && h > 1.3 && h < 2.8
-                let steep = abs(t.pitch) > 0.42
+                // (a steep stretch hangs in the air only while the head is off its trunk — the strike's neck, the way down to
+                // the coil, the rip; hunting, climbing and in the duct a steep stretch rides a pipe — a riser pipe, the abyss
+                // riser it comes up — and grips it, pitched: B2's «climb: grip, pitched»)
+                let steep = abs(t.pitch) > 0.42 && !onPipe
                 var c = C.hold
                 var a = clipLoop(holdC, clock / holdC.duration + 0.07 * j)
                 var b = ClipSample.zero

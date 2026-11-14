@@ -143,6 +143,8 @@ final class WorldBoss {
     static let noDraw = LaunchOptions.current.unknown.contains("-noBossDraw")
 
     let level: Level
+    /// The boss arena's pieces (the Manifold's trunks: where the body's path runs on past a trunk's end — `emerge`).
+    private let arena: ManifoldArena?
     /// The overhead layer (MetalWorld sets it): the Manifold's trunks it hides, shakes and drops (WorldOverhead.setTrunk).
     weak var overhead: WorldOverhead?
     private var renderer: MetalRenderer!
@@ -189,6 +191,7 @@ final class WorldBoss {
 
     init(level: Level) {
         self.level = level
+        arena = level.layout.manifold
         let z = SwarmTypeGPU(rim: .zero, eye: .zero, sac: .zero, gland: .zero, proxy: .zero, glint: .zero)
         params = SwarmParams(types: (z, z, z, z, z), info: .zero, queen: .zero)
         inst.reserveCapacity(WorldBoss.maxParts * 2)
@@ -341,19 +344,24 @@ final class WorldBoss {
         }
         func pt(_ d: Float) -> F3? {
             guard let p = game.bossBodyPoint(behind: d) else { return nil }
-            return F3(p.position.x, p.position.y, p.position.z)
+            return emerge(F3(p.position.x, p.position.y, p.position.z))
         }
         guard let H = pt(lag), let HB = pt(lag + 1.2) else { return false }
-        xf[0] = WorldBoss.chord(front: H, back: HB, at: H)
+        xf[0] = WorldBoss.chord(front: H, back: HB, at: H, fallback: game.bossPart(0).heading)
         kinds[0] = 0
         var segs = 0
         var q = 1
+        // (a vertical chord — the body climbing a riser — keeps the heading of the part in front of it)
+        var lastHd = xf[0].heading
         while q < n {
             let v = game.bossPart(q)
             switch v.role {
             case .segment:
                 let d = 2 + Float(v.segment - 1) * 1.6 + lag
-                if let f = pt(max(0, d - 0.8)), let b = pt(d + 0.8) { xf[q] = WorldBoss.chord(front: f, back: b, at: (f + b) * 0.5) }
+                if let f = pt(max(0, d - 0.8)), let b = pt(d + 0.8) {
+                    xf[q] = WorldBoss.chord(front: f, back: b, at: (f + b) * 0.5, fallback: lastHd)
+                    lastHd = xf[q].heading
+                }
                 kinds[q] = 1
                 segs += 1
             case .node:
@@ -370,11 +378,41 @@ final class WorldBoss {
         return segs > 0
     }
 
-    /// An instance on the chord front ← back placed at `at`: heading and pitch along the chord (Swarm.metal placeOffset).
-    @inline(__always) static func chord(front f: F3, back b: F3, at p: F3) -> BossPartXf {
+    /// An instance on the chord front ← back placed at `at`: heading and pitch along the chord (Swarm.metal placeOffset); a
+    /// (near) vertical chord takes `fallback` as its heading (its back then faces away from that heading).
+    @inline(__always) static func chord(front f: F3, back b: F3, at p: F3, fallback: Float = 0) -> BossPartXf {
         let d = f - b
         let h = (d.x * d.x + d.z * d.z).squareRoot()
-        return BossPartXf(pos: p, heading: h > 1e-5 ? atan2f(d.x, d.z) : 0, pitch: atan2f(d.y, max(h, 1e-5)))
+        let l = max(1e-5, (d * d).sum().squareRoot())
+        return BossPartXf(pos: p, heading: h > 0.02 * l ? atan2f(d.x, d.z) : fallback, pitch: atan2f(d.y, max(h, 1e-5)))
+    }
+
+    /// The body's path where it runs on past a trunk's end, as drawn. The core seeds a chain's history straight behind its
+    /// head at the spawn (GameBossBody.bossSpawnChain), and the Threader comes out at a trunk's leg 2.5 m from that trunk's
+    /// abyss riser: for its first seconds ~27 m of its body would hang level over the abyss beyond the trunk's end. Drawn,
+    /// that stretch bends over the riser's elbow (B2's `mf_trunk_elbow`: its outer face a quarter circle of 0.9 + 0.45 m
+    /// round the bend's centre 1.35 m under the route line) and on down the riser pipe's outer face — the body climbs out
+    /// of the abyss. Every other point of the path as it is. (Render only: the parts' slots and hit circles are the core's.)
+    private func emerge(_ p: F3) -> F3 {
+        guard let A = arena else { return p }
+        let R = ManifoldBuild.elbowR + ManifoldBuild.trunkR
+        for tr in A.trunks {
+            if abs(p.y - tr.y) > 0.6 { continue }
+            let half = tr.length / 2
+            let m = tr.point(half)
+            let dx = p.x - m.x, dz = p.z - m.y
+            let u = dx * tr.dir.x + dz * tr.dir.y
+            let v = dz * tr.dir.x - dx * tr.dir.y
+            if abs(v) > 0.6 || abs(u) <= half { continue }
+            let s: Float = u > 0 ? 1 : -1
+            let b = abs(u) - half
+            let q = b / R
+            var out = R, y = tr.y - R - (b - R * Float.pi / 2)
+            if q <= Float.pi / 2 { out = R * sinf(q); y = tr.y - R + R * cosf(q) }
+            let along = s * (half + out)
+            return F3(m.x + tr.dir.x * along - tr.dir.y * v, y, m.y + tr.dir.y * along + tr.dir.x * v)
+        }
+        return p
     }
 
     /// ThreaderLook: part `k`'s pose this frame (its clips, channels and look).
