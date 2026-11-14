@@ -329,6 +329,8 @@ final class OverheadBuild {
     /// over walkable deck. uv0.x carries that axis coordinate (Level.metal runs its pulse along it: toward +x / +z on every
     /// rack, on through a run-on), uv0.y 1 (the shader's mark of a running light: light faces have no trim uv otherwise).
     private func runningLights(_ m: KitMesh, _ A: F3, _ B: F3, side: F3, pipe: (Float, Float, Float, UInt32, Int)) {
+        // `-ohRead 0` (R3's look, the device A/B): no lamps at all, not dark lamp boxes
+        if WorldOverhead.readOff { return }
         let gap = OverheadBuild.lightGap, sz = OverheadBuild.lightSize
         let d = B - A
         let alongX = abs(d.x) >= abs(d.z)
