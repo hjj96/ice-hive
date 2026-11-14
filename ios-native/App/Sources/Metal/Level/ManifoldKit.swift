@@ -21,7 +21,7 @@ import IceHiveCore
 //                the middle — in class 6 + k, drawn only once it fell
 //                (WorldOverhead.setTrunk; their runtime faces carry a
 //                sway slot: the trunk shakes while it rips, the fallen
-//                one drops 4.55 m in the last 0.4 s of the warning)
+//                one drops 4.1 m in the last 0.4 s of the warning)
 //    risers      the riser pipes (0.3 m) from each leg's tee to the duct
 //    ring duct   the 0.9 × 0.7 m duct square at 8 m (R3's section) between
 //                `mf_duct_corner`s, `mf_duct_band` every 2.5 m, the drops
@@ -89,11 +89,13 @@ final class ManifoldBuild {
             let mid = tr.point(half)
             func P(_ u: Float) -> F3 { F3(mid.x + along.x * u, y, mid.y + along.y * u) }
             // its runs, broken 0.68 m from each crossing's centre
-            let cross: [Float] = A.trunks.compactMap { o in
-                let oa = abs(o.dir.x) > 0.5
-                if oa == alongX { return nil }
-                return (oa ? o.point(o.length / 2).y : o.point(o.length / 2).x)
-            }.sorted()
+            // (the crossing trunks' offsets along this one: the other direction's trunks)
+            var cross: [Float] = []
+            for o in A.trunks where (abs(o.dir.x) > 0.5) != alongX {
+                let om = o.point(o.length / 2)
+                cross.append(abs(o.dir.x) > 0.5 ? om.y : om.x)
+            }
+            cross.sort()
             var cuts: [Float] = [-half]
             for c in cross { cuts += [c - 0.68, c + 0.68] }
             cuts.append(half)

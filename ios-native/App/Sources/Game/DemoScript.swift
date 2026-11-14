@@ -137,8 +137,8 @@ import IceHiveCore
 //                   «#» at 5 m, the ring duct at 8 m) at its BOSS step: 0.3 s after «scene ready» the two pumps are thrown
 //                   and the squad is put on the island — the Threader's warning 3 s later, out of the pipes 2.5 s after
 //                   that; the player stands still (the lure hunts a marine that keeps still), the bots fight, the squad is
-//                   invulnerable. Time almost stops (×0.02) at the moment `-mfShot` names, for the screenshot (at 26 s at the
-//                   latest):
+//                   invulnerable. Time almost stops (×0.02) at the moment `-mfShot` names, for the screenshot (at the latest
+//                   0.8 s before the measured window ends — `-seconds` — and at 26 s):
 //                     lock (default)  0.6 s after the lure locks: the hot white beam, the closing ring, frost falling
 //                     down            0.5 s into the head's punish window: the head on the deck, its crest up, the membrane lit
 //                     coil            P2 from its arrival (a staged row: P2 below 101 %): 2.3 s into its coil, the ring closing
@@ -1065,7 +1065,10 @@ final class DemoScript {
                 default: now = v.mode == .strike && v.strikeT >= 0 && wind - v.strikeT >= 0.6
                 }
             }
-            if now || sinceReady >= 26 {
+            // (at the latest 0.8 s before the measured window ends — `-seconds`, CI's run_demo — so the screenshot after
+            // «demo done» is always a frozen moment; the log says it was the latest, and CI's Verify wants the named one)
+            let latest = min(26, (options.seconds ?? 26) - 0.8)
+            if now || sinceReady >= latest {
                 mfFrozen = true
                 freeze = 0.02
                 AppLog.info(String(format: "demo manifold: time almost stopped td=%.2f t=%.1f at %@ (mode %@, phase %d, hp %.0f%%)", sinceReady, game.time,

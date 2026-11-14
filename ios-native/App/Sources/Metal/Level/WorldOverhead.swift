@@ -287,7 +287,8 @@ final class WorldOverhead {
 
     // ---------------------------------------------------------------- Stage 2 B5: the Manifold's trunks
     /// Per trunk: the shake of its pipe while the Threader rips it (m), its fall (−1 up, 0…1 falling — the fallen twin drawn
-    /// lifted by 4.55 × (1 − fall)² —, 1 lying on the deck), the clock for the shake.
+    /// lifted by 4.1 × (1 − fall)²: from the up pipe's axis, 0.45 under its 5 m route line, down to its own on the deck —,
+    /// 1 lying on the deck), the clock for the shake.
     private var trunkShake = [Float](repeating: 0, count: 4), trunkFall = [Float](repeating: -1, count: 4)
     private var trunkClock: Float = 0
 
@@ -316,7 +317,8 @@ final class WorldOverhead {
             let a = trunkShake[k], t = trunkClock * 47 + Float(k) * 1.7
             block[Block.sway + ManifoldBuild.shakeSlot + k] = F4(a * sinf(t), a * 0.6 * sinf(t * 1.31 + 0.5), a * cosf(t * 1.13), 0)
             let f = trunkFall[k]
-            let lift: Float = f >= 0 && f < 1 ? (Manifold.trunkY - ManifoldBuild.fallenAxis) * (1 - f) * (1 - f) : 0
+            let drop = Manifold.trunkY - ManifoldBuild.trunkR - ManifoldBuild.fallenAxis
+            let lift: Float = f >= 0 && f < 1 ? drop * (1 - f) * (1 - f) : 0
             block[Block.sway + ManifoldBuild.fallSlot + k] = F4(0, lift, 0, 0)
         }
     }

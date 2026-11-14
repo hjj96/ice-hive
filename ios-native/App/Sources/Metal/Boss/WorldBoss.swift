@@ -84,8 +84,12 @@ final class BossLibrary {
         self.kind = kind
         head = f[0]; segment = f[1]; node = f[2]
         let kb = f.reduce(0) { $0 + $1.bytes } / 1024
-        summary = String(format: "boss: %@ files %d KB in %.1f ms: ", kind.rawValue, kb, ms)
-            + f.map { c in "\(c.name) \(c.lods.map { String($0.triangles) }.joined(separator: "/")) tris \(c.clips.count) clips" }.joined(separator: ", ")
+        var parts: [String] = []
+        for c in f {
+            let tris = c.lods.map { String($0.triangles) }.joined(separator: "/")
+            parts.append("\(c.name) \(tris) tris \(c.clips.count) clips")
+        }
+        summary = String(format: "boss: %@ files %d KB in %.1f ms: ", kind.rawValue, kb, ms) + parts.joined(separator: ", ")
     }
 
     /// The part kinds' files in draw order (head, segment, node).
@@ -279,9 +283,12 @@ final class WorldBoss {
         if alive {
             if deathT >= 0 { deathT = -1; L.reset() }
             guard layBody(game, alpha: alpha) else { return }
-            L.frame(game: game, boss: self, clock: clock, dt: dt, poses: &poses, camera: camera, fx: fx, cones: cones)
+            // (the look writes each part's pose through setPose — never `&poses` across the call: it reads the head's pose
+            // back through worldPoint while it runs, the lantern and the dust sockets, and an inout borrow of the array for the
+            // whole call would trap on that read: Swift's exclusivity check)
+            L.frame(game: game, boss: self, clock: clock, dt: dt, camera: camera, fx: fx, cones: cones)
         } else if deathT >= 0 && partCount > 0 && game.boss.kind == lib.kind {
-            L.dying(boss: self, clock: clock, since: clock - deathT, poses: &poses)
+            L.dying(boss: self, clock: clock, since: clock - deathT)
             // melts into the deck after a while (the swarm's corpses), gone once it is under
             let sink = max(0, clock - deathT - WorldBoss.corpseSinkAfter) * WorldBoss.sinkSpeed
             if sink > 3 { partCount = 0; return }
@@ -370,7 +377,13 @@ final class WorldBoss {
         return BossPartXf(pos: p, heading: h > 1e-5 ? atan2f(d.x, d.z) : 0, pitch: atan2f(d.y, max(h, 1e-5)))
     }
 
-    /// Part `k`'s model-space point `p` (rest of the head group turned by its look, then its bones at clip A) in the world.
+    /// ThreaderLook: part `k`'s pose this frame (its clips, channels and look).
+    func setPose(_ k: Int, _ p: BossPartPose) {
+        if k >= 0 && k < poses.count { poses[k] = p }
+    }
+
+    /// Part `k`'s socket `name` in the world: its rest point (the head group turned by the part's look), then its bones at
+    /// clip A of the pose set for it this frame (setPose).
     func worldPoint(_ k: Int, socket name: String) -> F3? {
         guard let lib = library, k < partCount else { return nil }
         let c = lib.parts[kinds[k]]
@@ -424,15 +437,18 @@ final class WorldBoss {
                 let t = xf[k], P = poses[k]
                 let depth = max(0.5, ((t.pos - eye) * fwd).sum())
                 maxPx[kind] = max(maxPx[kind], c.length * pxScale / depth)
-                let flags: UInt32 = 0
                 let ty = UInt32(WorldBoss.typeSlot[kind])
-                inst.append(CreatureInstance(
-                    pos: F4(t.pos.x, t.pos.y, t.pos.z, 1), rot: F4(cosf(t.heading), sinf(t.heading), sinf(t.pitch), cosf(t.pitch)),
-                    tint: F4(1, 1, 1, 1),
-                    anim: SIMD4(P.a.rows, P.b.rows, unorm16(P.a.frac) | unorm16(P.b.frac) << 16, unorm16(P.wB) | ty << 16 | flags << 24),
-                    fx: SIMD4(unorm8(P.flash) | unorm8(P.frost) << 16 | unorm8(P.dead) << 24, 0,
-                              unorm16(0.37 + 0.11 * Float(k % 5)) | unorm16(P.boost) << 16,
-                              kind == 0 ? WorldSwarm.packLook(P.lookY, P.lookP, 0) : 0)))
+                // (SwarmTypes.h CreatureInstance: anim = rows A, rows B, fracs, weight B | type << 16 (no instance flags);
+                // fx = hit flash | frost << 16 | dead << 24, no lean, seed | glow boost << 16, the head's look)
+                let fracs: UInt32 = unorm16(P.a.frac) | (unorm16(P.b.frac) << 16)
+                let wty: UInt32 = unorm16(P.wB) | (ty << 16)
+                let state: UInt32 = unorm8(P.flash) | (unorm8(P.frost) << 16) | (unorm8(P.dead) << 24)
+                let seed: UInt32 = unorm16(0.37 + 0.11 * Float(k % 5)) | (unorm16(P.boost) << 16)
+                let look: UInt32 = kind == 0 ? WorldSwarm.packLook(P.lookY, P.lookP, 0) : 0
+                let rot = F4(cosf(t.heading), sinf(t.heading), sinf(t.pitch), cosf(t.pitch))
+                inst.append(CreatureInstance(pos: F4(t.pos.x, t.pos.y, t.pos.z, 1), rot: rot, tint: F4(1, 1, 1, 1),
+                                             anim: SIMD4<UInt32>(P.a.rows, P.b.rows, fracs, wty),
+                                             fx: SIMD4<UInt32>(state, 0, seed, look)))
             }
         }
         // one LOD per kind: the largest on screen against B2's switch sizes, ±12 % hysteresis
@@ -464,11 +480,13 @@ final class WorldBoss {
         guard heads + nodes > 0, let g = r.alloc(CreatureInstance.self, heads + nodes) else { return }
         var gi = 0
         let lureOn = look?.lureLit ?? false
+        let frostMask: UInt32 = 0xff << 16
         for k in 0..<inst.count {
             let kind = Int((inst[k].anim.w >> 16) & 0xff) - WorldBoss.typeSlot[0]
             if kind == 1 { continue }
             var c = inst[k]
-            if kind == 0 && !lureOn { c.fx.x = (c.fx.x & ~(0xff << 16)) | unorm8(0.85) << 16 }
+            // (the lantern dimmed while the lure is off: the glint shader takes × (1 − frost), the body keeps its own byte)
+            if kind == 0 && !lureOn { c.fx.x = (c.fx.x & ~frostMask) | (unorm8(0.85) << 16) }
             g.0[gi] = c
             gi += 1
         }
@@ -637,12 +655,21 @@ final class WorldBoss {
         let now = FrameTimer.now()
         if now - lastLog < 1 { return }
         lastLog = now
-        let v = game.boss.alive ? game.threader : nil
-        AppLog.info("hb boss \(library?.kind.rawValue ?? "-") parts=\(partCount) lod=\(lod[0])/\(lod[1])/\(lod[2]) tris=\(tris)"
-                    + " draws=\(regions.filter { $0.count > 0 }.count)+\(glintCount > 0 ? 1 : 0) glints=\(glintCount)"
-                    + " cut=\(cutFrames)/\(frames)" + String(format: " build=%.3fms", buildMs)
-                    + (v.map { " mode=\($0.mode) lure=\($0.lure ? ($0.locked >= 0 ? "locked" : "on") : "off")" } ?? (deathT >= 0 ? " dying" : ""))
-                    + (look?.heartbeatTail ?? "") + (WorldBoss.noDraw ? " off" : ""))
+        let kindName = library?.kind.rawValue ?? "-"
+        let draws = regions.filter { $0.count > 0 }.count
+        var line = "hb boss \(kindName) parts=\(partCount) lod=\(lod[0])/\(lod[1])/\(lod[2]) tris=\(tris)"
+        line += " draws=\(draws)+\(glintCount > 0 ? 1 : 0) glints=\(glintCount) cut=\(cutFrames)/\(frames)"
+        line += String(format: " build=%.3fms", buildMs)
+        if game.boss.alive {
+            let v = game.threader
+            let lure = v.lure ? (v.locked >= 0 ? "locked" : "on") : "off"
+            line += " mode=\(v.mode) lure=\(lure)"
+        } else if deathT >= 0 {
+            line += " dying"
+        }
+        line += look?.heartbeatTail ?? ""
+        if WorldBoss.noDraw { line += " off" }
+        AppLog.info(line)
         cutFrames = 0
         frames = 0
     }

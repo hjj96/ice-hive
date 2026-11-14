@@ -90,11 +90,16 @@ final class ThreaderLook {
     static let gland = F4(1.0, 0.94, 1.0, 2.0)
     /// Its ichor (the hits' spray and stains): a pale mauve-pearl — not the bugs' types', not a class colour.
     static let ichor = F3(0.42, 0.36, 0.5)
-    /// The lure: the beam's colour sweeping (pale pearl) and locked (hot white), its in-scatter gain and saturation cap (the
-    /// flashlights' cap is 0.17: the enemy's searchlight reads a step brighter than the squad's beams), the lit disc's
-    /// radiance on the deck, the grid light's intensity in it.
+    /// The lure: the beam's colour sweeping (pale pearl) and locked (hot white), its in-scatter gain and saturation cap, the
+    /// lit disc's radiance on the deck, the grid light's intensity in it. Units: a flashlight's in-scatter is its gain
+    /// (VolumeCones.gain 0.024) × its spot's intensity / π — 25 / π for a squad beam (≈ 0.19), the player's 37 / π × 1.15
+    /// (≈ 0.33) — under the cap 0.17; the lure's cone has no spot of its own (Atmosphere.metal coneParams: power 1), so its
+    /// gain is that product: 0.4 sweeping — a step over the player's beam, and its air sits 5–8 m from the lantern where
+    /// the cone's falloff has dropped to 0.25–0.45 —, × 1.5 locked; its cap 0.24, × 1.4 locked (hot white, under the tone
+    /// curve's shoulder: a thin shaft, never a white-out).
     static let lureColor = F3(0.74, 0.8, 1.0), lockColor = F3(1.0, 0.98, 0.94)
-    static let lureGain: Float = 0.05, lureCap: Float = 0.3
+    static let lureGain: Float = 0.4, lureCap: Float = 0.24
+    static let lockGainK: Float = 1.5, lockCapK: Float = 1.4
     static let spotColor = F3(0.55, 0.62, 0.85), spotLocked = F3(1.15, 1.12, 1.05)
     static let spotLight: Float = 26
     /// The lure's half-angle bounds (rad): the cone's foot on the deck is B4's lit spot.
@@ -114,6 +119,8 @@ final class ThreaderLook {
     private var anims = [BossPartAnim](repeating: BossPartAnim(), count: WorldBoss.maxParts)
     private var popT = [Float](repeating: -1, count: WorldBoss.maxParts)
     private var wasPopped = [Bool](repeating: false, count: WorldBoss.maxParts)
+    /// Nodes whose frost plates the torch stripped (B4's `.plateStrip`: for the rest of the fight they show `open`).
+    private var stripped = [Bool](repeating: false, count: WorldBoss.maxParts)
     private var screamT0: Float = -9
     private var deathT0: Float = -1
     private var modePrev: ThreaderMode = .none
@@ -159,6 +166,7 @@ final class ThreaderLook {
         anims = [BossPartAnim](repeating: BossPartAnim(), count: WorldBoss.maxParts)
         popT = [Float](repeating: -1, count: WorldBoss.maxParts)
         wasPopped = [Bool](repeating: false, count: WorldBoss.maxParts)
+        stripped = [Bool](repeating: false, count: WorldBoss.maxParts)
         screamT0 = -9; deathT0 = -1; modePrev = .none; modeT0 = 0; odo = 0; speed = 0; haveHead = false
         lookY = 0; lookP = 0; lockGlow = 0; lureLit = false; sunk = 0
         spray.removeAll(); crashSeen = -1; landed = false; lastLock = -1
@@ -335,7 +343,8 @@ final class ThreaderLook {
         case .ticks:
             sound(.scrape, F3(pos.x, 5, pos.y), gain: 0.6, deckY: gy)
         case .plateStrip:
-            // the torch strips a node's frost plates: shards of ice fall off it
+            // the torch strips a node's frost plates: shards of ice fall off it (the node shows `open` from now on)
+            if value >= 0 && value < stripped.count { stripped[value] = true }
             if value >= 0 && value < boss.partCount {
                 let p = boss.xf[value].pos + F3(0, 0.7, 0)
                 fx.gpu.burst(.ice, 16, at: p, sphere: 3, upper: true, life: (0.6, 1.1), size: (0.09, 0.04), color: F4(0.8, 0.95, 1.25, 1),
@@ -351,8 +360,7 @@ final class ThreaderLook {
     }
 
     // ================================================================ per frame
-    func frame(game: Game, boss: WorldBoss, clock: Float, dt: Float, poses: inout [BossPartPose], camera: MetalCamera,
-               fx: MetalEffects, cones: VolumeCones) {
+    func frame(game: Game, boss: WorldBoss, clock: Float, dt: Float, camera: MetalCamera, fx: MetalEffects, cones: VolumeCones) {
         let v = game.threader
         let n = boss.partCount
         let level = game.level
@@ -422,7 +430,7 @@ final class ThreaderLook {
         lockGlow += ((v.locked >= 0 || v.mode == .strike ? 1 : 0) - lockGlow) * min(1, dt * 6)
         P0.boost = 0.6 * lockGlow
         partState(&P0, game.bossPart(0), S)
-        poses[0] = P0
+        boss.setPose(0, P0)
         // ---------------------------------------------------------- the segments and the nodes
         let gripC = seg[C.grip], holdC = seg[C.hold], crawlC = seg[C.crawl]
         let moving = smoothf(0.3, 1.6, speed)
@@ -462,7 +470,9 @@ final class ThreaderLook {
                 }
                 anims[q].set(c, clock)
                 (P.a, P.b, P.wB) = anims[q].pose(a, b, wB, dt: dt)
-                // the shed's warning: frost dust off every segment's back
+                partState(&P, pv, S)
+                boss.setPose(q, P)
+                // the shed's warning: frost dust off every segment's back (its `dust` socket in this frame's pose)
                 if v.shedWarn > 0 && dt > 0 && rnd() < dt * 9 * fx.fxK, let d = boss.worldPoint(q, socket: "dust") {
                     fx.gpu.burst(.ice, 2, at: d, jitter: F3(0.25, 0.05, 0.25), vel: F3(0, -0.8, 0), velJitter: F3(0.3, 0.3, 0.3),
                                  life: (1.0, 1.6), size: (0.06, 0.03), color: F4(0.85, 0.98, 1.25, 1), gravity: 2.4, drag: 0.8)
@@ -483,14 +493,14 @@ final class ThreaderLook {
                 } else if screaming {
                     c = C.nStagger; a = clipShot(node[c], clock - screamT0)
                 } else {
-                    c = pv.up && phase < 2 ? C.plated : C.open
+                    c = pv.up && phase < 2 && !stripped[q] ? C.plated : C.open
                     a = clipLoop(node[c], clock / node[c].duration + 0.2 * Float(q))
                 }
                 anims[q].set(c, clock)
                 (P.a, P.b, P.wB) = anims[q].pose(a, dt: dt)
+                partState(&P, pv, S)
+                boss.setPose(q, P)
             }
-            partState(&P, pv, S)
-            poses[q] = P
         }
         effects(game: game, boss: boss, v: v, clock: clock, dt: dt, fx: fx, cones: cones, camera: camera)
         sounds(game: game, boss: boss, v: v, dt: dt)
@@ -509,7 +519,7 @@ final class ThreaderLook {
     }
 
     /// The death: every part's death clip from the moment it died (its last pose held), the dead value band.
-    func dying(boss: WorldBoss, clock: Float, since: Float, poses: inout [BossPartPose]) {
+    func dying(boss: WorldBoss, clock: Float, since: Float) {
         let n = boss.partCount
         for q in 0..<n {
             var P = BossPartPose()
@@ -525,7 +535,7 @@ final class ThreaderLook {
             anims[q].set(c, clock)
             (P.a, P.b, P.wB) = anims[q].pose(a, dt: 1.0 / 60.0)
             P.dead = smoothf(0, 2.4, since)
-            poses[q] = P
+            boss.setPose(q, P)
         }
         lureLit = false
     }
@@ -549,8 +559,9 @@ final class ThreaderLook {
             // it gathers on a marine: the beam and the disc brighten with the light's hold on them (B4's 0.8 s to lock)
             let gather = min(1, exposureMax / THREADER_LOCK)
             let col = locked ? ThreaderLook.lockColor * 1.25 : ThreaderLook.lureColor * (0.85 + 0.35 * gather)
+            let T = ThreaderLook.self
             cones.lure = VolumeCones.Lure(apex: L, dir: dir, length: dist * 2.2, cosOut: cosf(half), cosIn: cosf(half * 0.55), deck: gy,
-                                          gain: ThreaderLook.lureGain * (locked ? 1.6 : 1), color: col, cap: ThreaderLook.lureCap * (locked ? 1.4 : 1))
+                                          gain: T.lureGain * (locked ? T.lockGainK : 1), color: col, cap: T.lureCap * (locked ? T.lockCapK : 1))
             let sc = locked ? ThreaderLook.spotLocked : ThreaderLook.spotColor * (0.8 + 0.5 * gather)
             let pulse: Float = locked ? 0.85 + 0.15 * sinf(clock * 24) : 1
             fx.addFloor(FloorFx(center: F4(spot.x, gy + 0.05, spot.z, v.lureRadius), color: F4(sc.x, sc.y, sc.z, pulse),
@@ -603,8 +614,9 @@ final class ThreaderLook {
             let tr = A.trunks[v.squeezeTrunk]
             for b in 0..<tr.bursts.count {
                 guard let br = game.threaderBurst(b) else { continue }
-                let s = tr.bursts[b]
-                let q = tr.point(s)
+                // (at the burst's own strip: B4 bursts them in turn from the end nearer the head — the order of `bursts`
+                // or its reverse —, so the midpoint of its curtain, not `bursts[b]`)
+                let q = Vec2((br.from.x + br.to.x) * 0.5, (br.from.y + br.to.y) * 0.5)
                 let axis = F3(q.x, tr.y - 0.45, q.y)
                 // the gauge sits on the trunk's camera side (+x +z), its needle swinging from amber into the red
                 let side = F3(tr.dir.y, 0, -tr.dir.x) * ((tr.dir.y - tr.dir.x) >= 0 ? 1 : -1)
@@ -668,7 +680,9 @@ final class ThreaderLook {
         }
         // the Manifold's valves (their lamp: R6's gauge colours — the valves ride the trunks here, WorldProps leaves them)
         if level.layout.manifold != nil {
-            for (vi, vs) in game.valves.enumerated() where vi < 4 && vi != v.fallenTrunk {
+            // (not on a trunk that fell, nor in its last 0.4 s up: WorldBoss.trunks hides it then)
+            let falling = v.pullTrunk >= 0 && v.pullT >= 0 && v.pullT < 0.4 ? v.pullTrunk : -1
+            for (vi, vs) in game.valves.enumerated() where vi < 4 && vi != v.fallenTrunk && vi != falling {
                 let c: F3
                 switch vs.phase {
                 case .ready: c = F3(1.0, 0.55, 0.08) * (0.9 + 0.1 * sinf(clock * 3 + Float(vi)))

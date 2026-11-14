@@ -163,7 +163,9 @@ final class AudioEngine {
             eq.bands[0].bypass = false
             verb.loadFactoryPreset(.mediumHall)
             verb.wetDryMix = 42
-            for n in [v.node, mix, eq, verb] + boss.map({ $0.node }) as [AVAudioNode] { engine.attach(n) }
+            var chain: [AVAudioNode] = [v.node, mix, eq, verb]
+            for b in boss { chain.append(b.node) }
+            for n in chain { engine.attach(n) }
             engine.connect(v.node, to: mix, format: fmt)
             for b in boss { engine.connect(b.node, to: mix, format: fmt) }
             engine.connect(mix, to: eq, format: fmt)
@@ -194,7 +196,9 @@ final class AudioEngine {
         if !startEngine(quiet: attic != nil) {
             // without the overhead's attic chain (its reverb / format), the classic graph
             if let a = attic {
-                for n in [a.voice.node, a.mix, a.eq, a.verb] + a.boss.map({ $0.node }) as [AVAudioNode] { engine.detach(n) }
+                var chain: [AVAudioNode] = [a.voice.node, a.mix, a.eq, a.verb]
+                for b in a.boss { chain.append(b.node) }
+                for n in chain { engine.detach(n) }
                 attic = nil
                 AppLog.info("audio: overhead voice off (the engine would not start with it)")
             }

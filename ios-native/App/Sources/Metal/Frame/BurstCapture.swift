@@ -10,7 +10,7 @@ import UIKit
 //  a hit; this copies the presented image itself.
 //
 //  `-burst <name> <t0> <count> [every]`: from <t0> s after «scene
-//  ready», the next <count> presented frames (every <every>-th; 1 =
+//  ready», the next <count> (≤ 96) presented frames (every <every>-th; 1 =
 //  consecutive, the default) — the final image with the HUD, as the
 //  phone shows it — are blitted from the drawable into a shared buffer
 //  and written as Documents/burst/<name>-NN.jpg (quality 0.92, full
@@ -47,7 +47,9 @@ final class BurstCapture {
             on = true
             name = u[i + 1].filter { $0.isLetter || $0.isNumber || $0 == "-" }
             t0 = t < 0 ? .infinity : max(0, t)
-            count = min(24, n)
+            // (at most 96: Stage 2 B5's Threader bursts are 48 frames, every 6th–7th present — a phase's beat of ~5 s; the
+            // others ask 10–24; CI's diet publishes a burst as one H.264 clip)
+            count = min(96, n)
             every = i + 4 < u.count ? max(1, Int(u[i + 4]) ?? 1) : 1
         } else {
             on = false

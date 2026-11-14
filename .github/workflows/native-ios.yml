@@ -41,10 +41,10 @@ env:
   BUNDLE_ID: com.hjj96.icehive
   # every frame-gated demo, all landscape (the app is landscape-only); `layout` (the four-phone layout check)
   # runs as well but builds ~40 screens in one go, so it is not gated
-  DEMOS: firstlaunch combat beacon waves overhead overheadbugs interactives breakerrun ventpurge manifold manifold-down-nohud manifold-coil-nohud swarmshot swarmshot-dots swarm swarm3x calm squad squadclose squadtight squadfire fxsheet fxsheet-high fxpeak stress1400 punchin extract-cine title title-fresh title-return title-nm title-left probe hold extract holdhint queen queenlock coach coach3 pressure pressure-amber levelup pause pause-nm end report-first report-win report-loss report-chip release-combat swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud
+  DEMOS: firstlaunch combat beacon waves overhead overheadbugs interactives breakerrun ventpurge manifold manifold-down-nohud manifold-coil-nohud manifold-pull-nohud swarmshot swarmshot-dots swarm swarm3x calm squad squadclose squadtight squadfire fxsheet fxsheet-high fxpeak stress1400 punchin extract-cine title title-fresh title-return title-nm title-left probe hold extract holdhint queen queenlock coach coach3 pressure pressure-amber levelup pause pause-nm end report-first report-win report-loss report-chip release-combat swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud
   MENUS: levelup,pause,pause-nm,end,report-first,report-win,report-loss,report-chip
   # the runs whose -ohVis samples ci/overhead_vis.py gates (Stage 1 R3 / R5)
-  OH_VIS: overhead-nohud burst-parallax combat beacon hold queen breakerrun ventpurge manifold manifold-down-nohud manifold-coil-nohud burst-pull
+  OH_VIS: overhead-nohud burst-parallax combat beacon hold queen breakerrun ventpurge manifold manifold-down-nohud manifold-coil-nohud manifold-pull-nohud burst-pull
   # C1 — the two sim-smoke parts: an item (a run_demo label, or the checks `other-phones` and `failmetal`) runs in part b
   # when its label is listed here, every other one in part a. Part b: the title, the menus and reports, the layout and
   # pseudo-localised runs (layout, *-pseudo) and the layout check on the other phones; part a: the world (firstlaunch — the
@@ -54,8 +54,10 @@ env:
   # firstlaunch with the warm demos its renderer share is measured against (C2: since then calm is only the GPU line's
   # reference, not swarm3x's / release-combat's baseline any more). Balanced by measured times (a
   # 33–39 min, b 30–44 on the runs before the split; b's spread is the other phones, 20–32 min). README «CI» →
-  # «Как добавить демо и выбрать его часть».
-  SMOKE_B: title title-fresh title-return title-nm title-left layout layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo banner-pseudo burst-firstmin-pseudo levelup pause pause-nm end report-first report-win report-loss report-chip other-phones
+  # «Как добавить демо и выбрать его часть». Stage 2 B5: part a ran 39–47 min, b 36–43 on the runs of Nov 13 — the
+  # Threader's HUD-off look shots stay with the others in a (≈ +2.5 min), its HUD-on lock demo, its three bursts and its
+  # Metal validation run go to b (≈ +4.5 min).
+  SMOKE_B: title title-fresh title-return title-nm title-left layout layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo banner-pseudo burst-firstmin-pseudo levelup pause pause-nm end report-first report-win report-loss report-chip other-phones manifold burst-threader burst-coil burst-pull validate-manifold
 
 jobs:
   core-tests:
@@ -583,8 +585,9 @@ jobs:
           # 0.3 s after «scene ready»), the Threader out of the pipes ~5.5 s later, its lure hunting the still player; time
           # almost stops 0.6 s after the lure locks (the hot white beam, the closing ring) for the shot — HUD on: the boss bar
           # and its name. The frame gate over the arrival, the hunt and the lock; the squad-visibility metric with the body in
-          # the mask (-ohVis: ci/overhead_vis.py)
-          run_demo manifold 22 "-demo manifold -seed 7 -ohVis" 0
+          # the mask (-ohVis: ci/overhead_vis.py). Part b (SMOKE_B), with the bursts. (The lure may not lock before its 6 s
+          # pause after the arrival and the hunt: 26 s — the demo freezes 0.8 s before the window ends at the latest)
+          run_demo manifold 26 "-demo manifold -seed 7 -ohVis" 0
           # the App Store 2-swarm moment staged in the app (gunner at the crossing, the store's 600 bugs under the live cap
           # — 350 on High since native-vx-feel —, firing, time ~frozen), now in landscape (874x402 @3x)
           run_demo swarmshot 4 "-demo swarmshot -seed 7" 0
@@ -706,14 +709,15 @@ jobs:
           run_demo burst-lights 13 "-demo interactives -seed 7 -hideHUD -ixLights -burst lights 7.9 24 5"
           pull_burst burst-lights
           # Stage 2 B5: the Threader in three phases as the phone shows it (HUD on), each burst armed by the demo at its moment
-          # (`-burst <name> demo …`, BurstCapture.trigger): P1 the lure's lock → the strike → the head down → back up (every
-          # 3rd present from the lock); P2 the coil (a staged row: P2 from its arrival) from its ring to the crush or the let-go;
-          # P3 the pull-down (P2 and P3 from its arrival) — the rip, the trunk's fall onto the deck, the deck chase (every 4th)
-          run_demo burst-threader 24 "-demo manifold -mfShot down -mfFree -seed 7 -burst threader demo 96 3"
+          # (`-burst <name> demo …`, BurstCapture.trigger), 48 frames: P1 the lure's lock → the strike → the head down → back
+          # up (every 6th present: ≈ 4.8 s); P2 the coil (a staged row: P2 from its arrival) from its ring to the crush or the
+          # let-go (every 7th: ≈ 5.6 s); P3 the pull-down (P2 and P3 from its arrival) — the rip, the trunk's fall onto the
+          # deck, the deck chase (every 7th). Part b (SMOKE_B)
+          run_demo burst-threader 30 "-demo manifold -mfShot down -mfFree -seed 7 -burst threader demo 48 6"
           pull_burst burst-threader
-          run_demo burst-coil 20 "-demo manifold -mfShot coil -mfFree -seed 7 -burst coil demo 96 3"
+          run_demo burst-coil 26 "-demo manifold -mfShot coil -mfFree -seed 7 -burst coil demo 48 7"
           pull_burst burst-coil
-          run_demo burst-pull 16 "-demo manifold -mfShot pull -mfFree -seed 7 -ohVis -burst pull demo 96 4"
+          run_demo burst-pull 20 "-demo manifold -mfShot pull -mfFree -seed 7 -ohVis -burst pull demo 48 7"
           pull_burst burst-pull
           # WP5 effects look-dev: every effect staged around the squad and frozen mid-air (-fxSheet: blasts, napalm, the
           # flamer jet, the cryo beam, hits, kills, a frozen shatter, acid, a nova, casings, a row of every stain), on
@@ -746,10 +750,12 @@ jobs:
           # standing squad under the drops (-ohVis)
           run_demo overhead-nohud 10 "-demo overhead -seed 7 -hideHUD -ohVis" 0
           run_demo calm-bright-nohud 6 "-demo calm -brightness 1.3 -hideHUD" 0
-          # Stage 2 B5: the Threader's HUD-off look shots (gated scenes `manifold` and `manifold-coil`) with the squad-visibility
-          # metric: the head down in its punish window (P1), the coil closing round the island (P2, a staged row)
-          run_demo manifold-down-nohud 22 "-demo manifold -mfShot down -seed 7 -hideHUD -ohVis" 0
-          run_demo manifold-coil-nohud 18 "-demo manifold -mfShot coil -seed 7 -hideHUD -ohVis" 0
+          # Stage 2 B5: the Threader's HUD-off look shots (gated scenes `manifold`, `manifold-coil`, `manifold-pull`) with the
+          # squad-visibility metric: the head down in its punish window (P1), the coil closing round the island (P2, a staged
+          # row), the ripped trunk coming down across the island (P3, a staged row)
+          run_demo manifold-down-nohud 26 "-demo manifold -mfShot down -seed 7 -hideHUD -ohVis" 0
+          run_demo manifold-coil-nohud 24 "-demo manifold -mfShot coil -seed 7 -hideHUD -ohVis" 0
+          run_demo manifold-pull-nohud 18 "-demo manifold -mfShot pull -seed 7 -hideHUD -ohVis" 0
           # native-vx-feel: a HUD-off look shot is one frozen moment, and some moments are not the scene (a grenade's peak on
           # the title, the punch-in at a muzzle flash, the extraction camera at its cone-dodging limit looking down on the
           # deck). Like the frame gate's re-run of a failed demo: the look gates are measured here on the HUD-off shots
@@ -761,7 +767,7 @@ jobs:
           if ! ls results/*-nohud-0s.png > /dev/null 2>&1; then
             echo "look: the HUD-off shots and their re-shoots are in the other part"
           elif python3 -m venv /tmp/lookpy && /tmp/lookpy/bin/pip install -q numpy pillow; then
-            /tmp/lookpy/bin/python ios-native/ci/look_metrics.py --gate --only swarmshot,beacon,punchin,extract,title,calm,overhead,manifold,manifold-coil \
+            /tmp/lookpy/bin/python ios-native/ci/look_metrics.py --gate --only swarmshot,beacon,punchin,extract,title,calm,overhead,manifold,manifold-coil,manifold-pull \
               --failed results/look-run1-failed.txt results > results/look-run1.txt 2>&1 || true
             for shot in $(cat results/look-run1-failed.txt 2>/dev/null); do
               d=${shot%-0s.png}
@@ -846,7 +852,7 @@ jobs:
           run_demo validate-extract 8 "-demo extract-cine -seed 3 -fxSim off"
           # (Stage 2 B5: the Threader under the layer — its body's three draws, the cut, the glints, the lure's fifth cone,
           # the trunk's fall, P3 from its arrival)
-          run_demo validate-manifold 14 "-demo manifold -mfShot pull -mfFree -seed 7 -fxSim off"
+          run_demo validate-manifold 16 "-demo manifold -mfShot pull -mfFree -seed 7 -fxSim off"
           unset SIMCTL_CHILD_MTL_DEBUG_LAYER SIMCTL_CHILD_MTL_DEBUG_LAYER_ERROR_MODE
           # app lifecycle in a mission (-lifecycleProbe): the background / foreground notifications and a memory warning
           run_demo lifecycle 8 "-demo combat -seed 7 -lifecycleProbe"
@@ -1130,6 +1136,8 @@ jobs:
           need manifold-down-nohud 'demo manifold: time almost stopped td=[0-9.]+ t=[0-9.]+ at down'
           need manifold-coil-nohud 'boss cue threader coil at'
           need manifold-coil-nohud 'demo manifold: time almost stopped td=[0-9.]+ t=[0-9.]+ at coil'
+          need manifold-pull-nohud 'boss cue threader pullRip at'
+          need manifold-pull-nohud 'demo manifold: time almost stopped td=[0-9.]+ t=[0-9.]+ at pull'
           need burst-threader 'burst threader written'
           need burst-coil 'burst coil written'
           need burst-pull 'boss cue threader pullCrash'
