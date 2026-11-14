@@ -64,12 +64,16 @@ import IceHiveCore
 //  ("shots") by its blend weight; `-exposure EV` stays on top.
 //  Driver: GameScene in play — or a DemoScript in demos until the
 //  scene drives it — calls update() once per tick with the wall dt
-//  (the time scale of the world is an output, never an input);
-//  MetalWorld asks camera(...) after its own camera and hands mood /
-//  shotEV to PostChain (README «Режиссура» → seams).
+//  (the time scale of the world is an output, never an input; the
+//  scene's own scale — hit-stop, a demo's freeze — comes in only to
+//  be counted: a boss's warning-to-arrival wall time is logged split
+//  into the intro's slowdown, the game's hit-stops and the tick
+//  clock); MetalWorld asks camera(...) after its own camera and hands
+//  mood / shotEV to PostChain (README «Режиссура» → seams).
 //  `-cine off` turns the scripted cameras and the dilation off (the
 //  mood and its EV stay; a boss intro is still logged, with no
-//  effect: the world keeps its time exactly).
+//  effect: the world keeps its time exactly — 0.00 s of the intro's
+//  slowdown between the warning and the arrival).
 // ================================================================
 final class Cinematics {
     static let shared = Cinematics()
@@ -272,6 +276,10 @@ final class Cinematics {
     /// The warning's wall clock and sim time (-1: none pending); seconds into the shot when the boss came (-1: not yet).
     private var bossWarnClock: Float = -1, bossWarnSim: Float = -1
     private var bossArrivedAt: Float = -1
+    /// Since the warning, the wall seconds the world's slowdowns cost: the intro's own (Σ dt · (1 − its scale)) and, under
+    /// it, the game's (hit-stops, a demo's freeze: Σ dt · its scale · (1 − the scene's)). The rest of wall − sim is the tick
+    /// clock (the accumulator's part of a tick, a host frame past four ticks). `-cine off`: the intro's is 0 exactly.
+    private var bossSlowIntro: Float = 0, bossSlowGame: Float = 0
 
     private init() {
         let a = LaunchOptions.current.unknown
@@ -305,11 +313,13 @@ final class Cinematics {
         mood = "gameplay"; carryEV = 0; shotEV = launchEV
         riseV = 0; riseE = -1; riseR = 0; afterT = 0; afterRise = 0; afterLag = 0
         bossArmed = false; bossWarnClock = -1; bossWarnSim = -1; bossArrivedAt = -1
+        bossSlowIntro = 0; bossSlowGame = 0
     }
 
     // ---------------------------------------------------------------- per tick
-    /// Once per tick, wall `dt` (before any time scale).
-    func update(game g: Game, dt: Float, by driver: Driver) {
+    /// Once per tick, wall `dt` (before any time scale). `worldScale`: the scale the scene puts on the world besides this
+    /// one's this tick (hit-stop × a demo's freeze) — only counted (B3: where a boss's warning-to-arrival wall time goes).
+    func update(game g: Game, dt: Float, by driver: Driver, worldScale: Float = 1) {
         if driver == .scene { sceneDrives = true } else if sceneDrives { return }
         let dt = max(0, min(0.1, dt))
         clock += dt
@@ -351,6 +361,12 @@ final class Cinematics {
         }
         observe(g)
         advance(dt)
+        // B3: from a boss's warning to its arrival, the wall time this tick's slowdowns cost — the intro's and the game's
+        // under it (the scene steps the world by dt × worldScale × timeScale after this)
+        if bossWarnClock >= 0 {
+            bossSlowIntro += dt * (1 - timeScale)
+            bossSlowGame += dt * timeScale * (1 - min(1, max(0, worldScale)))
+        }
         setMood(g, dt)
         if let k = kind, AppLog.diagnostics {
             logT -= dt
@@ -383,6 +399,7 @@ final class Cinematics {
         bossAt = arrivalPoint(pos, g)
         bossArmed = true
         bossWarnClock = clock; bossWarnSim = g.time; bossArrivedAt = -1
+        bossSlowIntro = 0; bossSlowGame = 0
         AppLog.info(String(format: "cine bossintro armed kind=%@ at (%.1f, %.1f, %.1f): its warning %.2f s, the shot from %.2f s before its end",
                            k.rawValue, bossAt.x, bossAt.y, bossAt.z, g.bossSpec.warn, bossLead))
     }
@@ -401,8 +418,11 @@ final class Cinematics {
         }
         bossArrivedAt = t
         let warned = bossWarnSim >= 0
+        // (the wall split: the intro's slowdown — 0.00 with `-cine off` —, the game's hit-stops under it, the tick clock)
+        let sim = g.time - bossWarnSim, wall = clock - bossWarnClock
         AppLog.info(String(format: "cine bossintro: %@ there %.2f s into the shot (beat %.2f)", k.rawValue, t, bossShot.beat)
-                    + (warned ? String(format: ", %.2f s of sim and %.2f s of wall after its warning", g.time - bossWarnSim, clock - bossWarnClock)
+                    + (warned ? String(format: ", %.2f s of sim and %.2f s of wall after its warning (the intro's slowdown %.2f s, the game's hit-stops %.2f s, the tick clock %+.2f s)",
+                                       sim, wall, bossSlowIntro, bossSlowGame, wall - sim - bossSlowIntro - bossSlowGame)
                               : ", no warning")
                     + (camerasOn ? "" : " (cameras off)"))
         bossWarnClock = -1; bossWarnSim = -1

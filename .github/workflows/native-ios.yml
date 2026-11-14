@@ -808,8 +808,8 @@ jobs:
           # arrival)
           run_demo queenlock 8 "-demo queenlock -queenHp 1000000 -seed 3" 0
           # Stage 2 B3: the boss intro's two other paths, log checks only (part b) — `-cine off` (logged, no camera, no slowdown: her
-          # warning → arrival takes its 2.0 s of wall as today) and Reduce Motion (`-reduceMotion`: half the length, the push and the
-          # slowdown)
+          # warning → arrival takes its 2.0 s of sim and the wall it takes today — 0.00 s of it the intro's; the game's own hit-stops
+          # vary with the run) and Reduce Motion (`-reduceMotion`: half the length, the push and the slowdown)
           run_demo queen-cineoff 9 "-demo queen -tier 1 -seed 3 -cine off"
           run_demo queen-rm 9 "-demo queen -tier 1 -seed 3 -reduceMotion"
           # v1.1 coach «Учебная высадка» on the fresh demo profile: step 1 (ghost thumb on the move ring), step 3
@@ -995,19 +995,21 @@ jobs:
           need banner-queen 'hud banner «THE QUEEN» slot=(mid|high|low) \| mid: '
           need holdhint 'hud hint «GRID HITS EVERY 6 SEC'
           # Stage 2 B3: the boss intro — armed by the Queen's warning, its shot started so she lands on its beat (2.0 s of sim after
-          # her warning), slowed ×0.3 and over in 2.6 s; with no warning (queenlock) from her arrival; off (the world's own time:
-          # 2.0 s of wall) and Reduce Motion (half) logged; the boss bar's name; her banner placed for the game camera's view; the
-          # burst and the held look shot
+          # her warning; the wall beyond it split into the intro's slowdown, the game's hit-stops and the tick clock), slowed ×0.3
+          # and over in 2.6 s; with no warning (queenlock) from her arrival; off (the world's own time: 0.00 s of the intro's
+          # slowdown — the wall itself varies with the game's hit-stops, as it does without the intro) and Reduce Motion (half)
+          # logged; the boss bar's name; her banner placed for the game camera's view; the burst and the held look shot
           need queen 'demo queen: her warning due td='
           need queen 'cine bossintro armed kind=queen at '
           need queen 'cine bossintro start kind=queen from=warning'
           need queen 'cine bossintro: queen there 0\.[3-9][0-9] s into the shot \(beat 0\.60\), 2\.0[0-9] s of sim'
+          need queen 'cine bossintro: queen there .* after its warning \(the intro.s slowdown 0\.(0[5-9]|[1-9][0-9]) s, the game.s hit-stops [0-9.]+ s'
           need queen 'cine bossintro end dilation x0\.3[0-9] for [0-9.]+ s, 2\.60 s in all, the boss there at'
           need queen 'hud objective caption «QUEEN» \(boss bar\)'
           need queenlock 'cine bossintro start kind=queen from=arrival'
           need queenlock 'cine bossintro: queen there 0\.00 s into the shot \(beat 0\.60\), no warning'
           need queen-cineoff 'cine bossintro start kind=queen from=warning.* \(cameras off\)'
-          need queen-cineoff 'cine bossintro: queen there .*, 2\.0[0-9] s of sim and (1\.9[5-9]|2\.0[0-9]) s of wall after its warning \(cameras off\)'
+          need queen-cineoff 'cine bossintro: queen there .*, 2\.0[0-9] s of sim and [0-9.]+ s of wall after its warning \(the intro.s slowdown 0\.00 s, .*\) \(cameras off\)'
           need queen-cineoff 'cine bossintro end dilation x1\.00 for 0\.00 s'
           need queen-rm 'reduce motion on \(launch option\)'
           need queen-rm 'cine bossintro shot kind=queen from=warning .*×0\.65, reach 0\.50 \(reduced motion'

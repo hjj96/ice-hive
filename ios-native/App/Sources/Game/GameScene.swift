@@ -822,8 +822,9 @@ final class GameScene: SKScene {
                 g.setPlayerInput(move: c.move, aim: c.aim, fire: c.fire, ability: c.ability, dash: c.dash, assist: c.assist)
                 input.consumePresses()
             }
-            // WP7: the scripted cameras, the grade mood and the punch-in's time dilation (wall dt; the demos only trigger)
-            Cinematics.shared.update(game: g, dt: dt, by: .scene)
+            // WP7: the scripted cameras, the grade mood and the punch-in's time dilation (wall dt; the demos only trigger;
+            // B3: this tick's own scale so far — hit-stop × a demo's freeze — only counted, for the boss intro's wall split)
+            Cinematics.shared.update(game: g, dt: dt, by: .scene, worldScale: ts)
             demo?.sinceReady = readyTime > 0 ? currentTime - readyTime : -1
             demo?.frame(game: g, dt: dt)
             if let pr = demo?.probe { runProbe(pr, g) }
