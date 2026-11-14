@@ -143,20 +143,16 @@ jobs:
           set -o pipefail
           .build/release/icehive-calib --preset holdout --jobs 3 --out "$GITHUB_WORKSPACE/results/calib-holdout.jsonl" \
             --summary "$GITHUB_WORKSPACE/results/calib-holdout.txt" --gate 2>&1 | tee "$GITHUB_WORKSPACE/results/calib-holdout.log"
-      # Stage 2 D1 (tuning, informational): Veteran Dig In under five changes of the tier row (hordes, bug health, the trickle),
-      # 24 runs each — the sensitivity of the waves held, in the log and calib-holdout-tune.txt
-      - name: Dig In tuning batches (informational)
+      # Stage 2 D1 (informational): Dig In on other seeds (base + 5000, 8 runs per class on each tier) — how far its medians move
+      # with the seeds alone, the noise its bands are set against (calib-holdout-x5k.txt)
+      - name: Calibration of Dig In on other seeds (informational)
         if: success() || failure()
         continue-on-error: true
         working-directory: ios-native/IceHiveCore
         run: |
-          : > "$GITHUB_WORKSPACE/results/calib-holdout-tune.txt"
-          for v in 'h08|{"horde":0.8}' 'h125|{"horde":1.25}' 'hp085|{"hp":0.85}' 'hp12|{"hp":1.2}' 'tr07|{"trickle":0.7}'; do
-            tag=${v%%|*}; th=${v#*|}
-            echo "== $tag $th" | tee -a "$GITHUB_WORKSPACE/results/calib-holdout-tune.txt"
-            .build/release/icehive-calib --mission dig-in --tiers 1 --n 6 --maxs 1800 --th "$th" --tag "$tag" --jobs 3 \
-              --out "$GITHUB_WORKSPACE/results/calib-holdout-tune.jsonl" 2>/dev/null | tee -a "$GITHUB_WORKSPACE/results/calib-holdout-tune.txt" || true
-          done
+          .build/release/icehive-calib --mission dig-in --tiers 0,1,2 --n 8 --seed0 605000 --maxs 1800 --tag x5k --jobs 3 \
+            --out "$GITHUB_WORKSPACE/results/calib-holdout-x5k.jsonl" --summary "$GITHUB_WORKSPACE/results/calib-holdout-x5k.txt" > /dev/null 2>&1 || true
+          sed -n '/^holdout /,$p' "$GITHUB_WORKSPACE/results/calib-holdout-x5k.txt" || true
       # generated stations (seeds 0–4, Ветеран): informational while the stations flag is off
       - name: Calibration on generated stations (informational)
         if: success() || failure()
@@ -196,6 +192,12 @@ jobs:
           .build/release/icehive-calib --preset props --jobs 3 --out "$GITHUB_WORKSPACE/results/calib-props.jsonl" \
             --summary "$GITHUB_WORKSPACE/results/calib-props.txt" > /dev/null 2>&1 || true
           tail -n 8 "$GITHUB_WORKSPACE/results/calib-props.txt" || true
+      # (Stage 2 D1: the calibration outputs' md5s in the job's log — every package keeps them byte-identical, README «Калибровка»)
+      - name: Calibration md5s
+        if: success() || failure()
+        continue-on-error: true
+        run: |
+          for f in results/calib*.jsonl; do [ -f "$f" ] && echo "$(md5 -q "$f")  $(wc -l < "$f" | tr -d ' ') rows  $(basename "$f")"; done | tee results/calib-md5.txt || true
       - name: Collect log
         if: always()
         run: |

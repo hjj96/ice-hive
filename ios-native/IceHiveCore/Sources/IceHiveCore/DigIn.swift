@@ -167,16 +167,21 @@ extension MissionTemplate {
     /// The endless missions (Stage 2 D1: Dig In), after the boss missions in the title's mission choice.
     public static var holdouts: [MissionTemplate] { [digIn] }
 
-    /// Dig In's bands: the median waves held of the autopilot runs on each tier (Recruit / Veteran / Nightmare) and the AFK
-    /// first downs (the classic bands: Veteran ≤ 120 s, Recruit ≤ 270 s) — gated.
-    static let digInBands = [CalibBand(tier: 0, wavesLo: 8, wavesHi: 40), CalibBand(tier: 1, wavesLo: 4, wavesHi: 20),
-                             CalibBand(tier: 2, wavesLo: 1, wavesHi: 12)]
+    /// Dig In's bands (gated): the median waves held of the autopilot runs — Recruit 17–29, Veteran 9–15, Nightmare 3–6 (run
+    /// 43544003329: 23 / 12 / 4; the Queen's waves are the walls the runs fall at — Recruit at 20 and 25, Veteran at 10 and
+    /// 15, Nightmare at 5 — so a band spans a wall each way of the measured median, and a change that moves the runs a whole
+    /// wall leaves it). The AFK first player down: Veteran ≤ 200 s, Recruit ≤ 270 s — an idle player stands on the lift's deck
+    /// in its pulse among the bots (the classic's idle player stands alone on the landing pad: 120 s there), and is still down
+    /// before an idle squad's first bank (≈ 200 s on Veteran).
+    static let digInBands = [CalibBand(tier: 0, wavesLo: 17, wavesHi: 29), CalibBand(tier: 1, wavesLo: 9, wavesHi: 15),
+                             CalibBand(tier: 2, wavesLo: 3, wavesHi: 6)]
+    static let digInAFK = [AFKBand(tier: 1, firstDownMax: 200), AFKBand(tier: 0, firstDownMax: 270)]
 
     /// «Dig In» (design §1.6): HOLD the lift in waves until the squad falls; the score banks at waves 5 and 10 (and every
     /// fifth after). Its preset is `holdout` (calib-holdout.jsonl): 8 runs per class on Recruit and Nightmare, 16 on Veteran
     /// (up to `DigIn.calibMaxs` s each), one AFK run per class on Veteran and Recruit, seeds from its own base.
     public static let digIn = MissionTemplate(id: "dig-in", name: .missionDigIn, station: DigInStation(),
                                               calib: MissionCalib(tiers: [0, 1, 2], runs: 8, tierRuns: [1: 16], seedBase: 600_000,
-                                                                  bands: digInBands, afk: missionAFK, gated: true, preset: "holdout",
+                                                                  bands: digInBands, afk: digInAFK, gated: true, preset: "holdout",
                                                                   maxs: DigIn.calibMaxs)) { DigIn.plan($0) }
 }
