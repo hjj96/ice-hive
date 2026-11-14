@@ -51,3 +51,7 @@
   SendMessage (V1: merge 196efb2, push, land; B5: diagnose, merge 196efb2, continue).
 - The environment request (download.swift.org) was interrupted unanswered — ask again.
 - ~05:40 launched S1 shaft9-core afb0809de07aa1b82 (brief prompts/S1.md; preset e.g. `descents`; CI as compiler).
+- For the Stage 2 review (orchestrator's recommendations, owner said «do as you recommend»): B3's Queen intro full on
+  the first arrival of a run, short or none on later ones (Dig In waves 10, 15 …); Dig In: keep service XP from kills
+  even when nothing is banked (the score stays banked-only); Recruit's long Dig In runs are acceptable (forgiving tier);
+  H1's idea — banners outside the hold use the same low-slot rule.
