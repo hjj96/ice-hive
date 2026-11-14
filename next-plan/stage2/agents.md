@@ -50,3 +50,4 @@
 - ~05:20 the container restarted (not replaced — scratchpad, worktrees, transcripts survived). V1 and B5 resumed by
   SendMessage (V1: merge 196efb2, push, land; B5: diagnose, merge 196efb2, continue).
 - The environment request (download.swift.org) was interrupted unanswered — ask again.
+- ~05:40 launched S1 shaft9-core afb0809de07aa1b82 (brief prompts/S1.md; preset e.g. `descents`; CI as compiler).
