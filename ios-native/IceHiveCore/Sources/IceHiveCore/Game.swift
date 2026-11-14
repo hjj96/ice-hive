@@ -446,6 +446,8 @@ public final class Game {
     /// R7: the circuits a relighting hold brings back (nearest to its zone first) and how many it has done.
     var relightQueue: [Int] = []
     var relightNext = 0
+    /// Stage 2 D1: a holdout's waves, bank and score (GameHoldout.swift; a fresh state on every other plan).
+    public internal(set) var holdout = HoldoutState()
 
     // ---------- director (DIR) ----------
     /// The coarse stage (set by the plan's phases).

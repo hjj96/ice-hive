@@ -94,6 +94,12 @@ switch game.phase { case .won, .lost: /* экран итогов: game.stats */ 
   пломбы на устье идёт, только пока устье забито; `game.weldWaits`, строка цели `shutText` — `obj.shut_duct`; автопилот
   стреляет в такое устье первым, если жук не в упор). «Breaker Run» — четыре рубильника (A, B, C и хаб, `BreakerRun.breakers`),
   «Vent Purge» — пломбы под давлением; длины и потоки — `BreakerRun` / `VentPurge` в `MissionsKelvin.swift`.
+- Бесконечное удержание (Stage 2 D1, `DigIn.swift` / `GameHoldout.swift`): шаблон `MissionTemplate.digIn` (`holdouts`,
+  `playable`), шаг HOLD со временем ∞ и `HoldStep.waves`; состояние — `game.holdout` (`HoldoutState`: волна, удержано, фаза,
+  орда волны, очки, банк, Матки), `game.holdoutScore` (живой счёт), `game.holdoutProgress` / `game.holdProgress` (путь к банку;
+  кольцо лифта), `game.holdoutQueenLeads(n)`; отчёт — `RunSummary.holdout` (`HoldoutSummary`), лучшее — `Profile.dig`; события
+  `.holdoutWave(wave:queen:)`, `.holdoutHeld(wave:)`, `.holdoutBanked(wave:score:)`; отладка — `debugHoldoutWave(n)`,
+  `debugHoldoutHold()`.
 - Боссы (Stage 2 B1, `Boss.swift` / `GameBoss.swift` / `GameBossBody.swift`; Матка — `GameQueen.swift`): `game.boss`
   (`BossState`: вид, uid, пришёл / жив / убит, ярость, фаза, здоровье 0…1, предупреждение, позиция, высота и курс головы,
   неуязвимость, оглушение, блок, хрупкость, прибытия), `game.bossSpec` (строка босса шага), `game.bossHpFraction`;
@@ -175,4 +181,6 @@ switch game.phase { case .won, .lost: /* экран итогов: game.stats */ 
 | `Manifold.swift` | арена «Манифолд» (Stage 2 B4): остров, кольцо, мосты, магистрали и кольцевой короб как маршруты яруса, клапаны, станция `ManifoldStation`, план миссии и её калибровка (`bosses`) |
 | `GameThreader.swift` | Threader (B4): строки `BossSpec.threader(…)`, приманка и удар, сброс, подъём, кольцо, плевок, сжатие, обрушение, погоня, фазы, броня и пулы, боль, вид `ThreaderView` |
 | `GameThreaderAI.swift` | отряд против Threader: цели, турель, толпа, способности, уклонения, места; строка трассы `bossTraceState` |
+| `DigIn.swift` | «Dig In» (Stage 2 D1): числа режиссёра волн `HoldoutWaves` (`HoldStep.waves`), состояние `HoldoutState`, станция `DigInStation`, план и калибровка (`holdout`) |
+| `GameHoldout.swift` | рантайм бесконечного удержания: волны (передышка → нарастание → пик → удержана), эскалация, Матка по правилу `BossArrival.waves`, банк и счёт, строки HUD, отладка |
 | `KelvinMk2.swift` | «Кельвин-9» Mk II (R5): маршруты верхнего яруса ручной карты, `KelvinStation.mk2` — станция классической миссии |

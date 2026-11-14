@@ -44,6 +44,8 @@ enum TextWarmup {
                 GameText(.toastTipBreaker), GameText(.toastTipLocker)]
         // Stage 1 R7: Vent Purge's bark
         out.append(GameText(.toastVentSealed))
+        // Stage 2 D1: Dig In's first-sighting tip (the first wave the Queen leads)
+        out.append(GameText(.toastTipBank))
         return out
     }
 

@@ -27,6 +27,30 @@ import IceHiveCore
 //    title       attract mode: a lower, closer orbit on the squad
 //                (pitch 44°, 24 m, fov 34°), composed into the free
 //                space top right, above the subtitle and the class cards
+//    boss intro  (Stage 2 B3) a boss comes: its warning arms the shot
+//                (the arrival point: the rim edge the Queen climbs
+//                over, a point spawn's point), which starts `lead` sim
+//                seconds before the warning ends, so the arrival lands
+//                on its beat (0.6 s in): the camera pushes in at the
+//                game's yaw (pitch 57° → 38°, ≈ 30 → 17 m, fov 38°, a
+//                4° orbit), the look point drawn 45 % toward the squad
+//                and slid in the view plane so the boss stays between
+//                the top band and the banner's low slot, while the
+//                world slows to ×0.3 (from 0.15 s, eased; back by
+//                2.15 s); the boss rises in slow motion with its name
+//                (the core's arrival banner: H1's low slot, chosen for
+//                the game camera's view), then the camera eases back
+//                to the game camera (from 1.75 s; 2.6 s in all). Input
+//                stays live (the stick keeps the game's 45° mapping:
+//                the shot keeps the game's yaw), and the squad, the
+//                swarm and the boss simply run at the world's ×0.3.
+//                Reduce Motion: half of everything — half the length,
+//                half the push (the camera goes half the way), half the
+//                slowdown (×0.65). A boss with no warning (a debug
+//                spawn) gets it from its arrival. Timing and framing
+//                per boss kind (`BossIntro.of`): the Queen's row; any
+//                other kind derived from its spec until its renderer
+//                package tunes it (B5: the Threader)
 //  Every shot keeps its eye out of the four flashlight cones (the
 //  beams' 28.6° half-angle + ≈ 3.4° margin, 32 m — VolumeCones): after
 //  0.3 s inside one (a marine sweeping its aim past the camera does not
@@ -40,16 +64,102 @@ import IceHiveCore
 //  ("shots") by its blend weight; `-exposure EV` stays on top.
 //  Driver: GameScene in play — or a DemoScript in demos until the
 //  scene drives it — calls update() once per tick with the wall dt
-//  (the time scale of the world is an output, never an input);
-//  MetalWorld asks camera(...) after its own camera and hands mood /
-//  shotEV to PostChain (README «Режиссура» → seams).
+//  (the time scale of the world is an output, never an input; the
+//  scene's own scale — hit-stop, a demo's freeze — comes in only to
+//  be counted: a boss's warning-to-arrival wall time is logged split
+//  into the intro's slowdown, the game's hit-stops and the tick
+//  clock); MetalWorld asks camera(...) after its own camera and hands
+//  mood / shotEV to PostChain (README «Режиссура» → seams).
 //  `-cine off` turns the scripted cameras and the dilation off (the
-//  mood and its EV stay).
+//  mood and its EV stay; a boss intro is still logged, with no
+//  effect: the world keeps its time exactly — 0.00 s of the intro's
+//  slowdown between the warning and the arrival).
 // ================================================================
 final class Cinematics {
     static let shared = Cinematics()
 
-    enum Kind: String { case punchIn = "punchin", extraction, title, defeat }
+    enum Kind: String { case punchIn = "punchin", extraction, title, defeat, bossIntro = "bossintro" }
+
+    /// Stage 2 B3: a boss's intro — when its arrival lands in the shot, how the world slows, how the camera frames it.
+    /// Times are wall seconds into the shot. `BossIntro.of(kind, spec)` gives a boss kind its row: the Queen's is tuned on
+    /// CI's queen runs; any other kind gets one derived from its spec until its renderer package tunes it (B5: the
+    /// Threader, by data — its case below).
+    struct BossIntro {
+        /// The whole shot; the camera's ease in (cubic ease-out); the beat — where the boss's arrival lands (the shot starts
+        /// `lead` sim seconds before its warning ends: the warning's last moment and the climb play slowed); the camera's
+        /// way back to the game camera from `releaseAt` to `length`.
+        var length: Float = 2.6, pushIn: Float = 0.7, beat: Float = 0.6, releaseAt: Float = 1.75
+        /// World time × `slow` between `slowIn` and `slowOut`, smooth edges of `slowEdge` s.
+        var slow: Float = 0.3, slowIn: Float = 0.15, slowOut: Float = 1.75, slowEdge: Float = 0.4
+        /// How far the camera goes from the game camera toward the shot (1 all the way; Reduce Motion half).
+        var reach: Float = 1
+        /// Framing: the game camera's yaw (+ `yawDeg`, orbiting `orbitDeg` over the shot), `pitchDeg`, `dist` from the look
+        /// point, `fovDeg`. The look point: `lookUp` m over the arrival point, drawn `toSquad` of the way toward the squad's
+        /// centre; then the camera slides in its view plane so the arrival point stays at or above `footNDC` (NDC y) and the
+        /// boss's top (`height` m over it) at or below `topNDC` — clear of the banner's low slot and of the top band.
+        var pitchDeg: Float = 38, dist: Float = 17, fovDeg: Float = 38, yawDeg: Float = 0, orbitDeg: Float = 4
+        var lookUp: Float = 1.2, toSquad: Float = 0.45, height: Float = 2.8
+        var footNDC: Float = 0, topNDC: Float = 0.66
+
+        /// The row of a boss kind. Its height at the arrival comes from the spec's body (a bug: 0.67 × its draw scale — the
+        /// Queen's 4.2 → 2.8 m; a chain: its head's).
+        static func of(_ kind: BossKind, _ spec: BossSpec) -> BossIntro {
+            var b = BossIntro()
+            switch spec.body {
+            case .bug(_, _, let scale): b.height = 0.67 * scale
+            case .chain(let c): b.height = max(1, c.head.scale)
+            }
+            switch kind {
+            case .queen:
+                break   // the defaults are hers
+            case .threader:
+                // (until B5 tunes it: a chain boss arriving at its point up in the pipes, framed wider and from further away
+                // for its long body; B5 sets this case's numbers — see README «Заставка босса»)
+                if case .chain(let c) = spec.body {
+                    b.dist = 17 + 0.3 * c.length; b.fovDeg = 42; b.pitchDeg = 34; b.toSquad = 0.3; b.lookUp = 0
+                }
+            }
+            return b
+        }
+
+        /// Reduce Motion: half of everything — every time × 0.5 (half the length), half the push (the camera goes half the
+        /// way from the game camera), half the slowdown (× 0.65 instead of × 0.3).
+        var halved: BossIntro {
+            var b = self
+            b.length *= 0.5; b.pushIn *= 0.5; b.beat *= 0.5; b.releaseAt *= 0.5
+            b.slowIn *= 0.5; b.slowOut *= 0.5; b.slowEdge *= 0.5
+            b.slow = 1 - (1 - slow) * 0.5
+            b.reach = reach * 0.5
+            return b
+        }
+
+        /// The shot's blend over the game camera at `t`.
+        func weight(_ t: Float) -> Float {
+            let u = clampf(t / pushIn, 0, 1)
+            let wi = 1 - (1 - u) * (1 - u) * (1 - u)
+            let wo = 1 - smooth01f((t - releaseAt) / max(0.01, length - releaseAt))
+            return min(wi, wo) * reach
+        }
+
+        /// World time scale at `t`.
+        func timeScale(_ t: Float) -> Float {
+            let d = smooth01f((t - slowIn) / slowEdge) * (1 - smooth01f((t - slowOut) / slowEdge))
+            return 1 - (1 - slow) * d
+        }
+
+        /// Sim seconds from the shot's start to its beat (the world slowing on the way in; `dilated` false: `beat`).
+        func lead(dilated: Bool) -> Float {
+            guard dilated else { return beat }
+            var s: Float = 0, t: Float = 0
+            let h: Float = 1.0 / 240
+            while t < beat - 1e-6 {
+                let step = min(h, beat - t)
+                s += timeScale(t + step * 0.5) * step
+                t += step
+            }
+            return s
+        }
+    }
     /// Who calls update(): once the scene does, the demos' calls are ignored (one update per tick).
     enum Driver { case scene, demo }
 
@@ -81,7 +191,7 @@ final class Cinematics {
 
     /// Scripted cameras and the dilation run (off: `-cine off`, or a setting once the menu has one).
     var camerasOn: Bool
-    /// Reduced motion (the scene's setting): no time dilation, half the punch-in's push.
+    /// Reduced motion (the scene's setting): no time dilation, half the punch-in's push; half of the boss intro.
     var reducedMotion = false
 
     private(set) var kind: Kind? = nil
@@ -152,6 +262,25 @@ final class Cinematics {
     private var rise: Float = 0
     private var extractU: Float = 0
 
+    // ---- B3: the boss intro
+    /// A boss's warning was seen and its shot waits for its moment (`bossLead` s of warning left).
+    private var bossArmed = false
+    /// The boss it is for, its arrival point (x, its height — the deck, a point spawn's height —, z), its row (halved
+    /// under Reduce Motion) and the sim seconds from the shot's start to its beat.
+    private var bossKind = BossKind.queen
+    private var bossAt = F3(0, 0, 0)
+    private(set) var bossShot = BossIntro()
+    private var bossLead: Float = 0
+    /// How the running intro started (`warning`, or `arrival` for a boss that came with no warning).
+    private var bossFrom = "warning"
+    /// The warning's wall clock and sim time (-1: none pending); seconds into the shot when the boss came (-1: not yet).
+    private var bossWarnClock: Float = -1, bossWarnSim: Float = -1
+    private var bossArrivedAt: Float = -1
+    /// Since the warning, the wall seconds the world's slowdowns cost: the intro's own (Σ dt · (1 − its scale)) and, under
+    /// it, the game's (hit-stops, a demo's freeze: Σ dt · its scale · (1 − the scene's)). The rest of wall − sim is the tick
+    /// clock (the accumulator's part of a tick, a host frame past four ticks). `-cine off`: the intro's is 0 exactly.
+    private var bossSlowIntro: Float = 0, bossSlowGame: Float = 0
+
     private init() {
         let a = LaunchOptions.current.unknown
         func value(_ k: String) -> String? { a.firstIndex(of: k).flatMap { i in i + 1 < a.count ? a[i + 1] : nil } }
@@ -183,11 +312,14 @@ final class Cinematics {
         started = 0
         mood = "gameplay"; carryEV = 0; shotEV = launchEV
         riseV = 0; riseE = -1; riseR = 0; afterT = 0; afterRise = 0; afterLag = 0
+        bossArmed = false; bossWarnClock = -1; bossWarnSim = -1; bossArrivedAt = -1
+        bossSlowIntro = 0; bossSlowGame = 0
     }
 
     // ---------------------------------------------------------------- per tick
-    /// Once per tick, wall `dt` (before any time scale).
-    func update(game g: Game, dt: Float, by driver: Driver) {
+    /// Once per tick, wall `dt` (before any time scale). `worldScale`: the scale the scene puts on the world besides this
+    /// one's this tick (hit-stop × a demo's freeze) — only counted (B3: where a boss's warning-to-arrival wall time goes).
+    func update(game g: Game, dt: Float, by driver: Driver, worldScale: Float = 1) {
         if driver == .scene { sceneDrives = true } else if sceneDrives { return }
         let dt = max(0, min(0.1, dt))
         clock += dt
@@ -203,6 +335,12 @@ final class Cinematics {
             for k in 0..<g.beacons.count {
                 let s = g.beacons[k].state
                 if known && k < beaconStates.count && beaconStates[k] != 2 && s == 2 { beaconIndex = k; start(.punchIn) }
+            }
+            // B3: an armed boss intro starts `bossLead` s before the warning ends (at once when it is shorter, or when the
+            // boss is already there)
+            if bossArmed && kind != .bossIntro
+                && (g.boss.spawned || (g.boss.warning >= 0 && g.boss.warning <= bossLead + SIM_DT * 0.5)) {
+                startBossIntro(from: g.boss.spawned ? "arrival" : "warning", warningLeft: max(0, g.boss.warning))
             }
         }
         beaconStates = g.beacons.map { $0.state }
@@ -223,6 +361,12 @@ final class Cinematics {
         }
         observe(g)
         advance(dt)
+        // B3: from a boss's warning to its arrival, the wall time this tick's slowdowns cost — the intro's and the game's
+        // under it (the scene steps the world by dt × worldScale × timeScale after this)
+        if bossWarnClock >= 0 {
+            bossSlowIntro += dt * (1 - timeScale)
+            bossSlowGame += dt * timeScale * (1 - min(1, max(0, worldScale)))
+        }
         setMood(g, dt)
         if let k = kind, AppLog.diagnostics {
             logT -= dt
@@ -245,6 +389,73 @@ final class Cinematics {
     /// Demos: freeze the current shot at `seconds` into it (screenshots); nil releases it.
     func hold(at seconds: Float?) { hold = seconds }
 
+    // ---------------------------------------------------------------- B3: the boss intro
+    /// GameScene, on `.bossWarning`: arm the boss intro — its row, its arrival point (`pos`: the rim edge it climbs over, a
+    /// point spawn's point), its lead; the shot starts `bossLead` s before the warning ends (update).
+    func bossWarned(kind k: BossKind, pos: Vec2, game g: Game) {
+        bossKind = k
+        bossShot = reducedMotion ? BossIntro.of(k, g.bossSpec).halved : BossIntro.of(k, g.bossSpec)
+        bossLead = bossShot.lead(dilated: camerasOn)
+        bossAt = arrivalPoint(pos, g)
+        bossArmed = true
+        bossWarnClock = clock; bossWarnSim = g.time; bossArrivedAt = -1
+        bossSlowIntro = 0; bossSlowGame = 0
+        AppLog.info(String(format: "cine bossintro armed kind=%@ at (%.1f, %.1f, %.1f): its warning %.2f s, the shot from %.2f s before its end",
+                           k.rawValue, bossAt.x, bossAt.y, bossAt.z, g.bossSpec.warn, bossLead))
+    }
+
+    /// GameScene, on `.bossSpawned`: the boss is there — its moment in the running intro is logged (it should land on the
+    /// beat), or, with no intro running (it came with no warning: a debug spawn, a zero warning), the intro starts now.
+    func bossArrived(kind k: BossKind, pos: Vec2, game g: Game) {
+        if kind != .bossIntro {
+            if !bossArmed {
+                bossKind = k
+                bossShot = reducedMotion ? BossIntro.of(k, g.bossSpec).halved : BossIntro.of(k, g.bossSpec)
+                bossLead = 0
+                bossAt = arrivalPoint(pos, g)
+            }
+            startBossIntro(from: "arrival", warningLeft: 0)
+        }
+        bossArrivedAt = t
+        let warned = bossWarnSim >= 0
+        // (the wall split: the intro's slowdown — 0.00 with `-cine off` —, the game's hit-stops under it, the tick clock)
+        let sim = g.time - bossWarnSim, wall = clock - bossWarnClock
+        AppLog.info(String(format: "cine bossintro: %@ there %.2f s into the shot (beat %.2f)", k.rawValue, t, bossShot.beat)
+                    + (warned ? String(format: ", %.2f s of sim and %.2f s of wall after its warning (the intro's slowdown %.2f s, the game's hit-stops %.2f s, the tick clock %+.2f s)",
+                                       sim, wall, bossSlowIntro, bossSlowGame, wall - sim - bossSlowIntro - bossSlowGame)
+                              : ", no warning")
+                    + (camerasOn ? "" : " (cameras off)"))
+        bossWarnClock = -1; bossWarnSim = -1
+    }
+
+    private func startBossIntro(from: String, warningLeft: Float) {
+        bossArmed = false
+        bossFrom = from
+        bossArrivedAt = -1
+        start(.bossIntro)
+        let B = bossShot
+        AppLog.info(String(format: "cine bossintro shot kind=%@ from=%@ warning left %.2f s, lead %.2f s, beat %.2f s, %.2f s in all, ×%.2f, reach %.2f",
+                           bossKind.rawValue, from, warningLeft, bossLead, B.beat, B.length, B.slow, B.reach)
+                    + (reducedMotion ? " (reduced motion: half the length, half the push, half the slowdown)" : ""))
+    }
+
+    /// A boss's arrival point: x, z of `p` at its height — a point spawn's own, an arena spawn's lift over its deck, the
+    /// deck's height a step inward from a rim edge (toward the squad: the edge is the deck's last cell).
+    private func arrivalPoint(_ p: Vec2, _ g: Game) -> F3 {
+        let L = g.level
+        switch g.bossSpec.spawn {
+        case .point(_, _, let y, _):
+            return F3(p.x, y, p.y)
+        case .arena(let lift, _):
+            return F3(p.x, L.groundY(p.x, p.y) + lift, p.y)
+        case .rim:
+            var dx = centroid.x - p.x, dz = centroid.z - p.y
+            let d = max(1e-3, (dx * dx + dz * dz).squareRoot())
+            dx /= d; dz /= d
+            return F3(p.x, L.groundY(p.x + dx * 1.5, p.y + dz * 1.5), p.y)
+        }
+    }
+
     private func start(_ k: Kind) {
         kind = k
         t = 0
@@ -253,7 +464,10 @@ final class Cinematics {
         if k == .title { weight = 1 }
         started += 1
         logT = 0
-        AppLog.info("cine \(k.rawValue) start" + (k == .punchIn ? " beacon=\(beaconIndex)" : "") + (camerasOn ? "" : " (cameras off)"))
+        let td = DemoScript.sceneClock
+        AppLog.info("cine \(k.rawValue) start" + (k == .punchIn ? " beacon=\(beaconIndex)" : "")
+                    + (k == .bossIntro ? " kind=\(bossKind.rawValue) from=\(bossFrom)" + (td >= 0 ? String(format: " td=%.2f", td) : "") : "")
+                    + (camerasOn ? "" : " (cameras off)"))
     }
 
     private func advance(_ dt: Float) {
@@ -286,6 +500,21 @@ final class Cinematics {
         case .defeat:
             weight = easeOut(t / Cinematics.defeat.ease)
             timeScale = 1
+        case .bossIntro:
+            let B = bossShot
+            if t >= B.length && hold == nil {
+                kind = nil; weight = 0; timeScale = 1
+                AppLog.info(String(format: "cine bossintro end dilation x%.2f for %.2f s, %.2f s in all, ", dilMin, dilTime, B.length)
+                            + (bossArrivedAt >= 0 ? String(format: "the boss there at %.2f s (beat %.2f)", bossArrivedAt, B.beat) : "the boss not there yet")
+                            + (camerasOn ? "" : " (cameras off)"))
+                return
+            }
+            weight = B.weight(t)
+            timeScale = camerasOn ? B.timeScale(t) : 1
+            if hold == nil {
+                dilMin = min(dilMin, timeScale)
+                if timeScale < 0.95 { dilTime += dt }
+            }
         }
         if !camerasOn { weight = 0 }
     }
@@ -354,6 +583,7 @@ final class Cinematics {
         case .extraction: shot = extractionPose()
         case .title: shot = titlePose(aspect: aspect, time: time)
         case .defeat: shot = defeatPose(base)
+        case .bossIntro: shot = bossIntroPose()
         }
         // (the defeat looks down at marines lying on the deck: their torches point at it, not into the lens)
         if k != .defeat { shot = keepOutOfCones(shot, kind: k, dt: dt) }
@@ -392,6 +622,36 @@ final class Cinematics {
         let dist = P.dist - P.push * u * (reducedMotion ? 0.5 : 1)
         shotOrbit = (target, yaw, pitch, dist)
         return Pose(eye: orbit(target, yaw: yaw, pitch: pitch, dist: dist), target: target, fovDeg: P.fovDeg)
+    }
+
+    /// B3: the boss intro's camera — the game's yaw (+ its orbit), `pitchDeg` and `dist` from the look point (the arrival
+    /// point lifted `lookUp`, drawn `toSquad` toward the squad), then slid in its view plane so the arrival point stays at
+    /// or above `footNDC` and the boss's top at or below `topNDC`.
+    private func bossIntroPose() -> Pose {
+        let B = bossShot
+        let u = min(1, t / max(0.01, B.length))
+        let a = F3(bossAt.x, bossAt.y + B.lookUp, bossAt.z)
+        var target = a + (centroid + F3(0, 1.0, 0) - a) * B.toSquad
+        let yaw = MetalCamera.yaw + (B.yawDeg + B.orbitDeg * u) * .pi / 180
+        let pitch = B.pitchDeg * .pi / 180
+        var eye = orbit(target, yaw: yaw, pitch: pitch, dist: B.dist)
+        // (the slide: the camera down moves the scene up on screen, up moves it down — eye and target together, so the cone
+        // dodge's orbit about the target keeps it)
+        let f = (target - eye) / max(1e-4, length(target - eye))
+        let up = basis(eye: eye, target: target).1
+        let th = tanf(B.fovDeg * .pi / 360)
+        func ndc(_ p: F3) -> (y: Float, z: Float) {
+            let v = p - eye
+            let z = max(0.5, Mat4.dot(v, f))
+            return (Mat4.dot(v, up) / (z * th), z)
+        }
+        let nf = ndc(bossAt), nt = ndc(bossAt + F3(0, B.height, 0))
+        var slide: Float = 0
+        if nf.y < B.footNDC { slide = (B.footNDC - nf.y) * nf.z * th } else if nt.y > B.topNDC { slide = -(nt.y - B.topNDC) * nt.z * th }
+        eye = eye - up * slide
+        target = target - up * slide
+        shotOrbit = (target, yaw, pitch, B.dist)
+        return Pose(eye: eye, target: target, fovDeg: B.fovDeg)
     }
 
     private func extractionPose() -> Pose {

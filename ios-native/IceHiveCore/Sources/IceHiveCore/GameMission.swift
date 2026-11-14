@@ -45,6 +45,8 @@ extension Game {
         streamK = ts.map { ti >= 0 && ti < $0.count ? $0[ti] : 1 } ?? 1
         pourT = 0; workPourT = 0
         relightQueue.removeAll(); relightNext = 0
+        // (Stage 2 D1: no holdout under way)
+        holdout = HoldoutState()
         beginStep()
     }
 
@@ -65,6 +67,11 @@ extension Game {
             if s.needed == 0 { completeStep() }
         case .hold(let h):
             if let q = h.boss { bossBegin(q.kind, spec: q.spec) }
+            // (Stage 2 D1: a holdout's Queen has her own banners — no lift is coming)
+            if let w = h.waves, h.boss != nil {
+                if let b = w.queenBanner { bossSpec.banner = b }
+                if let b = w.queenDeathBanner { bossSpec.deathBanner = b }
+            }
             liftAllowance = -1
             enterPhase(.approach)
             if !simOnly {
@@ -462,6 +469,8 @@ extension Game {
             if !P.downed && inZone(h.zone, P.x, P.z) { startHold(h) }
             return mul
         }
+        // Stage 2 D1: a holdout's hold is fought in waves (GameHoldout.swift)
+        if let w = h.waves { return holdoutTick(h, w, dt) }
         var mul = h.stageMul.value(D)
         // a boss comes into the hold by its arrival rule (the classic: `at` s into the counted hold); while it lives the
         // stream thins out (the Queen: she is the horde); a periodic rider comes again after each death
@@ -538,6 +547,8 @@ extension Game {
             startHorde(Int((open * hordeScale()).rounded()), hb.map { stepLine($0.title, [.int(n)]) }, hb.map { stepLine($0.sub, [.int(n)]) }, 70)
         }
         if difficulty.waves { lullT = 10 }
+        // (Stage 2 D1: a holdout's first wave builds at once)
+        if let w = h.waves { holdoutBegin(w) }
     }
 
     /// × the current HOLD step's periodic hordes (1 outside a hold: the classic numbers).
@@ -660,12 +671,14 @@ extension Game {
     /// Objective lines of the modules beyond the classic ones, at their widest arguments (the HUD's layout check; R7's
     /// missions' lines too).
     public static var moduleObjectiveSamples: [GameText] {
-        [GameText(.objSwitches, [.int(6), .int(6)]), GameText(.objHoldRing), GameText(.objReach), GameText(.objHoldArea, [.clock(599)]),
+        let modules: [GameText] = [GameText(.objSwitches, [.int(6), .int(6)]), GameText(.objHoldRing), GameText(.objReach), GameText(.objHoldArea, [.clock(599)]),
          GameText(.objKillBoss, [.name(.queen)]), GameText(.objWakingMove), GameText(.objConvergeMove),
          GameText(.objRestorePower, [.int(6), .int(6)]), GameText(.objHoldBreaker), GameText(.objToGenerator),
          GameText(.objHoldGenerator, [.clock(599)]), GameText(.objSealVents, [.int(6), .int(6)]), GameText(.objHoldSeal),
          GameText(.objShutDuct),
          GameText(.objRestartPumps, [.int(6), .int(6)]), GameText(.objHoldPump), GameText(.objKillBoss, [.name(.threader)])]
+        // (Stage 2 D1: Dig In's lines)
+        return modules + holdoutObjectiveSamples
     }
 
     /// R7: the report strip of a plan that draws its own (`MissionPlan.ownStrip`; nil: the classic strip): one item per

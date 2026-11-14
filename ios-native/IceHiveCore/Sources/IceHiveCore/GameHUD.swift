@@ -63,6 +63,8 @@ extension Game {
             return stepLine(s.lineText, [.int(switchesDone), .int(s.needed)])
         case .hold(let h):
             if stepPhase == .approach { return onTheWay(h.approachText, h.wakingText, h.convergeText) }
+            // (Stage 2 D1: a holdout's lines — its wave, the bank it brings, the wave held, the Queen leading it)
+            if let w = h.waves { return holdoutObjective(w, ts) }
             if ts == .boss { return stepLine(liftT <= 0.011 ? h.lockedText : h.bossText, [.name((h.boss?.kind ?? .queen).name)]) }
             return stepLine(h.holdText, [.time(liftT.rounded(.up))])
         case .boss(let b):
@@ -76,10 +78,10 @@ extension Game {
 
     /// Changes whenever `objective` / `objectiveStyle` would (the HUD rebuilds its line only then): the plan step and its
     /// phase, the active beacon / switch, the beacons and switches done, the threat state, the lift lock, the hold's
-    /// countdown second.
+    /// countdown second (Stage 2 D1: a holdout's wave and its phase).
     public var objectiveKey: Int {
         if attract { return -1 }
-        let hold = holdActive && liftT.isFinite ? Int(liftT.rounded(.up)) : 0
+        let hold = holdActive ? (liftT.isFinite ? Int(liftT.rounded(.up)) : holdoutKey) : 0
         var k = missionStep * 2 + stepPhase.rawValue
         k = k * 16 + (activeBeacon + 1)
         k = k * 32 + min(31, beaconsDone)
@@ -99,7 +101,10 @@ extension Game {
         switch currentStep {
         case .ring?: if activeBeacon >= 0 { return beacons[activeBeacon].progress }
         case .switches?: if activeSwitch >= 0 { return switches[activeSwitch].progress }
-        case .hold?: if stepPhase == .active && liftDur.isFinite { return 1 - liftT / liftDur }
+        case .hold(let h)?:
+            // (Stage 2 D1: a holdout's bar — the way to its next bank)
+            if stepPhase == .active && h.waves != nil { return holdoutProgress }
+            if stepPhase == .active && liftDur.isFinite { return 1 - liftT / liftDur }
         default: break
         }
         return -1
@@ -160,7 +165,8 @@ extension Game {
         case .hold(let h)? where stepPhase == .active && h.zone == .lift:
             // (the lift's hints)
             if !level.onLift(P.x, P.z) { return HintLine(text: GameText(.hintToPlatform), urgent: true) }
-            if h.pulse && liftT > liftDur - 8 { return HintLine(text: holdHint, urgent: false) }
+            // (the first 8 s of the hold; Stage 2 D1: a hold without a countdown — a holdout — counts from its start)
+            if h.pulse && (liftDur.isFinite ? liftT > liftDur - 8 : stepTime < 8) { return HintLine(text: holdHint, urgent: false) }
             return nil
         case .hold(let h)? where stepPhase == .active && h.outHint != nil:
             // R7: a hold on a deck with its own hint (Breaker Run's generator) — the player out of its zone
@@ -226,6 +232,8 @@ extension Game {
         }
         r.strip = planStrip(won: won)
         r.bossKind = boss.kind
+        // Stage 2 D1: a holdout's waves, bank and score (the report's own lines)
+        r.holdout = holdoutSummary()
         return r
     }
 

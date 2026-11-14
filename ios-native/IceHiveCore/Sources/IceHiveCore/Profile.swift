@@ -11,6 +11,31 @@ import Foundation
 /// JS Math.round (half up, also for negatives).
 @inline(__always) func jsRound(_ x: Double) -> Double { (x + 0.5).rounded(.down) }
 
+/// Stage 2 D1: an endless mission's numbers for the report (`Game.runSummary` → `RunSummary.holdout`): the waves held, the
+/// score's parts (the player's kills, the waves, the Queens) and the bank — the score the fall cannot take.
+public struct HoldoutSummary: Equatable {
+    public var held: Int
+    /// The player's kills (one point each), the score of the waves held and of the Queens killed.
+    public var kills: Int
+    public var waveScore: Int
+    public var queens: Int
+    public var queenScore: Int
+    /// The raw score banked at the last bank, that bank's wave (0: none), and the waves between banks.
+    public var banked: Int
+    public var bankWave: Int
+    public var bankEvery: Int
+    public init(held: Int, kills: Int, waveScore: Int, queens: Int, queenScore: Int, banked: Int, bankWave: Int, bankEvery: Int) {
+        self.held = held; self.kills = kills; self.waveScore = waveScore; self.queens = queens; self.queenScore = queenScore
+        self.banked = banked; self.bankWave = bankWave; self.bankEvery = bankEvery
+    }
+    /// Everything earned (the live score at the fall).
+    public var earned: Int { kills + waveScore + queenScore }
+    /// What the fall took (the score earned after the last bank).
+    public var lost: Int { max(0, earned - banked) }
+    /// The next bank's wave (the first one while nothing is banked).
+    public var nextBank: Int { bankEvery > 0 ? (held / bankEvery + 1) * bankEvery : 0 }
+}
+
 /// Everything about one finished mission the meta layer needs (`Game.runSummary`).
 public struct RunSummary {
     public var cls: MarineClass
@@ -52,6 +77,9 @@ public struct RunSummary {
     public var strip: [ReportStripItem]? = nil
     /// Stage 2 B4: the run's boss (the score line of its kill: the Queen +1000, the Threader +1500).
     public var bossKind: BossKind = .queen
+    /// Stage 2 D1: an endless mission's (Dig In's) waves, bank and score parts (nil on every other mission): the run scores
+    /// its bank, the report shows its own lines.
+    public var holdout: HoldoutSummary? = nil
 
     public init(cls: MarineClass, won: Bool, surrendered: Bool, time: Float, playerKills: Int, beaconsDone: Int, queenSpawned: Bool, queenDone: Bool,
                 downs: Int, downBy: DamageSource, tierIndex: Int, tierMul: Float, stage: MissionStage, pressureLoss: Bool,
@@ -95,6 +123,8 @@ public struct Profile: Equatable {
     public var runs = 0, wins = 0, earned = 0, recTip = 0
     /// Always all four classes.
     public var cls: [MarineClass: ClassRecord]
+    /// Stage 2 D1: the most waves held in Dig In on Recruit, Veteran, Nightmare (0: none yet) — the report's «best».
+    public var dig: [Int] = [0, 0, 0]
     /// Anything bigger is not ours: boot with defaults.
     public static let maxBytes = 8192
     static let clamp = 1_000_000_000
@@ -141,6 +171,9 @@ public struct Profile: Equatable {
             }
             d.cls[c] = r
         }
+        if let a = p["dig"] as? [Any] {
+            for i in 0..<3 { d.dig[i] = i < a.count ? (num(a[i]) ?? 0) : 0 }
+        }
         return d
     }
 
@@ -166,7 +199,8 @@ public struct Profile: Equatable {
             s += "\"\(c.id)\":{\"xp\":\(r.xp),\"runs\":\(r.runs),\"wins\":\(r.wins),\"best\":\(r.best),\"bestWin\":\(r.bestWin),"
             s += "\"ev\":[\(r.ev[0]),\(r.ev[1]),\(r.ev[2])],\"lastT\":\(r.lastT),\"lossEarly\":\(r.lossEarly)}"
         }
-        return s + "}}"
+        // (Stage 2 D1: Dig In's best waves per tier, after the classes)
+        return s + "},\"dig\":[\(dig[0]),\(dig[1]),\(dig[2])]}"
     }
 
     /// Web commitRun: once per mission end (surrender counts as a loss). `diffPicked`: the player chose a tier on the title.
@@ -179,6 +213,11 @@ public struct Profile: Equatable {
         let prev = RunResult.Prev(best: c.best, runs: c.runs, lastT: c.lastT, wins: c.wins, bestWin: c.bestWin)
         let rank0 = Ranks.rankOf(c.xp)
         let cap = Profile.clamp
+        // (Stage 2 D1: an endless mission is never won — its record is the waves held; the early-loss chip and «longer than last
+        // time» stay with the missions that can be won)
+        let hold = run.holdout != nil
+        let prevWaves = tier >= 0 && tier < 3 ? dig[tier] : 0
+        if let h = run.holdout, tier >= 0 && tier < 3 { dig[tier] = max(dig[tier], min(cap, h.held)) }
         c.xp = min(cap, c.xp + xp); c.runs = min(cap, c.runs + 1)
         let medal = run.won && tier >= 0 && tier < 3 && c.ev[tier] == 0
         if run.won {
@@ -187,19 +226,23 @@ public struct Profile: Equatable {
             if c.bestWin == 0 || run.time < Float(c.bestWin) { c.bestWin = Int(jsRound(Double(run.time))) }
         }
         c.best = max(c.best, sc.total)
-        c.lastT = run.won ? 0 : Int(jsRound(Double(run.time)))   // «дольше прошлой попытки» compares a loss with the previous loss only
-        // two losses in a row before beacon 2 on Ветеран → a one-time «Попробуйте «Новобранец»» chip
-        c.lossEarly = (!run.won && tier == 1 && run.beaconsDone < 2) ? min(9, c.lossEarly + 1) : 0
+        if !hold {
+            c.lastT = run.won ? 0 : Int(jsRound(Double(run.time)))   // «дольше прошлой попытки» compares a loss with the previous loss only
+            // two losses in a row before beacon 2 on Ветеран → a one-time «Попробуйте «Новобранец»» chip
+            c.lossEarly = (!run.won && tier == 1 && run.beaconsDone < 2) ? min(9, c.lossEarly + 1) : 0
+        }
         cls[run.cls] = c
         runs = min(cap, runs + 1)
         if run.won { wins = min(cap, wins + 1) }
         earned = min(cap, earned + sc.total)
-        let recTipNow = !run.won && tier == 1 && c.lossEarly >= 2 && recTip == 0
+        let recTipNow = !hold && !run.won && tier == 1 && c.lossEarly >= 2 && recTip == 0
         if recTipNow { recTip = 1 }
         let rank1 = Ranks.rankOf(c.xp)
+        let waves = run.holdout?.held ?? 0
         return RunResult(won: run.won, surrendered: run.surrendered, score: sc, xp: xp, tier: tier, rank0: rank0, rank1: rank1, prev: prev,
                          medal: medal, recTip: recTipNow, record: prev.runs > 0 && sc.total > prev.best, first: prev.runs == 0,
-                         promo: run.won && wins == 1 && !diffPicked && tier == 0, pressureLoss: run.pressureLoss)
+                         promo: run.won && wins == 1 && !diffPicked && tier == 0, pressureLoss: run.pressureLoss,
+                         prevWaves: prevWaves, wavesRecord: hold && prevWaves > 0 && waves > prevWaves)
     }
 }
 
@@ -225,6 +268,8 @@ public struct RunScore: Equatable {
     public let total: Int
 
     public static func make(_ run: RunSummary) -> RunScore {
+        // (Stage 2 D1: an endless mission scores its bank — what it earned, less what the fall took)
+        if let h = run.holdout { return holdout(h, tierMul: run.tierMul) }
         var parts = [ScorePart(label: GameText(.scoreKills), value: run.playerKills)]
         // (R7: a plan without beacons but with a switch line — Breaker Run, Vent Purge — scores its switches instead)
         if run.beaconsTotal > 0 || run.switchLine == nil {
@@ -250,8 +295,25 @@ public struct RunScore: Equatable {
         }
         var raw = 0
         for p in parts { raw += p.value }
-        let mul = (Double(run.tierMul) * 100).rounded() / 100
-        return RunScore(parts: parts, raw: raw, total: Int(jsRound(Double(raw) * mul)))
+        return RunScore(parts: parts, raw: raw, total: scaled(raw, tierMul: run.tierMul))
+    }
+
+    /// round(raw × the tier's multiplier, to hundredths) — the report's total.
+    public static func scaled(_ raw: Int, tierMul: Float) -> Int {
+        let mul = (Double(tierMul) * 100).rounded() / 100
+        return Int(jsRound(Double(raw) * mul))
+    }
+
+    /// Stage 2 D1: an endless mission's score — the player's kills, the waves held, the Queens killed, less what the fall took
+    /// (the score earned since the last bank): the raw score is the bank.
+    static func holdout(_ h: HoldoutSummary, tierMul: Float) -> RunScore {
+        var parts = [ScorePart(label: GameText(.scoreKills), value: h.kills),
+                     ScorePart(label: GameText(.scoreWaves, [.int(h.held)]), value: h.waveScore)]
+        if h.queens > 0 { parts.append(ScorePart(label: GameText(.scoreQueens, [.int(h.queens)]), value: h.queenScore)) }
+        if h.lost > 0 { parts.append(ScorePart(label: GameText(.scoreLost), value: -h.lost)) }
+        var raw = 0
+        for p in parts { raw += p.value }
+        return RunScore(parts: parts, raw: raw, total: scaled(raw, tierMul: tierMul))
     }
 }
 
@@ -276,6 +338,9 @@ public struct RunResult {
     /// First evacuation ever, on Новобранец, without a tier pick: say why the next mission is harder.
     public let promo: Bool
     public let pressureLoss: Bool
+    /// Stage 2 D1: the most waves held in Dig In on this tier before this run (0: none yet), and a new best this run.
+    public let prevWaves: Int
+    public let wavesRecord: Bool
     public var rankUp: Bool { rank1 > rank0 }
 }
 
@@ -456,10 +521,21 @@ public struct MissionReport {
         let lift = won || run.stage == .hold || run.stage == .extract
         let on = [d > 0, d > 1, d > 2, lift, won || (run.queenSpawned && run.queenDone), won]
         let names: [TextID] = [.reportStripBeacon, .reportStripBeacon, .reportStripBeacon, .reportStripLift, .reportStripQueen, .reportStripExtract]
-        let strip = run.strip ?? (0..<6).map { ReportStripItem(label: GameText(names[$0]), on: on[$0]) }
+        var strip = run.strip ?? (0..<6).map { ReportStripItem(label: GameText(names[$0]), on: on[$0]) }
         let sc = result.score
-        let note: GameText? = result.record ? GameText(.reportRecord) : (result.first ? nil : GameText(.reportBest, [.num(result.prev.best)]))
-        let parts = sc.parts.map { ReportLine(label: $0.label, value: GameText(.fmtPlus, [.num($0.value)])) }
+        var note: GameText? = result.record ? GameText(.reportRecord) : (result.first ? nil : GameText(.reportBest, [.num(result.prev.best)]))
+        // (Stage 2 D1: a part can be negative — Dig In's «Lost in the fall»)
+        let parts = sc.parts.map { ReportLine(label: $0.label, value: GameText($0.value >= 0 ? .fmtPlus : .fmtMinus, [.num(abs($0.value))])) }
+        // Stage 2 D1: an endless mission (Dig In) — the strip of its banks (wave 5, 10 … 30: on once held), its record is the
+        // waves held on the tier («best N waves» / «New best»), the score is what it banked
+        let hold = run.holdout
+        var record = result.record
+        if let h = hold {
+            let every = max(1, h.bankEvery)
+            strip = (1...6).map { k in ReportStripItem(label: GameText(.reportStripWave, [.int(k * every)]), on: h.held >= k * every) }
+            record = result.wavesRecord
+            note = record ? GameText(.reportRecord) : (result.prevWaves > 0 ? GameText(.reportBestWaves, [.int(result.prevWaves)]) : nil)
+        }
         let dt = sc.total - sc.raw
         let delta: GameText? = dt == 0 ? nil : GameText(dt > 0 ? .fmtPlus : .fmtMinus, [.num(abs(dt))])
         let mini = [ReportLine(label: GameText(.reportMiniTime), value: GameText(.fmtClock, [.time(stats.time)])),
@@ -470,7 +546,11 @@ public struct MissionReport {
         let r1 = result.rank1
         var tips: [ReportTip] = []
         if let t = MetaText.lossTip(run: run, result: result) { tips.append(ReportTip(text: t, good: false)) }
-        if let t = MetaText.longerLine(run: run, result: result) { tips.append(ReportTip(text: t, good: true)) }
+        if let h = hold {
+            // (Stage 2 D1: the bank — it survived the fall (green), or nothing was banked: the next bank's wave (red))
+            tips.append(h.bankWave > 0 ? ReportTip(text: GameText(.tipDigInBanked, [.int(h.bankWave)]), good: true)
+                                       : ReportTip(text: GameText(.tipDigInNoBank, [.int(h.nextBank)]), good: false))
+        } else if let t = MetaText.longerLine(run: run, result: result) { tips.append(ReportTip(text: t, good: true)) }
         if result.promo { tips.append(ReportTip(text: MetaText.promo, good: true)) }
         let newGo = won && newStationShown
         var buttons: [ReportButton] = [.again]
@@ -479,9 +559,9 @@ public struct MissionReport {
         let mul = GameText(.fmtMul, [.tenths(Int(jsRound(Double(run.tierMul) * 10)))])
         return MissionReport(
             tag: GameText(.reportTag, [.name(run.station)]),
-            title: GameText(won ? .reportTitleWon : .reportTitleLost), won: won, surrendered: sur,
+            title: hold.map { GameText(.reportTitleDigIn, [.int($0.held)]) } ?? GameText(won ? .reportTitleWon : .reportTitleLost), won: won, surrendered: sur,
             subtitle: MetaText.subtitle(won: won, surrendered: sur, station: run.station),
-            strip: strip, scoreLabel: GameText(.reportScore), scoreTotal: sc.total, scoreNote: note, record: result.record,
+            strip: strip, scoreLabel: GameText(hold != nil ? .reportScoreBanked : .reportScore), scoreTotal: sc.total, scoreNote: note, record: record,
             parts: parts, tierLine: GameText(.reportTierLine, [.name(.tier(run.tierIndex)), .text(mul)]), tierDelta: delta, mini: mini,
             rankTitle: GameText(.reportRankTitle, [.name(.cls(run.cls)), .name(.rank(r1))]), xpLine: GameText(.reportXP, [.num(result.xp)]),
             rankFill: Ranks.fill(xp: c.xp), rankUp: result.rankUp ? GameText(.reportRankUp, [.name(.rank(r1))]) : nil,

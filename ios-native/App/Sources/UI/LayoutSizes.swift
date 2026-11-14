@@ -16,7 +16,8 @@ import IceHiveCore
 //  (its fixed elements and the room the coach card, both toast columns
 //  and hint take; H1: «hud-slots» — the banner's middle / high / low
 //  slots and the hint's top place), the pause, the level-up cards (the longest descriptions), the
-//  five report fixtures (R7: a Breaker Run report with its own strip) —
+//  six report fixtures (R7: a Breaker Run report with its own strip;
+//  Stage 2 D1: a Dig In report) —
 //  each with its text-fits-container checks
 //  (L10n). CI runs it in the main simulator, once in English and once
 //  pseudo-localised (-pseudoLoc 1.35), and fails on any FAIL line.
@@ -63,8 +64,9 @@ enum LayoutSizes {
             levelUp.show(level: 12, offer: longest, counts: [:], cls: .cryo, size: sz, insets: ins, layoutCheck: true)
             LayoutCheck.context = ph.name + " names"
             levelUp.show(level: 12, offer: longNames, counts: [longNames[0].id: 3], cls: .gunner, size: sz, insets: ins, layoutCheck: true)
-            // (R7: «breaker» — a Breaker Run report: its switch line and its five-stage strip)
-            for f in ["first", "win", "loss", "chip", "breaker"] {
+            // (R7: «breaker» — a Breaker Run report: its switch line and its five-stage strip; Stage 2 D1: «digin» — a Dig In
+            // report: its title, the strip of its banks, «Banked», «best N waves», «Lost in the fall»)
+            for f in ["first", "win", "loss", "chip", "breaker", "digin"] {
                 guard let r = DemoFixtures.report(f) else { continue }
                 LayoutCheck.context = ph.name + " " + f
                 menu.showEnd(size: sz, insets: ins, report: DemoFixtures.makeReport(r, cls: .assault, stats: game.stats, station: station),

@@ -211,7 +211,8 @@ public struct BossRider: Equatable {
     public init(_ kind: BossKind, at: Float? = nil, locks: Bool = true, spec: BossSpec? = nil) {
         self.kind = kind; self.arrival = .holdTime(at); self.locks = locks; self.spec = spec
     }
-    /// Any arrival rule: an endless hold (`HoldStep.time` ∞) never counts, so its rider needs `.stepTime` or `.every`.
+    /// Any arrival rule: an endless hold (`HoldStep.time` ∞) never counts, so its rider needs `.stepTime`, `.every` or (a
+    /// holdout's waves, Stage 2 D1) `.waves`.
     public init(_ kind: BossKind, arrival: BossArrival, locks: Bool = true, spec: BossSpec? = nil) {
         self.kind = kind; self.arrival = arrival; self.locks = locks; self.spec = spec
     }
@@ -251,6 +252,9 @@ public struct HoldStep: Equatable {
     public var stripText: TextID? = nil
     /// A deck hold's hint while the player is out of its zone (nil: none; the lift has its own hints).
     public var outHint: TextID? = nil
+    /// Stage 2 D1: an endless hold (`time` ∞) fought in waves — its wave director, escalation, bank and score
+    /// (`HoldoutWaves`, DigIn.swift; the runtime is GameHoldout.swift). nil: the hold of every other plan.
+    public var waves: HoldoutWaves? = nil
     /// The subtitle of the hold's periodic hordes (the lift: «They're climbing onto the platform»; a deck: the generic one).
     public var hordeSub: TextID
     /// Banner when the step begins (the lift: «Lift inbound»), and when the hold starts (also the opening horde's).
@@ -415,11 +419,18 @@ public struct CalibBand: Equatable {
     public var bossKilledLo: Float?
     public var bossMedianLo: Float?
     public var bossMedianHi: Float?
+    /// Stage 2 D1: an endless mission's band — the median waves held of the tier's runs (`wavesLo`…`wavesHi`).
+    public var wavesLo: Float?
+    public var wavesHi: Float?
     public init(tier: Int, winLo: Float? = nil, winHi: Float? = nil, downsHi: Float? = nil, bossReachedLo: Float? = nil,
-                bossKilledLo: Float? = nil, bossMedianLo: Float? = nil, bossMedianHi: Float? = nil) {
+                bossKilledLo: Float? = nil, bossMedianLo: Float? = nil, bossMedianHi: Float? = nil, wavesLo: Float? = nil, wavesHi: Float? = nil) {
         self.tier = tier; self.winLo = winLo; self.winHi = winHi; self.downsHi = downsHi
         self.bossReachedLo = bossReachedLo; self.bossKilledLo = bossKilledLo; self.bossMedianLo = bossMedianLo; self.bossMedianHi = bossMedianHi
+        self.wavesLo = wavesLo; self.wavesHi = wavesHi
     }
+
+    /// It has a boss band or a waves band (a band without a win band then reports no wins line).
+    var ownBands: Bool { bossReachedLo != nil || bossKilledLo != nil || bossMedianLo != nil || bossMedianHi != nil || wavesLo != nil || wavesHi != nil }
 }
 
 /// An AFK band of a template: one AFK run per class on `tier` (420 s, nobody touches the screen), the player's first down
@@ -448,10 +459,13 @@ public struct MissionCalib {
     public var info: [CalibBand]
     /// Its AFK bands join the gate (false: reported beside it — Stage 2 B4: the Manifold's gate is the boss bands).
     public var afkGated: Bool
+    /// Stage 2 D1: seconds an autopilot run may last (nil: the runner's 600 s; an endless mission runs until its squad falls).
+    public var maxs: Float?
     public init(tiers: [Int] = [0, 1], runs: Int = 2, tierRuns: [Int: Int] = [:], seedBase: UInt32, bands: [CalibBand],
-                afk: [AFKBand] = [], gated: Bool = false, preset: String = "missions", info: [CalibBand] = [], afkGated: Bool = true) {
+                afk: [AFKBand] = [], gated: Bool = false, preset: String = "missions", info: [CalibBand] = [], afkGated: Bool = true,
+                maxs: Float? = nil) {
         self.tiers = tiers; self.runs = runs; self.tierRuns = tierRuns; self.seedBase = seedBase; self.bands = bands; self.afk = afk
-        self.gated = gated; self.preset = preset; self.info = info; self.afkGated = afkGated
+        self.gated = gated; self.preset = preset; self.info = info; self.afkGated = afkGated; self.maxs = maxs
     }
     /// Runs per class on `tier`.
     public func runs(_ tier: Int) -> Int { tierRuns[tier] ?? runs }
@@ -525,11 +539,11 @@ public struct MissionTemplate {
     }()
 
     /// The missions a player can start (the classic first; R7: Breaker Run, Vent Purge — MissionsKelvin.swift; Stage 2 B4:
-    /// the Manifold — Manifold.swift).
-    public static var playable: [MissionTemplate] { [coldLight] + missions + bosses }
+    /// the Manifold — Manifold.swift; Stage 2 D1: Dig In — DigIn.swift).
+    public static var playable: [MissionTemplate] { [coldLight] + missions + bosses + holdouts }
 
     /// Every template (the classic first).
-    public static var all: [MissionTemplate] { [coldLight] + missions + bosses + drills }
+    public static var all: [MissionTemplate] { [coldLight] + missions + bosses + holdouts + drills }
 
     public static func named(_ id: String) -> MissionTemplate? { all.first { $0.id == id } }
 }

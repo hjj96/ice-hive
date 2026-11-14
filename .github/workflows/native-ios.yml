@@ -4,7 +4,8 @@ name: native-ios
 # scene in the same Metal pass. Results of every run are committed to branch `ci-results` under <branch>/<short-sha>/:
 #   status.json, core-tests.log, core-perf.log, calib.txt / calib.jsonl (v1.1 balance gate), calib-missions.txt / .jsonl (the
 #   missions' own gate: Breaker Run, Vent Purge), calib-bosses.txt / .jsonl (the boss missions' gate: the Manifold, the
-#   Threader), threader-trace.txt (one Threader fight's headless timeline), calib-drills.txt (mission module drills),
+#   Threader), threader-trace.txt (one Threader fight's headless timeline), calib-holdout.txt / .jsonl (the endless missions'
+#   gate: Dig In), calib-drills.txt (mission module drills),
 #   build.log, release-check.txt, metrics.txt, fps.txt, hitches.txt, <demo>-<s>s.jpg (upright landscape: the app is
 #   landscape-only), burst-<name>.mp4, other-phones.txt, app-<demo>.log, app.log, assets.txt (the asset pipeline's
 #   gates — the `assets` job, Stage 2 B2)
@@ -41,10 +42,10 @@ env:
   BUNDLE_ID: com.hjj96.icehive
   # every frame-gated demo, all landscape (the app is landscape-only); `layout` (the four-phone layout check)
   # runs as well but builds ~40 screens in one go, so it is not gated
-  DEMOS: firstlaunch combat beacon waves overhead overheadbugs interactives breakerrun ventpurge swarmshot swarmshot-dots swarm swarm3x calm squad squadclose squadtight squadfire fxsheet fxsheet-high fxpeak stress1400 punchin extract-cine title title-fresh title-return title-nm title-left probe hold extract holdhint queen queenlock coach coach3 pressure pressure-amber levelup pause pause-nm end report-first report-win report-loss report-chip release-combat swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud
-  MENUS: levelup,pause,pause-nm,end,report-first,report-win,report-loss,report-chip
+  DEMOS: firstlaunch combat beacon waves overhead overheadbugs interactives breakerrun ventpurge digin swarmshot swarmshot-dots swarm swarm3x calm squad squadclose squadtight squadfire fxsheet fxsheet-high fxpeak stress1400 punchin extract-cine title title-fresh title-return title-nm title-left probe hold extract holdhint queen queenlock coach coach3 pressure pressure-amber levelup pause pause-nm end report-first report-win report-loss report-chip report-digin release-combat swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud bossintro-nohud title-nohud calm-nohud
+  MENUS: levelup,pause,pause-nm,end,report-first,report-win,report-loss,report-chip,report-digin
   # the runs whose -ohVis samples ci/overhead_vis.py gates (Stage 1 R3 / R5)
-  OH_VIS: overhead-nohud burst-parallax combat beacon hold queen breakerrun ventpurge
+  OH_VIS: overhead-nohud burst-parallax combat beacon hold queen breakerrun ventpurge digin
   # C1 — the two sim-smoke parts: an item (a run_demo label, or the checks `other-phones` and `failmetal`) runs in part b
   # when its label is listed here, every other one in part a. Part b: the title, the menus and reports, the layout and
   # pseudo-localised runs (layout, *-pseudo) and the layout check on the other phones; part a: the world (firstlaunch — the
@@ -55,7 +56,7 @@ env:
   # reference, not swarm3x's / release-combat's baseline any more). Balanced by measured times (a
   # 33–39 min, b 30–44 on the runs before the split; b's spread is the other phones, 20–32 min). README «CI» →
   # «Как добавить демо и выбрать его часть».
-  SMOKE_B: title title-fresh title-return title-nm title-left layout layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo banner-pseudo burst-firstmin-pseudo levelup pause pause-nm end report-first report-win report-loss report-chip other-phones
+  SMOKE_B: title title-fresh title-return title-nm title-left layout layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo banner-pseudo burst-firstmin-pseudo queen-cineoff queen-rm levelup pause pause-nm end report-first report-win report-loss report-chip report-digin other-phones
 
 jobs:
   core-tests:
@@ -131,6 +132,27 @@ jobs:
           .build/release/icehive-calib --mission manifold --tiers 1 --n 1 --classes gunner --trace \
             > "$GITHUB_WORKSPACE/results/threader-trace.txt" 2>&1 || true
           grep -E 'phase|killed|lureLock|strikeLand|coil |pullCrash' "$GITHUB_WORKSPACE/results/threader-trace.txt" | head -n 24 || true
+      # Stage 2 D1: the endless missions' own gate — Dig In (the hold at the lift in waves until the squad falls): the median
+      # waves held of the autopilot on Recruit / Veteran / Nightmare in their bands, the AFK first downs (Veteran ≤ 120 s,
+      # Recruit ≤ 270 s); rows calib-holdout.jsonl, the tables (waves held, banks, falls) + verdict calib-holdout.txt (its own
+      # step and rows: every other preset keeps its bytes)
+      - name: Calibration gate — holdout (release)
+        if: success() || failure()
+        working-directory: ios-native/IceHiveCore
+        run: |
+          set -o pipefail
+          .build/release/icehive-calib --preset holdout --jobs 3 --out "$GITHUB_WORKSPACE/results/calib-holdout.jsonl" \
+            --summary "$GITHUB_WORKSPACE/results/calib-holdout.txt" --gate 2>&1 | tee "$GITHUB_WORKSPACE/results/calib-holdout.log"
+      # Stage 2 D1 (informational): Dig In on other seeds (base + 5000, 8 runs per class on each tier) — how far its medians move
+      # with the seeds alone, the noise its bands are set against (calib-holdout-x5k.txt)
+      - name: Calibration of Dig In on other seeds (informational)
+        if: success() || failure()
+        continue-on-error: true
+        working-directory: ios-native/IceHiveCore
+        run: |
+          .build/release/icehive-calib --mission dig-in --tiers 0,1,2 --n 8 --seed0 605000 --maxs 1800 --tag x5k --jobs 3 \
+            --out "$GITHUB_WORKSPACE/results/calib-holdout-x5k.jsonl" --summary "$GITHUB_WORKSPACE/results/calib-holdout-x5k.txt" > /dev/null 2>&1 || true
+          sed -n '/^holdout /,$p' "$GITHUB_WORKSPACE/results/calib-holdout-x5k.txt" || true
       # generated stations (seeds 0–4, Ветеран): informational while the stations flag is off
       - name: Calibration on generated stations (informational)
         if: success() || failure()
@@ -170,6 +192,12 @@ jobs:
           .build/release/icehive-calib --preset props --jobs 3 --out "$GITHUB_WORKSPACE/results/calib-props.jsonl" \
             --summary "$GITHUB_WORKSPACE/results/calib-props.txt" > /dev/null 2>&1 || true
           tail -n 8 "$GITHUB_WORKSPACE/results/calib-props.txt" || true
+      # (Stage 2 D1: the calibration outputs' md5s in the job's log — every package keeps them byte-identical, README «Калибровка»)
+      - name: Calibration md5s
+        if: success() || failure()
+        continue-on-error: true
+        run: |
+          for f in results/calib*.jsonl; do [ -f "$f" ] && echo "$(md5 -q "$f")  $(wc -l < "$f" | tr -d ' ') rows  $(basename "$f")"; done | tee results/calib-md5.txt || true
       - name: Collect log
         if: always()
         run: |
@@ -579,6 +607,10 @@ jobs:
           # the overhead's visibility metric (-ohVis, gated by ci/overhead_vis.py below — the Stage 1 review's open issue 8)
           run_demo breakerrun 16 "-demo breakerrun -seed 7 -ohVis" 0
           run_demo ventpurge 16 "-demo ventpurge -seed 7 -ohVis" 0
+          # Stage 2 D1: Dig In — the endless hold at the lift (its own station: the squad set down on the lift): wave 1 as it comes,
+          # wave 4's peak at 7.0 s, wave 5's at 11.0 s (the Queen leads it: her warning, B3's intro, her climb), her death and the
+          # bank at 16.0 s; time almost stopped 1.2 s later on «SCORE BANKED» (-holdBanner) for the screenshot
+          run_demo digin 18 "-demo digin -seed 7 -ohVis -holdBanner" 0
           # the App Store 2-swarm moment staged in the app (gunner at the crossing, the store's 600 bugs under the live cap
           # — 350 on High since native-vx-feel —, firing, time ~frozen), now in landscape (874x402 @3x)
           run_demo swarmshot 4 "-demo swarmshot -seed 7" 0
@@ -695,6 +727,11 @@ jobs:
           # (every 90th present ≈ 1.5 s from 1 s)
           run_demo burst-firstmin 37 "-demo firstmin -seed 7 -storeShot -burst firstmin 1.0 24 90"
           pull_burst burst-firstmin
+          # Stage 2 B3: the boss intro as the phone shows it (-storeShot) — the Queen's warning ring at the far rim, the push-in on
+          # it as the world slows to ×0.3, her climb in slow motion with her name (the arrival banner, low), the camera back to the
+          # game and the boss bar's name: the queen demo's own arrival, 60 frames every 4th present (≈ 13–15 frames/s) from 4.6 s
+          run_demo burst-bossintro 11 "-demo queen -tier 1 -seed 3 -storeShot -burst bossintro 4.6 60 4"
+          pull_burst burst-bossintro
           # Stage 1 R6: the steam valve bursting over the pack and its scald curtain (every 8th present ≈ 3 s), and the hub's
           # breaker bringing its lamps back (-ixLights: the lights part only from the hub's centre, its restore ≈ 8.5 s in;
           # every 5th present ≈ 2 s)
@@ -702,6 +739,10 @@ jobs:
           pull_burst burst-valve
           run_demo burst-lights 13 "-demo interactives -seed 7 -hideHUD -ixLights -burst lights 7.9 24 5"
           pull_burst burst-lights
+          # Stage 2 D1: the digin demo as a sequence (HUD on): 24 frames every 45th present from 1.0 s — wave 1 coming, wave 4's
+          # peak, the Queen leading wave 5, her death and the bank
+          run_demo burst-digin 18 "-demo digin -seed 7 -burst digin 1.0 24 45"
+          pull_burst burst-digin
           # WP5 effects look-dev: every effect staged around the squad and frozen mid-air (-fxSheet: blasts, napalm, the
           # flamer jet, the cryo beam, hits, kills, a frozen shatter, acid, a nova, casings, a row of every stain), on
           # Efficient and on High (wet decals, heat haze); the plan's scripted peak (three chained boomers + napalm +
@@ -726,6 +767,8 @@ jobs:
           run_demo beacon-nohud 15 "-demo beacon -seed 7 -hideHUD" 0
           run_demo punchin-nohud 7 "-demo punchin -seed 7 -hideHUD" 0
           run_demo extract-cine-nohud 8 "-demo extract-cine -seed 3 -hideHUD" 0
+          # Stage 2 B3: the boss intro held 1.2 s in (the Queen up over the rim, the world frozen) — gated as `bossintro`
+          run_demo bossintro-nohud 8 "-demo queen -tier 1 -seed 3 -hideHUD -introHold" 0
           run_demo title-nohud 6 "-demo title -hideHUD" 0
           run_demo calm-nohud 8 "-demo calm -hideHUD" 0
           run_demo calm-deckmask 8 "-demo calm -hideHUD -deckMask -nocones -noweather" 0
@@ -744,7 +787,7 @@ jobs:
           if ! ls results/*-nohud-0s.png > /dev/null 2>&1; then
             echo "look: the HUD-off shots and their re-shoots are in the other part"
           elif python3 -m venv /tmp/lookpy && /tmp/lookpy/bin/pip install -q numpy pillow; then
-            /tmp/lookpy/bin/python ios-native/ci/look_metrics.py --gate --only swarmshot,beacon,punchin,extract,title,calm,overhead \
+            /tmp/lookpy/bin/python ios-native/ci/look_metrics.py --gate --only swarmshot,beacon,punchin,extract,bossintro,title,calm,overhead \
               --failed results/look-run1-failed.txt results > results/look-run1.txt 2>&1 || true
             for shot in $(cat results/look-run1-failed.txt 2>/dev/null); do
               d=${shot%-0s.png}
@@ -796,10 +839,18 @@ jobs:
           # the Ветеран lift-pulse hint (~450 pt in one line) in the first seconds of the hold, countdown pinned: two
           # lines between the stick rings, «hint 2 lines» in the log; the HUD layout check
           run_demo holdhint 8 "-demo holdhint -seed 3 -layoutCheck" 0
-          # v1.1: the Матка (boss of the hold) on the deck — a brute instance at scale 4.2, violet tint, volley rings
+          # v1.1: the Матка (boss of the hold) on the deck — a brute instance at scale 4.2, violet tint, volley rings; Stage 2 B3: she
+          # comes through her own warning (4.0 s in: the countdown at her moment), so the boss intro plays inside the measured window
+          # (≈ 5.6–8.2 s: the frame gate and the look gate's «boss intro entry»), and the shots show the boss bar's name
           run_demo queen 10 "-demo queen -tier 1 -seed 3 -ohVis" 0 3
-          # the countdown ran out with her alive: «ЛИФТ ЗАБЛОКИРОВАН — МАТКА ЖИВА»
+          # the countdown ran out with her alive: «ЛИФТ ЗАБЛОКИРОВАН — МАТКА ЖИВА» (B3: she climbs with no warning, the intro from her
+          # arrival)
           run_demo queenlock 8 "-demo queenlock -queenHp 1000000 -seed 3" 0
+          # Stage 2 B3: the boss intro's two other paths, log checks only (part b) — `-cine off` (logged, no camera, no slowdown: her
+          # warning → arrival takes its 2.0 s of sim and the wall it takes today — 0.00 s of it the intro's; the game's own hit-stops
+          # vary with the run) and Reduce Motion (`-reduceMotion`: half the length, the push and the slowdown)
+          run_demo queen-cineoff 9 "-demo queen -tier 1 -seed 3 -cine off"
+          run_demo queen-rm 9 "-demo queen -tier 1 -seed 3 -reduceMotion"
           # v1.1 coach «Учебная высадка» on the fresh demo profile: step 1 (ghost thumb on the move ring), step 3
           # (the «Граната» tap with its amber ring, 18 runners); the HUD layout check
           run_demo coach 6 "-demo coach -profile fresh -seed 7 -layoutCheck" 0
@@ -817,6 +868,8 @@ jobs:
           run_demo report-win 4 "-demo report -report win -seed 5 -layoutCheck" 0
           run_demo report-loss 4 "-demo report -report loss -seed 5 -layoutCheck" 0
           run_demo report-chip 4 "-demo report -report chip -seed 5 -layoutCheck" 0
+          # Stage 2 D1: a Dig In report (the fixture plays Dig In: 12 waves held, banked at wave 10, the previous best 14)
+          run_demo report-digin 4 "-demo report -report digin -seed 5 -layoutCheck" 0
           # Metal API validation (the debug layer; errors assert, so a buffer overrun or a format mismatch in any pass kills the
           # run): the 1400-bug High stress run, the scripted effects peak on High and the extraction shot — not frame-gated
           # (the layer costs CPU). Verify fails on a dead run or any MTLDebug / validation line in their stderr. The GPU
@@ -931,7 +984,9 @@ jobs:
                    swarmshot-nohud beacon-nohud punchin-nohud extract-cine-nohud title-nohud calm-nohud calm-deckmask calm-bright-nohud \
                    burst-fire burst-tight burst-combat burst-anim burst-loco burst-loco-game burst-acta burst-actb burst-actc burst-defeat burst-win burst-bugs burst-pack burst-packold burst-mix burst-mixold validate-stress validate-fxpeak validate-extract lifecycle \
                    overhead burst-overhead burst-parallax overhead-nohud overheadbugs burst-dropper burst-perch burst-duct burst-dash \
-                   interactives burst-valve burst-lights burst-mk2 breakerrun ventpurge burst-firstmin burst-firstmin-pseudo; do
+                   interactives burst-valve burst-lights burst-mk2 breakerrun ventpurge burst-firstmin burst-firstmin-pseudo \
+                   burst-bossintro bossintro-nohud queen-cineoff queen-rm \
+                   digin burst-digin report-digin; do
             mine "$d" || continue
             grep -q 'scene ready' "results/app-$d.log" || { fail "$d: no 'scene ready'"; }
             if grep -q 'ERROR' "results/app-$d.log"; then fail "$d: $(grep -m 3 ERROR "results/app-$d.log" | tr '\n' ' ')"; fi
@@ -961,6 +1016,8 @@ jobs:
           need report-win 'v11 run tier=vet won=1 .*rank=2→3'
           need report-loss 'v11 run tier=vet won=0 .*downBy=4'
           need report-chip 'v11 run .*recTip=1'
+          # Stage 2 D1: the Dig In report — never won, the bank's score (6,900 at wave 10, ×1.0 on Veteran), no early-loss chip
+          need report-digin 'v11 run tier=vet won=0 .*score=6900 .*recTip=0'
           need combat 'v11 start tier=vet coach=0'
           # Stage 1 R5: the classic mission's station is «Кельвин-9» Mk II — its overhead (routeCheck in the full set's 150–450 m band,
           # the three duct mouths, the perches) and props laid, WorldOverhead built the layer; the classic demos send packs up
@@ -983,6 +1040,30 @@ jobs:
           need burst-firstmin 'hud toast tip toast\.tip\.[a-z]+ (left|right) t=[0-9.]+ waited'
           need banner-queen 'hud banner «THE QUEEN» slot=(mid|high|low) \| mid: '
           need holdhint 'hud hint «GRID HITS EVERY 6 SEC'
+          # Stage 2 B3: the boss intro — armed by the Queen's warning, its shot started so she lands on its beat (2.0 s of sim after
+          # her warning; the wall beyond it split into the intro's slowdown, the game's hit-stops and the tick clock), slowed ×0.3
+          # and over in 2.6 s; with no warning (queenlock) from her arrival; off (the world's own time: 0.00 s of the intro's
+          # slowdown — the wall itself varies with the game's hit-stops, as it does without the intro) and Reduce Motion (half)
+          # logged; the boss bar's name; her banner placed for the game camera's view; the burst and the held look shot
+          need queen 'demo queen: her warning due td='
+          need queen 'cine bossintro armed kind=queen at '
+          need queen 'cine bossintro start kind=queen from=warning'
+          need queen 'cine bossintro: queen there 0\.[3-9][0-9] s into the shot \(beat 0\.60\), 2\.0[0-9] s of sim'
+          need queen 'cine bossintro: queen there .* after its warning \(the intro.s slowdown 0\.(0[5-9]|[1-9][0-9]) s, the game.s hit-stops [0-9.]+ s'
+          need queen 'cine bossintro end dilation x0\.3[0-9] for [0-9.]+ s, 2\.60 s in all, the boss there at'
+          need queen 'hud objective caption «QUEEN» \(boss bar\)'
+          need queenlock 'cine bossintro start kind=queen from=arrival'
+          need queenlock 'cine bossintro: queen there 0\.00 s into the shot \(beat 0\.60\), no warning'
+          need queen-cineoff 'cine bossintro start kind=queen from=warning.* \(cameras off\)'
+          need queen-cineoff 'cine bossintro: queen there .*, 2\.0[0-9] s of sim and [0-9.]+ s of wall after its warning \(the intro.s slowdown 0\.00 s, .*\) \(cameras off\)'
+          need queen-cineoff 'cine bossintro end dilation x1\.00 for 0\.00 s'
+          need queen-rm 'reduce motion on \(launch option\)'
+          need queen-rm 'cine bossintro shot kind=queen from=warning .*×0\.65, reach 0\.50 \(reduced motion'
+          need queen-rm 'cine bossintro end dilation x0\.6[0-9] for [0-9.]+ s, 1\.30 s in all'
+          need banner-queen 'hud banner «THE QUEEN» slot=(mid|high|low) \| mid: .*for the game camera.s view'
+          need burst-bossintro 'burst bossintro written \(60 frames\)'
+          need burst-bossintro 'cine bossintro start kind=queen from=warning'
+          need bossintro-nohud 'demo queen: intro held at 1\.20 s'
           need combat 'oh vis: on \(pipelines ok'
           need hold 'oh vis: on \(pipelines ok'
           # native-vx-feel: the wave director staged its own beacon defence (no forced crowd) and the hive pushed
@@ -1096,6 +1177,18 @@ jobs:
           need ventpurge 'demo ventpurge: duct 1 open again td=[0-9.]+, weld waits 1'
           need ventpurge 'hb mission vent-purge step=1/3 switch'
           need ventpurge 'demo ventpurge: frozen td=[0-9.]+ step 4 weld waits [01] ring 0\.6[0-9]'
+          # Stage 2 D1: Dig In — its station (Kelvin-9 Mk II, the squad on the lift), wave 4's peak, the Queen leading wave 5, her
+          # death, the bank, the frozen bank moment
+          need digin 'mission start dig-in steps=hold modifiers= props=1 lit=7/7 vents=8 ducts=3'
+          need digin 'demo digin: dig-in, squad on the lift: wave [0-9]+ '
+          need digin 'mission: wave 4 peak t=[0-9.]+ horde [1-9][0-9]*'
+          need digin 'mission: wave 5 peak t=[0-9.]+ horde [1-9][0-9]* \(the Queen leads it\)'
+          need digin 'v11 queen spawn t=[0-9.]+ uid=[1-9]'
+          need digin 'v11 queen kill'
+          need digin 'mission: wave 5 held t='
+          need digin 'mission: score banked at wave 5: [1-9][0-9]*'
+          need digin 'demo digin: frozen td=[0-9.]+ wave 6 held 5 banked [1-9][0-9]*'
+          need burst-digin 'burst digin start'
           need burst-pack 'demo swarmpack: spawned [1-9][0-9]* bugs .*swarm life'
           need burst-packold 'demo swarmpack: spawned [1-9][0-9]* bugs .*swarm legacy'
           # native-vx-fix: the mission's live-bug cap is the tier's under the device class's (the simulator stands in for the
@@ -1135,16 +1228,16 @@ jobs:
             need "$d" 'scene presented size=[0-9]+x[0-9]+ iface=landscape'
             if grep -q -E 'iface=portrait' "results/app-$d.log"; then fail "$d: portrait interface"; fi
           done
-          for d in title-fresh title-return title-nm title-left holdhint coach coach3 levelup pause pause-nm report-first report-win report-loss report-chip layout \
+          for d in title-fresh title-return title-nm title-left holdhint coach coach3 levelup pause pause-nm report-first report-win report-loss report-chip report-digin layout \
                    layout-pseudo title-pseudo holdhint-pseudo coach3-pseudo levelup-pseudo report-pseudo; do
             mine "$d" || continue
             need "$d" 'layout (ok|FAIL)'
             if grep -q 'layout FAIL' "results/app-$d.log"; then fail "$d: $(grep -m 2 'layout FAIL' "results/app-$d.log" | tr '\n' ' ')"; fi
           done
           # the four landscape phones (LayoutSizes): 4 × (3 titles + HUD + the HUD's transient slots (H1) + pause + 2 level-ups
-          # + 5 reports) = 52 checks, in English and pseudo-localised (+35 %)
-          need layout 'layout sizes: 52 ok, 0 FAIL on 4 phones'
-          need layout-pseudo 'layout sizes: 52 ok, 0 FAIL on 4 phones'
+          # + 6 reports — D1: a Dig In report) = 56 checks, in English and pseudo-localised (+35 %)
+          need layout 'layout sizes: 56 ok, 0 FAIL on 4 phones'
+          need layout-pseudo 'layout sizes: 56 ok, 0 FAIL on 4 phones'
           # L10n: every key resolved (the audit of the layout demos), and no run ever looked up a key the catalog lacks
           need layout 'l10n audit: [0-9]+ keys, 0 missing'
           need layout-pseudo 'l10n audit: [0-9]+ keys, 0 missing'

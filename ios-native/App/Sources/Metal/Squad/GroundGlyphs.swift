@@ -95,7 +95,8 @@ final class GroundGlyphs {
         let st = game.stage
         if st == .toLift || st == .hold || st == .extract {
             let L = level.lift
-            let prog: Float = st == .hold ? 1 - game.liftT / game.liftDur : (st == .extract ? 1 : 0)
+            // (Stage 2 D1: an endless hold has no countdown — ∞ / ∞ — the ring shows the way to its next bank)
+            let prog: Float = st == .hold ? game.holdProgress : (st == .extract ? 1 : 0)
             let alpha: Float = st == .extract ? 0.45 + 0.4 * smooth01f(game.extractT / 2) : 0.55
             glyphs.append(GlyphInstance(center: F4(L.x, L.y + rise + 0.06, L.z, L.r - 0.3), color: F4(0.2, 1.0, 0.82, 2),
                                         a: F4(prog, 32, -time * 0.1, alpha), b: F4(time, 0, 0, 0)))

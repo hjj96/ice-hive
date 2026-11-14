@@ -220,7 +220,8 @@ extension Game {
     }
 
     /// Complete the current objective unit of the plan: the next beacon / switch, the walk to a zone (the squad is put
-    /// in it), the hold (its boss dies or never comes first), the boss, the ride. Returns the coarse stage after it.
+    /// in it), the hold (its boss dies or never comes first; a holdout's current wave), the boss, the ride. Returns the coarse
+    /// stage after it.
     @discardableResult
     public func debugSkip() -> MissionStage {
         guard let step = currentStep else { return stage }
@@ -241,6 +242,8 @@ extension Game {
             if stepPhase == .approach {
                 debugPutSquad(in: h.zone)
                 startHold(h)
+            } else if h.waves != nil {
+                debugHoldoutHold()   // (Stage 2 D1: a holdout never ends — its current wave is held)
             } else {
                 if h.boss != nil { bossSkip() }   // the boss (the Матка) dies (or never comes) first
                 liftT = 0.01
