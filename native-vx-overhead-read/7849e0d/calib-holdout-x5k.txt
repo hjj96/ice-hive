@@ -1,0 +1,36 @@
+tag mode             n  win%  dn/r  0dn%  1-3%  4+%  pDn  pMin  hold%  Qrch%  Qkil%  Qmed  idleMd  idleMx   pDn1  tWin  tLoss  perClass | downs by stage | hurt% env/run/spit/brute/boom/queen
+x5k-nm auto         32     0   6.2     0     0  100  1.2    10    100    100     34  43.6    1.00    1.00    156     -    199  as0/8 py0/8 cr0/8 gu0/8 | hold:6.2 | 0/60/1/5/12/22
+x5k-rec auto        32     0   9.3     0     0  100  1.8     6    100    100    100  12.1    1.00    1.00    610     -    712  as0/8 py0/8 cr0/8 gu0/8 | hold:9.3 | 0/43/1/20/20/16
+x5k-vet auto        32     0   8.2     0     0  100  1.4     7    100    100     91  24.2    1.00    1.00    335     -    377  as0/8 py0/8 cr0/8 gu0/8 | hold:8.2 | 0/54/1/11/16/17
+(downs = squad downs per run, all four marines; pDn1: median time of the first player down, * = some runs had none; Qkil% is of the runs that reached her.)
+
+overhead per run        n  packs     up  drops   land   hits dnDrop   hurt  kills  knock   shat   hops  maxUp  maxZn drop%dn
+x5k-nm auto            32   45.8  159.3    0.0    0.0    0.0    0.0    0.0   78.4   34.2    3.6   74.7     18      0      0
+x5k-rec auto           32  189.7  443.2    0.0    0.0    0.0    0.0    0.0  253.2   69.2    2.9  208.0     12      0      0
+x5k-vet auto           32  111.9  283.9    0.0    0.0    0.0    0.0    0.0  157.3   56.8    5.9  129.9     15      0      0
+(drop%dn: squad downs a drop's bite caused, of all squad downs — informational band on Veteran ≤ 20 %)
+
+overhead bugs/run       n  drpUp drDrop drLand drKill drKnck  drHop   pins   dash   fire  tmout  pinDn   pinS drHurt   drDn  perch  spits rattle   seal   lost drp%dn
+x5k-nm auto            32    5.8    0.0    0.0    2.3    2.5    1.8    0.0    0.0    0.0    0.0    0.0   0.00    1.4    0.0    0.0    0.0    0.0    0.0    0.0      0
+x5k-rec auto           32   14.8    0.0    0.0    7.2    6.5    4.0    0.0    0.0    0.0    0.0    0.0   0.00    4.1    0.0    0.0    0.0    0.0    0.0    0.0      0
+x5k-vet auto           32   11.4    0.0    0.0    4.9    5.6    3.0    0.0    0.0    0.0    0.0    0.0   0.00    4.4    0.0    0.0    0.0    0.0    0.0    0.0      0
+(pinS: mean seconds a pin held; drp%dn: squad downs a Dropper caused, of all squad downs; lost: bugs bound for a duct mouth shot shut)
+
+props per run           n bursts  kills upKill freeze  steam broken  spits restor locker lights
+x5k-nm auto            32    0.0    0.0    0.0    0.0    0.0    3.0    3.2    0.0    0.0  6.2/7
+x5k-rec auto           32    0.1    5.2    0.0    0.0    0.0    4.0    4.3    0.0    0.0  6.0/7
+x5k-vet auto           32    0.0    0.0    0.0    0.0    0.0    3.8    4.0    0.0    0.0  6.1/7
+(kills: deck bugs the scald curtains killed; freeze: bugs a coolant mist froze; steam: squad HP lost in the curtains; lights: circuits lit at the end)
+
+holdout                n  held   p25   p75   min   max   b5%  b10%  b15%  b20%  bank score  lost  qMet qKill    t1    t5   t10  tEnd stand horde
+x5k-nm auto           32   4.0     4     7     4     9    34     0     0     0     0  1534  1463   1.1   0.3    20   166     -   162     0   341
+x5k-rec auto          32  20.5    19    23    14    49   100   100    94    50  9964 12110  1882   4.3   3.7    16   128   276   662     0   591
+x5k-vet auto          32  10.5     9    14     4    24    91    56     3     3  5682  6087  1793   2.2   1.5    18   145   321   380     0   672
+(held: median waves held, p25 / p75 / min / max of the runs; b5% …: runs that banked at wave 5, 10, 15, 20; bank / score / lost: medians of the raw score banked, earned, and taken by the fall; qMet / qKill: Queens met / killed per run; t1 / t5 / t10: median s when wave 1 / 5 / 10 was held; tEnd: median run length; stand: runs still standing at the time cap; horde: the biggest wave horde met, bugs)
+
+holdout falls      runs by the wave they fell in (wave:runs; a run standing at the cap counts its next wave)
+x5k-nm auto        5:21 6:1 7:1 8:4 9:1 10:4
+x5k-rec auto       15:2 17:1 19:1 20:12 23:2 24:7 25:4 26:1 30:1 50:1
+x5k-vet auto       5:3 8:1 9:1 10:9 11:2 12:3 13:2 14:1 15:9 25:1
+
+96 rows in 30.7 s
