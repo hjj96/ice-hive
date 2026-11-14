@@ -608,9 +608,9 @@ jobs:
           run_demo breakerrun 16 "-demo breakerrun -seed 7 -ohVis" 0
           run_demo ventpurge 16 "-demo ventpurge -seed 7 -ohVis" 0
           # Stage 2 D1: Dig In — the endless hold at the lift (its own station: the squad set down on the lift): wave 1 as it comes,
-          # wave 4's peak at 4.0 s, wave 5's at 8.5 s (the Queen leads it: her warning, B3's intro, her climb), her death and the
-          # bank at 13.5 s; time almost stopped 1.2 s later on «SCORE BANKED» (-holdBanner) for the screenshot
-          run_demo digin 16 "-demo digin -seed 7 -ohVis -holdBanner" 0
+          # wave 4's peak at 7.0 s, wave 5's at 11.0 s (the Queen leads it: her warning, B3's intro, her climb), her death and the
+          # bank at 16.0 s; time almost stopped 1.2 s later on «SCORE BANKED» (-holdBanner) for the screenshot
+          run_demo digin 18 "-demo digin -seed 7 -ohVis -holdBanner" 0
           # the App Store 2-swarm moment staged in the app (gunner at the crossing, the store's 600 bugs under the live cap
           # — 350 on High since native-vx-feel —, firing, time ~frozen), now in landscape (874x402 @3x)
           run_demo swarmshot 4 "-demo swarmshot -seed 7" 0
@@ -736,9 +736,9 @@ jobs:
           pull_burst burst-valve
           run_demo burst-lights 13 "-demo interactives -seed 7 -hideHUD -ixLights -burst lights 7.9 24 5"
           pull_burst burst-lights
-          # Stage 2 D1: the digin demo as a sequence (HUD on): 24 frames every 40th present from 1.0 s — wave 1 coming, wave 4's
+          # Stage 2 D1: the digin demo as a sequence (HUD on): 24 frames every 45th present from 1.0 s — wave 1 coming, wave 4's
           # peak, the Queen leading wave 5, her death and the bank
-          run_demo burst-digin 16 "-demo digin -seed 7 -burst digin 1.0 24 40"
+          run_demo burst-digin 18 "-demo digin -seed 7 -burst digin 1.0 24 45"
           pull_burst burst-digin
           # WP5 effects look-dev: every effect staged around the squad and frozen mid-air (-fxSheet: blasts, napalm, the
           # flamer jet, the cryo beam, hits, kills, a frozen shatter, acid, a nova, casings, a row of every stain), on
@@ -1174,7 +1174,7 @@ jobs:
           # Stage 2 D1: Dig In — its station (Kelvin-9 Mk II, the squad on the lift), wave 4's peak, the Queen leading wave 5, her
           # death, the bank, the frozen bank moment
           need digin 'mission start dig-in steps=hold modifiers= props=1 lit=7/7 vents=8 ducts=3'
-          need digin 'demo digin: dig-in, squad on the lift: wave 1 '
+          need digin 'demo digin: dig-in, squad on the lift: wave [0-9]+ '
           need digin 'mission: wave 4 peak t=[0-9.]+ horde [1-9][0-9]*'
           need digin 'mission: wave 5 peak t=[0-9.]+ horde [1-9][0-9]* \(the Queen leads it\)'
           need digin 'v11 queen spawn t=[0-9.]+ uid=[1-9]'

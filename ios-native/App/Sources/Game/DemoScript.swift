@@ -135,11 +135,11 @@ import IceHiveCore
 //                   `hb mission …`
 //  Stage 2 D1 «Dig In» (the endless hold at the lift, on its own station — Kelvin-9 Mk II, the squad set down on the lift;
 //  autopilot, squad invulnerable, the director on):
-//    -demo digin    the hold as it plays — wave 1 coming (the director's own swarm: nothing spawned by the demo); 4.0 s after
-//                   «scene ready» the hold jumps to wave 4's peak (its horde over the rim, from the decks and down the
-//                   overhead's routes, «WAVE 4»); at 8.5 s to wave 5's: the Queen leads it (her warning, B3's intro where it
-//                   plays, her climb, «KILL THE QUEEN TO BANK THE SCORE»); at 13.5 s she dies and the wave is held — the score
-//                   banks («SCORE BANKED», teal); time almost stops 1.2 s later (16.0 s at the latest) for the screenshot
+//    -demo digin    the hold as it plays — wave 1 builds and its horde comes (the director's own swarm: nothing spawned by
+//                   the demo); 7.0 s after «scene ready» the hold jumps to wave 4's peak (its horde over the rim, from the decks
+//                   and down the overhead's routes, «WAVE 4»); at 11.0 s to wave 5's: the Queen leads it (her warning, B3's
+//                   intro, her climb, «KILL THE QUEEN TO BANK THE SCORE»); at 16.0 s she dies and the wave is held — the score
+//                   banks («SCORE BANKED», teal); time almost stops 1.2 s later (18.0 s at the latest) for the screenshot
 //                   (`-holdBanner` keeps the bank's banner up). `demo digin: …` once a second, `mission: wave …` lines.
 //  Stage 2 H1 «the first minute's HUD»:
 //    -demo firstmin the classic mission from its drop as it plays — the director on, the autopilot, nothing staged,
@@ -1012,23 +1012,23 @@ final class DemoScript {
         missionLog(game, dt)
     }
 
-    /// digin (Stage 2 D1): wave 1 as it comes; at 4.0 s after «scene ready» the hold jumps to wave 4's peak, at 8.5 s to wave
-    /// 5's (the Queen leads it: her warning, B3's intro, her climb — ≈ 4 s of wall); at 13.5 s she dies and the wave is held
-    /// (the score banks); time almost stops 1.2 s after the bank (16.0 s at the latest).
+    /// digin (Stage 2 D1): wave 1 as it comes (its peak ≈ 4.5 s after «scene ready»); at 7.0 s the hold jumps to wave 4's peak,
+    /// at 11.0 s to wave 5's (the Queen leads it: her warning, B3's intro, her climb — ≈ 4.5 s of wall); at 16.0 s she dies and
+    /// the wave is held (the score banks); time almost stops 1.2 s after the bank (18.0 s at the latest).
     private func digIn(_ game: Game, _ dt: Float) {
         t += dt
-        if msStep == 0 && sinceReady >= 4.0 {
+        if msStep == 0 && sinceReady >= 7.0 {
             msStep = 1
             game.debugHoldoutWave(4)
             AppLog.info(String(format: "demo digin: jumped to wave 4's peak td=%.2f held %d", sinceReady, game.holdout.held))
         }
-        if msStep == 1 && sinceReady >= 8.5 {
+        if msStep == 1 && sinceReady >= 11.0 {
             msStep = 2
             game.debugHoldoutWave(5)
             AppLog.info(String(format: "demo digin: jumped to wave 5's peak td=%.2f held %d (the Queen leads it: %d)", sinceReady, game.holdout.held,
                                game.holdoutQueenLeads(5) ? 1 : 0))
         }
-        if msStep == 2 && sinceReady >= 13.5 {
+        if msStep == 2 && sinceReady >= 16.0 {
             msStep = 3
             msAt = sinceReady
             let queen = game.boss.alive
@@ -1036,7 +1036,7 @@ final class DemoScript {
             AppLog.info(String(format: "demo digin: wave 5 held td=%.2f (the Queen %@) queens %d, banked %d at wave %d, score %d", sinceReady,
                                queen ? "killed" : "not up", game.holdout.queensKilled, game.holdout.banked, game.holdout.bankWave, game.holdoutScore))
         }
-        if freeze == 1 && ((msStep == 3 && sinceReady >= msAt + 1.2) || sinceReady >= 16.0) {
+        if freeze == 1 && ((msStep == 3 && sinceReady >= msAt + 1.2) || sinceReady >= 18.0) {
             freeze = 0.02
             AppLog.info(String(format: "demo digin: frozen td=%.2f wave %d held %d banked %d alive %d obj %@", sinceReady, game.holdout.wave,
                                game.holdout.held, game.holdout.banked, game.bugsAlive, game.objective.map { "\($0)" } ?? "-"))
