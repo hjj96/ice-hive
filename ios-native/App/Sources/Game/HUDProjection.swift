@@ -11,6 +11,14 @@ protocol HUDProjection: AnyObject {
     func hudPoint(_ x: Float, _ y: Float, _ z: Float) -> CGPoint
     /// Interpolated feet of marine k (world).
     func feet(_ k: Int) -> (Float, Float, Float)
+    /// Stage 2 B3: the same point through the game camera — what the play underneath shows while a scripted shot has the
+    /// camera (a banner raised in the boss intro takes its slot for it).
+    func gameHudPoint(_ x: Float, _ y: Float, _ z: Float) -> CGPoint
+}
+
+extension HUDProjection {
+    /// (a renderer without a separate game camera: this frame's)
+    func gameHudPoint(_ x: Float, _ y: Float, _ z: Float) -> CGPoint { hudPoint(x, y, z) }
 }
 
 /// Counters of the last built world frame, for the heartbeat log and the debug HUD.

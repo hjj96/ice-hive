@@ -18,9 +18,14 @@ import IceHiveCore
 //    -demo hold     beacons skipped, the squad on the lift holding out against the hold's own swarm (native-vx-feel:
 //                   nothing spawned by the demo — the director's opening horde, a third of it over the lift's rim)
 //    -demo extract  like hold, then the lift rises and stays at extract + 2 s (gore rides along)
-//    -demo queen    like hold, and the Queen (v1.1 boss of the hold) climbs up 2 s after «scene ready» (1 000 000 HP
-//                   unless -queenHp, so she stays on the deck for the screenshot)
-//    -demo queenlock  queen, then the lift countdown runs out 1.5 s later: «Lift locked — the Queen lives»
+//    -demo queen    like hold, and the Queen (v1.1 boss of the hold) comes as in play (Stage 2 B3): 4.0 s after «scene
+//                   ready» (past the first seven seconds' control hint: in play she comes 35 s into the hold) the countdown
+//                   is put at her rider's moment, so her warning ring shows, the boss intro plays (the push-in on the rim
+//                   edge, ×0.3 time; ≈ 5.6–8.2 s) and she climbs ≈ 6.2 s after «scene ready»
+//                   (1 000 000 HP unless -queenHp, so she stays on the deck for the screenshot). `-introHold`: the
+//                   intro held 1.2 s in (she is up over the rim) with the world frozen (×0.02) — the HUD-off look shot
+//    -demo queenlock  the Queen climbs at once 2 s after «scene ready», with no warning (the boss intro from her
+//                   arrival), then the lift countdown runs out 1.5 s later: «Lift locked — the Queen lives»
 //    -demo coach    the first mission ever on the fresh demo profile: «Учебная высадка» runs (autopilot off, so the
 //                   steps advance by their timeouts; -coachStep N jumps), the next step 1.5 s after «scene ready»,
 //                   then time almost stopped so the screenshot shows that step
@@ -171,6 +176,13 @@ final class DemoScript {
     /// The running demo's `sinceReady` (-1 with no demo or while loading).
     private(set) static var sceneClock: Double = -1
     private var queenSet = false, coachStepped = false
+    /// B3 `-introHold`: the boss intro held at `introHoldAt` s for the HUD-off look shot.
+    private var introHold: Bool { options.unknown.contains("-introHold") }
+    private var introHeld = false
+    static let introHoldAt: Float = 1.2
+    /// B3: the boss's health in the queen demos (through `GameConfig.bossHp`): 1 000 000 unless `-queenHp`, so she stays on
+    /// the deck for the screenshots.
+    var bossHp: Float? { name == "queen" || name == "queenlock" ? 1_000_000 : nil }
     /// `-demo win`: the hold has been ended (the lift leaves on the next ticks).
     private var winLeft = false
     private var defeatStep = 0
@@ -470,11 +482,31 @@ final class DemoScript {
                 AppLog.info("demo defeat: marine \(k) down")
             }
         }
-        if (name == "queen" || name == "queenlock") && !queenSet && sinceReady >= 2 {
+        // Stage 2 B3: the Queen comes as she does in play — her warning ring, then her climb, with the boss intro: 4.0 s after
+        // «scene ready» (the mission's first-seven-seconds control hint gone by the push-in, as 35 s into a real hold) the
+        // hold's countdown is put at her rider's moment (`at` s of counted hold); her health is the demo's (`bossHp`, through
+        // the game config)
+        if name == "queen" && !queenSet && sinceReady >= 4 && game.stage == .hold {
+            queenSet = true
+            let at = game.bossSpec.at
+            if at.isFinite { game.debugSetLiftTime(game.liftDur - at - 0.05) }
+            AppLog.info(String(format: "demo queen: her warning due td=%.2f (counted hold %.1f s, her moment %.0f s)", sinceReady,
+                               game.liftDur - game.liftT, at))
+        }
+        // queenlock: she climbs at once with no warning (the intro starts from her arrival)
+        if name == "queenlock" && !queenSet && sinceReady >= 2 {
             queenSet = true
             // (the scene logs «v11 queen spawn …» from her event)
             let uid = game.debugBoss(hp: options.queenHp ?? 1_000_000)
             if uid == 0 { AppLog.info("demo \(name): the Queen did not come (stage \(game.stage.rawValue))") }
+        }
+        // `-introHold` (CI's HUD-off look shot of the boss intro): its shot held at `introHoldAt` s — she is up over the rim —
+        // and the world nearly frozen (×0.02) for the screenshot after the measured window
+        if introHold && !introHeld, Cinematics.shared.kind == .bossIntro, Cinematics.shared.t >= DemoScript.introHoldAt {
+            introHeld = true
+            Cinematics.shared.hold(at: DemoScript.introHoldAt)
+            freeze = 0.02
+            AppLog.info(String(format: "demo %@: intro held at %.2f s, world frozen td=%.2f", name, DemoScript.introHoldAt, sinceReady))
         }
         if name == "queenlock" && !lockSet && queenSet && sinceReady >= 3.5 {
             lockSet = true

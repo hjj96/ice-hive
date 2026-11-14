@@ -353,13 +353,19 @@ final class GameScene: SKScene {
         }
     }
 
-    /// iOS Reduce Motion: shake and recoil kick at 35 %, longer banner (web prefers-reduced-motion).
+    /// iOS Reduce Motion: shake and recoil kick at 35 %, longer banner (web prefers-reduced-motion); half of the boss intro.
+    /// `-reduceMotion` (CI) turns it on as the setting would.
     func applyReduceMotion() {
-        let on = UIAccessibility.isReduceMotionEnabled
+        let on = UIAccessibility.isReduceMotionEnabled || options.reduceMotion
+        if on != Cinematics.shared.reducedMotion || !reduceMotionLogged {
+            reduceMotionLogged = true
+            AppLog.info("reduce motion " + (on ? "on" : "off") + (options.reduceMotion ? " (launch option)" : ""))
+        }
         cameraCtl.reducedMotion = on
         Cinematics.shared.reducedMotion = on
         hud.reducedMotion = on
     }
+    private var reduceMotionLogged = false
 
     /// Memory warning: rebuildable HUD textures and the live particles go; the footprint before / after is logged.
     func didReceiveMemoryWarning() {
@@ -433,7 +439,8 @@ final class GameScene: SKScene {
         cfg.coach = coach && !attract && classicMission
         cfg.reviveLineArmed = !attract && settings.profile.runs < 3
         if options.queen { cfg.bossAt = 0 }
-        cfg.bossHp = options.queenHp
+        // (B3: the queen demos' Queen comes through her own warning with the demo's health — 1 000 000, she stays for the shots)
+        cfg.bossHp = options.queenHp ?? demo?.bossHp
         let seed: UInt32 = options.seed ?? UInt32(truncatingIfNeeded: Int(Date().timeIntervalSince1970 * 1000) & 0x7fff_ffff)
         Cinematics.shared.reset()
         return Game(seed: seed, playerClass: selectedClass, config: cfg, level: lv)
@@ -815,8 +822,9 @@ final class GameScene: SKScene {
                 g.setPlayerInput(move: c.move, aim: c.aim, fire: c.fire, ability: c.ability, dash: c.dash, assist: c.assist)
                 input.consumePresses()
             }
-            // WP7: the scripted cameras, the grade mood and the punch-in's time dilation (wall dt; the demos only trigger)
-            Cinematics.shared.update(game: g, dt: dt, by: .scene)
+            // WP7: the scripted cameras, the grade mood and the punch-in's time dilation (wall dt; the demos only trigger;
+            // B3: this tick's own scale so far — hit-stop × a demo's freeze — only counted, for the boss intro's wall split)
+            Cinematics.shared.update(game: g, dt: dt, by: .scene, worldScale: ts)
             demo?.sinceReady = readyTime > 0 ? currentTime - readyTime : -1
             demo?.frame(game: g, dt: dt)
             if let pr = demo?.probe { runProbe(pr, g) }
@@ -907,6 +915,9 @@ final class GameScene: SKScene {
         sceneTimer.mark()
         if mode != .title {
             hud.covered = mode == .paused || mode == .ended || mode == .levelUp
+            // (B3: a banner raised during a scripted shot — the boss's, at its arrival in the intro — takes its slot for the
+            // game camera's view: the shot is gone long before the banner)
+            hud.shotOn = Cinematics.shared.closeShotWeight > 0.001
             hud.update(game: g, dt: dt, projection: r, input: input, keyboard: input.keyboardMode)
         }
         sceneTimer.mark()
@@ -991,10 +1002,13 @@ final class GameScene: SKScene {
                 // v1.1: a boss's death (the Матка's) always gets its hit-stop (the core emits it right after this event)
                 hitStopCd = 0
                 logBoss("kill", kind, g)
-            case .bossWarning(let kind, _):
+            case .bossWarning(let kind, let pos):
                 logBoss("warn", kind, g)
-            case .bossSpawned(let kind, _):
+                // B3: the boss intro arms on the warning (its push-in point) and starts so the arrival lands on its beat
+                if inMission { Cinematics.shared.bossWarned(kind: kind, pos: pos, game: g) }
+            case .bossSpawned(let kind, let pos):
                 logBoss("spawn", kind, g)
+                if inMission { Cinematics.shared.bossArrived(kind: kind, pos: pos, game: g) }
             case .bossPhase(let kind, let p, let enraged, _):
                 logBoss(enraged ? "enrage" : "phase\(p)", kind, g)
             case .coachStep(let k):

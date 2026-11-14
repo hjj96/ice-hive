@@ -230,6 +230,8 @@ final class MetalWorld: HUDProjection {
     // ---------------------------------------------------------------- HUD projection
     func hudPoint(_ x: Float, _ y: Float, _ z: Float) -> CGPoint { camera.hudPoint(x, y, z) }
 
+    func gameHudPoint(_ x: Float, _ y: Float, _ z: Float) -> CGPoint { camera.gameHudPoint(x, y, z) }
+
     func feet(_ k: Int) -> (Float, Float, Float) { squad.feet(k) }
 
     var stats: WorldStats { lastStats }
