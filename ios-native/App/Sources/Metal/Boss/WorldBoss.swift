@@ -96,6 +96,36 @@ final class BossLibrary {
     var parts: [IHVCreature] { [head, segment, node] }
 }
 
+/// Stage 2 B5: what a chain boss's look gives WorldBoss — the clips by its modes, its telegraphs' extras, its sounds, its
+/// colours (ThreaderLook is the Threader's). A later chain boss adds its own class and a case in `WorldBoss.makeLook`; the
+/// body's laying, LODs, cutaway, glints and the squad-visibility mask stay WorldBoss's.
+protocol BossLook: AnyObject {
+    /// The three part kinds' type row (Swarm.metal `SwarmType`: the cold rim, the eye channel, the sacs, the glands) and the
+    /// ichor of its hits.
+    var rim: F4 { get }
+    var eye: F4 { get }
+    var sac: F4 { get }
+    var gland: F4 { get }
+    var ichor: F3 { get }
+    /// Its beam is lit this frame (WorldBoss dims the head's glints without it).
+    var lureLit: Bool { get }
+    /// The death's sink applied so far (WorldBoss).
+    var sunk: Float { get set }
+    /// The tail of WorldBoss's `hb boss` line.
+    var heartbeatTail: String { get }
+    /// A new sortie; the boss's death at `t` (WorldBoss's clock).
+    func reset()
+    func died(at t: Float)
+    /// GameScene's events (through WorldBoss).
+    func handle(_ e: GameEvent, game: Game, clock: Float, fx: MetalEffects, boss: WorldBoss)
+    /// Every frame alive: each part's pose into `boss.setPose`, the beam into `cones`, the extras into `fx`.
+    func frame(game: Game, boss: WorldBoss, clock: Float, dt: Float, camera: MetalCamera, fx: MetalEffects, cones: VolumeCones)
+    /// Every frame dying: the death clips from `since` s after the death.
+    func dying(boss: WorldBoss, clock: Float, since: Float)
+    /// The sounds asked for since the last call: (sound, deck position, from up there — the attic voice, gain).
+    func takeSounds() -> [(BossSound, Vec2, Bool, Float)]
+}
+
 /// Stage 2 B5: where a chain boss's body is this frame (world spheres: x, y, z, radius) — HUD.keep keeps banners and toasts
 /// off its head and nodes (MetalWorld conforms through WorldBoss).
 protocol BossKeepSource: AnyObject {
@@ -151,8 +181,8 @@ final class WorldBoss {
     private(set) var library: BossLibrary?
     private var psSolid: MTLRenderPipelineState?, psCut: MTLRenderPipelineState?, psGlint: MTLRenderPipelineState?
     private var device: MTLDevice?
-    /// The look of the kind on screen (clips by mode, the lure, the telegraphs' extras): the Threader's.
-    private(set) var look: ThreaderLook?
+    /// The look of the kind on screen (clips by mode, the lure, the telegraphs' extras): the Threader's (`makeLook`).
+    private(set) var look: BossLook?
     // ---- the boss's own swarm tables
     private var params: SwarmParams
     private var lookPivots = [F4](repeating: .zero, count: 2 * WorldSwarm.types)
@@ -212,14 +242,22 @@ final class WorldBoss {
         guard library?.kind != kind, let dev = device else { return }
         guard let lib = BossLibrary.shared(dev, kind) else { return }
         library = lib
-        look = ThreaderLook(library: lib)
+        look = WorldBoss.makeLook(kind, lib)
         AppLog.info(lib.summary)
         buildTables(lib)
     }
 
+    /// The look of a chain boss's kind (its clips, extras, sounds and colours); nil for a bug-bodied boss.
+    private static func makeLook(_ kind: BossKind, _ lib: BossLibrary) -> BossLook? {
+        switch kind {
+        case .threader: return ThreaderLook(library: lib)
+        case .queen: return nil
+        }
+    }
+
     /// The type table of the three kinds (B2's colours), their look pivots (`neck`), the glint sockets (the lantern, the sacs).
     private func buildTables(_ lib: BossLibrary) {
-        let T = ThreaderLook.self
+        guard let T = look else { return }
         func ty(_ k: Int, glint: SIMD4<UInt32>) -> SwarmTypeGPU {
             SwarmTypeGPU(rim: T.rim, eye: T.eye, sac: T.sac, gland: T.gland, proxy: F4(0.5, 0.3, 1.0, 0.2), glint: glint)
         }
@@ -482,11 +520,11 @@ final class WorldBoss {
                 let wty: UInt32 = unorm16(P.wB) | (ty << 16)
                 let state: UInt32 = unorm8(P.flash) | (unorm8(P.frost) << 16) | (unorm8(P.dead) << 24)
                 let seed: UInt32 = unorm16(0.37 + 0.11 * Float(k % 5)) | (unorm16(P.boost) << 16)
-                let look: UInt32 = kind == 0 ? WorldSwarm.packLook(P.lookY, P.lookP, 0) : 0
+                let lookBits: UInt32 = kind == 0 ? WorldSwarm.packLook(P.lookY, P.lookP, 0) : 0
                 let rot = F4(cosf(t.heading), sinf(t.heading), sinf(t.pitch), cosf(t.pitch))
                 inst.append(CreatureInstance(pos: F4(t.pos.x, t.pos.y, t.pos.z, 1), rot: rot, tint: F4(1, 1, 1, 1),
                                              anim: SIMD4<UInt32>(P.a.rows, P.b.rows, fracs, wty),
-                                             fx: SIMD4<UInt32>(state, 0, seed, look)))
+                                             fx: SIMD4<UInt32>(state, 0, seed, lookBits)))
             }
         }
         // one LOD per kind: the largest on screen against B2's switch sizes, ±12 % hysteresis
@@ -670,7 +708,8 @@ final class WorldBoss {
         let l = max(1e-4, (dx * dx + dz * dz).squareRoot())
         let up: Float = kinds[bk] == 0 ? 0.6 : (kinds[bk] == 2 ? 0.9 : 0.35)
         let n = F3(-dx / l, 0.3, -dz / l)
-        return (xf[bk].pos + F3(-dx / l * 0.45, up, -dz / l * 0.45), n / (n * n).sum().squareRoot(), ThreaderLook.ichor)
+        let ichor = look?.ichor ?? F3(0.42, 0.36, 0.5)
+        return (xf[bk].pos + F3(-dx / l * 0.45, up, -dz / l * 0.45), n / (n * n).sum().squareRoot(), ichor)
     }
 
     /// The head, the nodes and every third segment as spheres (x, y, z, radius) — what a banner or a toast must not cover

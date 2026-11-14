@@ -81,7 +81,7 @@ struct BossPartAnim {
     }
 }
 
-final class ThreaderLook {
+final class ThreaderLook: BossLook {
     // ---------------------------------------------------------------- the look (B2's type table)
     /// Rim pearl-mauve (no class colour: the swarm's rule), the eye channel — the weak-point membrane alone, lit only in the
     /// punish window —, the sacs, the glands (lantern bulb, node sacs, ocelli: their own albedo, white-hot cores).
@@ -91,6 +91,12 @@ final class ThreaderLook {
     static let gland = F4(1.0, 0.94, 1.0, 2.0)
     /// Its ichor (the hits' spray and stains): a pale mauve-pearl — not the bugs' types', not a class colour.
     static let ichor = F3(0.42, 0.36, 0.5)
+    // (BossLook: the type row and the ichor)
+    var rim: F4 { ThreaderLook.rim }
+    var eye: F4 { ThreaderLook.eye }
+    var sac: F4 { ThreaderLook.sac }
+    var gland: F4 { ThreaderLook.gland }
+    var ichor: F3 { ThreaderLook.ichor }
     /// The lure: the beam's colour sweeping (pale pearl) and locked (hot white), its in-scatter gain and saturation cap, the
     /// lit disc's radiance on the deck, the grid light's intensity in it. Units: a flashlight's in-scatter is its gain
     /// (VolumeCones.gain 0.024) × its spot's intensity / π — 25 / π for a squad beam (≈ 0.19), the player's 37 / π × 1.15
