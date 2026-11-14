@@ -29,6 +29,9 @@ When a brief points to a file that is gone, read this instead:
   your package's lines and say so in your report.
 - the Stage 1 film's frames: re-shoot them from CI (every scene is a demo).
 
+## Where native-metal is
+native-metal is 196efb2 (Nov 14 ~04:20). Landed in order: C1 3924aee · B1 e1c14ea · the Stage 1 review a047ef5 · M1 8da373d · B4 c9a2e7d · H1 + C2 (the CI results diet) d4119f7 · B2 a174327 · B3 «Boss intro and boss name» d42e2a6 (report reports/B3.md) · D1 «Dig In» 196efb2 (report reports/D1.md; its preset `holdout`). native is 0c861b4 (Stage 1 as reviewed). Merge origin/native-metal whenever it moves.
+
 ## Git and branches
 - /home/user/ice-hive is the shared clone (main is checked out — never edit, commit or check out anything there). It is
   a full clone whose fetch refspec EXCLUDES ci-results (`^refs/heads/ci-results`); new fetches are blob-less (promisor,
@@ -87,6 +90,7 @@ CI's calib*.jsonl (and locally if you can build the core):
 - calib-overhead.jsonl e53aeef699dfbf22f404b699504a1153
 - calib-props.jsonl 5547b7c8c2fb1df06628ae2b27b96940
 - calib-bosses.jsonl (the Manifold; B4) b935bffceea2de8be27f310b6cda01e5
+- calib-holdout.jsonl (Dig In; D1) ce068676a94592986026cd8a23022488 (calib-holdout-x5k.jsonl is informational)
 The classic gate (README «Калибровка») stays green. New missions and bosses get their own preset (in
 Calibration.presetNames), gate rows and CI step — a gated mission template joins MissionCalib.preset (default
 `missions`) unless you name its own. Boss bands: Recruit wins ≥ 90 %; on Veteran the boss reached ≥ 75 % and killed in

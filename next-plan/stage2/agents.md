@@ -37,3 +37,16 @@
 - B5 threader-game a7f227a7f3356967f (continue from 52f84da; never built on CI yet).
 - D1 dig-in a8b870fd20cda4046 (from scratch on a174327; CI as compiler until a Swift toolchain exists).
 - Plan docs backed up to the repo branch wip/stage2-plan (no CI on wip/*).
+
+## Nov 14 ~02:00–05:30 UTC
+- B3 DONE: native-metal d42e2a6 (run 43541062582 green). Fixed its own Verify tolerance (`-cine off` proven by 0.00 s of
+  the intro's slowdown). BossIntro.of(kind, spec) generic; the Threader's row derived until B5 tunes it.
+- D1 DONE: native-metal 196efb2 (run 43551406432 green, 2 runs total, no local Swift). Preset `holdout`, new baseline
+  calib-holdout.jsonl ce068676a94592986026cd8a23022488. Waves: lull 9 s → build 6 s → peak; horde 40 + 9(n−1) ≤ 240; the
+  Queen every 5th wave (BossArrival.waves); bank every 5th wave held. Owner-facing open issues: an unbanked run scores 0
+  (Nightmare 72 % fall at the first Queen with nothing); Recruit runs long (median 12.5 min, 23 waves); B3's intro plays at
+  every Queen wave (B5 / review decide).
+- V1: bf47891 green (43541718774) but not landed (native-metal moved). B5: 4d71d7f run 43542392107 FAILED.
+- ~05:20 the container restarted (not replaced — scratchpad, worktrees, transcripts survived). V1 and B5 resumed by
+  SendMessage (V1: merge 196efb2, push, land; B5: diagnose, merge 196efb2, continue).
+- The environment request (download.swift.org) was interrupted unanswered — ask again.
