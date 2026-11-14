@@ -117,9 +117,13 @@ public enum BossArrival: Equatable {
     case holdTime(Float?)
     /// `at` s after the hold started (counted or not): a boss in an endless hold.
     case stepTime(Float)
-    /// A periodic peak (R10's Dig In): first `first` s after the hold started, then `gap` s after each death — the boss
-    /// state starts afresh for every arrival (`BossState.arrivals` counts them).
+    /// A periodic peak: first `first` s after the hold started, then `gap` s after each death — the boss state starts afresh
+    /// for every arrival (`BossState.arrivals` counts them).
     case every(first: Float, gap: Float)
+    /// Stage 2 D1 (Dig In): it leads a holdout's waves (`HoldStep.waves`) — the peak of wave `first`, then of every `every`-th
+    /// wave after it, once each (the wave is held only once it is dead); a fresh boss for each, `BossState.arrivals` counts
+    /// them. Its warning comes as the wave's horde does.
+    case waves(first: Int, every: Int)
 }
 
 extension Game {
@@ -854,6 +858,7 @@ extension Game {
         case .holdTime(let at): return (config.bossAt ?? at ?? bossSpec.at).isFinite
         case .stepTime(let at): return bossAvailable && (config.bossAt ?? at).isFinite
         case .every(let first, _): return bossAvailable && (config.bossAt ?? first).isFinite
+        case .waves: return bossAvailable && (config.bossAt ?? 0).isFinite
         }
     }
 
@@ -863,17 +868,25 @@ extension Game {
         case .holdTime(let at): return liftDur - liftT >= (config.bossAt ?? at ?? bossSpec.at)
         case .stepTime(let at): return stepTime >= (config.bossAt ?? at)
         case .every(let first, _): return stepTime >= (boss.arrivals == 0 ? (config.bossAt ?? first) : bossRT.nextAt)
+        case .waves(let first, let every): return holdoutQueenDue(first: first, every: every)
         }
     }
 
-    /// A periodic rider died: it comes again `gap` s later, a fresh boss (its arrivals counted on).
+    /// A periodic rider died: it comes again `gap` s later (`.every`), or at the peak of its next wave (`.waves`: re-armed when
+    /// that wave's peak begins — GameHoldout.swift), a fresh boss (its arrivals counted on).
     func riderRearm(_ q: BossRider) {
-        guard case .every(_, let gap) = q.arrival, boss.done else { return }
+        guard boss.done else { return }
+        let gap: Float
+        switch q.arrival {
+        case .every(_, let g): gap = g
+        case .waves: gap = 0
+        default: return
+        }
         let n = boss.arrivals, kind = boss.kind
         boss = BossState()
         boss.kind = kind; boss.arrivals = n
         bossRT.reset()
-        bossRT.nextAt = stepTime + gap
+        if case .every = q.arrival { bossRT.nextAt = stepTime + gap }
     }
 
     /// The step's boss is there on this tier (the legacy row has none; a debug health brings it anyway).

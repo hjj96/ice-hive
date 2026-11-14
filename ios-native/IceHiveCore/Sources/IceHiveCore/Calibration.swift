@@ -165,6 +165,20 @@ public struct CalibThreader: Equatable {
     }
 }
 
+/// A holdout in one run (Stage 2 D1 «Dig In»; only in runs that played one — every other row keeps its bytes): the waves
+/// held, the score banked and earned (raw), the last bank's wave, the Queens met and killed, the biggest wave horde met
+/// (bugs) and when each wave was held (s).
+public struct CalibHoldout: Equatable {
+    public var held = 0, banked = 0, score = 0, bankWave = 0, queens = 0, queenKills = 0, maxHorde = 0
+    public var waveAt: [Float] = []
+    public init() {}
+    /// Integer fields in JSON order (`waveAt` follows as a list).
+    var fields: [(String, Int)] {
+        [("held", held), ("banked", banked), ("score", score), ("bankWave", bankWave), ("queens", queens), ("qKills", queenKills),
+         ("maxHorde", maxHorde)]
+    }
+}
+
 /// One result row (web run.mjs '[R]' line).
 public struct CalibRow {
     public var tag = "", cls = "assault", q = "med", mode = "auto"
@@ -211,6 +225,8 @@ public struct CalibRow {
     public var props: CalibProps? = nil
     /// Stage 2 B4: the Threader's numbers, only when it came (a trailing `"thr"` object).
     public var thr: CalibThreader? = nil
+    /// Stage 2 D1: a holdout's numbers, only in runs that played one (a trailing `"dig"` object).
+    public var dig: CalibHoldout? = nil
     /// Stage 2 B4: the boss's timeline when the run asked for it (`CalibRun.trace`; never in the JSON).
     public var trace: [String]? = nil
     public var error: String? = nil
@@ -281,6 +297,10 @@ extension CalibRow {
         if let t = thr {
             s += ",\"thr\":{\"p2T\":\(jnum(t.p2T)),\"p3T\":\(jnum(t.p3T)),\"upT\":\(jnum(t.upT)),\"untouchT\":\(jnum(t.untouchT)),"
             s += "\"downT\":\(jnum(t.downT))," + t.fields.map { jstr($0.0) + ":\($0.1)" }.joined(separator: ",") + "}"
+        }
+        if let h = dig {
+            s += ",\"dig\":{" + h.fields.map { jstr($0.0) + ":\($0.1)" }.joined(separator: ",")
+            s += ",\"waveAt\":[" + h.waveAt.map { jnum($0) }.joined(separator: ",") + "]}"
         }
         return s + "}"
     }
@@ -364,6 +384,14 @@ extension CalibRow {
             c.dmgBody = v("dmgBody"); c.dmgP1 = v("dmgP1"); c.dmgP2 = v("dmgP2"); c.dmgP3 = v("dmgP3")
             thr = c
         }
+        if let ho = o["dig"] as? [String: Any] {
+            func v(_ k: String) -> Int { Int(d(ho[k]) ?? 0) }
+            var c = CalibHoldout()
+            c.held = v("held"); c.banked = v("banked"); c.score = v("score"); c.bankWave = v("bankWave"); c.queens = v("queens")
+            c.queenKills = v("qKills"); c.maxHorde = v("maxHorde")
+            if let a = ho["waveAt"] as? [Any] { c.waveAt = a.compactMap { d($0).map { Float($0) } } }
+            dig = c
+        }
         if let po = o["props"] as? [String: Any] {
             func v(_ k: String) -> Int { Int(d(po[k]) ?? 0) }
             var c = CalibProps()
@@ -431,6 +459,9 @@ public enum Calibration {
         let P = g.marines[0]
         var tick = 0
         var trace: [String] = []
+        // (Stage 2 D1: a holdout's waves — when each was held — and its biggest horde)
+        var waveAt: [Float] = []
+        var maxHorde = 0
         while g.phase == .playing && g.time < c.maxs {
             if c.mode == .passive { P.mods.dmg = 0; P.abCd = 99; P.mods.explosive = 0 }
             if c.mode == .afkbeacon && !afkStop && g.objectiveEngaged { afkStop = true; g.autopilot = false }
@@ -484,6 +515,8 @@ public enum Calibration {
                 row.queen!.killT = r1(Q.killT); row.queen!.liftAtKill = r1(g.liftT); row.queen!.squadAtKill = squadString(g)
             }
             if row.queen != nil { row.queen!.downs = row.squadDowns - qDowns0 }
+            while g.holdout.held > waveAt.count { waveAt.append(t) }
+            if g.holdout.horde > maxHorde { maxHorde = g.holdout.horde }
             if tick % 30 == 0 {
                 let S = g.bugs
                 var alive = 0, near = 0, deck = 0
@@ -530,6 +563,13 @@ public enum Calibration {
         if g.hasProps { row.props = CalibProps(g.propStats, lights: g.lightsLit, circuits: g.circuits.count) }
         // Stage 2 B4: the Threader, only when it came
         if g.boss.kind == .threader && g.boss.spawned { row.thr = CalibThreader(g.threaderStats) }
+        // Stage 2 D1: a holdout, only when the plan has one
+        if g.holdoutOn {
+            var h = CalibHoldout()
+            h.held = g.holdout.held; h.banked = g.holdout.banked; h.score = g.holdoutScore; h.bankWave = g.holdout.bankWave
+            h.queens = g.boss.arrivals; h.queenKills = g.holdout.queensKilled; h.maxHorde = maxHorde; h.waveAt = waveAt
+            row.dig = h
+        }
         if c.trace { row.trace = trace }
         return row
     }
@@ -615,18 +655,22 @@ public enum Calibration {
 
     /// A mission template's own preset (its tiers × runs per class, autopilot, then one AFK run per class on each tier of its
     /// AFK bands; seeds from its base; nil = the template has none — the classic's is `gate`).
-    public static func templateRuns(_ t: MissionTemplate, th: [String: Double] = [:]) -> [CalibRun]? {
+    public static func templateRuns(_ t: MissionTemplate, th: [String: Double] = [:], tag: String? = nil) -> [CalibRun]? {
         guard let c = t.calib else { return nil }
         var out: [CalibRun] = []
-        for tier in c.tiers { out += batch(tier: tier, mode: .auto, n: c.runs(tier), seed0: c.seedBase, th: tier >= 0 ? th : [:], mission: t.id) }
-        for a in c.afk { out += batch(tier: a.tier, mode: .afk, n: 1, seed0: c.seedBase, th: th, mission: t.id) }
+        // (`tag`: a tuning batch's rows carry `<tag>-<id>-<tier>`; Stage 2 D1: an endless mission's autopilot runs last up to `maxs`)
+        let tg = tag.map { $0 + "-" + t.id }
+        for tier in c.tiers {
+            out += batch(tier: tier, mode: .auto, n: c.runs(tier), seed0: c.seedBase, tag: tg, th: tier >= 0 ? th : [:], maxs: c.maxs, mission: t.id)
+        }
+        for a in c.afk { out += batch(tier: a.tier, mode: .afk, n: 1, seed0: c.seedBase, tag: tg, th: th, mission: t.id) }
         return out
     }
 
     /// The fixed presets; a template id is a preset too (`icehive-calib --preset drill-switch`). `missions`: every gated
     /// template (R7: Breaker Run, Vent Purge) — the CI's mission gate, its own step and rows (calib-missions.jsonl), so the
     /// classic `gate` rows and calib.jsonl stay byte-identical.
-    public static let presetNames = ["gate", "full", "stations", "legacy", "drills", "missions", "bosses", "overhead", "props"]
+    public static let presetNames = ["gate", "full", "stations", "legacy", "drills", "missions", "bosses", "holdout", "overhead", "props"]
 
     /// The overhead preset's share of packs sent up (Stage 1 R2; since R5 the tiers carry their own, 0.15 / 0.2 / 0.2).
     public static let overheadRoutes: Double = 0.2
@@ -653,11 +697,12 @@ public enum Calibration {
             out += batch(tier: 1, mode: .auto, n: 8, seed0: seed0, tag: tag, th: th, quality: .low, mk2: true)
             out += batch(tier: 2, mode: .auto, n: 8, seed0: seed0, tag: tag, th: th, quality: .low, mk2: true)
             return out
-        case "missions", "bosses":
+        case "missions", "bosses", "holdout":
             // R7: the gated mission templates (their own bands; the CI step «Calibration gate: missions»); Stage 2 B4: the boss
-            // missions' (the Manifold: «Calibration gate: bosses») — each template in its own preset
+            // missions' (the Manifold: «Calibration gate: bosses»); Stage 2 D1: the endless missions' (Dig In: «Calibration gate:
+            // holdout») — each template in its own preset
             var out: [CalibRun] = []
-            for t in MissionTemplate.all where t.calib?.gated == true && t.calib?.preset == name { out += templateRuns(t, th: th) ?? [] }
+            for t in MissionTemplate.all where t.calib?.gated == true && t.calib?.preset == name { out += templateRuns(t, th: th, tag: tag) ?? [] }
             return out
         case "drills":
             var out: [CalibRun] = []
@@ -709,7 +754,7 @@ public enum Calibration {
             out += batch(tier: 1, mode: .auto, n: 8, seed0: seed0, tag: (tag.map { $0 + "-" } ?? "") + "props", th: th, props: true)
             return out
         default:
-            return MissionTemplate.named(name).flatMap { templateRuns($0, th: th) }
+            return MissionTemplate.named(name).flatMap { templateRuns($0, th: th, tag: tag) }
         }
     }
 
@@ -824,6 +869,49 @@ public enum Calibration {
         if !prRows.isEmpty { out.append(""); out.append(propsTable(prRows)) }
         let thRows = rows.filter { $0.error == nil && $0.thr != nil }
         if !thRows.isEmpty { out.append(""); out.append(threaderTable(thRows)) }
+        let hoRows = rows.filter { $0.error == nil && $0.dig != nil }
+        if !hoRows.isEmpty { out.append(""); out.append(holdoutTable(hoRows)) }
+        return out.joined(separator: "\n")
+    }
+
+    /// A holdout per group (Stage 2 D1 «Dig In»): the waves held — median, quartiles, min–max —, the runs that banked at waves 5
+    /// / 10 / 15 / 20, the medians of the score banked, earned and taken by the fall (raw), the Queens met and killed per run,
+    /// the medians of when waves 1 / 5 / 10 were held and of the run's length (s), the runs still standing at the time cap, the
+    /// biggest wave horde met; then, per group, the waves the runs fell in.
+    static func holdoutTable(_ rows: [CalibRow]) -> String {
+        var g: [String: [CalibRow]] = [:]
+        for r in rows { g[r.tag + " " + r.mode, default: []].append(r) }
+        var out = ["holdout".padding(toLength: 18, withPad: " ", startingAt: 0) + " "
+                   + ["n", "held", "p25", "p75", "min", "max", "b5%", "b10%", "b15%", "b20%", "bank", "score", "lost", "qMet", "qKill",
+                      "t1", "t5", "t10", "tEnd", "stand", "horde"].map { pad($0, 5) }.joined(separator: " ")]
+        for k in g.keys.sorted() {
+            let rs = g[k]!
+            let n = rs.count
+            let held = rs.map { Float($0.dig!.held) }.sorted()
+            func q(_ p: Float) -> Float { held.isEmpty ? .nan : held[min(held.count - 1, Int((Float(held.count - 1) * p).rounded()))] }
+            func share(_ w: Int) -> String { fmt(pct(rs.filter { $0.dig!.held >= w }.count, n)) }
+            func med(_ f: (CalibHoldout) -> Int) -> String { fmt(median(rs.map { Float(f($0.dig!)) })) }
+            func per(_ f: (CalibHoldout) -> Int) -> String { fmt(Float(rs.reduce(0) { $0 + f($1.dig!) }) / Float(max(1, n)), 1) }
+            func at(_ w: Int) -> String { fmt(median(rs.compactMap { r -> Float? in r.dig!.waveAt.count >= w ? r.dig!.waveAt[w - 1] : nil })) }
+            let cols = [pad("\(n)", 5), pad(fmt(median(held), 1), 5), pad(fmt(q(0.25)), 5), pad(fmt(q(0.75)), 5), pad(fmt(held.first ?? .nan), 5),
+                        pad(fmt(held.last ?? .nan), 5), pad(share(5), 5), pad(share(10), 5), pad(share(15), 5), pad(share(20), 5),
+                        pad(med { $0.banked }, 5), pad(med { $0.score }, 5), pad(med { max(0, $0.score - $0.banked) }, 5),
+                        pad(per { $0.queens }, 5), pad(per { $0.queenKills }, 5), pad(at(1), 5), pad(at(5), 5), pad(at(10), 5),
+                        pad(fmt(median(rs.map { $0.t })), 5), pad("\(rs.filter { $0.result == "playing" }.count)", 5),
+                        pad("\(rs.map { $0.dig!.maxHorde }.max() ?? 0)", 5)]
+            out.append(k.padding(toLength: 18, withPad: " ", startingAt: 0) + " " + cols.joined(separator: " "))
+        }
+        out.append("(held: median waves held, p25 / p75 / min / max of the runs; b5% …: runs that banked at wave 5, 10, 15, 20; bank / score / "
+                   + "lost: medians of the raw score banked, earned, and taken by the fall; qMet / qKill: Queens met / killed per run; t1 / t5 / "
+                   + "t10: median s when wave 1 / 5 / 10 was held; tEnd: median run length; stand: runs still standing at the time cap; horde: "
+                   + "the biggest wave horde met, bugs)")
+        out.append("")
+        out.append("holdout falls".padding(toLength: 18, withPad: " ", startingAt: 0) + " runs by the wave they fell in (wave:runs; a run standing at the cap counts its next wave)")
+        for k in g.keys.sorted() {
+            var hist: [Int: Int] = [:]
+            for r in g[k]! { hist[r.dig!.held + 1, default: 0] += 1 }
+            out.append(k.padding(toLength: 18, withPad: " ", startingAt: 0) + " " + hist.keys.sorted().map { "\($0):\(hist[$0]!)" }.joined(separator: " "))
+        }
         return out.joined(separator: "\n")
     }
 
@@ -1008,8 +1096,8 @@ public enum Calibration {
                 let rs = trs.filter { $0.tierIx == b.tier }
                 if rs.isEmpty { continue }
                 let g = group(t.id, rs)
-                // (a boss band without a win band reports no wins line: the boss's own lines below are its gate)
-                if b.winLo != nil || b.winHi != nil || (b.bossReachedLo == nil && b.bossKilledLo == nil && b.bossMedianLo == nil && b.bossMedianHi == nil) {
+                // (a boss band — Stage 2 D1: a waves band — without a win band reports no wins line: its own lines below are its gate)
+                if b.winLo != nil || b.winHi != nil || !b.ownBands {
                     band("\(t.id) \(tierTag(b.tier))/auto wins", g.winPct, b.winLo, b.winHi, gated: c.gated, unit: "%")
                 }
                 if let d = b.downsHi { band("\(t.id) \(tierTag(b.tier))/auto downs/run", g.downsPerRun, nil, d, gated: c.gated) }
@@ -1018,6 +1106,10 @@ public enum Calibration {
                 if let k = b.bossKilledLo { band("\(t.id) \(tierTag(b.tier))/auto boss killed of reached", g.queenKilledPct, k, nil, gated: c.gated, unit: "%") }
                 if b.bossMedianLo != nil || b.bossMedianHi != nil {
                     band("\(t.id) \(tierTag(b.tier))/auto boss kill median", g.queenKillMedian, b.bossMedianLo, b.bossMedianHi, gated: c.gated, unit: " s")
+                }
+                // (Stage 2 D1: an endless mission's band — the median waves held)
+                if b.wavesLo != nil || b.wavesHi != nil {
+                    band("\(t.id) \(tierTag(b.tier))/auto waves held median", median(rs.map { Float($0.dig?.held ?? 0) }), b.wavesLo, b.wavesHi, gated: c.gated)
                 }
             }
             // (Stage 2 B4: bands reported beside the gate)
@@ -1035,6 +1127,10 @@ public enum Calibration {
                 let worst = firsts.max() ?? .infinity, best = firsts.min() ?? .infinity
                 L.append(GateLine(ok: worst <= a.firstDownMax, gated: c.gated && c.afkGated,
                                   text: "\(t.id) \(tierTag(a.tier))/afk first player down \(fmt(best))–\(worst.isFinite ? fmt(worst) : "never") s (every run) band …\(fmt(a.firstDownMax)) s"))
+                // (Stage 2 D1: an endless mission's AFK squad — the waves it held, reported)
+                if rs.contains(where: { $0.dig != nil }) {
+                    band("\(t.id) \(tierTag(a.tier))/afk waves held median", median(rs.map { Float($0.dig?.held ?? 0) }), nil, nil, gated: false)
+                }
             }
         }
         let gatedLines = L.filter { $0.gated }, reported = L.filter { !$0.gated }

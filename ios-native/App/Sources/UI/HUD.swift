@@ -1385,7 +1385,13 @@ final class HUD {
          // Stage 2 B4: the Manifold's drop banner, the Threader's arrival and its death (H1: in the text-fit checks)
          (GameText(.bannerManifold), GameText(.bannerManifoldSub, [.name(.sector(letter: 11, number: 88))])),
          (GameText(.bannerThreader), GameText(.bannerThreaderSub)),
-         (GameText(.bannerThreaderDead), GameText(.bannerThreaderDeadSub))]
+         (GameText(.bannerThreaderDead), GameText(.bannerThreaderDeadSub)),
+         // Stage 2 D1: Dig In's drop banner, a wave's horde (the Queen leading it), the bank, the Queen's banners in a holdout
+         (GameText(.bannerDigIn), GameText(.bannerDigInSub, [.name(.sector(letter: 11, number: 88))])),
+         (GameText(.bannerWave, [.int(99)]), GameText(.bannerWaveQueenSub)),
+         (GameText(.bannerBanked), GameText(.bannerBankedSub, [.num(99_999), .int(100)])),
+         (GameText(.bannerQueen), GameText(.bannerQueenWaveSub)),
+         (GameText(.bannerQueenDead), GameText(.bannerQueenWaveDeadSub))]
     }
 
     // (native-vx-feel: a calmer screen — the red vignette of a bite, the white flash of a blast and the red edge of a horde

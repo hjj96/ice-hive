@@ -9,11 +9,13 @@ import IceHiveCore
 //    swift run -c release icehive-calib --preset drills --out d.jsonl (the module drills, reported bands)
 //    swift run -c release icehive-calib --preset missions --out m.jsonl --gate (R7's missions: Breaker Run, Vent Purge — gated)
 //    swift run -c release icehive-calib --preset bosses --out b.jsonl --gate (Stage 2's boss missions: the Manifold — gated)
+//    swift run -c release icehive-calib --preset holdout --out h.jsonl --gate (Stage 2's endless missions: Dig In — gated)
+//    swift run -c release icehive-calib --mission dig-in --tiers 1 --n 4 --maxs 1800 --th '{"horde":1.2}' --tag h12 (a tuning batch)
 //    swift run -c release icehive-calib --mission manifold --tiers 1 --n 1 --classes gunner --trace (the fight's timeline)
 //    swift run -c release icehive-calib --preset overhead --out o.jsonl (generated stations with the overhead on, informational)
 //    swift run -c release icehive-calib --preset props --out p.jsonl (Кельвин-9 with its interactives laid, informational)
-//  Options: --preset gate|full|stations|legacy|drills|missions|bosses|overhead|props|<mission template id> · --mission <template id>
-//  (cold-light, breaker-run, vent-purge, manifold, drill-ring, drill-switch, drill-hold, drill-boss, drill-extract, drill-all)
+//  Options: --preset gate|full|stations|legacy|drills|missions|bosses|holdout|overhead|props|<mission template id> · --mission <template id>
+//  (cold-light, breaker-run, vent-purge, manifold, dig-in, drill-ring, drill-switch, drill-hold, drill-boss, drill-extract, drill-all)
 //  · --trace (each run's boss timeline on stdout: steps, warning, phases, moves, cues, pops, downs, the kill) · --tiers 0,1,2
 //  (-1 = legacy v1.0 row) · --n runs per class and tier
 //  · --classes assault,pyro,cryo,gunner · --mode auto|passive|afk|afkbeacon · --maxs s · --seed0 1000 · --station N
@@ -79,7 +81,7 @@ if let agg = flags["agg"] {
     var runs: [CalibRun] = []
     if let p = flags["preset"] {
         guard let r = Calibration.preset(p, seed0: seed0, th: th, tag: tag) else {
-            fail("unknown preset \(p) (\((Calibration.presetNames + (MissionTemplate.missions + MissionTemplate.bosses + MissionTemplate.drills).map { $0.id }).joined(separator: "|")))")
+            fail("unknown preset \(p) (\((Calibration.presetNames + (MissionTemplate.missions + MissionTemplate.bosses + MissionTemplate.holdouts + MissionTemplate.drills).map { $0.id }).joined(separator: "|")))")
         }
         runs = r
     } else {
@@ -128,7 +130,8 @@ var summary = Calibration.aggregate(rows)
 let (passed, gateText) = Calibration.gateText(rows)
 // (the bands: the classic gate, and the reported bands of the module drills / a template's own preset)
 let preset = flags["preset"] ?? ""
-if flags["gate"] != nil || preset == "gate" || preset == "drills" || preset == "missions" || preset == "bosses" || MissionTemplate.named(preset) != nil {
+if flags["gate"] != nil || preset == "gate" || preset == "drills" || preset == "missions" || preset == "bosses" || preset == "holdout"
+    || MissionTemplate.named(preset) != nil {
     summary += "\n\n" + gateText
 }
 summary += String(format: "\n\n%d rows in %.1f s\n", rows.count, Date().timeIntervalSince(t0))

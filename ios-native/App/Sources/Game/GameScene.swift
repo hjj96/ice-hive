@@ -1040,6 +1040,13 @@ final class GameScene: SKScene {
                 if diag { AppLog.info(String(format: "mission: vent %d pours %d t=%.1f", k, n, g.time)) }
             case .holdStarted:
                 if diag { AppLog.info(String(format: "mission: hold started t=%.1f (%.0f s)", g.time, g.liftDur)) }
+            // Stage 2 D1: a holdout's waves and banks (the digin demo's log lines; CI greps «mission: wave …»)
+            case .holdoutWave(let n, let queen):
+                if diag { AppLog.info(String(format: "mission: wave %d peak t=%.1f horde %d", n, g.time, g.holdout.horde) + (queen ? " (the Queen leads it)" : "")) }
+            case .holdoutHeld(let n):
+                if diag { AppLog.info(String(format: "mission: wave %d held t=%.1f alive %d score %d", n, g.time, g.bugsAlive, g.holdoutScore)) }
+            case .holdoutBanked(let n, let score):
+                if diag { AppLog.info(String(format: "mission: score banked at wave %d: %d t=%.1f", n, score, g.time)) }
             // Stage 1 R4: the overhead's bugs — a squeal as the Dropper pins, a thump as it is thrown off, the slam of a duct
             // mouth shot shut; the log lines of the overheadbugs demo (CI)
             case .pinned(let k, let pos, let t):

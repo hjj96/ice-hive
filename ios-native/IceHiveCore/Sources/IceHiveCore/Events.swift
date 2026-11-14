@@ -100,6 +100,11 @@ public enum GameEvent {
     /// seal's vent `index`.
     case ventSealed(index: Int)
     case ventPour(index: Int, count: Int)
+    /// Stage 2 D1 (a holdout — Dig In): wave `wave`'s peak begins (its horde; `queen`: she leads it), the wave is held, the
+    /// score banks (`score`: the raw score banked, before the tier's multiplier).
+    case holdoutWave(wave: Int, queen: Bool)
+    case holdoutHeld(wave: Int)
+    case holdoutBanked(wave: Int, score: Int)
     case levelUp(level: Int)
     case combo(count: Int)
     case victory

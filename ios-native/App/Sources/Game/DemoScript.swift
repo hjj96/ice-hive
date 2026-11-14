@@ -128,6 +128,14 @@ import IceHiveCore
 //                   the autopilot's walk, a draining ring or the 10 s; nothing is staged before «scene ready» (the sim runs
 //                   under the loading cover). `demo ventpurge: …` once a second, `mission: …` / `bugs: duct …` lines,
 //                   `hb mission …`
+//  Stage 2 D1 «Dig In» (the endless hold at the lift, on its own station — Kelvin-9 Mk II, the squad set down on the lift;
+//  autopilot, squad invulnerable, the director on):
+//    -demo digin    the hold as it plays — wave 1 coming (the director's own swarm: nothing spawned by the demo); 4.0 s after
+//                   «scene ready» the hold jumps to wave 4's peak (its horde over the rim, from the decks and down the
+//                   overhead's routes, «WAVE 4»); at 8.5 s to wave 5's: the Queen leads it (her warning, B3's intro where it
+//                   plays, her climb, «KILL THE QUEEN TO BANK THE SCORE»); at 13.5 s she dies and the wave is held — the score
+//                   banks («SCORE BANKED», teal); time almost stops 1.2 s later (16.0 s at the latest) for the screenshot
+//                   (`-holdBanner` keeps the bank's banner up). `demo digin: …` once a second, `mission: wave …` lines.
 //  Stage 2 H1 «the first minute's HUD»:
 //    -demo firstmin the classic mission from its drop as it plays — the director on, the autopilot, nothing staged,
 //                   nothing spawned (the squad invulnerable, the level-up cards picked for it): its first half-minute of
@@ -184,7 +192,7 @@ final class DemoScript {
         case "beacon": return DemoScript(name: d, options: options, bugs: options.bugs)
         case "title", "calm", "probe", "hold", "holdhint", "extract", "queen", "queenlock", "coach", "pressure", "report", "levelup", "pause", "end",
              "swarmshot", "layout", "bugsheet", "punchin", "extract-cine", "waves", "swarmpack", "swarmmix", "defeat", "overhead", "win",
-             "overheadbugs", "interactives", "breakerrun", "ventpurge", "firstmin":
+             "overheadbugs", "interactives", "breakerrun", "ventpurge", "firstmin", "digin":
             return DemoScript(name: d, options: options)
         case "stress1400": return DemoScript(name: d, options: options, bugs: options.bugs ?? 1400)
         default:
@@ -202,11 +210,14 @@ final class DemoScript {
 
     var startsMission: Bool { name != "title" }
 
-    /// Stage 1 R7: the mission the demo plays (its station is the level: GameScene builds it from the mission).
+    /// Stage 1 R7: the mission the demo plays (its station is the level: GameScene builds it from the mission). Stage 2 D1:
+    /// `digin`, and the Dig In report fixture (`-demo report -report digin`: the report of a real Dig In run).
     var mission: MissionTemplate? {
         switch name {
         case "breakerrun": return .breakerRun
         case "ventpurge": return .ventPurge
+        case "digin": return .digIn
+        case "report" where reportFixture?.plan == MissionTemplate.digIn.id: return .digIn
         default: return nil
         }
     }
@@ -370,6 +381,11 @@ final class DemoScript {
             AppLog.info("demo ventpurge: \(game.mission.id), \(game.switches.count) seals: "
                         + game.switches.map { $0.site.duct >= 0 ? "duct \($0.site.duct)" : "vent \($0.site.vent)" }.joined(separator: ", ")
                         + "; squad in the seal ring under duct 1")
+        case "digin":
+            // Stage 2 D1: the squad set down on the lift (its hold starts on the first tick); the director's own waves, no crowd
+            target = 0
+            AppLog.info("demo digin: \(game.mission.id), squad on the lift: wave \(game.holdout.wave) \(game.holdout.phase), "
+                        + "the Queen leads waves \(DigIn.queenFirst), \(DigIn.queenFirst + DigIn.queenEvery) …; bank every \(game.holdoutSpec?.bankEvery ?? 0) waves")
         case "firstmin":
             // H1: the mission as it plays (the scene's defaults: autopilot, invulnerable squad, cards picked); no crowd
             target = 0
@@ -424,6 +440,7 @@ final class DemoScript {
         if name == "overheadbugs" { overheadBugs(game, dt); return }
         if name == "interactives" { interactives(game, dt); return }
         if name == "breakerrun" { breakerRun(game, dt); return }
+        if name == "digin" { digIn(game, dt); return }
         if name == "ventpurge" { ventPurge(game, dt); return }
         if !startsMission { return }
         t += dt
@@ -961,6 +978,44 @@ final class DemoScript {
                                game.objective.map { "\($0)" } ?? "-"))
         }
         missionLog(game, dt)
+    }
+
+    /// digin (Stage 2 D1): wave 1 as it comes; at 4.0 s after «scene ready» the hold jumps to wave 4's peak, at 8.5 s to wave
+    /// 5's (the Queen leads it: her warning, B3's intro, her climb — ≈ 4 s of wall); at 13.5 s she dies and the wave is held
+    /// (the score banks); time almost stops 1.2 s after the bank (16.0 s at the latest).
+    private func digIn(_ game: Game, _ dt: Float) {
+        t += dt
+        if msStep == 0 && sinceReady >= 4.0 {
+            msStep = 1
+            game.debugHoldoutWave(4)
+            AppLog.info(String(format: "demo digin: jumped to wave 4's peak td=%.2f held %d", sinceReady, game.holdout.held))
+        }
+        if msStep == 1 && sinceReady >= 8.5 {
+            msStep = 2
+            game.debugHoldoutWave(5)
+            AppLog.info(String(format: "demo digin: jumped to wave 5's peak td=%.2f held %d (the Queen leads it: %d)", sinceReady, game.holdout.held,
+                               game.holdoutQueenLeads(5) ? 1 : 0))
+        }
+        if msStep == 2 && sinceReady >= 13.5 {
+            msStep = 3
+            msAt = sinceReady
+            let queen = game.boss.alive
+            game.debugSkip()
+            AppLog.info(String(format: "demo digin: wave 5 held td=%.2f (the Queen %@) queens %d, banked %d at wave %d, score %d", sinceReady,
+                               queen ? "killed" : "not up", game.holdout.queensKilled, game.holdout.banked, game.holdout.bankWave, game.holdoutScore))
+        }
+        if freeze == 1 && ((msStep == 3 && sinceReady >= msAt + 1.2) || sinceReady >= 16.0) {
+            freeze = 0.02
+            AppLog.info(String(format: "demo digin: frozen td=%.2f wave %d held %d banked %d alive %d obj %@", sinceReady, game.holdout.wave,
+                               game.holdout.held, game.holdout.banked, game.bugsAlive, game.objective.map { "\($0)" } ?? "-"))
+        }
+        msLogT -= dt
+        if msLogT <= 0 {
+            msLogT = 1
+            AppLog.info(String(format: "demo digin: td=%.1f wave %d %@ held %d horde %d alive %d queen %@ banked %d score %d", sinceReady,
+                               game.holdout.wave, "\(game.holdout.phase)", game.holdout.held, game.holdout.horde, game.bugsAlive,
+                               game.boss.alive ? "alive" : (game.boss.done ? "dead" : "-"), game.holdout.banked, game.holdoutScore))
+        }
     }
 
     /// Once a second: `demo <name>: td=… step … switches … lit … vents shut … alive …`.

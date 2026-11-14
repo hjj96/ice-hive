@@ -75,6 +75,13 @@ enum DemoFixtures {
             // BREAKER ×4 · GENERATOR · EXTRACTION (the layout check of its six stages on every phone), a 6:40 run
             return Report(name: "breaker", meta: .returning, tier: 1, won: true, time: 400, playerKills: 2900, beacons: 0, queenKilled: nil,
                           stage: .extract, downs: 0, downBy: .environment, pressure: nil, idleMul: nil, plan: MissionTemplate.breakerRun.id)
+        case "digin":
+            // Stage 2 D1: Dig In on Ветеран — fell in wave 13 (12 held, two Queens killed), banked at wave 10; the previous best 14
+            // waves («best 14 waves»), the strip of its banks (waves 5 · 10 lit), «Lost in the fall» (the two waves after the bank)
+            var m = MetaFixture.returning
+            m.profile.dig = [0, 14, 0]
+            return Report(name: "digin", meta: m, tier: 1, won: false, time: 520, playerKills: 2400, beacons: 0, queenKilled: true,
+                          stage: .hold, downs: 2, downBy: .brute, pressure: nil, idleMul: nil, plan: MissionTemplate.digIn.id)
         case "chip":
             // the second early loss on Ветеран while the hive converged: the pressure tip + «Попробуйте «Новобранец»»
             var m = MetaFixture.returning
@@ -93,7 +100,18 @@ enum DemoFixtures {
     static func apply(_ r: Report, to g: Game) {
         g.debugSetRun(time: r.time, playerKills: r.playerKills, beaconsDone: r.beacons, bossKilled: r.queenKilled, stage: r.stage)
         g.debugSetOutcome(downs: r.downs, downBy: r.downBy, pressure: r.pressure, idleMul: r.idleMul)
+        // (Stage 2 D1: the Dig In fixture plays Dig In — its waves as if held: their score, the Queens of waves 5 and 10, the banks)
+        if r.plan == MissionTemplate.digIn.id { g.debugHoldoutWave(digInHeld + 1) }
         g.debugEnd(won: r.won)
+    }
+
+    /// Stage 2 D1: the Dig In fixture's waves held and the summary its run gives (12 waves, the Queens of waves 5 and 10, banked
+    /// at wave 10: the kills, ten waves and both Queens; the two waves after the bank lost in the fall).
+    static let digInHeld = 12
+    static func digInSummary(_ r: Report) -> HoldoutSummary {
+        let w = DigIn.waves, queens = digInHeld / DigIn.queenEvery
+        return HoldoutSummary(held: digInHeld, kills: r.playerKills, waveScore: digInHeld * w.waveScore, queens: queens, queenScore: queens * w.queenScore,
+                              banked: r.playerKills + 10 * w.waveScore + queens * w.queenScore, bankWave: 10, bankEvery: w.bankEvery)
     }
 
     /// The report pre-built behind the loading cover: a first evacuation (strip, breakdown, rank-up, medal, the promo
@@ -120,6 +138,7 @@ enum DemoFixtures {
                          .reportStripExtract]
                 .map { ReportStripItem(label: GameText($0), on: r.won) }
         }
+        if r.plan == MissionTemplate.digIn.id { run.holdout = digInSummary(r) }
         let res = p.commit(run, diffPicked: false)
         return MissionReport.make(run: run, result: res, profile: p, stats: stats, newStationShown: AppFeatures.generatedStations)
     }

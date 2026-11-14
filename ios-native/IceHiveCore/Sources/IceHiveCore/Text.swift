@@ -196,11 +196,18 @@ public enum TextID: String, CaseIterable {
     // ---- objective lines of the Manifold (Stage 2 B4 — Manifold.swift)
     case objRestartPumps = "obj.restart_pumps"
     case objHoldPump = "obj.hold_pump"
+    // ---- objective lines of Dig In (Stage 2 D1 — DigIn.swift, GameHoldout.swift): the wave, a wave that banks, the wave
+    // held (the lull), the Queen leading a wave
+    case objDigIn = "obj.dig_in"
+    case objDigInBank = "obj.dig_in_bank"
+    case objDigInHeld = "obj.dig_in_held"
+    case objDigInQueen = "obj.dig_in_queen"
     // ---- mission names (the title's mission choice)
     case missionColdLight = "mission.cold_light"
     case missionBreakerRun = "mission.breaker_run"
     case missionVentPurge = "mission.vent_purge"
     case missionManifold = "mission.manifold"
+    case missionDigIn = "mission.dig_in"
     // ---- context hints (between the stick rings)
     case hintPlayerDown = "hint.player_down"
     case hintReviveNear = "hint.revive_near"
@@ -257,6 +264,8 @@ public enum TextID: String, CaseIterable {
     case toastThreaderLight = "toast.threader_light"
     case toastThreaderCoil = "toast.threader_coil"
     case toastThreaderNode = "toast.threader_node"
+    // ---- Stage 2 D1: Dig In's first-sighting tip (the first wave the Queen leads)
+    case toastTipBank = "toast.tip.bank"
     // ---- banners (title + subtitle) and horde titles
     case bannerDrop = "banner.drop"
     case bannerDropSub = "banner.drop.sub"
@@ -294,6 +303,15 @@ public enum TextID: String, CaseIterable {
     case bannerThreaderSub = "banner.threader.sub"
     case bannerThreaderDead = "banner.threader_dead"
     case bannerThreaderDeadSub = "banner.threader_dead.sub"
+    // ---- Stage 2 D1: Dig In's drop banner, a wave's horde, the bank, the Queen leading a wave and her death
+    case bannerDigIn = "banner.dig_in"
+    case bannerDigInSub = "banner.dig_in.sub"
+    case bannerWave = "banner.wave"
+    case bannerWaveQueenSub = "banner.wave_queen.sub"
+    case bannerBanked = "banner.banked"
+    case bannerBankedSub = "banner.banked.sub"
+    case bannerQueenWaveSub = "banner.queen_wave.sub"
+    case bannerQueenWaveDeadSub = "banner.queen_wave_dead.sub"
     // ---- run score lines
     case scoreKills = "score.kills"
     case scoreBeacons = "score.beacons"
@@ -306,6 +324,10 @@ public enum TextID: String, CaseIterable {
     case scoreVents = "score.vents"
     case scorePumps = "score.pumps"
     case scoreThreader = "score.threader"
+    // Stage 2 D1: Dig In's lines — the waves held, the Queens killed, the score the fall took
+    case scoreWaves = "score.waves"
+    case scoreQueens = "score.queens"
+    case scoreLost = "score.lost"
     // ---- mission report
     case reportTag = "report.tag"
     case reportTitleWon = "report.title.won"
@@ -322,6 +344,12 @@ public enum TextID: String, CaseIterable {
     case reportStripGenerator = "report.strip.generator"
     case reportStripPump = "report.strip.pump"
     case reportStripThreader = "report.strip.threader"
+    // Stage 2 D1: Dig In's report — its title, the banked score's label, the best waves note (a new best: `reportRecord`), the
+    // strip's banks
+    case reportTitleDigIn = "report.title.dig_in"
+    case reportScoreBanked = "report.score.banked"
+    case reportBestWaves = "report.best_waves"
+    case reportStripWave = "report.strip.wave"
     case reportScore = "report.score"
     case reportRecord = "report.record"
     case reportBest = "report.best"
@@ -346,6 +374,9 @@ public enum TextID: String, CaseIterable {
     case tipLossQueen = "tip.loss.queen"
     case tipLossDropper = "tip.loss.dropper"
     case tipLossThreader = "tip.loss.threader"
+    // Stage 2 D1: Dig In's report tips (nothing banked / the bank survived the fall)
+    case tipDigInNoBank = "tip.dig_in.no_bank"
+    case tipDigInBanked = "tip.dig_in.banked"
     case tipPressure = "tip.pressure"
     case tipPromo = "tip.promo"
     case tipLonger = "tip.longer"
@@ -418,6 +449,10 @@ public enum TextID: String, CaseIterable {
         case .objLightBeacons, .objSwitches, .coachCounter, .bannerBeaconOnlineSub, .scoreBeacons, .scoreLights, .upgTurret: return "dd"
         case .objRestorePower, .objSealVents, .scoreBreakers, .scoreVents: return "dd"
         case .objRestartPumps, .scorePumps: return "dd"
+        case .objDigIn, .objDigInBank, .objDigInHeld, .bannerWave, .scoreWaves, .scoreQueens, .reportTitleDigIn: return "d"
+        case .reportBestWaves, .reportStripWave, .tipDigInNoBank, .tipDigInBanked: return "d"
+        case .bannerDigInSub: return "@"
+        case .bannerBankedSub: return "@d"
         default: return ""
         }
     }

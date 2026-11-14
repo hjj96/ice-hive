@@ -13,6 +13,30 @@
         }
       }
     },
+    "banner.banked" : {
+      "comment" : "Big centre banner title (uppercased, 30–52 pt; scales down past the screen width). Dig In (teal): every fifth wave held banks the score — a banked score survives the fall. Max width: 635 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Score banked"
+          }
+        }
+      }
+    },
+    "banner.banked.sub" : {
+      "comment" : "Banner subtitle under the title (uppercased, 12 pt, wide letter spacing; scales down past the screen width). Dig In's bank. %1$@ = the banked score (grouped digits, × the tier's multiplier — as the report shows it), %2$lld = the next bank's wave. Max width: 635 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ safe · next bank at wave %2$lld"
+          }
+        }
+      }
+    },
     "banner.beacon_online" : {
       "comment" : "Big centre banner title (uppercased, 30–52 pt; scales down past the screen width). Teal. Max width: 635 pt.",
       "extractionState" : "manual",
@@ -105,6 +129,30 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Beacon %@ charging — hold the ring"
+          }
+        }
+      }
+    },
+    "banner.dig_in" : {
+      "comment" : "Big centre banner title (uppercased, 30–52 pt; scales down past the screen width). Dig In's drop banner (teal): the squad rides the lift down and holds it. Max width: 635 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dig in"
+          }
+        }
+      }
+    },
+    "banner.dig_in.sub" : {
+      "comment" : "Banner subtitle under the title (uppercased, 12 pt, wide letter spacing; scales down past the screen width). Dig In's drop banner. %@ = station name. Max width: 635 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · every fifth wave banks the score"
           }
         }
       }
@@ -373,6 +421,30 @@
         }
       }
     },
+    "banner.queen_wave.sub" : {
+      "comment" : "Banner subtitle under the title (uppercased, 12 pt, wide letter spacing; scales down past the screen width). Under «The Queen» in Dig In: she climbs onto the lift leading a wave; the wave (and its bank) waits for her death. Max width: 635 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "She leads the wave — no bank while she lives"
+          }
+        }
+      }
+    },
+    "banner.queen_wave_dead.sub" : {
+      "comment" : "Banner subtitle under the title (uppercased, 12 pt, wide letter spacing; scales down past the screen width). Under «Queen down» in Dig In (teal): the rest of her wave, then the bank. Max width: 635 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear the deck to bank the score"
+          }
+        }
+      }
+    },
     "banner.threader" : {
       "comment" : "Big centre banner title (uppercased, 30–52 pt; scales down past the screen width). The Threader climbs out of the pipe trunks (red). Max width: 635 pt.",
       "extractionState" : "manual",
@@ -441,6 +513,30 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ · seal four vents"
+          }
+        }
+      }
+    },
+    "banner.wave" : {
+      "comment" : "Big centre banner title (uppercased, 30–52 pt; scales down past the screen width). Dig In: a wave's horde comes (red). %lld = wave number (1…99). Max width: 635 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wave %lld"
+          }
+        }
+      }
+    },
+    "banner.wave_queen.sub" : {
+      "comment" : "Banner subtitle under the title (uppercased, 12 pt, wide letter spacing; scales down past the screen width). Dig In: under «Wave N» when the Queen leads that wave (every fifth). Max width: 635 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Queen leads it — kill her to bank"
           }
         }
       }
@@ -1669,6 +1765,18 @@
         }
       }
     },
+    "mission.dig_in" : {
+      "comment" : "Mission name (the title screen's mission choice: the meta row, uppercased monospace; logs). Hold the lift against endless waves until the squad falls; every fifth wave banks the score. Max width: 150 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dig In"
+          }
+        }
+      }
+    },
     "mission.manifold" : {
       "comment" : "Mission name (the title screen's mission choice: the meta row, uppercased monospace; logs). Restart two pumps, kill the Threader in the pipe junction, extract. Max width: 150 pt.",
       "extractionState" : "manual",
@@ -1941,6 +2049,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Swarm closing in — move!"
+          }
+        }
+      }
+    },
+    "obj.dig_in" : {
+      "comment" : "Objective line at the top of the HUD (uppercased, one line; shrinks to 62 % at most). Dig In (the endless hold at the lift): the wave being fought. %lld = wave number (1…99). Max width: 403 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hold the lift · wave %lld"
+          }
+        }
+      }
+    },
+    "obj.dig_in_bank" : {
+      "comment" : "Objective line at the top of the HUD (uppercased, one line; shrinks to 62 % at most). Dig In: a wave whose hold banks the score (every fifth: 5, 10 …). %lld = wave number. Max width: 403 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hold wave %lld to bank the score"
+          }
+        }
+      }
+    },
+    "obj.dig_in_held" : {
+      "comment" : "Objective line at the top of the HUD (uppercased, one line; shrinks to 62 % at most). Dig In: the lull after a wave is held, before the next one builds. %lld = waves held. Max width: 403 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wave %lld held · regroup"
+          }
+        }
+      }
+    },
+    "obj.dig_in_queen" : {
+      "comment" : "Objective line at the top of the HUD (uppercased, one line; shrinks to 62 % at most). Dig In: the Queen leads this wave — it is held, and the score banked, only once she is dead. Max width: 403 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kill the Queen to bank the score"
           }
         }
       }
@@ -2461,6 +2617,30 @@
         }
       }
     },
+    "report.best_waves" : {
+      "comment" : "Mission report small note after the total (as written, monospace). Dig In: the most waves held before on this tier. %lld = waves. Max width: 120 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "best %lld wave"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "best %lld waves"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "report.btn.again" : {
       "comment" : "Mission report primary button (uppercased): same class, same station. Max width: 263 pt.",
       "extractionState" : "manual",
@@ -2617,6 +2797,18 @@
         }
       }
     },
+    "report.score.banked" : {
+      "comment" : "Mission report label before the total in Dig In (uppercased): the score banked — what survived the fall. Max width: 80 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Banked"
+          }
+        }
+      }
+    },
     "report.strip.beacon" : {
       "comment" : "Mission report stage strip label under its bar (uppercased, 9–10 pt; shrinks to 6 pt). SE segments: Beacon/Lift 33 pt, Queen 40 pt, Extraction 60 pt. Max width: 33 pt.",
       "extractionState" : "manual",
@@ -2725,6 +2917,18 @@
         }
       }
     },
+    "report.strip.wave" : {
+      "comment" : "Mission report stage strip label under its bar (uppercased, 9–10 pt; shrinks to 6 pt). Dig In: one segment per bank wave (5, 10 … 30; lit once held) — six segments: ~38 pt each on iPhone SE. %lld = wave. Max width: 38 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wave %lld"
+          }
+        }
+      }
+    },
     "report.sub.lost" : {
       "comment" : "Mission report subtitle on a loss. Max width: wraps at ~295 pt (not shown on landscape phones today).",
       "extractionState" : "manual",
@@ -2781,6 +2985,30 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ · score %2$@"
+          }
+        }
+      }
+    },
+    "report.title.dig_in" : {
+      "comment" : "Mission report title of a Dig In run (uppercased, red: the squad fell). %lld = waves held. Max width: 295 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Held %lld wave"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Held %lld waves"
+                }
+              }
+            }
           }
         }
       }
@@ -2881,6 +3109,18 @@
         }
       }
     },
+    "score.lost" : {
+      "comment" : "Mission report score line, left of its «−N» (one line, shrinks). Dig In: the score earned since the last bank — the squad's fall took it. Max width: 213 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lost in the fall"
+          }
+        }
+      }
+    },
     "score.no_downs" : {
       "comment" : "Mission report score line, left of its «+N» (one line, shrinks). Bonus for never going down. Max width: 213 pt.",
       "extractionState" : "manual",
@@ -2917,6 +3157,18 @@
         }
       }
     },
+    "score.queens" : {
+      "comment" : "Mission report score line, left of its «+N» (one line, shrinks). Dig In: Queens killed (1,000 each). Max width: 213 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Queens killed %lld"
+          }
+        }
+      }
+    },
     "score.speed" : {
       "comment" : "Mission report score line, left of its «+N» (one line, shrinks). %@ = mission time m:ss. Max width: 213 pt.",
       "extractionState" : "manual",
@@ -2949,6 +3201,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Vents sealed %1$lld/%2$lld"
+          }
+        }
+      }
+    },
+    "score.waves" : {
+      "comment" : "Mission report score line, left of its «+N» (one line, shrinks). Dig In: waves held (250 each). Max width: 213 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waves held %lld"
           }
         }
       }
@@ -3093,6 +3357,30 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Veteran"
+          }
+        }
+      }
+    },
+    "tip.dig_in.banked" : {
+      "comment" : "Mission report tip box (wraps, ~277 pt column). Green. Dig In: the score banked at that wave survived the fall. %lld = wave. Max width: wraps at ~277 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Banked at wave %lld — the fall couldn't take it"
+          }
+        }
+      }
+    },
+    "tip.dig_in.no_bank" : {
+      "comment" : "Mission report tip box (wraps, ~277 pt column). Red. Dig In: the squad fell before the first bank. %lld = the bank's wave (5). Max width: wraps at ~277 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing banked — hold to wave %lld: a banked score survives the fall"
           }
         }
       }
@@ -3573,6 +3861,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Something big in the pipes."
+          }
+        }
+      }
+    },
+    "toast.tip.bank" : {
+      "comment" : "Toast in the right column (uppercased; wraps, two lines at most). First-sighting tip in Dig In, when the first wave the Queen leads comes (killing her and holding the wave banks the score). Max width: 596 pt.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Banked score survives the fall — the rest is lost"
           }
         }
       }
